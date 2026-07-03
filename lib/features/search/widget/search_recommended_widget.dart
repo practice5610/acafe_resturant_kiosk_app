@@ -132,7 +132,12 @@ class _RecommendedCategoryWidget extends StatelessWidget {
         ),
         itemCount: searchProvider.searchRecommendModel?.categories.length,
         itemBuilder: (context, index) => KioskTap(
-          onTap: () => RouterHelper.getCategoryRoute(searchProvider.searchRecommendModel!.categories[index]),
+          onTap: () {
+            // Kiosk: category tap runs a product search (no web category page).
+            final String name = searchProvider.searchRecommendModel!.categories[index].name ?? '';
+            searchProvider.searchProduct(name: name, offset: 1, context: context);
+            RouterHelper.getSearchResultRoute(name.replaceAll(' ', '-'));
+          },
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: Theme.of(context).primaryColorLight),

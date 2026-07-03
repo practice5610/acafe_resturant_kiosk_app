@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
-import 'package:acafe_customer/features/home/screens/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalizationProvider extends ChangeNotifier {
@@ -27,10 +26,7 @@ class LocalizationProvider extends ChangeNotifier {
     _saveLanguage(_locale);
 
    await dioClient!.updateHeader(getToken: sharedPreferences!.getString(AppConstants.token)).then((value){
-     if(isDataUpdate) {
-       HomeScreen.loadData(true, isFcmUpdate: true);
-     }
-
+     // Kiosk screens reload their own data on language change; no web home reload.
     });
     notifyListeners();
   }

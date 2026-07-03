@@ -7,7 +7,6 @@ import 'package:acafe_customer/common/models/review_model.dart';
 import 'package:acafe_customer/common/providers/data_sync_provider.dart';
 import 'package:acafe_customer/common/reposotories/product_repo.dart';
 import 'package:acafe_customer/data/datasource/local/cache_response.dart';
-import 'package:acafe_customer/features/home/providers/sorting_provider.dart';
 import 'package:acafe_customer/features/order/domain/models/reorder_product_model.dart';
 import 'package:acafe_customer/helper/api_checker_helper.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -65,8 +64,7 @@ class ProductProvider extends DataSyncProvider {
 
   Future<void> getLatestProductList(int offset, bool reload, {bool isUpdate = true, ProductSortType? sortType}) async {
 
-    final ProductSortProvider productSortProvider = Provider.of<ProductSortProvider>(Get.context!, listen: false);
-    final ProductSortType selectedSort = sortType ?? productSortProvider.selectedShotType;
+    final ProductSortType selectedSort = sortType ?? ProductSortType.defaultType;
     final int requestToken = offset == 1 ? ++_latestProductRequestToken : _latestProductRequestToken;
 
     if(offset == 1) {

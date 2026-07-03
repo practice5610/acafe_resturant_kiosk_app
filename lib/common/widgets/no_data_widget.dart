@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_button_widget.dart';
-import 'package:acafe_customer/common/widgets/footer_widget.dart';
-import 'package:acafe_customer/features/address/domain/models/address_model.dart';
-import 'package:acafe_customer/features/address/enum/route_tyep_enum.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
@@ -84,23 +81,10 @@ class NoDataWidget extends StatelessWidget {
                       ),
                   ),
 
-                  if(isAddress) SizedBox(
-                    width: 220,
-                    height: 40,
-                    child: CustomButtonWidget(
-                        onTap: (){
-                          RouterHelper.getAddAddressRoute(page: 'address', action: 'add', addressModel: AddressModel(), routeType: RouteTypeEnum.address);
-                        },
-                        btnTxt: getTranslated('add_address', context),
-                      ),
-                  ),
-
                 ]),
               ),
           ]),
         ),
-
-        if(ResponsiveHelper.isDesktop(context) && isFooter && !isOrder && !isCoupon) const FooterWidget()
 
       ])),
     );

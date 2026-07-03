@@ -1,17 +1,12 @@
-// ignore_for_file: unused_import
+// ignore_for_file: unused_import, dead_code
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart'; // Veg/Non-Veg filter (commented below)
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_text_field_widget.dart';
-import 'package:acafe_customer/common/widgets/footer_widget.dart';
 import 'package:acafe_customer/common/widgets/no_data_widget.dart';
 import 'package:acafe_customer/common/widgets/paginated_list_widget.dart';
 import 'package:acafe_customer/common/widgets/product_shimmer_widget.dart';
-import 'package:acafe_customer/common/widgets/web_app_bar_widget.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
-import 'package:acafe_customer/features/home/enums/product_group_enum.dart';
-import 'package:acafe_customer/features/home/enums/quantity_position_enum.dart';
-import 'package:acafe_customer/features/home/widgets/product_card_widget.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
@@ -106,7 +101,9 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
   @override
   Widget build(BuildContext context) {
     // final productProvider = Provider.of<ProductProvider>(context, listen: false); // Veg/Non-Veg filter (commented below)
-    final bool isDesktop = ResponsiveHelper.isDesktop(context);
+    // Kiosk always uses the kiosk search-result layout — never the old user-web-app
+    // layout — even on large screens.
+    const bool isDesktop = false;
 
     double topPadding = MediaQuery.of(context).padding.top;
 
@@ -116,8 +113,8 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
         if (!didPop) _handleBack();
       },
       child: Scaffold(
-      backgroundColor: isDesktop ? null : KioskSearchTheme.pageBg,
-      appBar: PreferredSize(preferredSize: const Size.fromHeight(100), child: isDesktop ?  const WebAppBarWidget() :
+      backgroundColor: KioskSearchTheme.pageBg,
+      appBar: PreferredSize(preferredSize: const Size.fromHeight(100), child:
       Container(
         color: KioskSearchTheme.pageBg,
         padding : EdgeInsets.only(
@@ -187,8 +184,8 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
 
                   searchProvider.searchProductModel != null ? Center(
                     child: Container(
-                      width: Dimensions.webScreenWidth, padding: EdgeInsets.only(
-                      top: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeDefault : 0,
+                      width: Dimensions.webScreenWidth, padding: const EdgeInsets.only(
+                      top: 0,
                       bottom: Dimensions.paddingSizeDefault,
                     ),
                       child: Row(children: [
@@ -335,11 +332,6 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
         ))),
 
 
-
-        if(ResponsiveHelper.isDesktop(context)) const SliverFillRemaining(
-          hasScrollBody: false,
-          child: FooterWidget(),
-        ),
 
         ],
       ),
@@ -488,7 +480,8 @@ class SearchFilterButtonWidget extends StatelessWidget {
     final double heightSize = MediaQuery.sizeOf(context).height;
     final double maxValue = context.watch<SearchProvider>().searchProductModel?.productMaxPrice ?? 1000;
 
-    return ResponsiveHelper.isDesktop(context) ? PopupMenuButton<dynamic>(
+    // Kiosk always uses the round kiosk filter button + bottom sheet.
+    return false ? PopupMenuButton<dynamic>(
       menuPadding: EdgeInsets.zero,
       offset: const Offset(0, 40),
       constraints: BoxConstraints(maxWidth: widthSize * 0.21),
