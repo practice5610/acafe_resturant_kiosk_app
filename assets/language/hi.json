@@ -846,5 +846,13 @@
   "email_not_correct": "ईमेल सही नहीं है",
   "order_summary": "ऑर्डर सारांश",
   "items_total": "कुल आइटम",
-  "complete_order_and_pay": "ऑर्डर पूरा करें और भुगतान करें"
+  "complete_order_and_pay": "ऑर्डर पूरा करें और भुगतान करें",
+  "view_cart": "कार्ट देखें",
+  "order_confirmed": "ऑर्डर की पुष्टि हो गई!",
+  "add_add_ons": "ऐड-ऑन जोड़ें",
+  "can_or_cup": "कैन या कप?",
+  "offline": "ऑफ़लाइन",
+  "order_note": "ऑर्डर नोट",
+  "search_item": "आइटम खोजें",
+  "update_profile": "प्रोफ़ाइल अपडेट करें"
 }

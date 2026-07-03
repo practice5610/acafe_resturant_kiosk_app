@@ -847,5 +847,13 @@
   "email_not_correct": "メールアドレスが正しくありません",
   "order_summary": "注文内容",
   "items_total": "商品合計",
-  "complete_order_and_pay": "注文を確定して支払う"
+  "complete_order_and_pay": "注文を確定して支払う",
+  "view_cart": "カートを見る",
+  "order_confirmed": "注文が確定しました！",
+  "add_add_ons": "トッピングを追加",
+  "can_or_cup": "缶またはカップ？",
+  "offline": "オフライン",
+  "order_note": "注文メモ",
+  "search_item": "商品を検索",
+  "update_profile": "プロフィールを更新"
 }

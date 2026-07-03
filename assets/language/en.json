@@ -859,5 +859,13 @@
   "email_not_correct": "Email not correct",
   "order_summary": "Order Summary",
   "items_total": "Items Total",
-  "complete_order_and_pay": "Complete Order & Pay"
+  "complete_order_and_pay": "Complete Order & Pay",
+  "view_cart": "View Cart",
+  "order_confirmed": "Order Confirmed!",
+  "add_add_ons": "Add add-ons",
+  "can_or_cup": "Can or cup?",
+  "offline": "Offline",
+  "order_note": "Order Note",
+  "search_item": "Search item",
+  "update_profile": "Update Profile"
 }

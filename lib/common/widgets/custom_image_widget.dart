@@ -94,6 +94,11 @@ class CustomImageWidget extends StatelessWidget {
       resolveWebImageUrl(image),
       cacheKey: image,
     );
+    // No resize on web: the web engine's decode-with-target-size path throws
+    // "EncodingError: The source image cannot be decoded" for many images. So
+    // downscaling is native-only; on web we warm the plain provider (matching
+    // the widget below, which also skips memCacheWidth on web).
+    if (kIsWeb) return base;
     // Mirrors OctoImage's `ResizeImage.resizeIfNeeded(memCacheWidth, null, base)`.
     return ResizeImage.resizeIfNeeded(cacheWidth, null, base);
   }
@@ -117,9 +122,14 @@ class CustomImageWidget extends StatelessWidget {
     // 800×1200 resolution, to cut memory + decode time and avoid image-cache
     // eviction churn (the shimmer "pop" on scroll / category switch). Cache by
     // the raw image URL so the same asset is reused across navigation.
+    // Downscale decode on NATIVE only. On web, memCacheWidth routes through
+    // ResizeImage → ui.instantiateImageCodec(targetWidth), which throws
+    // "EncodingError: The source image cannot be decoded" for many images.
     final double dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
-    final int? memCacheWidth = cacheWidth ??
-        (width != null && width!.isFinite ? (width! * dpr).round() : null);
+    final int? memCacheWidth = kIsWeb
+        ? null
+        : (cacheWidth ??
+            (width != null && width!.isFinite ? (width! * dpr).round() : null));
 
     return CachedNetworkImage(
       imageUrl: resolveWebImageUrl(image),

@@ -846,5 +846,13 @@
   "email_not_correct": "Correo electrónico no válido",
   "order_summary": "Resumen del pedido",
   "items_total": "Total de artículos",
-  "complete_order_and_pay": "Completar pedido y pagar"
+  "complete_order_and_pay": "Completar pedido y pagar",
+  "view_cart": "Ver carrito",
+  "order_confirmed": "¡Pedido confirmado!",
+  "add_add_ons": "Añadir extras",
+  "can_or_cup": "¿Lata o vaso?",
+  "offline": "Sin conexión",
+  "order_note": "Nota del pedido",
+  "search_item": "Buscar artículo",
+  "update_profile": "Actualizar perfil"
 }

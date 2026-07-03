@@ -847,5 +847,13 @@
   "email_not_correct": "Email non corretta",
   "order_summary": "Riepilogo dell'ordine",
   "items_total": "Totale articoli",
-  "complete_order_and_pay": "Completa l'ordine e paga"
+  "complete_order_and_pay": "Completa l'ordine e paga",
+  "view_cart": "Vedi carrello",
+  "order_confirmed": "Ordine confermato!",
+  "add_add_ons": "Aggiungi extra",
+  "can_or_cup": "Lattina o tazza?",
+  "offline": "Offline",
+  "order_note": "Nota dell'ordine",
+  "search_item": "Cerca articolo",
+  "update_profile": "Aggiorna profilo"
 }

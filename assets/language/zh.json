@@ -847,5 +847,13 @@
   "email_not_correct": "电子邮件不正确",
   "order_summary": "订单摘要",
   "items_total": "商品总计",
-  "complete_order_and_pay": "完成订单并支付"
+  "complete_order_and_pay": "完成订单并支付",
+  "view_cart": "查看购物车",
+  "order_confirmed": "订单已确认！",
+  "add_add_ons": "添加配料",
+  "can_or_cup": "罐装还是杯装？",
+  "offline": "离线",
+  "order_note": "订单备注",
+  "search_item": "搜索商品",
+  "update_profile": "更新资料"
 }

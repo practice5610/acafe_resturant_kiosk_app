@@ -847,5 +847,13 @@
   "email_not_correct": "E-mail is onjuist",
   "order_summary": "Besteloverzicht",
   "items_total": "Totaal artikelen",
-  "complete_order_and_pay": "Bestelling afronden en betalen"
+  "complete_order_and_pay": "Bestelling afronden en betalen",
+  "view_cart": "Winkelwagen bekijken",
+  "order_confirmed": "Bestelling bevestigd!",
+  "add_add_ons": "Extra's toevoegen",
+  "can_or_cup": "Blik of beker?",
+  "offline": "Offline",
+  "order_note": "Bestelnotitie",
+  "search_item": "Artikel zoeken",
+  "update_profile": "Profiel bijwerken"
 }

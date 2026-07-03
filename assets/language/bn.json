@@ -846,5 +846,13 @@
   "email_not_correct": "ইমেলটি সঠিক নয়",
   "order_summary": "অর্ডারের সারসংক্ষেপ",
   "items_total": "মোট আইটেম",
-  "complete_order_and_pay": "অর্ডার সম্পূর্ণ করুন এবং পরিশোধ করুন"
+  "complete_order_and_pay": "অর্ডার সম্পূর্ণ করুন এবং পরিশোধ করুন",
+  "view_cart": "কার্ট দেখুন",
+  "order_confirmed": "অর্ডার নিশ্চিত হয়েছে!",
+  "add_add_ons": "অ্যাড-অন যোগ করুন",
+  "can_or_cup": "ক্যান নাকি কাপ?",
+  "offline": "অফলাইন",
+  "order_note": "অর্ডার নোট",
+  "search_item": "আইটেম খুঁজুন",
+  "update_profile": "প্রোফাইল আপডেট করুন"
 }

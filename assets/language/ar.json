@@ -847,5 +847,13 @@
   "email_not_correct": "البريد الإلكتروني غير صحيح",
   "order_summary": "ملخص الطلب",
   "items_total": "إجمالي العناصر",
-  "complete_order_and_pay": "إتمام الطلب والدفع"
+  "complete_order_and_pay": "إتمام الطلب والدفع",
+  "view_cart": "عرض السلة",
+  "order_confirmed": "تم تأكيد الطلب!",
+  "add_add_ons": "إضافة الإضافات",
+  "can_or_cup": "علبة أم كوب؟",
+  "offline": "غير متصل",
+  "order_note": "ملاحظة الطلب",
+  "search_item": "بحث عن عنصر",
+  "update_profile": "تحديث الملف الشخصي"
 }

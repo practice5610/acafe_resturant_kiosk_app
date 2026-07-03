@@ -847,5 +847,13 @@
   "email_not_correct": "E-Mail nicht korrekt",
   "order_summary": "Bestellübersicht",
   "items_total": "Artikel gesamt",
-  "complete_order_and_pay": "Bestellung abschließen und bezahlen"
+  "complete_order_and_pay": "Bestellung abschließen und bezahlen",
+  "view_cart": "Warenkorb ansehen",
+  "order_confirmed": "Bestellung bestätigt!",
+  "add_add_ons": "Extras hinzufügen",
+  "can_or_cup": "Dose oder Becher?",
+  "offline": "Offline",
+  "order_note": "Bestellnotiz",
+  "search_item": "Artikel suchen",
+  "update_profile": "Profil aktualisieren"
 }

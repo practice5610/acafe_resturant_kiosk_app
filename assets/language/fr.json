@@ -847,5 +847,13 @@
   "email_not_correct": "E-mail incorrect",
   "order_summary": "Récapitulatif de la commande",
   "items_total": "Total des articles",
-  "complete_order_and_pay": "Finaliser la commande et payer"
+  "complete_order_and_pay": "Finaliser la commande et payer",
+  "view_cart": "Voir le panier",
+  "order_confirmed": "Commande confirmée !",
+  "add_add_ons": "Ajouter des suppléments",
+  "can_or_cup": "Canette ou tasse ?",
+  "offline": "Hors ligne",
+  "order_note": "Note de commande",
+  "search_item": "Rechercher un article",
+  "update_profile": "Mettre à jour le profil"
 }
