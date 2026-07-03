@@ -9,8 +9,6 @@ import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/common/models/offline_payment_model.dart';
 import 'package:acafe_customer/common/providers/data_sync_provider.dart';
 import 'package:acafe_customer/data/datasource/local/cache_response.dart';
-import 'package:acafe_customer/features/address/providers/location_provider.dart';
-import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/helper/date_converter_helper.dart';
 import 'package:acafe_customer/helper/notification_helper.dart';
@@ -131,26 +129,6 @@ class SplashProvider extends DataSyncProvider {
           }
         }
       }
-
-      if(context.mounted){
-        final AuthProvider authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final LocationProvider locationProvider = Provider.of<LocationProvider>(context, listen: false);
-
-        if(authProvider.getGuestId() == null && !authProvider.isLoggedIn()){
-          final bool isSuccess = await authProvider.addGuest();
-
-          if(isSuccess){
-            Future.delayed(const Duration(milliseconds: 100)).then((_){
-              locationProvider.initAddressList();
-            });
-
-          }
-
-
-        }
-      }
-
-
 
       if(_configModel != null && _configModel?.branches != null && !isBranchSelectDisable()){
         await splashRepo?.setBranchId(_configModel!.branches![0]!.id!);

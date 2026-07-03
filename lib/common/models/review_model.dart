@@ -1,5 +1,3 @@
-import 'package:acafe_customer/features/profile/domain/models/userinfo_model.dart';
-
 class ReviewModel {
   Reviews? reviews;
   Rating? rating;
@@ -70,7 +68,6 @@ class Review {
   String? createdAt;
   String? updatedAt;
   int? orderId;
-  UserInfoModel ? user;
 
   Review(
       {this.id,
@@ -81,8 +78,7 @@ class Review {
         this.rating,
         this.createdAt,
         this.updatedAt,
-        this.orderId,
-        this.user});
+        this.orderId});
 
   Review.fromJson(Map<String, dynamic> json) {
     id = json['id'];
@@ -94,9 +90,6 @@ class Review {
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
     orderId = json['order_id'];
-    user = json['customer'] != null
-        ? UserInfoModel.fromJson(json['customer'])
-        : null;
   }
 
   Map<String, dynamic> toJson() {
@@ -110,9 +103,6 @@ class Review {
     data['created_at'] = createdAt;
     data['updated_at'] = updatedAt;
     data['order_id'] = orderId;
-    if (user != null) {
-      data['customer'] = user!.toJson();
-    }
     return data;
   }
 }

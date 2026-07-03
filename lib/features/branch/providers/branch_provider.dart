@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/common/providers/data_sync_provider.dart';
-import 'package:acafe_customer/features/address/providers/location_provider.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/main.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
-import 'package:acafe_customer/features/home/screens/home_screen.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
 class BranchProvider extends DataSyncProvider {
@@ -57,7 +53,6 @@ class BranchProvider extends DataSyncProvider {
 
   Future<void> setBranch(int id, SplashProvider splashProvider) async {
     await splashRepo!.setBranchId(id);
-    await HomeScreen.loadData(true);
     notifyListeners();
   }
 
@@ -78,51 +73,5 @@ class BranchProvider extends DataSyncProvider {
   }
 
 
-  List<BranchValue> branchSort(LatLng? currentLatLng) {
-    _isLoading = true;
-    List<BranchValue> branchValueList = [];
-
-    for (var branch in Provider
-        .of<SplashProvider>(Get.context!, listen: false)
-        .configModel!
-        .branches!) {
-      double distance = -1;
-      if (currentLatLng != null) {
-        distance = Geolocator.distanceBetween(
-          branch!.latitude!, branch.longitude!,
-          currentLatLng.latitude, currentLatLng.longitude,
-        ) / 1000;
-      }
-
-      branchValueList.add(BranchValue(branch, distance));
-    }
-    branchValueList.sort((a, b) => a.distance.compareTo(b.distance));
-
-    _isLoading = false;
-
-    notifyListeners();
-
-    return branchValueList;
-  }
-
-
-
-
-
-  Future<List<BranchValue>> getBranchValueList(BuildContext context) async {
-    final LocationProvider locationProvider = Provider.of<LocationProvider>(context, listen: false);
-    LatLng? currentLocationLatLng;
-
-    await locationProvider.getCurrentLatLong().then((latLong) {
-      if (latLong != null) {
-        currentLocationLatLng = latLong;
-      }
-      _branchValueList = branchSort(currentLocationLatLng);
-    });
-
-    notifyListeners();
-
-    return _branchValueList ?? [];
-  }
 
 }

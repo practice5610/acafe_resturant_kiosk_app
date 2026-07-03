@@ -4,7 +4,6 @@ import 'package:acafe_customer/common/models/config_model.dart'; // Halal filter
 import 'package:acafe_customer/common/widgets/custom_button_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_single_child_list_widget.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
-import 'package:acafe_customer/features/home/widgets/category_widget.dart';
 import 'package:acafe_customer/features/search/search_flow_helper.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
 import 'package:acafe_customer/features/search/widget/kiosk_search_theme.dart';
@@ -238,7 +237,7 @@ class FilterWidget extends StatelessWidget {
                           }
                       ),
                     )
-                        : const CategoryShimmer();
+                        : const SizedBox.shrink();
                   },
                 ),
 

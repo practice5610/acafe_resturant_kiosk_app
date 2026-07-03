@@ -3,15 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart'; // Veg/Non-Veg filter (commented below)
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_text_field_widget.dart';
-import 'package:acafe_customer/common/widgets/footer_widget.dart';
 import 'package:acafe_customer/common/widgets/no_data_widget.dart';
 import 'package:acafe_customer/common/widgets/paginated_list_widget.dart';
 import 'package:acafe_customer/common/widgets/product_shimmer_widget.dart';
-import 'package:acafe_customer/common/widgets/web_app_bar_widget.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
-import 'package:acafe_customer/features/home/enums/product_group_enum.dart';
-import 'package:acafe_customer/features/home/enums/quantity_position_enum.dart';
-import 'package:acafe_customer/features/home/widgets/product_card_widget.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
@@ -118,8 +113,8 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
         if (!didPop) _handleBack();
       },
       child: Scaffold(
-      backgroundColor: isDesktop ? null : KioskSearchTheme.pageBg,
-      appBar: PreferredSize(preferredSize: const Size.fromHeight(100), child: isDesktop ?  const WebAppBarWidget() :
+      backgroundColor: KioskSearchTheme.pageBg,
+      appBar: PreferredSize(preferredSize: const Size.fromHeight(100), child:
       Container(
         color: KioskSearchTheme.pageBg,
         padding : EdgeInsets.only(
@@ -337,11 +332,6 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
         ))),
 
 
-
-        if(isDesktop) const SliverFillRemaining(
-          hasScrollBody: false,
-          child: FooterWidget(),
-        ),
 
         ],
       ),

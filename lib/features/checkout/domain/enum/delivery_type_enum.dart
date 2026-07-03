@@ -1,1 +1,0 @@
-enum OrderType { takeAway, dineIn }

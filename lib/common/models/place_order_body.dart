@@ -1,7 +1,5 @@
 
 
-import 'package:acafe_customer/features/address/domain/models/address_model.dart';
-
 class PlaceOrderBody {
   List<Cart>? _cart;
   double? _couponDiscountAmount;
@@ -10,7 +8,7 @@ class PlaceOrderBody {
   double? _orderAmount;
   String? _orderType;
   int? _deliveryAddressId;
-  AddressModel ? _deliveryAddress;
+  dynamic _deliveryAddress;
   String? _paymentMethod;
   String? _orderNote;
   String? _couponCode;
@@ -50,7 +48,7 @@ class PlaceOrderBody {
         String? isCutleryRequired,
         int? selectedDeliveryArea,
         double? bringChangeAmount,
-        AddressModel?  deliveryAddress,
+        dynamic deliveryAddress,
       }) {
     _cart = cart;
     _couponDiscountAmount = couponDiscountAmount;
@@ -89,7 +87,7 @@ class PlaceOrderBody {
   double? get distance => _distance;
   String? get transactionReference => _transactionReference;
   OfflinePaymentInfo? get paymentInfo => _paymentInfo;
-  AddressModel? get deliveryAddress => _deliveryAddress;
+  dynamic get deliveryAddress => _deliveryAddress;
   String? get isPartial => _isPartial;
   String? get isCutleryRequired => _isCutleryRequired;
   int? get selectedDeliveryArea => _selectedDeliveryArea;
@@ -118,9 +116,7 @@ class PlaceOrderBody {
     if(json['payment_info'] != null){
       _paymentInfo = json['payment_info'];
     }
-    if(json['delivery_address'] != null){
-      _deliveryAddress = AddressModel.fromJson(json['delivery_address']);
-    }
+    _deliveryAddress = json['delivery_address'];
     _isPartial = json['is_partial'];
     _isCutleryRequired = json['is_cutlery_required'];
     _bringChangeAmount = json['bring_change_amount'];
@@ -151,7 +147,7 @@ class PlaceOrderBody {
       data['payment_info'] = _paymentInfo?.toJson();
     }
     if(_deliveryAddress != null){
-      data['delivery_address'] = _deliveryAddress?.toJson();
+      data['delivery_address'] = _deliveryAddress;
     }
     data['is_partial'] = _isPartial;
     data['is_cutlery_required'] = _isCutleryRequired;

@@ -8,38 +8,24 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:acafe_customer/common/enums/data_source_enum.dart';
 import 'package:acafe_customer/data/datasource/local/cache_response.dart';
-import 'package:acafe_customer/features/cart/providers/frequently_bought_provider.dart';
-import 'package:acafe_customer/features/checkout/providers/checkout_provider.dart';
-import 'package:acafe_customer/features/home/providers/sorting_provider.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/common/responsive/breakpoints.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
-import 'package:acafe_customer/features/home/providers/banner_provider.dart';
+import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
-import 'package:acafe_customer/features/chat/providers/chat_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/language/providers/language_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
-import 'package:acafe_customer/features/address/providers/location_provider.dart';
-import 'package:acafe_customer/common/providers/news_letter_provider.dart';
-import 'package:acafe_customer/features/notification/providers/notification_provider.dart';
-import 'package:acafe_customer/features/onboarding/providers/onboarding_provider.dart';
 import 'package:acafe_customer/features/order/providers/order_provider.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
-import 'package:acafe_customer/features/profile/providers/profile_provider.dart';
-import 'package:acafe_customer/features/rate_review/providers/review_provider.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
-import 'package:acafe_customer/features/setmenu/providers/set_menu_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/common/providers/theme_provider.dart';
-import 'package:acafe_customer/features/wallet/providers/wallet_provider.dart';
-import 'package:acafe_customer/features/wishlist/providers/wishlist_provider.dart';
-import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/theme/dark_theme.dart';
 import 'package:acafe_customer/theme/light_theme.dart';
@@ -98,33 +84,17 @@ Future<void> main() async {
       ChangeNotifierProvider(create: (context) => di.sl<ThemeProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<SplashProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<LanguageProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<OnBoardingProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<CategoryProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<BannerProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<ProductProvider>()),
       ChangeNotifierProvider(
           create: (context) => di.sl<LocalizationProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<AuthProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<KioskAuthProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<LocationProvider>()),
+      ChangeNotifierProvider(create: (context) => di.sl<AuthProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<CartProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<OrderProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<ChatProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<SetMenuProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<ProfileProvider>()),
-      ChangeNotifierProvider(
-          create: (context) => di.sl<NotificationProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<CouponProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<WishListProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<SearchProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<NewsLetterProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<WalletProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<BranchProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<ReviewProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<ProductSortProvider>()),
-      ChangeNotifierProvider(create: (context) => di.sl<CheckoutProvider>()),
-      ChangeNotifierProvider(
-          create: (context) => di.sl<FrequentlyBoughtProvider>()),
     ],
     child: MyApp(orderId: null, isWeb: !kIsWeb, route: path),
   ));

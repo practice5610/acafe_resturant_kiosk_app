@@ -3,7 +3,6 @@ import 'package:acafe_customer/common/enums/product_sort_type_enum.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/common/reposotories/data_sync_repo.dart';
 import 'package:acafe_customer/data/datasource/remote/exception/api_error_handler.dart';
-import 'package:acafe_customer/features/refer_and_earn/domain/models/review_body_model.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:image_picker/image_picker.dart';
@@ -104,24 +103,6 @@ class ProductRepo extends DataSyncRepo {
     }
   }
 
-
-  Future<ApiResponseModel> submitReview(ReviewBody reviewBody, List<XFile>? files, ) async {
-    try {
-      final response = await dioClient.postMultipart(AppConstants.reviewUri, data: reviewBody.toJson(), files: files, fileKey: files != null ? 'attachment' : null);
-      return ApiResponseModel.withSuccess(response);
-    } catch (e) {
-      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
-    }
-  }
-
-  Future<ApiResponseModel> submitDeliveryManReview(ReviewBody reviewBody) async {
-    try {
-      final response = await dioClient.post(AppConstants.deliverManReviewUri, data: reviewBody);
-      return ApiResponseModel.withSuccess(response);
-    } catch (e) {
-      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
-    }
-  }
 
   Future<ApiResponseModel> getFrequentlyBoughtProductApi(int offset) async {
     try {

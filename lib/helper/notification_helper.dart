@@ -8,8 +8,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:acafe_customer/common/enums/data_source_enum.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/main.dart';
-import 'package:acafe_customer/features/chat/providers/chat_provider.dart';
-import 'package:acafe_customer/features/notification/providers/notification_provider.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 // Notification bell popup disabled for now — see showNotification() below.
@@ -67,19 +65,6 @@ class NotificationHelper {
         }
       }
 
-      if(message.data['type'] == 'message') {
-        int? id;
-        id = int.tryParse('${message.data['order_id']}');
-        Provider.of<ChatProvider>(Get.context!, listen: false).getMessages(Get.context, 1, id , false);
-      }
-
-      // Live order-status notification: bump the bell badge (and refresh the
-      // persisted history) so the count updates without a manual refresh.
-      if(message.data['type'] == 'order_status') {
-        Provider.of<NotificationProvider>(Get.context!, listen: false)
-            .onRealtimeNotification(context: Get.context);
-      }
-
       if(message.data['type'] != 'maintenance'){
         showNotification(message, flutterLocalNotificationsPlugin);
       }
@@ -104,12 +89,6 @@ class NotificationHelper {
         RouterHelper.getNotificationRoute();
       }
 
-      if(message.data['type'] == 'message') {
-        int? id;
-        id = int.tryParse('${message.data['order_id']}');
-        Provider.of<ChatProvider>(Get.context!, listen: false).getMessages(Get.context, 1, id , false);
-        RouterHelper.getChatRoute();
-      }
       if(message.data['type'] == 'referral') {
         RouterHelper.getWalletRoute();
       }
