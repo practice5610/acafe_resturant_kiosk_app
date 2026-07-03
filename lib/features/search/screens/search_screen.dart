@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/widgets/custom_text_field_widget.dart';
-import 'package:acafe_customer/common/widgets/web_app_bar_widget.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
 import 'package:acafe_customer/features/search/widget/kiosk_search_theme.dart';
 import 'package:acafe_customer/features/search/widget/search_recommended_widget.dart';
 import 'package:acafe_customer/features/search/widget/search_suggestion_widget.dart';
 import 'package:acafe_customer/helper/debounce_helper.dart';
-import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/dimensions.dart';
@@ -67,9 +65,8 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: KioskSearchTheme.pageBg,
-      appBar: ResponsiveHelper.isDesktop(context)
-          ? const PreferredSize(preferredSize: Size.fromHeight(100), child: WebAppBarWidget())
-          : AppBar(
+      // Kiosk always uses the kiosk search header, even on large screens.
+      appBar: AppBar(
         toolbarHeight: 88,
         leadingWidth: 0,
         backgroundColor: KioskSearchTheme.pageBg,

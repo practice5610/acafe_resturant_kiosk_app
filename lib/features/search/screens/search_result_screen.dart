@@ -1,4 +1,4 @@
-// ignore_for_file: unused_import
+// ignore_for_file: unused_import, dead_code
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart'; // Veg/Non-Veg filter (commented below)
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
@@ -106,7 +106,9 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
   @override
   Widget build(BuildContext context) {
     // final productProvider = Provider.of<ProductProvider>(context, listen: false); // Veg/Non-Veg filter (commented below)
-    final bool isDesktop = ResponsiveHelper.isDesktop(context);
+    // Kiosk always uses the kiosk search-result layout — never the old user-web-app
+    // layout — even on large screens.
+    const bool isDesktop = false;
 
     double topPadding = MediaQuery.of(context).padding.top;
 
@@ -187,8 +189,8 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
 
                   searchProvider.searchProductModel != null ? Center(
                     child: Container(
-                      width: Dimensions.webScreenWidth, padding: EdgeInsets.only(
-                      top: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeDefault : 0,
+                      width: Dimensions.webScreenWidth, padding: const EdgeInsets.only(
+                      top: 0,
                       bottom: Dimensions.paddingSizeDefault,
                     ),
                       child: Row(children: [
@@ -336,7 +338,7 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
 
 
 
-        if(ResponsiveHelper.isDesktop(context)) const SliverFillRemaining(
+        if(isDesktop) const SliverFillRemaining(
           hasScrollBody: false,
           child: FooterWidget(),
         ),
@@ -488,7 +490,8 @@ class SearchFilterButtonWidget extends StatelessWidget {
     final double heightSize = MediaQuery.sizeOf(context).height;
     final double maxValue = context.watch<SearchProvider>().searchProductModel?.productMaxPrice ?? 1000;
 
-    return ResponsiveHelper.isDesktop(context) ? PopupMenuButton<dynamic>(
+    // Kiosk always uses the round kiosk filter button + bottom sheet.
+    return false ? PopupMenuButton<dynamic>(
       menuPadding: EdgeInsets.zero,
       offset: const Offset(0, 40),
       constraints: BoxConstraints(maxWidth: widthSize * 0.21),

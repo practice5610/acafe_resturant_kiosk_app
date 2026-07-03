@@ -51,6 +51,8 @@ class _WebAppBarWidgetState extends State<WebAppBarWidget> {
   final FocusNode _searchFocusNode = FocusNode();
   final FocusNode _appbarSearchFocusNode = FocusNode();
 
+  // Kept for the user-web-app layout; kiosk now routes to the kiosk search page instead.
+  // ignore: unused_element
   Future<void> _showSearchDialog() async {
     final SearchProvider searchProvider = Provider.of(context, listen: false);
     RenderBox renderBox = _searchBarKey.currentContext!.findRenderObject() as RenderBox;
@@ -371,7 +373,9 @@ class _WebAppBarWidgetState extends State<WebAppBarWidget> {
               key: _searchBarKey,
               width: 410, height: 50,
               child: Consumer<SearchProvider>(builder: (context,search,_)=> CustomTextFieldWidget(
-                onTap: _showSearchDialog,
+                // Kiosk: open the full kiosk search page (same as small screens),
+                // not the old user-web-app search overlay.
+                onTap: () => RouterHelper.getSearchRoute(),
                 isEnabled: Provider.of<BranchProvider>(context, listen: false).getBranchId() != -1,
                 focusNode: _appbarSearchFocusNode,
                 radius: 50,
