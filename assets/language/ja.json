@@ -838,5 +838,14 @@
   "retry": "再試行",
   "stop": "停止",
   "order_number": "注文番号",
-  "no_items": "商品がありません"
+  "no_items": "商品がありません",
+  "please_enter_your_name_to_continue": "続けるにはお名前を入力してください",
+  "want_a_receipt": "領収書は必要ですか？",
+  "well_send_your_receipt_to_this_address": "この住所に領収書をお送りします。",
+  "email_optional": "メール（任意）",
+  "enter_your_email": "メールアドレスを入力してください",
+  "email_not_correct": "メールアドレスが正しくありません",
+  "order_summary": "注文内容",
+  "items_total": "商品合計",
+  "complete_order_and_pay": "注文を確定して支払う"
 }

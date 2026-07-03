@@ -838,5 +838,14 @@
   "retry": "重试",
   "stop": "停止",
   "order_number": "订单号",
-  "no_items": "暂无商品"
+  "no_items": "暂无商品",
+  "please_enter_your_name_to_continue": "请输入您的姓名以继续",
+  "want_a_receipt": "需要收据吗？",
+  "well_send_your_receipt_to_this_address": "我们会将收据发送到此地址。",
+  "email_optional": "电子邮件（可选）",
+  "enter_your_email": "输入您的电子邮件",
+  "email_not_correct": "电子邮件不正确",
+  "order_summary": "订单摘要",
+  "items_total": "商品总计",
+  "complete_order_and_pay": "完成订单并支付"
 }

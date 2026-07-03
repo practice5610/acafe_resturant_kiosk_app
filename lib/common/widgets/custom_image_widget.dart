@@ -22,9 +22,20 @@ class CustomImageWidget extends StatelessWidget {
   /// load. Used by the kiosk menu so cards show a skeleton, not a stock image.
   final bool useShimmer;
 
-  static const Map<String, String> webImageHeaders = {
-    'ngrok-skip-browser-warning': 'true',
-  };
+  /// Absolute pixel width to decode + cache the image at (via [ResizeImage]).
+  /// null = full resolution. Product/rail thumbnails set this so an 800×1200
+  /// source (~3.7 MB decoded) is cached small — far less memory, so the image
+  /// cache doesn't evict + re-decode it (the shimmer "pop") on scroll / category
+  /// switch. Precache via [provider] with the SAME value so the warmed entry is
+  /// the exact one the grid reads back (memCacheWidth changes the cache key).
+  final int? cacheWidth;
+
+  /// Shared decode width (px) for kiosk product images — used by BOTH the grid
+  /// cards and the precache so they warm/read the identical cache entry.
+  static const int kKioskProductCacheWidth = 600;
+
+  /// Shared decode width (px) for kiosk category / rail thumbnails.
+  static const int kKioskThumbCacheWidth = 300;
 
   const CustomImageWidget({
     super.key,
@@ -35,6 +46,7 @@ class CustomImageWidget extends StatelessWidget {
     this.isNotification = false,
     this.placeholder = '',
     this.useShimmer = false,
+    this.cacheWidth,
   });
 
   /// Grey shimmer box that fills the image slot — used as the loading skeleton.
@@ -67,8 +79,23 @@ class CustomImageWidget extends StatelessWidget {
 
   static String resolveWebImageUrl(String image) {
     if (!kIsWeb || image.isEmpty || isDefaultImage(image)) return image;
-    final normalized = normalizeStorageUrl(image);
-    return '${AppConstants.baseUrl}/image-proxy?url=${Uri.encodeComponent(normalized)}';
+    // Load straight from the CDN (no /image-proxy hop). CloudFront serves images
+    // with CORS enabled, so the browser can fetch them cross-origin directly.
+    return normalizeStorageUrl(image);
+  }
+
+  /// The EXACT [ImageProvider] this widget renders with for a given [image] and
+  /// [cacheWidth]. Precache through this so the warmed cache entry has the same
+  /// key the grid reads: CachedNetworkImage feeds `memCacheWidth` into a
+  /// `ResizeImage` (via OctoImage), which changes the cache key — a plain
+  /// provider would warm a DIFFERENT entry and the grid would still re-download.
+  static ImageProvider provider(String image, {int? cacheWidth}) {
+    final ImageProvider base = CachedNetworkImageProvider(
+      resolveWebImageUrl(image),
+      cacheKey: image,
+    );
+    // Mirrors OctoImage's `ResizeImage.resizeIfNeeded(memCacheWidth, null, base)`.
+    return ResizeImage.resizeIfNeeded(cacheWidth, null, base);
   }
 
   @override
@@ -86,11 +113,13 @@ class CustomImageWidget extends StatelessWidget {
       return placeholderWidget;
     }
 
-    // Downscale decode to the displayed size (px) to cut memory + decode time.
-    // Cache by the raw image URL so volatile query params don't cause misses
-    // and the same asset is reused across navigation / app restarts.
+    // Decode at [cacheWidth] (or the display width) instead of the source's full
+    // 800×1200 resolution, to cut memory + decode time and avoid image-cache
+    // eviction churn (the shimmer "pop" on scroll / category switch). Cache by
+    // the raw image URL so the same asset is reused across navigation.
     final double dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
-    final int? memCacheWidth = width != null && width!.isFinite ? (width! * dpr).round() : null;
+    final int? memCacheWidth = cacheWidth ??
+        (width != null && width!.isFinite ? (width! * dpr).round() : null);
 
     return CachedNetworkImage(
       imageUrl: resolveWebImageUrl(image),
@@ -99,12 +128,12 @@ class CustomImageWidget extends StatelessWidget {
       width: width,
       fit: fit,
       memCacheWidth: memCacheWidth,
-      maxWidthDiskCache: memCacheWidth,
       // Short fade so a cache hit appears almost instantly (no slow pop), and
       // there is no placeholder flash when the widget is rebuilt for a hit.
       fadeInDuration: const Duration(milliseconds: 150),
       fadeOutDuration: const Duration(milliseconds: 50),
-      httpHeaders: kIsWeb ? webImageHeaders : null,
+      // No custom headers on web: keeps the image GET a "simple" CORS request
+      // (no preflight), which the CDN's CORS policy answers directly.
       imageRenderMethodForWeb: kIsWeb ? ImageRenderMethodForWeb.HttpGet : ImageRenderMethodForWeb.HtmlImage,
       placeholder: (context, url) => loadingWidget,
       errorWidget: (context, url, error) => placeholderWidget,

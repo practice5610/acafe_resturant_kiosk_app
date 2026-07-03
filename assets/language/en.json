@@ -850,5 +850,14 @@
   "retry": "Retry",
   "stop": "Stop",
   "order_number": "Order number",
-  "no_items": "No items"
+  "no_items": "No items",
+  "please_enter_your_name_to_continue": "Please enter your name to continue",
+  "want_a_receipt": "Want a receipt?",
+  "well_send_your_receipt_to_this_address": "We'll send your receipt to this address.",
+  "email_optional": "Email (Optional)",
+  "enter_your_email": "Enter your email",
+  "email_not_correct": "Email not correct",
+  "order_summary": "Order Summary",
+  "items_total": "Items Total",
+  "complete_order_and_pay": "Complete Order & Pay"
 }

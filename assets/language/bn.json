@@ -837,5 +837,14 @@
   "retry": "Retry",
   "stop": "Stop",
   "order_number": "Order number",
-  "no_items": "কোনো আইটেম নেই"
+  "no_items": "কোনো আইটেম নেই",
+  "please_enter_your_name_to_continue": "চালিয়ে যেতে অনুগ্রহ করে আপনার নাম লিখুন",
+  "want_a_receipt": "রসিদ চান?",
+  "well_send_your_receipt_to_this_address": "আমরা আপনার রসিদ এই ঠিকানায় পাঠাব।",
+  "email_optional": "ইমেল (ঐচ্ছিক)",
+  "enter_your_email": "আপনার ইমেল লিখুন",
+  "email_not_correct": "ইমেলটি সঠিক নয়",
+  "order_summary": "অর্ডারের সারসংক্ষেপ",
+  "items_total": "মোট আইটেম",
+  "complete_order_and_pay": "অর্ডার সম্পূর্ণ করুন এবং পরিশোধ করুন"
 }

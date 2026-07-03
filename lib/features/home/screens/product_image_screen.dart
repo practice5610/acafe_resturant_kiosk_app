@@ -41,7 +41,6 @@ class _ProductImageScreenState extends State<ProductImageScreen> {
                       return PhotoViewGalleryPageOptions(
                         imageProvider: NetworkImage(
                           kIsWeb ? CustomImageWidget.resolveWebImageUrl(widget.image ?? '') : widget.image ?? '',
-                          headers: kIsWeb ? CustomImageWidget.webImageHeaders : null,
                         ),
                         initialScale: PhotoViewComputedScale.contained,
                       );

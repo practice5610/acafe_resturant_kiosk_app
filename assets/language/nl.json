@@ -838,5 +838,14 @@
   "retry": "Opnieuw",
   "stop": "Stoppen",
   "order_number": "Bestelnummer",
-  "no_items": "Geen items"
+  "no_items": "Geen items",
+  "please_enter_your_name_to_continue": "Voer je naam in om door te gaan",
+  "want_a_receipt": "Wil je een bon?",
+  "well_send_your_receipt_to_this_address": "We sturen je bon naar dit adres.",
+  "email_optional": "E-mail (optioneel)",
+  "enter_your_email": "Voer je e-mail in",
+  "email_not_correct": "E-mail is onjuist",
+  "order_summary": "Besteloverzicht",
+  "items_total": "Totaal artikelen",
+  "complete_order_and_pay": "Bestelling afronden en betalen"
 }

@@ -75,9 +75,16 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     final categories = Provider.of<CategoryProvider>(context, listen: false);
     final splash = Provider.of<SplashProvider>(context, listen: false);
 
-    categories.warmKioskMenuFromDisk(locale).then((_) {
+    // Show disk-cached data instantly and kick a background refresh.
+    categories.warmKioskMenuFromDisk(locale);
+
+    // Precache once data is ready. Using the prefetch future (not just the disk
+    // hydrate) covers a COLD first launch too: the disk cache is empty, so this
+    // resolves only after the network prefetch lands — then we warm the images
+    // while the intro video is still playing.
+    categories.prefetchKioskMenu(localeCode: locale).then((_) {
       if (!mounted) return;
-      KioskMenuImageHelper.precacheFromProvider(context, categories, splash);
+      KioskMenuImageHelper.precacheAroundSelected(context, categories, splash);
     });
   }
 
@@ -91,9 +98,19 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     final splash = Provider.of<SplashProvider>(context, listen: false);
 
     await categories.ensureKioskMenuReady(localeCode: locale);
-
     if (!mounted) return;
-    KioskMenuImageHelper.precacheFromProvider(context, categories, splash);
+
+    // Warm the FIRST (visible) category's images before showing the menu so the
+    // first paint has no shimmer; neighbours warm in the background. Bounded by
+    // a timeout so a slow network can never freeze the tap.
+    await KioskMenuImageHelper.precacheAroundSelected(
+      context,
+      categories,
+      splash,
+      awaitVisible: true,
+    ).timeout(const Duration(seconds: 3), onTimeout: () {});
+    if (!mounted) return;
+
     setState(() => _orderLoading = false);
 
     RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);

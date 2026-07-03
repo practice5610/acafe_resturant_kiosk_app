@@ -837,5 +837,14 @@
   "retry": "Retry",
   "stop": "Stop",
   "order_number": "Order number",
-  "no_items": "कोई आइटम नहीं"
+  "no_items": "कोई आइटम नहीं",
+  "please_enter_your_name_to_continue": "जारी रखने के लिए कृपया अपना नाम दर्ज करें",
+  "want_a_receipt": "क्या आपको रसीद चाहिए?",
+  "well_send_your_receipt_to_this_address": "हम आपकी रसीद इस पते पर भेजेंगे।",
+  "email_optional": "ईमेल (वैकल्पिक)",
+  "enter_your_email": "अपना ईमेल दर्ज करें",
+  "email_not_correct": "ईमेल सही नहीं है",
+  "order_summary": "ऑर्डर सारांश",
+  "items_total": "कुल आइटम",
+  "complete_order_and_pay": "ऑर्डर पूरा करें और भुगतान करें"
 }

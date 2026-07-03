@@ -70,6 +70,13 @@ Future<void> main() async {
     FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   }
 
+  // The kiosk shows many product photos. Give the image cache more headroom so
+  // decoded (downscaled) images aren't evicted and re-decoded — which otherwise
+  // shows as a shimmer "pop" when scrolling the grid or switching categories.
+  PaintingBinding.instance.imageCache
+    ..maximumSize = 2000
+    ..maximumSizeBytes = 450 << 20; // 450 MB (default is 100 MB)
+
   await Future.wait([
     di.init(),
     AppLocalization.preloadDefault(),

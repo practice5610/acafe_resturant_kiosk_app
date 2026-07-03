@@ -838,5 +838,14 @@
   "retry": "Riprova",
   "stop": "Ferma",
   "order_number": "Numero d'ordine",
-  "no_items": "Nessun articolo"
+  "no_items": "Nessun articolo",
+  "please_enter_your_name_to_continue": "Inserisci il tuo nome per continuare",
+  "want_a_receipt": "Vuoi una ricevuta?",
+  "well_send_your_receipt_to_this_address": "Invieremo la ricevuta a questo indirizzo.",
+  "email_optional": "Email (facoltativa)",
+  "enter_your_email": "Inserisci la tua email",
+  "email_not_correct": "Email non corretta",
+  "order_summary": "Riepilogo dell'ordine",
+  "items_total": "Totale articoli",
+  "complete_order_and_pay": "Completa l'ordine e paga"
 }

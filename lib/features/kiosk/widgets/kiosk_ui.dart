@@ -409,6 +409,7 @@ class KioskCategoryTile extends StatelessWidget {
                     image: imageUrl,
                     fit: BoxFit.cover,
                     useShimmer: true,
+                    cacheWidth: CustomImageWidget.kKioskThumbCacheWidth,
                   ),
                 ),
             ],
@@ -458,6 +459,7 @@ class KioskProductCard extends StatelessWidget {
                     image: image,
                     fit: BoxFit.cover,
                     useShimmer: true,
+                    cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
                   ),
                 ),
                 if (badgeLabel != null)

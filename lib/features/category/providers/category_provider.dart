@@ -253,6 +253,15 @@ class CategoryProvider extends DataSyncProvider {
     }
   }
 
+  /// Highlight [categoryID] in the rail immediately WITHOUT swapping the visible
+  /// products. Lets the menu warm the target category's images first and swap
+  /// the grid in only once they're ready, so a category switch never flickers.
+  void setSelectedCategoryHighlight(String categoryID) {
+    if (_selectedSubCategoryId == categoryID) return;
+    _selectedSubCategoryId = categoryID;
+    notifyListeners();
+  }
+
   /// Switch the kiosk menu to [categoryID] using cached products for an instant,
   /// loading-free swap. Falls back to a network load only when that category was
   /// never prefetched. When the cache is stale it refreshes silently in the

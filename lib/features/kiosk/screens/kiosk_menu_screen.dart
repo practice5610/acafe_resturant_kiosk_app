@@ -118,7 +118,7 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
         .languageCode;
     await categoryProvider.prefetchKioskMenu(localeCode: locale, force: true);
     if (!mounted) return;
-    KioskMenuImageHelper.precacheFromProvider(
+    KioskMenuImageHelper.precacheAroundSelected(
       context,
       categoryProvider,
       Provider.of<SplashProvider>(context, listen: false),
@@ -135,7 +135,7 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
 
     // Prefetched on the welcome screen — render immediately, refresh in background.
     if (categoryProvider.isKioskMenuReadyFor(locale)) {
-      KioskMenuImageHelper.precacheFromProvider(
+      KioskMenuImageHelper.precacheAroundSelected(
           context, categoryProvider, splash);
       categoryProvider.prefetchKioskMenu(localeCode: locale, background: true);
       return;
@@ -144,21 +144,37 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     // Edge case: deep-linked to /menu-kiosk without visiting welcome first.
     await categoryProvider.ensureKioskMenuReady(localeCode: locale);
     if (!mounted) return;
-    KioskMenuImageHelper.precacheFromProvider(
+    KioskMenuImageHelper.precacheAroundSelected(
         context, categoryProvider, splash);
   }
 
   Future<void> _onSelectCategory(int id) async {
     final categoryProvider =
         Provider.of<CategoryProvider>(context, listen: false);
-    // Instant swap from the prefetched cache (silent background refresh if stale).
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+
+    // 1) Highlight the tapped category immediately (responsive), while the
+    //    current grid stays on screen.
+    categoryProvider.setSelectedCategoryHighlight('$id');
+
+    // 2) Warm the target category's images BEFORE swapping the grid, so the new
+    //    products appear already-decoded — no shimmer/fade. Bounded by a timeout
+    //    so a cold first load still swaps promptly (falling back to a skeleton).
+    final targetProducts = categoryProvider.kioskProductsForCategoryIds([id]);
+    await KioskMenuImageHelper.precacheProducts(
+      context,
+      splash,
+      targetProducts,
+      awaitAll: true,
+    ).timeout(const Duration(milliseconds: 1200), onTimeout: () {});
+    if (!mounted) return;
+
+    // 3) Swap the grid to the now-warm category (instant from the memory cache).
     await categoryProvider.selectKioskCategory('$id');
     if (!mounted) return;
-    KioskMenuImageHelper.precacheProducts(
-      context,
-      Provider.of<SplashProvider>(context, listen: false),
-      categoryProvider.categoryProductModel?.products ?? [],
-    );
+
+    // 4) Warm neighbours for the next tap.
+    KioskMenuImageHelper.precacheAroundSelected(context, categoryProvider, splash);
   }
 
   @override
@@ -428,6 +444,7 @@ class _RailCard extends StatelessWidget {
                     image: imageUrl,
                     fit: BoxFit.cover,
                     useShimmer: true,
+                    cacheWidth: CustomImageWidget.kKioskThumbCacheWidth,
                   ),
                 ),
             ],
@@ -694,6 +711,7 @@ class _KioskProductCard extends StatelessWidget {
                           image: image,
                           fit: BoxFit.cover,
                           useShimmer: true,
+                          cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
                         ),
                       ),
                     ),

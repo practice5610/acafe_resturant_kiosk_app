@@ -838,5 +838,14 @@
   "retry": "إعادة المحاولة",
   "stop": "إيقاف",
   "order_number": "رقم الطلب",
-  "no_items": "لا توجد عناصر"
+  "no_items": "لا توجد عناصر",
+  "please_enter_your_name_to_continue": "الرجاء إدخال اسمك للمتابعة",
+  "want_a_receipt": "هل تريد إيصالاً؟",
+  "well_send_your_receipt_to_this_address": "سنرسل إيصالك إلى هذا العنوان.",
+  "email_optional": "البريد الإلكتروني (اختياري)",
+  "enter_your_email": "أدخل بريدك الإلكتروني",
+  "email_not_correct": "البريد الإلكتروني غير صحيح",
+  "order_summary": "ملخص الطلب",
+  "items_total": "إجمالي العناصر",
+  "complete_order_and_pay": "إتمام الطلب والدفع"
 }

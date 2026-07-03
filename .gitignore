@@ -50,3 +50,4 @@ app.*.map.json
 
 .qodo
 android/app/.cxx
+.dart_tool
