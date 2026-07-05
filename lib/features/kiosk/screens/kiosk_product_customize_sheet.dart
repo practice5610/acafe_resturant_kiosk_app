@@ -52,8 +52,6 @@ void openKioskCustomize(BuildContext context, Product product,
     // No modifiers -> add directly.
     Provider.of<CartProvider>(context, listen: false).addToCart(
         buildKioskCartModel(context, product), productProvider.cartIndex);
-    showCustomSnackBarHelper(getTranslated('added_to_cart', context),
-        isError: false);
     return;
   }
 
@@ -158,8 +156,6 @@ class KioskProductCustomizeScreen extends StatelessWidget {
     Provider.of<CartProvider>(context, listen: false).addToCart(
         buildKioskCartModel(context, product),
         cartIndex ?? productProvider.cartIndex);
-    showCustomSnackBarHelper(getTranslated('added_to_cart', context),
-        isError: false);
     Navigator.of(context).pop();
   }
 

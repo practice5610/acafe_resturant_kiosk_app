@@ -1,17 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/common/responsive/responsive.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
+import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/main.dart';
 import 'package:acafe_customer/utill/dimensions.dart';
 import 'package:acafe_customer/utill/styles.dart';
+import 'package:go_router/go_router.dart';
 
 enum SnackBarStatus {error, success, alert, info}
+
+/// Bottom inset so floating snackbars sit above the kiosk menu cart bar.
+double kioskMenuSnackBarBottomMargin(BuildContext context) {
+  final media = MediaQuery.of(context);
+  final double cartBarHeight = Responsive.isWide(context)
+      ? KioskUI.cartBarHeight + 20 // bar + vertical margins
+      : 340 * KioskResponsive.scale(media.size.width); // filled cart bar + padding
+  return cartBarHeight + media.padding.bottom + Dimensions.paddingSizeSmall;
+}
+
+bool _isKioskMenuRoute(BuildContext context) {
+  try {
+    final path =
+        GoRouter.of(context).routeInformationProvider.value.uri.path;
+    return path == RouterHelper.kioskMenuScreen;
+  } catch (_) {
+    return false;
+  }
+}
+
+EdgeInsets _snackBarMargin(BuildContext context) {
+  final size = MediaQuery.of(context).size;
+  if (_isKioskMenuRoute(context)) {
+    return EdgeInsets.only(
+      left: Dimensions.paddingSizeDefault,
+      right: Dimensions.paddingSizeDefault,
+      bottom: kioskMenuSnackBarBottomMargin(context),
+    );
+  }
+  if (ResponsiveHelper.isDesktop(context)) {
+    return EdgeInsets.only(
+      right: size.width * 0.7,
+      bottom: Dimensions.paddingSizeExtraSmall,
+      left: Dimensions.paddingSizeExtraSmall,
+    );
+  }
+  return EdgeInsets.only(bottom: size.height * 0.08);
+}
 
 void showCustomSnackBarHelper(String? message, {
   bool isError = true, bool isToast = false, SnackBarStatus? snackBarStatus}) {
 
-  final Size size = MediaQuery.of(Get.context!).size;
+  final context = Get.context!;
 
-  ScaffoldMessenger.of(Get.context!)..hideCurrentSnackBar()..showSnackBar(SnackBar(
+  ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(
     elevation: 0,
     shape: OutlineInputBorder(
       borderRadius: BorderRadius.circular(50),
@@ -55,9 +98,7 @@ void showCustomSnackBarHelper(String? message, {
         ),
       ),
     ),
-    margin: ResponsiveHelper.isDesktop(Get.context!)
-        ?  EdgeInsets.only(right: size.width * 0.7, bottom: Dimensions.paddingSizeExtraSmall, left: Dimensions.paddingSizeExtraSmall)
-        : EdgeInsets.only(bottom: size.height * 0.08),
+    margin: _snackBarMargin(context),
     behavior: SnackBarBehavior.floating,
     backgroundColor: Colors.transparent,
 
