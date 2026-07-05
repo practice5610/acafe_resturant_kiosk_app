@@ -21,6 +21,7 @@ import 'package:acafe_customer/features/search/screens/search_screen.dart';
 import 'package:acafe_customer/features/search/search_flow_helper.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/theme/brand_colors.dart';
+import 'package:acafe_customer/helper/kiosk_route_guard.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/main.dart';
 import 'package:go_router/go_router.dart';
@@ -151,13 +152,8 @@ class RouterHelper {
 
     navigatorKey: navigatorKey,
     initialLocation: kioskLoginScreen,
-    redirect: (context, state) {
-      final path = state.uri.path;
-      if (path == '/' || path.isEmpty || path == loginScreen) {
-        return kioskLoginScreen;
-      }
-      return null;
-    },
+    redirect: (context, state) =>
+        KioskRouteGuard.redirect(context, state.uri.path),
     errorBuilder: (ctx, _) => const KioskLoginScreen(),
     routes: [
       GoRoute(path: splashScreen, builder: (context, state) => const KioskLoginScreen()),
