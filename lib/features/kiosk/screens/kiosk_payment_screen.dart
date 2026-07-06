@@ -169,11 +169,10 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
     orderProvider.placeOrder(placeOrderBody, (bool success, String? message, String orderId) {
       if (!mounted) return;
       if (success) {
-        KioskSession.instance.lastOrderNumber = '#$orderId';
-        KioskSession.instance.lastOrderId = orderId;
         cartProvider.clearCartList();
         couponProvider.removeCouponData(false);
-        RouterHelper.getKioskSuccessRoute(action: RouteAction.pushReplacement);
+        KioskSession.instance.reset();
+        RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
       } else {
         // Payment succeeded but the order didn't post — let Retry re-submit the
         // order (not re-charge), since the customer has already paid.

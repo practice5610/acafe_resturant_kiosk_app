@@ -16,12 +16,12 @@ import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
-/// How long the "ORDER CONFIRMED!" tick stays up before moving to the QR screen.
+/// How long the "ORDER CONFIRMED!" tick stays up before returning to the menu.
 const Duration _kConfirmedDisplay = Duration(seconds: 3);
 
 /// Checkout step 3 — PAYMENT: order summary with the live totals breakdown.
 /// "COMPLETE ORDER & PAY" places the order, shows a confirmation tick for 3s,
-/// then advances to the QR/success screen (Figma nodes 655:3030, 655:3237).
+/// then returns to the menu for the next customer.
 class KioskConfirmScreen extends StatefulWidget {
   const KioskConfirmScreen({super.key});
 
@@ -52,17 +52,15 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
       return;
     }
 
-    KioskSession.instance.lastOrderNumber = '#${result.orderId}';
-    KioskSession.instance.lastOrderId = result.orderId;
-
-    // Keep the tick visible for the full display duration before advancing.
+    // Keep the tick visible for the full display duration before returning to menu.
     final remaining = _kConfirmedDisplay - DateTime.now().difference(shownAt);
     if (remaining > Duration.zero) await Future.delayed(remaining);
     if (!mounted) return;
 
     cartProvider.clearCartList();
     Provider.of<CouponProvider>(context, listen: false).removeCouponData(false);
-    RouterHelper.getKioskSuccessRoute(action: RouteAction.pushReplacement);
+    KioskSession.instance.reset();
+    RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
   }
 
   @override
