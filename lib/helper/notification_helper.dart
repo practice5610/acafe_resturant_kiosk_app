@@ -146,27 +146,34 @@ class NotificationHelper {
 
 
 
+    // Kiosk terminals must stay silent on order status changes (including
+    // order-complete). Every order-status push arrives as type 'order_status',
+    // so mute the notification sound for that type only; all other notification
+    // types (message/general/referral) keep their sound. This is unrelated to
+    // the branch "Kitchen Notification Bell" setting, which the kiosk never reads.
+    final bool playSound = type != 'order_status';
+
     if(image != null && image.isNotEmpty) {
       try{
-        await showBigPictureNotificationHiddenLargeIcon(payload, fln);
+        await showBigPictureNotificationHiddenLargeIcon(payload, fln, playSound: playSound);
       }catch(e) {
-        await showBigTextNotification(payload, fln);
+        await showBigTextNotification(payload, fln, playSound: playSound);
       }
     }else {
-      await showBigTextNotification(payload, fln);
+      await showBigTextNotification(payload, fln, playSound: playSound);
     }
   }
 
 
-  static Future<void> showBigTextNotification(PayloadModel payload, FlutterLocalNotificationsPlugin fln) async {
+  static Future<void> showBigTextNotification(PayloadModel payload, FlutterLocalNotificationsPlugin fln, {bool playSound = true}) async {
     BigTextStyleInformation bigTextStyleInformation = BigTextStyleInformation(
       payload.body!, htmlFormatBigText: true,
       contentTitle: payload.title, htmlFormatContentTitle: true,
     );
     AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
       AppConstants.appName, AppConstants.appName, importance: Importance.max,
-      styleInformation: bigTextStyleInformation, priority: Priority.max, playSound: true,
-      sound: const RawResourceAndroidNotificationSound('notification'),
+      styleInformation: bigTextStyleInformation, priority: Priority.max, playSound: playSound,
+      sound: playSound ? const RawResourceAndroidNotificationSound('notification') : null,
     );
 
     NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
@@ -174,7 +181,7 @@ class NotificationHelper {
   }
 
   static Future<void> showBigPictureNotificationHiddenLargeIcon(
-      PayloadModel payload, FlutterLocalNotificationsPlugin fln) async {
+      PayloadModel payload, FlutterLocalNotificationsPlugin fln, {bool playSound = true}) async {
     final String largeIconPath = await _downloadAndSaveFile( payload.image!, 'largeIcon');
     final String bigPicturePath = await _downloadAndSaveFile( payload.image!, 'bigPicture');
     final BigPictureStyleInformation bigPictureStyleInformation = BigPictureStyleInformation(
@@ -184,9 +191,9 @@ class NotificationHelper {
     );
     final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
       AppConstants.appName, AppConstants.appName,
-      largeIcon: FilePathAndroidBitmap(largeIconPath), priority: Priority.max, playSound: true,
+      largeIcon: FilePathAndroidBitmap(largeIconPath), priority: Priority.max, playSound: playSound,
       styleInformation: bigPictureStyleInformation, importance: Importance.max,
-      sound: const RawResourceAndroidNotificationSound('notification'),
+      sound: playSound ? const RawResourceAndroidNotificationSound('notification') : null,
     );
     final NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
     await fln.show(0,  payload.title,  payload.body, platformChannelSpecifics, payload: jsonEncode(payload.toJson()));
