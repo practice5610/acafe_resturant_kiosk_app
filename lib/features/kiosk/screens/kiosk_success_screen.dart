@@ -74,8 +74,9 @@ class _KioskSuccessScreenState extends State<KioskSuccessScreen> {
 
   void _reset() {
     KioskSession.instance.reset();
-    // Return straight to the menu (home) screen for the next customer.
-    if (mounted) context.go(RouterHelper.kioskMenuScreen);
+    // Return to the welcome/attract video screen for the next customer; they tap
+    // through it to reach the menu.
+    if (mounted) context.go(RouterHelper.kioskWelcomeScreen);
   }
 
   @override

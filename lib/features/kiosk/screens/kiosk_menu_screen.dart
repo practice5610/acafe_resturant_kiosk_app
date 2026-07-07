@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
@@ -81,6 +83,12 @@ class KioskMenuScreen extends StatefulWidget {
 class _KioskMenuScreenState extends State<KioskMenuScreen> {
   LocalizationProvider? _localization;
   String? _lastLocale;
+  Timer? _menuRefreshTimer;
+
+  /// How often the kiosk silently re-checks the backend for menu changes.
+  /// Kiosks are never manually reloaded, so newly-published products must appear
+  /// on their own — the poll only rebuilds the grid when something changed.
+  static const Duration _kMenuRefreshInterval = Duration(seconds: 10);
 
   @override
   void initState() {
@@ -91,12 +99,35 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     // the product grid updates instantly (not only after navigating away/back).
     _localization!.addListener(_onLocaleChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    _startMenuAutoRefresh();
   }
 
   @override
   void dispose() {
+    _menuRefreshTimer?.cancel();
     _localization?.removeListener(_onLocaleChanged);
     super.dispose();
+  }
+
+  /// Poll the backend every [_kMenuRefreshInterval] for menu updates while this
+  /// screen is on top. The provider fetches in the background and rebuilds only
+  /// on real changes, so a new product shows up within ~10s without any reload.
+  void _startMenuAutoRefresh() {
+    _menuRefreshTimer?.cancel();
+    _menuRefreshTimer = Timer.periodic(_kMenuRefreshInterval, (_) async {
+      if (!mounted) return;
+      final categoryProvider =
+          Provider.of<CategoryProvider>(context, listen: false);
+      await categoryProvider.pollKioskMenuForUpdates();
+      if (!mounted) return;
+      // Warm images for whatever the poll brought in so new cards appear
+      // already-decoded instead of shimmering.
+      KioskMenuImageHelper.precacheAroundSelected(
+        context,
+        categoryProvider,
+        Provider.of<SplashProvider>(context, listen: false),
+      );
+    });
   }
 
   void _onLocaleChanged() {

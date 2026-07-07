@@ -107,6 +107,66 @@ class CategoryProvider extends DataSyncProvider {
     prefetchKioskMenu(localeCode: localeCode, background: true);
   }
 
+  /// Poll the network for menu changes (newly-published/removed products,
+  /// price/availability edits, new categories) and refresh the kiosk grid in
+  /// place. Runs entirely in the background: it never shows a loader, preserves
+  /// the category the customer is browsing, and only rebuilds the UI when the
+  /// menu actually changed — so an idle grid stays perfectly still while a new
+  /// product pops in on the next poll. No-ops when the menu hasn't loaded yet
+  /// or another fetch is already in flight. Used by the kiosk menu screen's
+  /// auto-refresh timer (kiosks are never manually reloaded).
+  Future<void> pollKioskMenuForUpdates() {
+    final localeCode = _kioskPrefetchLocale;
+    if (localeCode == null) return Future.value();
+    if (_kioskPrefetchFuture != null) return _kioskPrefetchFuture!;
+
+    _kioskPrefetchFuture = _runKioskMenuPoll(localeCode);
+    return _kioskPrefetchFuture!
+        .whenComplete(() => _kioskPrefetchFuture = null);
+  }
+
+  Future<void> _runKioskMenuPoll(String localeCode) async {
+    final signatureBefore = _kioskMenuSignature();
+
+    final ok = await _fetchKioskMenuFromNetwork(localeCode);
+    if (!ok) return;
+
+    _kioskPrefetchLocale = localeCode;
+    _kioskPrefetchCompletedAt = DateTime.now();
+    await _persistKioskMenuToDisk(localeCode);
+
+    // Only rebuild when the menu genuinely changed, so the grid doesn't flicker
+    // every poll for identical data.
+    if (_kioskMenuSignature() != signatureBefore) {
+      notifyListeners();
+    }
+  }
+
+  /// Compact fingerprint of the loaded menu (per category: product id, price,
+  /// availability status and last-updated stamp). Changes whenever a product is
+  /// added, removed, re-priced, toggled available, or edited.
+  String _kioskMenuSignature() {
+    final buffer = StringBuffer();
+    for (final id in _kioskProductsByCategory.keys.toList()..sort()) {
+      buffer.write(id);
+      buffer.write('=');
+      for (final product in _kioskProductsByCategory[id]?.products ??
+          const <Product>[]) {
+        buffer
+          ..write(product.id)
+          ..write(':')
+          ..write(product.price)
+          ..write(':')
+          ..write(product.status)
+          ..write(':')
+          ..write(product.updatedAt)
+          ..write(',');
+      }
+      buffer.write(';');
+    }
+    return buffer.toString();
+  }
+
   Future<void> _runKioskPrefetch({
     required String localeCode,
     required bool background,
@@ -215,7 +275,16 @@ class CategoryProvider extends DataSyncProvider {
         ..clear()
         ..addAll(productsByCategory);
 
-      _selectedSubCategoryId = '${_categoryList!.first.id}';
+      // Preserve the category the user is currently browsing across refreshes
+      // (a background poll must not yank them back to the first category). Fall
+      // back to the first category only when the previous selection is gone.
+      final previousSelection = _selectedSubCategoryId;
+      if (previousSelection != null &&
+          _kioskProductsByCategory.containsKey(previousSelection)) {
+        _selectedSubCategoryId = previousSelection;
+      } else {
+        _selectedSubCategoryId = '${_categoryList!.first.id}';
+      }
       _categoryProductModel = _kioskProductsByCategory[_selectedSubCategoryId];
       _isLoading = false;
       return _categoryProductModel != null;
