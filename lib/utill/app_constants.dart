@@ -14,15 +14,15 @@ class AppConstants {
   /// Flutter SDK 3.32.5
   static const AppMode appMode = AppMode.release;
   static const String _localBaseUrl = 'http://127.0.0.1:8000';
-//   static const String _productionBaseUrl = 'https://admin.acafepos.com';
+  static const String _productionBaseUrl = 'https://admin.acafepos.com';
 
-//   /// Local only in debug; release always hits production API.
-//   static String get baseUrl {
-//     if (kIsWeb && kDebugMode) return _localBaseUrl;
-//     return _productionBaseUrl;
-//   }
-
-static const String baseUrl = 'https://admin.acafepos.com';
+  /// Local only in debug web; release always hits production API. Mirrors the
+  /// kitchen app so both talk to the SAME backend when running locally —
+  /// otherwise kiosk orders land in prod while the kitchen reads local.
+  static String get baseUrl {
+    if (kIsWeb && kDebugMode) return _localBaseUrl;
+    return _productionBaseUrl;
+  }
 
   static const String categoryUri = '/api/v1/categories';
   static const String bannerUri = '/api/v1/banners';    
