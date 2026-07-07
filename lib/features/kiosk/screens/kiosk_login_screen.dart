@@ -12,6 +12,10 @@ import 'package:provider/provider.dart';
 /// screens and scales down (via `s`) on smaller ones. After a successful login
 /// the device is bound to its branch and goes to the Intro.
 
+/// Warm cream surface shared with the menu screen (#F7F1DE) so the kiosk
+/// login screen matches the branded menu background.
+const Color _kLoginPageBg = Color(0xFFF7F1DE);
+
 class KioskLoginScreen extends StatefulWidget {
   const KioskLoginScreen({super.key});
 
@@ -80,7 +84,7 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kCheckoutPageBg,
+      backgroundColor: _kLoginPageBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

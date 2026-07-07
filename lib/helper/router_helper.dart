@@ -13,7 +13,8 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_name_screen
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_email_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_confirm_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_payment_screen.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_success_screen.dart';
+// Kiosk success/QR screen disabled — route redirects to the menu instead.
+// import 'package:acafe_customer/features/kiosk/screens/kiosk_success_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_language_screen.dart';
 import 'package:acafe_customer/features/maintenance/screens/maintenance_screen.dart';
 import 'package:acafe_customer/features/search/screens/search_result_screen.dart';
@@ -166,7 +167,12 @@ class RouterHelper {
       GoRoute(path: kioskCheckoutEmailScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskCheckoutEmailScreen())),
       GoRoute(path: kioskConfirmScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskConfirmScreen())),
       GoRoute(path: kioskPaymentScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskPaymentScreen())),
-      GoRoute(path: kioskSuccessScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskSuccessScreen())),
+      // Kiosk success/QR screen is disabled — after an order the flow returns
+      // straight to the menu (see kiosk_confirm_screen / kiosk_payment_screen).
+      // Kept as a redirect so any lingering navigation to /success-kiosk is
+      // harmlessly sent to the menu instead of rendering the success screen.
+      GoRoute(path: kioskSuccessScreen, redirect: (context, state) => kioskMenuScreen),
+      // GoRoute(path: kioskSuccessScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskSuccessScreen())),
       GoRoute(path: maintain, builder: (context, state) => _routeHandler(context, path: _getPath(state), const MaintenanceScreen())),
       GoRoute(path: update, builder: (context, state) => _routeHandler(context, path: _getPath(state), const ForceUpdateScreen())),
       GoRoute(path: languageScreen, builder: (context, state) => KioskLanguageScreen(fromMenu: state.uri.queryParameters['page'] == 'menu')),
