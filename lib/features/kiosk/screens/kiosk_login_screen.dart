@@ -32,20 +32,10 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
   String? _usernameError;
   String? _passwordError;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _redirectIfAlreadyLoggedIn());
-  }
-
-  /// Returning kiosk devices skip login when the stored session is still valid.
-  Future<void> _redirectIfAlreadyLoggedIn() async {
-    final kioskAuth = Provider.of<KioskAuthProvider>(context, listen: false);
-    if (!kioskAuth.isLoggedIn()) return;
-    final valid = await kioskAuth.validateSession();
-    if (!mounted) return;
-    if (valid) RouterHelper.getKioskWelcomeRoute(action: RouteAction.pushReplacement);
-  }
+  // NOTE: the login form is shown every time this screen is reached — even when a
+  // valid device session is already stored. Staff must explicitly sign in (so a
+  // kiosk can be re-bound / signed in as a different device). We intentionally do
+  // NOT auto-skip to the menu on a stored session.
 
   @override
   void dispose() {
