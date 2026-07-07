@@ -14,13 +14,16 @@ class AppConstants {
   /// Flutter SDK 3.32.5
   static const AppMode appMode = AppMode.release;
   static const String _localBaseUrl = 'http://127.0.0.1:8000';
-  static const String _productionBaseUrl = 'https://admin.acafepos.com';
+//   static const String _productionBaseUrl = 'https://admin.acafepos.com';
 
-  /// Local only in debug; release always hits production API.
-  static String get baseUrl {
-    if (kIsWeb && kDebugMode) return _localBaseUrl;
-    return _productionBaseUrl;
-  }
+//   /// Local only in debug; release always hits production API.
+//   static String get baseUrl {
+//     if (kIsWeb && kDebugMode) return _localBaseUrl;
+//     return _productionBaseUrl;
+//   }
+
+static const String baseUrl = 'https://admin.acafepos.com';
+
   static const String categoryUri = '/api/v1/categories';
   static const String bannerUri = '/api/v1/banners';    
   static const String latestProductUri = '/api/v1/products/latest';
