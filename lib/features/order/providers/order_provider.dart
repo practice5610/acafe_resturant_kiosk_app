@@ -181,13 +181,14 @@ class OrderProvider extends ChangeNotifier {
     return _responseModel;
   }
 
-  Future<void> placeOrder(PlaceOrderBody placeOrderBody, Function callback, {bool isUpdate = true}) async {
+  Future<void> placeOrder(PlaceOrderBody placeOrderBody, Function callback, {bool isUpdate = true, bool asGuest = false}) async {
     _isLoading = true;
     if(isUpdate){
       notifyListeners();
     }
     ApiResponseModel apiResponse = await orderRepo!.placeOrder(
       placeOrderBody, guestId: Provider.of<AuthProvider>(Get.context!, listen: false).getGuestId(),
+      asGuest: asGuest,
     );
     _isLoading = false;
     if (apiResponse.response != null && apiResponse.response!.statusCode == 200) {

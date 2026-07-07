@@ -110,6 +110,6 @@ Future<KioskPlaceResult> placeKioskOrder(
     if (!completer.isCompleted) {
       completer.complete(KioskPlaceResult(success: success, orderId: orderId, message: message));
     }
-  });
+  }, asGuest: true);
   return completer.future;
 }

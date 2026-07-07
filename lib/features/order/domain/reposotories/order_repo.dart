@@ -81,14 +81,25 @@ class OrderRepo {
     }
   }
 
-  Future<ApiResponseModel> placeOrder(PlaceOrderBody orderBody, {String? guestId}) async {
+  Future<ApiResponseModel> placeOrder(PlaceOrderBody orderBody,
+      {String? guestId, bool asGuest = false}) async {
     try {
       Map<String, dynamic> data = orderBody.toJson();
 
       if(guestId != null){
         data.addAll({'guest_id' : guestId});
       }
-      final response = await dioClient!.post(AppConstants.placeOrderUri, data: data);
+      // Kiosk orders are always guest orders. The DioClient attaches the stored
+      // Authorization token to every request; on a device that carries a real
+      // customer token (e.g. left over in web storage) the backend would attach
+      // the order to that customer instead of the guest. Force an anonymous
+      // request so the order lands on the guest_id — mirrors the web app's
+      // not-logged-in `Bearer null` guest requests.
+      final Options? options = asGuest
+          ? Options(headers: {'Authorization': 'Bearer null'})
+          : null;
+      final response = await dioClient!
+          .post(AppConstants.placeOrderUri, data: data, options: options);
       return ApiResponseModel.withSuccess(response);
     } catch (e) {
       return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));

@@ -180,7 +180,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
         _errorMessage = message;
         _showFailure();
       }
-    });
+    }, asGuest: true);
   }
 
   void _showFailure() {
