@@ -122,9 +122,6 @@ flutter:
         - asset: assets/fonts/Roboto-Regular.ttf
           weight: 400
 
-    # Figma kiosk fonts. The .ttf files below are PLACEHOLDERS (copies of NunitoSans)
-    # so the build stays green — replace them with the real font files for an exact
-    # match (keep the same filenames).
     - family: Loew
       fonts:
         - asset: assets/fonts/Loew-Regular.ttf

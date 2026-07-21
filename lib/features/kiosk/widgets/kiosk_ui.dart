@@ -30,6 +30,7 @@ class KioskUI {
   static const Color cream = Color(0xFFF3F3DD);
   static const Color popularGreen = Color(0xFF357937);
   static const Color text = Color(0xFF2B2B2B);
+  static const Color categorySelectedBg = Colors.black;
 
   // Fixed type scale (never scales with width).
   static const double pageTitle = 32;
@@ -356,16 +357,16 @@ class KioskCircleIcon extends StatelessWidget {
 }
 
 /// Category rail tile with a FIXED 96px height (never stretches vertically).
-/// Name on the left, image on the right, black border when selected.
+/// Plain text on the page background with a divider below; selected fills
+/// with yellow and flips the text to white (per the Figma text-list style —
+/// no image, no card background).
 class KioskCategoryTile extends StatelessWidget {
   final String name;
-  final String imageUrl;
   final bool selected;
   final VoidCallback onTap;
   const KioskCategoryTile({
     super.key,
     required this.name,
-    required this.imageUrl,
     required this.selected,
     required this.onTap,
   });
@@ -373,19 +374,14 @@ class KioskCategoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
+      color: selected ? KioskUI.categorySelectedBg : Colors.transparent,
       child: KioskTap(
         onTap: onTap,
         child: Container(
           height: KioskUI.categoryTileHeight,
-          foregroundDecoration: selected
-              ? BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.black, width: 2),
-                )
-              : null,
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colors.black, width: 1)),
+          ),
           child: Row(
             children: [
               Expanded(
@@ -396,22 +392,12 @@ class KioskCategoryTile extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: loewBold.copyWith(
-                        fontSize: KioskUI.caption, height: 1.1, color: Colors.black),
+                        fontSize: KioskUI.caption,
+                        height: 1.1,
+                        color: selected ? Colors.white : Colors.black),
                   ),
                 ),
               ),
-              if (imageUrl.isNotEmpty)
-                SizedBox(
-                  width: 72,
-                  height: double.infinity,
-                  child: CustomImageWidget(
-                    placeholder: Images.placeholderImage,
-                    image: imageUrl,
-                    fit: BoxFit.cover,
-                    useShimmer: true,
-                    cacheWidth: CustomImageWidget.kKioskThumbCacheWidth,
-                  ),
-                ),
             ],
           ),
         ),

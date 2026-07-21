@@ -59,6 +59,22 @@ double _topBarActionDiameter(double s) => _kTopBarActionSize * s;
 double _topBarActionBorderWidth(double s) =>
     _kTopBarSvgStroke * s * (_kTopBarActionSize / _kTopBarSvgArtSize);
 
+// Filter pills from the design: POPULAR / SIGNATURE / SEASONAL / SPECIALS /
+// PURE on the first row, CEROMONIAL alone on the second (spelling as in the
+// Figma source). Presentation-only for now — the product catalogue has no
+// matching tag field, so tapping a pill only changes which one looks
+// selected; it doesn't filter the grid. Wire this up once the backend
+// exposes a tag/collection for products.
+const List<String> _kFilterPillLabels = [
+  'POPULAR',
+  'SIGNATURE',
+  'SEASONAL',
+  'SPECIALS',
+  'PURE',
+];
+const String _kFilterPillSecondRowLabel = 'CEROMONIAL';
+const String _kDefaultFilterPill = 'SIGNATURE';
+
 /// Removes the overscroll glow/stretch so dragging the grid past its top edge
 /// doesn't paint a grey "shadow" over the page (matches a clean kiosk look).
 class _NoGlowScrollBehavior extends ScrollBehavior {
@@ -225,6 +241,11 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
             return Column(
               children: [
                 _KioskTopBar(s: s, sideMargin: sideMargin),
+                SizedBox(height: 28 * s),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: sideMargin),
+                  child: Container(height: 3 * s, color: Colors.black),
+                ),
                 SizedBox(height: _kHeaderContentGap * s),
                 Expanded(
                   child: Padding(
@@ -235,7 +256,23 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                         // Rail card column = 524px wide in the design.
                         _CategoryRail(s: s, onSelect: _onSelectCategory),
                         SizedBox(width: 104 * s), // gap rail → products.
-                        Expanded(child: _ProductArea(s: s)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _FilterPillsRow(
+                                pillHeight: 90 * s,
+                                fontSize: 43.2 * s,
+                                borderWidth: 3.6 * s,
+                                hPadding: 42 * s,
+                                hGap: 19.8 * s,
+                                vGap: 28 * s,
+                              ),
+                              SizedBox(height: 61 * s),
+                              Expanded(child: _ProductArea(s: s)),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -261,10 +298,9 @@ class _KioskTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(sideMargin, 40 * s, sideMargin, 0),
-      child: Stack(
-        alignment: Alignment.center,
+      child: Row(
         children: [
-          // Centered brand title (the A/CAFÉ brand, per the design).
+          // Left-aligned brand title (the A/CAFÉ brand, per the design).
           Text(
             'A/CAFÉ',
             style: loewExtraBold.copyWith(
@@ -274,26 +310,19 @@ class _KioskTopBar extends StatelessWidget {
               color: Colors.black,
             ),
           ),
+          const Spacer(),
           // Right-aligned action icons.
-          Align(
-            alignment: Alignment.centerRight,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _CircleIconButton(
-                    s: s,
-                    assetPath: Images.searchSvg,
-                    onTap: () => RouterHelper.getSearchRoute()),
-                SizedBox(width: 38 * s),
-                _CircleIconButton(
-                    s: s,
-                    assetPath: Images.filterSvg,
-                    onTap: () => openKioskMenuFilterSheet(context)),
-                SizedBox(width: 38 * s),
-                _LanguageFlagButton(s: s),
-              ],
-            ),
-          ),
+          _CircleIconButton(
+              s: s,
+              assetPath: Images.searchSvg,
+              onTap: () => RouterHelper.getSearchRoute()),
+          SizedBox(width: 38 * s),
+          _CircleIconButton(
+              s: s,
+              assetPath: Images.filterSvg,
+              onTap: () => openKioskMenuFilterSheet(context)),
+          SizedBox(width: 38 * s),
+          _LanguageFlagButton(s: s),
         ],
       ),
     );
@@ -366,9 +395,115 @@ class _LanguageFlagButton extends StatelessWidget {
   }
 }
 
-/// Left rail of white category cards: category name on the left, photo on the
-/// right; the selected card gets a black border (matches the design). 524px
-/// wide in the Figma artboard, scaled by `s`.
+/// Filter pills row: POPULAR/SIGNATURE/SEASONAL/SPECIALS/PURE, wrapping to a
+/// second row for CEROMONIAL, matching the Figma layout. See
+/// [_kFilterPillLabels] for why this is presentation-only.
+class _FilterPillsRow extends StatefulWidget {
+  final double pillHeight;
+  final double fontSize;
+  final double borderWidth;
+  final double hPadding;
+  final double hGap;
+  final double vGap;
+  const _FilterPillsRow({
+    required this.pillHeight,
+    required this.fontSize,
+    required this.borderWidth,
+    required this.hPadding,
+    required this.hGap,
+    required this.vGap,
+  });
+
+  @override
+  State<_FilterPillsRow> createState() => _FilterPillsRowState();
+}
+
+class _FilterPillsRowState extends State<_FilterPillsRow> {
+  String _selected = _kDefaultFilterPill;
+
+  @override
+  Widget build(BuildContext context) {
+    // Wrap (not a fixed Row) so pills reflow onto additional lines instead of
+    // overflowing when the available width is narrower than the design's
+    // 2414px artboard — CEROMONIAL lands on its own line at that width,
+    // matching the Figma layout, but nothing clips on smaller screens.
+    return Wrap(
+      spacing: widget.hGap,
+      runSpacing: widget.vGap,
+      children: [
+        for (final label in [..._kFilterPillLabels, _kFilterPillSecondRowLabel])
+          _FilterPill(
+            label: label,
+            selected: _selected == label,
+            height: widget.pillHeight,
+            fontSize: widget.fontSize,
+            borderWidth: widget.borderWidth,
+            hPadding: widget.hPadding,
+            onTap: () => setState(() => _selected = label),
+          ),
+      ],
+    );
+  }
+}
+
+class _FilterPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final double height;
+  final double fontSize;
+  final double borderWidth;
+  final double hPadding;
+  final VoidCallback onTap;
+  const _FilterPill({
+    required this.label,
+    required this.selected,
+    required this.height,
+    required this.fontSize,
+    required this.borderWidth,
+    required this.hPadding,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double radius = height / 2;
+    // IntrinsicWidth pins this to its content's natural width — without it,
+    // Container's `alignment` makes it expand to fill whatever width Wrap
+    // offers on its line, turning every pill into a full-width bar.
+    return IntrinsicWidth(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(radius),
+        clipBehavior: Clip.antiAlias,
+        child: KioskTap(
+          onTap: onTap,
+          child: Container(
+            height: height,
+            padding: EdgeInsets.symmetric(horizontal: hPadding),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? Colors.black : Colors.transparent,
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: Colors.black, width: borderWidth),
+            ),
+            child: Text(
+              label,
+              style: loewMedium.copyWith(
+                fontSize: fontSize,
+                height: 1,
+                color: selected ? Colors.white : Colors.black,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Left rail of category names: plain text on the page background with a
+/// divider below each item (no card, no image); selected fills yellow with
+/// white text. 524px wide in the Figma artboard, scaled by `s`.
 class _CategoryRail extends StatelessWidget {
   final double s;
   final void Function(int id) onSelect;
@@ -390,14 +525,13 @@ class _CategoryRail extends StatelessWidget {
           child: ListView.separated(
             padding: EdgeInsets.zero,
             itemCount: categories.length,
-            separatorBuilder: (_, __) => SizedBox(height: 58 * s),
+            separatorBuilder: (_, __) => SizedBox(height: 56 * s),
             itemBuilder: (context, index) {
               final c = categories[index];
               final bool selected = '${c.id}' == category.selectedSubCategoryId;
               return _RailCard(
                 s: s,
                 name: c.name ?? '',
-                image: c.image ?? '',
                 selected: selected,
                 onTap: () => onSelect(c.id!),
               );
@@ -412,73 +546,38 @@ class _CategoryRail extends StatelessWidget {
 class _RailCard extends StatelessWidget {
   final double s;
   final String name;
-  final String image;
   final bool selected;
   final VoidCallback onTap;
   const _RailCard({
     required this.s,
     required this.name,
-    required this.image,
     required this.selected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final String imageUrl =
-        image.isEmpty ? '' : '${splash.baseUrls?.categoryImageUrl}/$image';
-    final double radius = 25 * s;
-
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(radius),
-      clipBehavior: Clip.antiAlias,
+      color: selected ? KioskUI.categorySelectedBg : Colors.transparent,
       child: KioskTap(
         onTap: onTap,
         child: Container(
-          height: 240 *
-              s, // Figma rail card height (landscape card), slightly reduced.
-          // Border painted as a foreground decoration so it sits ON TOP of the
-          // card content (the right-hand image). In `decoration` it renders
-          // behind the image, so the image clipped the border on its side.
-          foregroundDecoration: selected
-              ? BoxDecoration(
-                  borderRadius: BorderRadius.circular(radius),
-                  border: Border.all(
-                      color: Colors.black, width: (1 * s).clamp(1.5, 3.0)),
-                )
-              : null,
-          child: Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 40 * s),
-                  child: Text(
-                    name.toUpperCase(),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: loewBold.copyWith(
-                      fontSize: 40 * s,
-                      height: 1.1,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-              if (imageUrl.isNotEmpty)
-                SizedBox(
-                  width: 230 * s,
-                  height: double.infinity,
-                  child: CustomImageWidget(
-                    placeholder: Images.placeholderImage,
-                    image: imageUrl,
-                    fit: BoxFit.cover,
-                    useShimmer: true,
-                    cacheWidth: CustomImageWidget.kKioskThumbCacheWidth,
-                  ),
-                ),
-            ],
+          height: 130 * s,
+          padding: EdgeInsets.symmetric(horizontal: 8 * s),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(color: Colors.black, width: 2 * s)),
+          ),
+          child: Text(
+            name.toUpperCase(),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: loewBold.copyWith(
+              fontSize: 40 * s,
+              height: 1.1,
+              color: selected ? Colors.white : Colors.black,
+            ),
           ),
         ),
       ),
@@ -923,7 +1022,7 @@ class _EmptyCartBar extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: 100 * s),
           alignment: Alignment.centerLeft,
           child: Text(
-            '${getTranslated('cart', context) ?? 'CART'} / ${PriceConverterHelper.convertPrice(total)}',
+            '${(getTranslated('cart', context) ?? 'CART').toUpperCase()} / ${PriceConverterHelper.convertPrice(total)}',
             style:
                 loewExtraBold.copyWith(fontSize: 64 * s, color: Colors.black),
           ),
@@ -1004,7 +1103,7 @@ class _ViewCartButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                getTranslated('view_cart', context) ?? 'VIEW CART',
+                (getTranslated('view_cart', context) ?? 'VIEW CART').toUpperCase(),
                 style: loewExtraBold.copyWith(
                     fontSize: 46 * s, color: Colors.black),
               ),
@@ -1051,7 +1150,7 @@ class _CheckoutButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  getTranslated('check_out', context) ?? 'CHECK OUT',
+                  (getTranslated('check_out', context) ?? 'CHECK OUT').toUpperCase(),
                   style: loewExtraBold.copyWith(
                       fontSize: 46 * s, color: _kCreamText),
                 ),
@@ -1202,7 +1301,23 @@ class _KioskWideMenu extends StatelessWidget {
                       child: _WideCategoryRail(onSelect: onSelectCategory),
                     ),
                     const SizedBox(width: 24),
-                    const Expanded(child: _WideProductArea()),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _FilterPillsRow(
+                            pillHeight: 40,
+                            fontSize: 13,
+                            borderWidth: 2,
+                            hPadding: 16,
+                            hGap: 8,
+                            vGap: 8,
+                          ),
+                          SizedBox(height: 12),
+                          Expanded(child: _WideProductArea()),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1223,6 +1338,9 @@ class _WideHeader extends StatelessWidget {
       height: KioskUI.headerHeight,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
+      ),
       child: Row(
         children: [
           Text('A/CAFÉ',
@@ -1280,7 +1398,6 @@ class _WideCategoryRail extends StatelessWidget {
   const _WideCategoryRail({required this.onSelect});
   @override
   Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
     return Consumer<CategoryProvider>(
       builder: (context, category, _) {
         final categories = category.categoryList;
@@ -1290,16 +1407,12 @@ class _WideCategoryRail extends StatelessWidget {
         return ListView.separated(
           padding: EdgeInsets.zero,
           itemCount: categories.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, __) => const SizedBox(height: 24),
           itemBuilder: (context, index) {
             final c = categories[index];
             final bool selected = '${c.id}' == category.selectedSubCategoryId;
-            final String img = (c.image ?? '').isEmpty
-                ? ''
-                : '${splash.baseUrls?.categoryImageUrl}/${c.image}';
             return KioskCategoryTile(
               name: c.name ?? '',
-              imageUrl: img,
               selected: selected,
               onTap: () => onSelect(c.id!),
             );
@@ -1449,7 +1562,7 @@ class _WideCartBar extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: latest == null
                     ? Text(
-                        '${getTranslated('cart', context) ?? 'CART'} / ${PriceConverterHelper.convertPrice(total)}',
+                        '${(getTranslated('cart', context) ?? 'CART').toUpperCase()} / ${PriceConverterHelper.convertPrice(total)}',
                         style: loewExtraBold.copyWith(
                             fontSize: KioskUI.section, color: Colors.black))
                     : Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1495,14 +1608,14 @@ class _WideCartBar extends StatelessWidget {
               ),
               const Spacer(),
               KioskButton.secondary(
-                label: getTranslated('view_cart', context) ?? 'VIEW CART',
+                label: (getTranslated('view_cart', context) ?? 'VIEW CART').toUpperCase(),
                 maxWidth: 280,
                 badgeCount: count > 0 ? count : null,
                 onTap: () => RouterHelper.getKioskCartRoute(),
               ),
               const SizedBox(width: 16),
               KioskButton(
-                label: getTranslated('check_out', context) ?? 'CHECK OUT',
+                label: (getTranslated('check_out', context) ?? 'CHECK OUT').toUpperCase(),
                 height: KioskUI.secondaryButtonHeight,
                 maxWidth: 280,
                 onTap: count > 0
