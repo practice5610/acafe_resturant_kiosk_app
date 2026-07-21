@@ -25,7 +25,7 @@ class AppConstants {
   }
 
   static const String categoryUri = '/api/v1/categories';
-  static const String bannerUri = '/api/v1/banners';    
+  static const String bannerUri = '/api/v1/banners';
   static const String latestProductUri = '/api/v1/products/latest';
   static const String popularProductUri = '/api/v1/products/popular';
   static const String subCategoryUri = '/api/v1/categories/childes/';
