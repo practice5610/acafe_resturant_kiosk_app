@@ -136,10 +136,12 @@ class _CompactLineCard extends StatelessWidget {
                     cartProvider.removeFromCart(index);
                   }
                 },
-                onIncrement: () => Provider.of<CartProvider>(context,
-                        listen: false)
-                    .onUpdateCartQuantity(
-                        index: index, product: cart.product!, isRemove: false),
+                onIncrement: () =>
+                    Provider.of<CartProvider>(context, listen: false)
+                        .onUpdateCartQuantity(
+                            index: index,
+                            product: cart.product!,
+                            isRemove: false),
               ),
             ],
           ),
@@ -174,7 +176,7 @@ class _ScaledLineCard extends StatelessWidget {
             border: Border.all(
                 color: kOrderCardBorder, width: (1.5 * s).clamp(1.0, 3.0)),
           ),
-          padding: EdgeInsets.all(40 * s),
+          padding: EdgeInsets.all(30 * s),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -202,17 +204,13 @@ class _ScaledLineCard extends StatelessWidget {
                     Text(
                       cart.product?.name ?? '',
                       style: loewExtraBold.copyWith(
-                          fontSize: 72 * s,
-                          height: 1.05,
-                          color: Colors.black),
+                          fontSize: 72 * s, height: 1.05, color: Colors.black),
                     ),
                     SizedBox(height: 16 * s),
                     Text(
                       PriceConverterHelper.convertPrice(kioskLineTotal(cart)),
                       style: swiss721Light.copyWith(
-                          fontSize: 90 * s,
-                          height: 1,
-                          color: kOrderPriceColor),
+                          fontSize: 90 * s, height: 1, color: kOrderPriceColor),
                     ),
                     SizedBox(height: 24 * s),
                     for (final line in modifiers)
@@ -227,7 +225,7 @@ class _ScaledLineCard extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(width: 40 * s),
+              SizedBox(width: 30 * s),
               _QtyStepper(
                 s: s,
                 quantity: cart.quantity ?? 1,
@@ -241,10 +239,12 @@ class _ScaledLineCard extends StatelessWidget {
                     cartProvider.removeFromCart(index);
                   }
                 },
-                onIncrement: () => Provider.of<CartProvider>(context,
-                        listen: false)
-                    .onUpdateCartQuantity(
-                        index: index, product: cart.product!, isRemove: false),
+                onIncrement: () =>
+                    Provider.of<CartProvider>(context, listen: false)
+                        .onUpdateCartQuantity(
+                            index: index,
+                            product: cart.product!,
+                            isRemove: false),
               ),
             ],
           ),
@@ -295,7 +295,7 @@ class _QtyStepper extends StatelessWidget {
       children: [
         _StepBox(s: s, label: '−', filled: false, onTap: onDecrement),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 40 * s),
+          padding: EdgeInsets.symmetric(horizontal: 30 * s),
           child: Text('$quantity',
               style: loewExtraBold.copyWith(
                   fontSize: 90 * s, color: Colors.black)),
