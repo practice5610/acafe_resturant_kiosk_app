@@ -78,11 +78,19 @@ const String _kDefaultFilterPill = 'SIGNATURE';
 
 /// Removes the overscroll glow/stretch so dragging the grid past its top edge
 /// doesn't paint a grey "shadow" over the page (matches a clean kiosk look).
+/// Also drops the scrollbar the root MaterialScrollBehavior auto-adds on
+/// desktop/web (kiosk is touch-driven; no drag handle should show on the
+/// product grid).
 class _NoGlowScrollBehavior extends ScrollBehavior {
   const _NoGlowScrollBehavior();
 
   @override
   Widget buildOverscrollIndicator(
+          BuildContext context, Widget child, ScrollableDetails details) =>
+      child;
+
+  @override
+  Widget buildScrollbar(
           BuildContext context, Widget child, ScrollableDetails details) =>
       child;
 }
@@ -884,8 +892,12 @@ class _KioskProductCard extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    // Figma: Loew ExtraBold (w800) 31.68px, 100% line height, 0 tracking.
                     style: loewExtraBold.copyWith(
-                        fontSize: 32 * ts, height: 1.1, color: Colors.black),
+                        fontSize: 45 * ts,
+                        height: 1.0,
+                        letterSpacing: 0,
+                        color: Colors.black),
                   ),
                   SizedBox(height: 8 * ts),
                   Text(
@@ -895,8 +907,12 @@ class _KioskProductCard extends StatelessWidget {
                       discountType: product.discountType,
                     ),
                     textAlign: TextAlign.center,
+                    // Figma: Swiss 721 Light (w300) 39.6px, 100% line height, 0 tracking.
                     style: swiss721Light.copyWith(
-                        fontSize: 36 * ts, color: Colors.black),
+                        fontSize: 42 * ts,
+                        height: 1.5,
+                        letterSpacing: 1,
+                        color: Colors.black),
                   ),
                 ],
               ),
@@ -982,7 +998,7 @@ class _PromoBanner extends StatelessWidget {
 
 // Dark button fill + cream text used by the filled cart bar (from the design).
 const Color _kDarkButton = Color(0xFF1E1E1E);
-const Color _kCreamText = Color(0xFFF3F3DD);
+const Color _kCreamText = Color(0xFFFFFFFF);
 
 /// Fixed cart bar pinned to the bottom of the menu. Two states (per Figma):
 ///  • empty  → a single "CART / € 0.00" bar.
@@ -1105,6 +1121,8 @@ class _ViewCartButton extends StatelessWidget {
       color: Colors.white,
       borderRadius: BorderRadius.circular(radius),
       clipBehavior: Clip.antiAlias,
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.1),
       child: KioskTap(
         onTap: () => RouterHelper.getKioskCartRoute(),
         child: Container(
@@ -1155,6 +1173,8 @@ class _CheckoutButton extends StatelessWidget {
       // read as one family instead of the old, much rounder 50px pill.
       borderRadius: BorderRadius.circular(30 * s),
       clipBehavior: Clip.antiAlias,
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.1),
       child: KioskTap(
         onTap: () => RouterHelper.getKioskCheckoutRoute(),
         child: Container(
@@ -1169,7 +1189,7 @@ class _CheckoutButton extends StatelessWidget {
                   (getTranslated('check_out', context) ?? 'CHECK OUT')
                       .toUpperCase(),
                   style:
-                      loewBold.copyWith(fontSize: 55 * s, color: _kCreamText),
+                      loewBold.copyWith(fontSize: 50 * s, color: _kCreamText),
                 ),
                 SizedBox(width: 28 * s),
                 Text(
@@ -1204,10 +1224,17 @@ class _LatestItemCard extends StatelessWidget {
     final double unitPrice =
         cart?.discountedPrice ?? cart?.price ?? (product?.price ?? 0);
     final double plus = 64 * s;
-
+    // Figma: border-radius 40px, border 9px solid rgba(0,0,0,0.25),
+    // background #FBF8EF. Height matches the View Cart / Check Out column
+    // automatically — this card stretches to fill the shared parent Row's
+    // fixed height (see _FilledCartBar).
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(80 * s),
+      color: const Color(0xFFFBF8EF),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(40 * s),
+        side: BorderSide(
+            color: Colors.black.withValues(alpha: 0.25), width: 9 * s),
+      ),
       clipBehavior: Clip.antiAlias,
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.1),
