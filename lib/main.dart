@@ -14,6 +14,7 @@ import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
@@ -35,11 +36,6 @@ import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'di_container.dart' as di;
 import 'package:universal_html/html.dart' as html;
-
-/// Kiosk page background (matches every kiosk screen's Scaffold colour) — used
-/// to fill the letterbox area beside the centered, max-width-capped content on
-/// large displays so the beige extends edge-to-edge.
-const Color _kKioskPageBg = Color(0xFFF5F1EA);
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -234,7 +230,7 @@ class _MyAppState extends State<MyApp> {
             RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
         if (path != RouterHelper.kioskWelcomeScreen) {
           content = ColoredBox(
-            color: _kKioskPageBg,
+            color: KioskUI.pageBg,
             child: Center(
               child: ConstrainedBox(
                 constraints:

@@ -24,7 +24,6 @@ import 'package:provider/provider.dart';
 // (node 559:7646). Every size is taken from the 2572px-wide artboard and scaled
 // by `s = KioskResponsive.scale(screenWidth)`, reproducing the design at any size.
 // ===========================================================================
-const Color _kPageBg = Color(0xFFF7F1DE);
 const Color _kPanelBg = Color(0xFFFCFAF4);
 const Color _kDarkButton = Color(0xFF1E1E1E);
 const Color _kCreamText = Color(0xFFF3F3DD);
@@ -174,7 +173,7 @@ class KioskProductCustomizeScreen extends StatelessWidget {
     final addOns = product.addOns ?? [];
 
     return Scaffold(
-      backgroundColor: _kPageBg,
+      backgroundColor: KioskUI.pageBg,
       body: SafeArea(
         child: Consumer<ProductProvider>(
           builder: (context, productProvider, _) {

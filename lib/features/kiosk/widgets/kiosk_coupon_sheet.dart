@@ -14,7 +14,6 @@ import 'package:acafe_customer/utill/styles.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-const Color _kSheetBg = Color(0xFFF5F1EA);
 const Color _kFieldBg = Color(0xFFFBF8EF);
 const Color _kCardBg = Colors.white;
 
@@ -110,7 +109,7 @@ class _KioskCouponSheetState extends State<KioskCouponSheet> {
             : (MediaQuery.sizeOf(context).height * 0.28).clamp(160.0, 240.0);
 
         return Material(
-          color: _kSheetBg,
+          color: KioskUI.pageBg,
           borderRadius: BorderRadius.vertical(
             top: Radius.circular(wide ? 28 : 24 * s),
           ),

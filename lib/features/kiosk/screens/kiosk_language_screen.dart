@@ -69,7 +69,7 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kCheckoutPageBg,
+      backgroundColor: KioskUI.pageBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

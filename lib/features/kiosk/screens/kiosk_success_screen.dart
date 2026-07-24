@@ -4,6 +4,7 @@ import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/theme/brand_colors.dart';
@@ -86,7 +87,7 @@ class _KioskSuccessScreenState extends State<KioskSuccessScreen> {
     final bool hasOffer = _smartLink != null && _smartLink!.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: KioskUI.pageBg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

@@ -42,8 +42,7 @@ import 'package:provider/provider.dart';
 // bigger cards. See lib/common/responsive/kiosk_responsive.dart.
 // ===========================================================================
 
-// Warm beige page background + static promo/badge colours from the design.
-const Color _kPageBg = Color(0xFFF7F1DE);
+// Static promo/badge colours from the design (page background is KioskUI.pageBg).
 const Color _kPopularGreen = Color(0xFF357937);
 const Color _kSpecialRed = Color(0xFF59030E);
 
@@ -242,7 +241,7 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
       return _KioskWideMenu(onSelectCategory: _onSelectCategory);
     }
     return Scaffold(
-      backgroundColor: _kPageBg,
+      backgroundColor: KioskUI.pageBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

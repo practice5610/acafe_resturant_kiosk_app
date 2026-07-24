@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/common/models/place_order_body.dart';
 import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
@@ -222,7 +223,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: KioskUI.pageBg,
       body: SafeArea(
         child: Stack(
           children: [

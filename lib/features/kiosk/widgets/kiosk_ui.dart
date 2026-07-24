@@ -24,7 +24,9 @@ class KioskUI {
   KioskUI._();
 
   // Palette (identical to the existing kiosk screens — colours are unchanged).
-  static const Color pageBg = Color(0xFFF5F1EA);
+  /// Single global kiosk background — use this everywhere instead of a
+  /// local/duplicate constant.
+  static const Color pageBg = Color(0xFFF7F1DE);
   static const Color card = Colors.white;
   static const Color dark = Color(0xFF1E1E1E);
   static const Color cream = Color(0xFFF3F3DD);

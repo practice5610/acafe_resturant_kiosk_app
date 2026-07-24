@@ -69,7 +69,7 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
       return _WideConfirmScreen(placing: _placing, onComplete: _complete);
     }
     return Scaffold(
-      backgroundColor: kCheckoutPageBg,
+      backgroundColor: KioskUI.pageBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -141,7 +141,7 @@ class _WideConfirmScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kCheckoutPageBg,
+      backgroundColor: KioskUI.pageBg,
       body: SafeArea(
         child: Consumer2<CartProvider, CouponProvider>(
           builder: (context, cartProvider, couponProvider, _) {

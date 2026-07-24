@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 
 /// Shared colour tokens for the kiosk-themed search surfaces (search, results,
 /// filter), matching the A/CAFÉ menu design: warm cream canvas, white rounded
@@ -6,7 +7,7 @@ import 'package:flutter/material.dart';
 class KioskSearchTheme {
   KioskSearchTheme._();
 
-  static const Color pageBg = Color(0xFFF7F1DE); // warm cream page background
+  static const Color pageBg = KioskUI.pageBg; // global kiosk background
   static const Color surface = Color(0xFFFFFFFF); // cards / bars
   static const Color primary = Color(0xFF1E1E1E); // near-black
   static const Color creamText = Color(0xFFF3F3DD); // text on dark buttons

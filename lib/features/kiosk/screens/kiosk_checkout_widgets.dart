@@ -17,7 +17,6 @@ import 'package:go_router/go_router.dart';
 // call sites across the checkout / login / language screens.
 // ===========================================================================
 const double kKioskFormDesignWidth = KioskResponsive.formDesignWidth;
-const Color kCheckoutPageBg = Color(0xFFF5F1EA);
 const Color kCheckoutFieldBg = Color(0xFFFBF8EF);
 const Color kCheckoutErrorRed = Color(0xFFEF4444);
 const Color kCheckoutHintColor = Color(0xFFB9B5A6);
@@ -185,7 +184,7 @@ class KioskCheckoutScaffold extends StatelessWidget {
         }
       },
       child: Scaffold(
-        backgroundColor: kCheckoutPageBg,
+        backgroundColor: KioskUI.pageBg,
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -424,7 +423,7 @@ class _StepNode extends StatelessWidget {
                 width: 79 * s,
                 height: 79 * s,
                 decoration: const BoxDecoration(
-                    shape: BoxShape.circle, color: kCheckoutPageBg)),
+                    shape: BoxShape.circle, color: KioskUI.pageBg)),
             _StepState.completed =>
               Icon(Icons.check, size: 90 * s, color: Colors.white),
             _StepState.upcoming => null,

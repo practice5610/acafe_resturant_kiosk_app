@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
@@ -11,10 +12,6 @@ import 'package:provider/provider.dart';
 /// card capped at [kKioskFormDesignWidth]: it stays a comfortable size on large/kiosk
 /// screens and scales down (via `s`) on smaller ones. After a successful login
 /// the device is bound to its branch and goes to the Intro.
-
-/// Warm cream surface shared with the menu screen (#F7F1DE) so the kiosk
-/// login screen matches the branded menu background.
-const Color _kLoginPageBg = Color(0xFFF7F1DE);
 
 class KioskLoginScreen extends StatefulWidget {
   const KioskLoginScreen({super.key});
@@ -74,7 +71,7 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kLoginPageBg,
+      backgroundColor: KioskUI.pageBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
