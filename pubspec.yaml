@@ -142,3 +142,8 @@ flutter:
       fonts:
         - asset: assets/fonts/ScotchDisplay-Light.ttf
           weight: 300
+
+    - family: ScotchDisplayCond
+      fonts:
+        - asset: assets/fonts/ScotchDisplayCond-Lt.ttf
+          weight: 300

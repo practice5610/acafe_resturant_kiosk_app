@@ -52,16 +52,16 @@ class KioskCartScreen extends StatelessWidget {
                           children: [
                             Text(
                                 getTranslated('my_order', context) ??
-                                    'My Order',
+                                    'MY ORDER',
                                 style: loewExtraBold.copyWith(
-                                    fontSize: 128 * s,
+                                    fontSize: 100 * s,
                                     height: 1,
                                     color: Colors.black)),
                             SizedBox(height: 12 * s),
                             Text(
                               '${getTranslated('dine_in', context) ?? 'Dine in'} / $itemCount ${getTranslated('items', context) ?? 'items'}',
-                              style: scotchDisplayLight.copyWith(
-                                  fontSize: 88 * s,
+                              style: scotchDisplayCondLight.copyWith(
+                                  fontSize: 68 * s,
                                   height: 1,
                                   color: Colors.black),
                             ),
@@ -155,9 +155,9 @@ class _WideKioskCartScreen extends StatelessWidget {
                                 const SizedBox(height: 8),
                                 Text(
                                   '${getTranslated('dine_in', context) ?? 'Dine in'} / $itemCount ${getTranslated('items', context) ?? 'items'}',
-                                  style: scotchDisplayLight.copyWith(
+                                  style: scotchDisplayCondLight.copyWith(
                                     fontSize: KioskUI.body,
-                                    height: 1,
+                                    height: 5,
                                     color: Colors.black,
                                   ),
                                 ),
@@ -300,38 +300,42 @@ class _WideSummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _WideBreakdownRow(
-            label: getTranslated('items_total', context) ?? 'ITEMS TOTAL',
+            label: (getTranslated('items_total', context) ?? 'ITEMS TOTAL')
+                .toUpperCase(),
             value: PriceConverterHelper.convertPrice(items),
           ),
           const SizedBox(height: 10),
           _WideBreakdownRow(
-            label: getTranslated('tax', context) ?? 'TAX',
+            label: (getTranslated('tax', context) ?? 'TAX').toUpperCase(),
             value: PriceConverterHelper.convertPrice(tax),
           ),
           if (discount > 0) ...[
             const SizedBox(height: 10),
             _WideBreakdownRow(
-              label: getTranslated('discount', context) ?? 'DISCOUNT',
+              label: (getTranslated('discount', context) ?? 'DISCOUNT')
+                  .toUpperCase(),
               value: '- ${PriceConverterHelper.convertPrice(discount)}',
             ),
           ],
           if (couponDiscount > 0) ...[
             const SizedBox(height: 10),
             _WideBreakdownRow(
-              label: getTranslated('coupon_discount', context) ??
-                  'COUPON DISCOUNT',
+              label: (getTranslated('coupon_discount', context) ??
+                      'COUPON DISCOUNT')
+                  .toUpperCase(),
               value: '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
             ),
           ],
           const SizedBox(height: 14),
-          Container(height: 1, color: Colors.black12),
+          Container(height: 1.5, color: Colors.black38),
           const SizedBox(height: 14),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Text(
-                  getTranslated('your_pay', context) ?? 'YOUR PAY',
+                  (getTranslated('your_pay', context) ?? 'YOUR PAY')
+                      .toUpperCase(),
                   style: loewExtraBold.copyWith(
                     fontSize: KioskUI.heading,
                     height: 1,
@@ -351,11 +355,12 @@ class _WideSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           KioskButton.secondary(
-            label: couponDiscount > 0
-                ? (couponCode ??
-                    getTranslated('add_coupon', context) ??
-                    'ADD COUPON')
-                : (getTranslated('add_coupon', context) ?? 'ADD COUPON'),
+            label: (couponDiscount > 0
+                    ? (couponCode ??
+                        getTranslated('add_coupon', context) ??
+                        'ADD COUPON')
+                    : (getTranslated('add_coupon', context) ?? 'ADD COUPON'))
+                .toUpperCase(),
             maxWidth: double.infinity,
             onTap: enabled
                 ? () => openKioskCouponSheet(
@@ -366,7 +371,8 @@ class _WideSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           KioskButton(
-            label: getTranslated('check_out', context) ?? 'CHECK OUT',
+            label: (getTranslated('check_out', context) ?? 'CHECK OUT')
+                .toUpperCase(),
             height: KioskUI.primaryButtonHeight,
             maxWidth: double.infinity,
             onTap: enabled ? () => RouterHelper.getKioskCheckoutRoute() : null,
@@ -500,42 +506,46 @@ class _Footer extends StatelessWidget {
                 _BreakdownRow(
                   s: s,
                   label:
-                      getTranslated('items_total', context) ?? 'ITEMS TOTAL',
+                      (getTranslated('items_total', context) ?? 'ITEMS TOTAL')
+                          .toUpperCase(),
                   value: PriceConverterHelper.convertPrice(items),
                 ),
                 if (discount > 0) ...[
                   SizedBox(height: 20 * s),
                   _BreakdownRow(
                     s: s,
-                    label: getTranslated('discount', context) ?? 'DISCOUNT',
+                    label: (getTranslated('discount', context) ?? 'DISCOUNT')
+                        .toUpperCase(),
                     value: '- ${PriceConverterHelper.convertPrice(discount)}',
                   ),
                 ],
                 SizedBox(height: 20 * s),
                 _BreakdownRow(
                   s: s,
-                  label: getTranslated('tax', context) ?? 'TAX',
+                  label: (getTranslated('tax', context) ?? 'TAX').toUpperCase(),
                   value: PriceConverterHelper.convertPrice(tax),
                 ),
                 if (couponDiscount > 0) ...[
                   SizedBox(height: 20 * s),
                   _BreakdownRow(
                     s: s,
-                    label: getTranslated('coupon_discount', context) ??
-                        'COUPON DISCOUNT',
+                    label: (getTranslated('coupon_discount', context) ??
+                            'COUPON DISCOUNT')
+                        .toUpperCase(),
                     value:
                         '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
                   ),
                 ],
                 SizedBox(height: 28 * s),
                 Container(
-                  height: 2 * s,
-                  color: Colors.black.withValues(alpha: 0.15),
+                  height: (2 * s).clamp(1.5, 3.0),
+                  color: Colors.black.withValues(alpha: 0.4),
                 ),
                 SizedBox(height: 28 * s),
                 _BreakdownRow(
                   s: s,
-                  label: getTranslated('your_pay', context) ?? 'YOUR PAY',
+                  label: (getTranslated('your_pay', context) ?? 'YOUR PAY')
+                      .toUpperCase(),
                   value: PriceConverterHelper.convertPrice(total),
                   emphasized: true,
                 ),
@@ -550,30 +560,32 @@ class _Footer extends StatelessWidget {
               children: [
                 _FooterButton(
                   s: s,
-                  height: 130 * s,
-                  label: couponDiscount > 0
-                      ? (couponCode ??
-                          getTranslated('add_coupon', context) ??
-                          'ADD COUPON')
-                      : (getTranslated('add_coupon', context) ??
-                          'ADD COUPON'),
+                  height: 180 * s,
+                  label: (couponDiscount > 0
+                          ? (couponCode ??
+                              getTranslated('add_coupon', context) ??
+                              'ADD COUPON')
+                          : (getTranslated('add_coupon', context) ??
+                              'ADD COUPON'))
+                      .toUpperCase(),
                   filled: false,
                   onTap: enabled
                       ? () => openKioskCouponSheet(
                             context,
-                            orderAmount:
-                                kioskOrderAmountBeforeCoupon(cartList),
+                            orderAmount: kioskOrderAmountBeforeCoupon(cartList),
                           )
                       : null,
                 ),
                 SizedBox(height: 28 * s),
                 _FooterButton(
                   s: s,
-                  height: 130 * s,
-                  label: getTranslated('check_out', context) ?? 'CHECK OUT',
+                  height: 180 * s,
+                  label: (getTranslated('check_out', context) ?? 'CHECK OUT')
+                      .toUpperCase(),
                   filled: true,
-                  onTap:
-                      enabled ? () => RouterHelper.getKioskCheckoutRoute() : null,
+                  onTap: enabled
+                      ? () => RouterHelper.getKioskCheckoutRoute()
+                      : null,
                 ),
               ],
             ),
@@ -663,8 +675,8 @@ class _FooterButton extends StatelessWidget {
             child: Text(
               label,
               textAlign: TextAlign.center,
-              style: (filled ? loewExtraBold : loewBold).copyWith(
-                fontSize: 72 * s,
+              style: (filled ? loewRegular800 : loewRegular700).copyWith(
+                fontSize: 52 * s,
                 letterSpacing: 1,
                 color: filled ? _kCheckoutText : Colors.black,
               ),

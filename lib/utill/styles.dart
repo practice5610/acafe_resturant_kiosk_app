@@ -45,6 +45,18 @@ const loewRegular = TextStyle(
   fontWeight: FontWeight.w400,
 );
 
+const loewRegular700 = TextStyle(
+  fontFamily: 'Loew',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w700,
+);
+
+const loewRegular800 = TextStyle(
+  fontFamily: 'Loew',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w800,
+);
+
 const loewMedium = TextStyle(
   fontFamily: 'Loew',
   fontSize: Dimensions.fontSizeDefault,
@@ -71,6 +83,12 @@ const swiss721Light = TextStyle(
 
 const scotchDisplayLight = TextStyle(
   fontFamily: 'ScotchDisplay',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w300,
+);
+
+const scotchDisplayCondLight = TextStyle(
+  fontFamily: 'ScotchDisplayCond',
   fontSize: Dimensions.fontSizeDefault,
   fontWeight: FontWeight.w300,
 );
