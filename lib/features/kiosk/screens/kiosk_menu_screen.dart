@@ -875,8 +875,7 @@ class _KioskProductCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: EdgeInsets.fromLTRB(
-                  24 * ts, 16 * ts, 24 * ts, 24 * ts),
+              padding: EdgeInsets.fromLTRB(24 * ts, 16 * ts, 24 * ts, 24 * ts),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1060,8 +1059,10 @@ class _FilledCartBar extends StatelessWidget {
   Widget build(BuildContext context) {
     // The most recently added item is shown on the left.
     final CartModel? latest = cartList.isNotEmpty ? cartList.last : null;
+    // Figma gives each stacked button a 252px height; total = 2*252 + the
+    // 20px gap between them, so each Expanded below resolves back to 252*s.
     return SizedBox(
-      height: 290 * s,
+      height: 424 * s,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1096,7 +1097,9 @@ class _ViewCartButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double radius = 50 * s;
+    // Figma: border-radius 30px, border 8px solid #000 (was a much
+    // rounder 50px radius with a thin 2-6px border).
+    final double radius = 30 * s;
     final double badge = 56 * s;
     return Material(
       color: Colors.white,
@@ -1107,8 +1110,7 @@ class _ViewCartButton extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            border:
-                Border.all(color: Colors.black, width: (4 * s).clamp(2.0, 6.0)),
+            border: Border.all(color: Colors.black, width: 8 * s),
           ),
           alignment: Alignment.center,
           child: Row(
@@ -1117,8 +1119,7 @@ class _ViewCartButton extends StatelessWidget {
               Text(
                 (getTranslated('view_cart', context) ?? 'VIEW CART')
                     .toUpperCase(),
-                style: loewExtraBold.copyWith(
-                    fontSize: 46 * s, color: Colors.black),
+                style: loewBold.copyWith(fontSize: 50 * s, color: Colors.black),
               ),
               SizedBox(width: 24 * s),
               Container(
@@ -1150,7 +1151,9 @@ class _CheckoutButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: _kDarkButton,
-      borderRadius: BorderRadius.circular(50 * s),
+      // Matches _ViewCartButton's Figma radius (30px) so the paired buttons
+      // read as one family instead of the old, much rounder 50px pill.
+      borderRadius: BorderRadius.circular(30 * s),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: () => RouterHelper.getKioskCheckoutRoute(),
@@ -1165,8 +1168,8 @@ class _CheckoutButton extends StatelessWidget {
                 Text(
                   (getTranslated('check_out', context) ?? 'CHECK OUT')
                       .toUpperCase(),
-                  style: loewExtraBold.copyWith(
-                      fontSize: 46 * s, color: _kCreamText),
+                  style:
+                      loewBold.copyWith(fontSize: 55 * s, color: _kCreamText),
                 ),
                 SizedBox(width: 28 * s),
                 Text(
