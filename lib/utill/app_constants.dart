@@ -157,6 +157,7 @@ class AppConstants {
   static const String kioskBranchName = 'kiosk_branch_name';
   static const String kioskDeviceName = 'kiosk_device_name';
   static const String kioskUsername = 'kiosk_username';
+  static const String kioskDeviceId = 'kiosk_device_id';
   static const String kioskMenuCacheKey = 'kiosk_menu_cache_v1';
   static const String currentAddress = 'current_address';
   static const String lastOrderPaymentMethod = 'last_order_payment_method';

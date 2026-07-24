@@ -22,6 +22,7 @@ class KioskAuthProvider extends ChangeNotifier {
 
   String get branchName => kioskAuthRepo.getBranchName();
   String get deviceName => kioskAuthRepo.getDeviceName();
+  int? get deviceId => kioskAuthRepo.getDeviceId();
 
   /// One-time device login. On success persists token + bound branch and
   /// returns success; on failure returns the server message (wrong creds /
@@ -49,6 +50,7 @@ class KioskAuthProvider extends ChangeNotifier {
         branchName: branch['name']?.toString(),
         deviceName: device['name']?.toString(),
         username: device['username']?.toString(),
+        deviceId: device['id'] is int ? device['id'] : int.tryParse('${device['id']}'),
       );
       responseModel = ResponseModel(true, 'logged_in');
     } else {
@@ -83,6 +85,7 @@ class KioskAuthProvider extends ChangeNotifier {
           branchName: branch['name']?.toString(),
           deviceName: device['name']?.toString(),
           username: device['username']?.toString(),
+          deviceId: device['id'] is int ? device['id'] : int.tryParse('${device['id']}'),
         );
       }
       return true;

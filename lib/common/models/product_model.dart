@@ -54,8 +54,6 @@ class Product {
   List<Variation>? _variations;
   List<AddOns>? _addOns;
   double? _tax;
-  String? _availableTimeStarts;
-  String? _availableTimeEnds;
   int? _status;
   String? _createdAt;
   String? _updatedAt;
@@ -82,8 +80,6 @@ class Product {
         List<Variation>? variations,
         List<AddOns>? addOns,
         double? tax,
-        String? availableTimeStarts,
-        String? availableTimeEnds,
         int? status,
         String? createdAt,
         String? updatedAt,
@@ -110,8 +106,6 @@ class Product {
     _variations = variations;
     _addOns = addOns;
     _tax = tax;
-    _availableTimeStarts = availableTimeStarts;
-    _availableTimeEnds = availableTimeEnds;
     _status = status;
     _createdAt = createdAt;
     _updatedAt = updatedAt;
@@ -138,8 +132,6 @@ class Product {
   List<Variation>? get variations => _variations;
   List<AddOns>? get addOns => _addOns;
   double? get tax => _tax;
-  String? get availableTimeStarts => _availableTimeStarts;
-  String? get availableTimeEnds => _availableTimeEnds;
   int? get status => _status;
   String? get createdAt => _createdAt;
   String? get updatedAt => _updatedAt;
@@ -185,8 +177,6 @@ class Product {
     }
     _tax = json['tax'].toDouble();
     _tax = json['tax'].toDouble();
-    _availableTimeStarts = json['available_time_starts'] ?? '';
-    _availableTimeEnds = json['available_time_ends'] ?? '' ;
     _status = json['status'] ?? 0;
     _createdAt = json['created_at'];
     _updatedAt = json['updated_at'];
@@ -251,8 +241,6 @@ class Product {
       data['add_ons'] = _addOns!.map((v) => v.toJson()).toList();
     }
     data['tax'] = _tax;
-    data['available_time_starts'] = _availableTimeStarts;
-    data['available_time_ends'] = _availableTimeEnds;
     data['status'] = _status;
     data['created_at'] = _createdAt;
     data['updated_at'] = _updatedAt;

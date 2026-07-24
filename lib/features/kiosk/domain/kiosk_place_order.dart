@@ -7,6 +7,7 @@ import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/order/providers/order_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +37,7 @@ Future<KioskPlaceResult> placeKioskOrder(
   final splashProvider = Provider.of<SplashProvider>(context, listen: false);
   final authProvider = Provider.of<AuthProvider>(context, listen: false);
   final couponProvider = Provider.of<CouponProvider>(context, listen: false);
+  final kioskAuthProvider = Provider.of<KioskAuthProvider>(context, listen: false);
 
   // Kiosk orders are placed as a guest — make sure a guest account exists so the
   // backend's required guest_id is attached by the order repository.
@@ -95,6 +97,7 @@ Future<KioskPlaceResult> placeKioskOrder(
     orderType: 'take_away',
     paymentMethod: 'cash_on_delivery',
     branchId: branchId,
+    deviceId: kioskAuthProvider.deviceId,
     deliveryTime: 'now',
     deliveryDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
     orderNote: name.isNotEmpty ? 'Kiosk order — $name' : 'Kiosk order',

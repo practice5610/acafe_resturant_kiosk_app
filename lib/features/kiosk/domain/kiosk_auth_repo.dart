@@ -48,6 +48,7 @@ class KioskAuthRepo {
     String? branchName,
     String? deviceName,
     String? username,
+    int? deviceId,
   }) async {
     await sharedPreferences.setString(AppConstants.token, token);
     await sharedPreferences.setInt(AppConstants.branch, branchId);
@@ -59,6 +60,9 @@ class KioskAuthRepo {
     }
     if (username != null) {
       await sharedPreferences.setString(AppConstants.kioskUsername, username);
+    }
+    if (deviceId != null) {
+      await sharedPreferences.setInt(AppConstants.kioskDeviceId, deviceId);
     }
     // Refresh dio headers so the new token + branch take effect immediately.
     await dioClient.updateHeader(getToken: token);
@@ -74,12 +78,17 @@ class KioskAuthRepo {
   String getDeviceName() =>
       sharedPreferences.getString(AppConstants.kioskDeviceName) ?? '';
 
+  int? getDeviceId() => sharedPreferences.containsKey(AppConstants.kioskDeviceId)
+      ? sharedPreferences.getInt(AppConstants.kioskDeviceId)
+      : null;
+
   /// Wipe the device session (revoked/inactive/logout).
   Future<void> clearSession() async {
     await sharedPreferences.remove(AppConstants.token);
     await sharedPreferences.remove(AppConstants.kioskBranchName);
     await sharedPreferences.remove(AppConstants.kioskDeviceName);
     await sharedPreferences.remove(AppConstants.kioskUsername);
+    await sharedPreferences.remove(AppConstants.kioskDeviceId);
     await sharedPreferences.remove(AppConstants.cartList);
     await dioClient.updateHeader(getToken: null);
   }

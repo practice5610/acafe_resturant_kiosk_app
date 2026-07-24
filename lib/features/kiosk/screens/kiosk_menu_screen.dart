@@ -221,7 +221,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     if (!mounted) return;
 
     // 4) Warm neighbours for the next tap.
-    KioskMenuImageHelper.precacheAroundSelected(context, categoryProvider, splash);
+    KioskMenuImageHelper.precacheAroundSelected(
+        context, categoryProvider, splash);
   }
 
   @override
@@ -566,8 +567,8 @@ class _RailCard extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: 8 * s),
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
-            border: Border(
-                bottom: BorderSide(color: Colors.black, width: 2 * s)),
+            border:
+                Border(bottom: BorderSide(color: Colors.black, width: 2 * s)),
           ),
           child: Text(
             name.toUpperCase(),
@@ -1103,7 +1104,8 @@ class _ViewCartButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                (getTranslated('view_cart', context) ?? 'VIEW CART').toUpperCase(),
+                (getTranslated('view_cart', context) ?? 'VIEW CART')
+                    .toUpperCase(),
                 style: loewExtraBold.copyWith(
                     fontSize: 46 * s, color: Colors.black),
               ),
@@ -1150,7 +1152,8 @@ class _CheckoutButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  (getTranslated('check_out', context) ?? 'CHECK OUT').toUpperCase(),
+                  (getTranslated('check_out', context) ?? 'CHECK OUT')
+                      .toUpperCase(),
                   style: loewExtraBold.copyWith(
                       fontSize: 46 * s, color: _kCreamText),
                 ),
@@ -1450,8 +1453,7 @@ class _WideProductArea extends StatelessWidget {
           child: CustomScrollView(
             slivers: [
               SliverGrid(
-                gridDelegate:
-                    const SliverGridDelegateWithMaxCrossAxisExtent(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: KioskUI.productCardMaxWidth,
                   childAspectRatio: 0.72,
                   crossAxisSpacing: 24,
@@ -1513,8 +1515,8 @@ class _WidePromoBanner extends StatelessWidget {
               children: [
                 Text('OOH, YUMMY!',
                     textAlign: TextAlign.center,
-                    style:
-                        loewExtraBold.copyWith(fontSize: 12, color: Colors.black)),
+                    style: loewExtraBold.copyWith(
+                        fontSize: 12, color: Colors.black)),
                 const SizedBox(height: 2),
                 Text('Raspberry Matcha Latte',
                     textAlign: TextAlign.center,
@@ -1608,14 +1610,16 @@ class _WideCartBar extends StatelessWidget {
               ),
               const Spacer(),
               KioskButton.secondary(
-                label: (getTranslated('view_cart', context) ?? 'VIEW CART').toUpperCase(),
+                label: (getTranslated('view_cart', context) ?? 'VIEW CART')
+                    .toUpperCase(),
                 maxWidth: 280,
                 badgeCount: count > 0 ? count : null,
                 onTap: () => RouterHelper.getKioskCartRoute(),
               ),
               const SizedBox(width: 16),
               KioskButton(
-                label: (getTranslated('check_out', context) ?? 'CHECK OUT').toUpperCase(),
+                label: (getTranslated('check_out', context) ?? 'CHECK OUT')
+                    .toUpperCase(),
                 height: KioskUI.secondaryButtonHeight,
                 maxWidth: 280,
                 onTap: count > 0

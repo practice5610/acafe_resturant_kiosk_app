@@ -21,6 +21,7 @@ class PlaceOrderBody {
   String? _isPartial;
   String? _isCutleryRequired;
   int? _selectedDeliveryArea;
+  int? _deviceId;
 
   PlaceOrderBody copyWith({String? paymentMethod, String? transactionReference}) {
     _paymentMethod = paymentMethod;
@@ -49,6 +50,7 @@ class PlaceOrderBody {
         int? selectedDeliveryArea,
         double? bringChangeAmount,
         dynamic deliveryAddress,
+        int? deviceId,
       }) {
     _cart = cart;
     _couponDiscountAmount = couponDiscountAmount;
@@ -70,6 +72,7 @@ class PlaceOrderBody {
     _isCutleryRequired = isCutleryRequired;
     _selectedDeliveryArea = selectedDeliveryArea;
     _bringChangeAmount = bringChangeAmount;
+    _deviceId = deviceId;
   }
 
   List<Cart>? get cart => _cart;
@@ -92,6 +95,7 @@ class PlaceOrderBody {
   String? get isCutleryRequired => _isCutleryRequired;
   int? get selectedDeliveryArea => _selectedDeliveryArea;
   double? get bringChangeAmount => _bringChangeAmount;
+  int? get deviceId => _deviceId;
 
   PlaceOrderBody.fromJson(Map<String, dynamic> json) {
     if (json['cart'] != null) {
@@ -120,6 +124,7 @@ class PlaceOrderBody {
     _isPartial = json['is_partial'];
     _isCutleryRequired = json['is_cutlery_required'];
     _bringChangeAmount = json['bring_change_amount'];
+    _deviceId = json['device_id'];
   }
 
   Map<String, dynamic> toJson() {
@@ -152,6 +157,9 @@ class PlaceOrderBody {
     data['is_partial'] = _isPartial;
     data['is_cutlery_required'] = _isCutleryRequired;
     data['bring_change_amount'] = _bringChangeAmount;
+    if (_deviceId != null) {
+      data['device_id'] = _deviceId;
+    }
     return data;
   }
 }
