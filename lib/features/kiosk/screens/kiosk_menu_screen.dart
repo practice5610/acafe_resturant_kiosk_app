@@ -23,6 +23,7 @@ import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
+import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -815,83 +816,93 @@ class _KioskProductCard extends StatelessWidget {
     // Metrics scale with the actual tile width (design tile ≈ 564px) so the card
     // keeps the same proportions no matter how many columns fit on screen.
     final double ts = tileWidth / 564.0;
-    final double cardRadius = 60 * ts;
-    final double imageRadius = 40 * ts;
+    final double cardRadius = 33 * ts;
+    final double cardBorderWidth = 5.5 * ts;
 
     // White rounded card containing the image AND the name + price (matches the
     // Figma layout where text sits inside the card, not on the page below it).
+    // Border radius/width + colour come straight from Figma (33px / 5.5px / #DED9C7),
+    // scaled by `ts` so the card stays proportional at any kiosk screen size.
+    // The image sits flush against the card edges (no inset padding) so it fills
+    // the card edge-to-edge; Material's own rounded clip takes care of rounding
+    // the image's top corners to match the card.
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(cardRadius),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(cardRadius),
+        side: BorderSide(color: BrandColors.cardBorder, width: cardBorderWidth),
+      ),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: () => openKioskCustomize(context, product),
-        child: Padding(
-          padding: EdgeInsets.all(24 * ts),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(imageRadius),
-                        child: CustomImageWidget(
-                          placeholder: Images.placeholderImage,
-                          image: image,
-                          fit: BoxFit.cover,
-                          useShimmer: true,
-                          cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: CustomImageWidget(
+                      placeholder: Images.placeholderImage,
+                      image: image,
+                      fit: BoxFit.cover,
+                      useShimmer: true,
+                      cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
+                    ),
+                  ),
+                  if (badge != null)
+                    Positioned(
+                      top: 30 * ts,
+                      left: 0,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 28 * ts, vertical: 10 * ts),
+                        decoration: BoxDecoration(
+                          color: badge!.color,
+                          borderRadius: BorderRadius.only(
+                            topRight: Radius.circular(10 * ts),
+                            bottomRight: Radius.circular(10 * ts),
+                          ),
+                        ),
+                        child: Text(
+                          badge!.label,
+                          style: swiss721Light.copyWith(
+                              color: Colors.white, fontSize: 34 * ts),
                         ),
                       ),
                     ),
-                    if (badge != null)
-                      Positioned(
-                        top: 30 * ts,
-                        left: 0,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 28 * ts, vertical: 10 * ts),
-                          decoration: BoxDecoration(
-                            color: badge!.color,
-                            borderRadius: BorderRadius.only(
-                              topRight: Radius.circular(10 * ts),
-                              bottomRight: Radius.circular(10 * ts),
-                            ),
-                          ),
-                          child: Text(
-                            badge!.label,
-                            style: swiss721Light.copyWith(
-                                color: Colors.white, fontSize: 34 * ts),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
-              SizedBox(height: 16 * ts),
-              Text(
-                product.name ?? '',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: loewExtraBold.copyWith(
-                    fontSize: 32 * ts, height: 1.1, color: Colors.black),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  24 * ts, 16 * ts, 24 * ts, 24 * ts),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    product.name ?? '',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: loewExtraBold.copyWith(
+                        fontSize: 32 * ts, height: 1.1, color: Colors.black),
+                  ),
+                  SizedBox(height: 8 * ts),
+                  Text(
+                    PriceConverterHelper.convertPrice(
+                      product.price,
+                      discount: product.discount,
+                      discountType: product.discountType,
+                    ),
+                    textAlign: TextAlign.center,
+                    style: swiss721Light.copyWith(
+                        fontSize: 36 * ts, color: Colors.black),
+                  ),
+                ],
               ),
-              SizedBox(height: 8 * ts),
-              Text(
-                PriceConverterHelper.convertPrice(
-                  product.price,
-                  discount: product.discount,
-                  discountType: product.discountType,
-                ),
-                textAlign: TextAlign.center,
-                style: swiss721Light.copyWith(
-                    fontSize: 36 * ts, color: Colors.black),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

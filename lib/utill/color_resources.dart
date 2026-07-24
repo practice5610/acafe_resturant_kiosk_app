@@ -59,6 +59,7 @@ class ColorResources {
   static const Color colorNero = Color(0xFF1F1F1F);
   static const Color searchBg = BrandColors.background;
   static const Color borderColor = Color(0xFFDCDCDC);
+  static const Color cardBorderGrey = BrandColors.cardBorder;
   static const Color footerColor = BrandColors.primaryLight;
   static const Color cardShadowColor = Color(0xFFA7A7A7);
   static const Color white = Colors.white;

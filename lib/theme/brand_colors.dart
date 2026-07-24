@@ -15,4 +15,5 @@ class BrandColors {
   static const Color onPrimary = Colors.white;
   static const Color onBackground = Color(0xFF2B2B2B); // near-black primary text (was #3D2B2B)
   static const Color secondary = Color(0xFFC8A97E);    // warm tan accent (was #C9A962)
+  static const Color cardBorder = Color(0xFFDED9C7);   // warm grey card outline (Figma: 33px radius / 5.5px border)
 }
