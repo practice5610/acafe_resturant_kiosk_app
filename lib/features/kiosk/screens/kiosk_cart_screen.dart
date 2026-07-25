@@ -488,66 +488,90 @@ class _Footer extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(40 * s)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 45 * s,
-              offset: Offset(0, -1 * s)),
+            color: Colors.black.withValues(alpha: 0.25),
+            offset: const Offset(0, 50),
+            blurRadius: 40.3,
+            spreadRadius: 20,
+          ),
         ],
       ),
       padding: EdgeInsets.fromLTRB(132 * s, 50 * s, 60 * s, 50 * s),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Left: ITEMS TOTAL / TAX / divider / YOUR PAY breakdown.
+          // Left: mirrors the right column's two-block layout so the
+          // divider lands in the same gap as the space between the buttons.
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _BreakdownRow(
-                  s: s,
-                  label:
-                      (getTranslated('items_total', context) ?? 'ITEMS TOTAL')
+                // Block 1: ITEMS TOTAL (top) / TAX (bottom), same height as
+                // the ADD COUPON button.
+                SizedBox(
+                  height: 180 * s,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _BreakdownRow(
+                        s: s,
+                        label: (getTranslated('items_total', context) ??
+                                'ITEMS TOTAL')
+                            .toUpperCase(),
+                        value: PriceConverterHelper.convertPrice(items),
+                      ),
+                      if (discount > 0)
+                        _BreakdownRow(
+                          s: s,
+                          label:
+                              (getTranslated('discount', context) ?? 'DISCOUNT')
+                                  .toUpperCase(),
+                          value:
+                              '- ${PriceConverterHelper.convertPrice(discount)}',
+                        ),
+                      if (couponDiscount > 0)
+                        _BreakdownRow(
+                          s: s,
+                          label: (getTranslated('coupon_discount', context) ??
+                                  'COUPON DISCOUNT')
+                              .toUpperCase(),
+                          value:
+                              '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
+                        ),
+                      _BreakdownRow(
+                        s: s,
+                        label: (getTranslated('tax', context) ?? 'TAX')
+                            .toUpperCase(),
+                        value: PriceConverterHelper.convertPrice(tax),
+                      ),
+                    ],
+                  ),
+                ),
+                // Divider sits centered in the same gap that separates the
+                // two buttons on the right.
+                SizedBox(
+                  height: 28 * s,
+                  child: Center(
+                    child: Container(
+                      width: double.infinity,
+                      height: (2 * s).clamp(1.5, 3.0),
+                      color: Colors.black.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ),
+                // Block 2: YOUR PAY, centered, same height as CHECK OUT.
+                SizedBox(
+                  height: 180 * s,
+                  child: Center(
+                    child: _BreakdownRow(
+                      s: s,
+                      label: (getTranslated('your_pay', context) ?? 'YOUR PAY')
                           .toUpperCase(),
-                  value: PriceConverterHelper.convertPrice(items),
-                ),
-                if (discount > 0) ...[
-                  SizedBox(height: 20 * s),
-                  _BreakdownRow(
-                    s: s,
-                    label: (getTranslated('discount', context) ?? 'DISCOUNT')
-                        .toUpperCase(),
-                    value: '- ${PriceConverterHelper.convertPrice(discount)}',
+                      value: PriceConverterHelper.convertPrice(total),
+                      emphasized: true,
+                    ),
                   ),
-                ],
-                SizedBox(height: 20 * s),
-                _BreakdownRow(
-                  s: s,
-                  label: (getTranslated('tax', context) ?? 'TAX').toUpperCase(),
-                  value: PriceConverterHelper.convertPrice(tax),
-                ),
-                if (couponDiscount > 0) ...[
-                  SizedBox(height: 20 * s),
-                  _BreakdownRow(
-                    s: s,
-                    label: (getTranslated('coupon_discount', context) ??
-                            'COUPON DISCOUNT')
-                        .toUpperCase(),
-                    value:
-                        '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
-                  ),
-                ],
-                SizedBox(height: 28 * s),
-                Container(
-                  height: (2 * s).clamp(1.5, 3.0),
-                  color: Colors.black.withValues(alpha: 0.4),
-                ),
-                SizedBox(height: 28 * s),
-                _BreakdownRow(
-                  s: s,
-                  label: (getTranslated('your_pay', context) ?? 'YOUR PAY')
-                      .toUpperCase(),
-                  value: PriceConverterHelper.convertPrice(total),
-                  emphasized: true,
                 ),
               ],
             ),
