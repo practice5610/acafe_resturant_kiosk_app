@@ -573,6 +573,84 @@ class KioskBackButton extends StatelessWidget {
   }
 }
 
+/// Shared narrow-layout kiosk header: back button (left) + centered brand
+/// title, underlined by a divider. Top and bottom padding are always equal
+/// (both driven by [verticalPadding]) so callers never have to re-balance
+/// spacing against their own content padding — see cart/menu/login screens.
+class KioskHeaderBar extends StatelessWidget {
+  final double s;
+  final String title;
+  final VoidCallback? onBack;
+  final VoidCallback? fallback;
+  final double verticalPadding;
+  final double horizontalPadding;
+  final double rowHeight;
+  final double titleFontSize;
+  final double backSize;
+  final double backBorder;
+  final double backIconSize;
+
+  const KioskHeaderBar({
+    super.key,
+    required this.s,
+    this.title = 'A/CAFÉ',
+    this.onBack,
+    this.fallback,
+    this.verticalPadding = 60,
+    this.horizontalPadding = 132,
+    this.rowHeight = 141,
+    this.titleFontSize = 120,
+    this.backSize = 100,
+    this.backBorder = 4,
+    this.backIconSize = 50,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding * s,
+        vertical: verticalPadding * s,
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: rowHeight * s,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                IgnorePointer(
+                  child: Text(title,
+                      style: loewExtraBold.copyWith(
+                          fontSize: titleFontSize * s,
+                          letterSpacing: 2 * s,
+                          color: Colors.black)),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: KioskBackButton.scaled(
+                    s: s,
+                    size: backSize,
+                    border: backBorder,
+                    icon: backIconSize,
+                    minBorder: 1,
+                    onTap: onBack,
+                    fallback: fallback,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Same gap as the padding above the row, so the divider sits
+          // exactly as far below the logo as the logo sits below the top.
+          SizedBox(height: verticalPadding * s),
+          Container(height: (2 * s).clamp(1.0, 2.0), color: Colors.black),
+        ],
+      ),
+    );
+  }
+}
+
 /// Circular flag button for the active kiosk locale (matches menu top bar).
 class KioskLanguageFlagButton extends StatelessWidget {
   final double size;

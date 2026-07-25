@@ -44,11 +44,14 @@ class KioskCartScreen extends StatelessWidget {
                 return KioskCenteredContent(
                   child: Column(
                     children: [
-                      _TopBar(s: s),
+                      KioskHeaderBar(
+                        s: s,
+                        fallback: RouterHelper.getKioskMenuRoute,
+                      ),
                       Expanded(
                         child: ListView(
                           padding: EdgeInsets.fromLTRB(
-                              132 * s, 40 * s, 60 * s, 40 * s),
+                              132 * s, 0, 60 * s, 40 * s),
                           children: [
                             Text(
                                 getTranslated('my_order', context) ??
@@ -133,7 +136,7 @@ class _WideKioskCartScreen extends StatelessWidget {
                 _WideTopBar(),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+                    padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -223,11 +226,16 @@ class _WideTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 16, 32, 0),
+      // Equal top/bottom padding around [row + gap + divider] — content
+      // below gets no padding of its own, so this is the only place the
+      // spacing is defined and it can't drift out of balance again.
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       child: Column(
         children: [
           SizedBox(
-            height: 56,
+            // Tall enough for the 72px wordmark (line-height ~1.2-1.3) so
+            // it never overflows into the gap/divider below.
+            height: 96,
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -235,7 +243,7 @@ class _WideTopBar extends StatelessWidget {
                   child: Text(
                     'A/CAFÉ',
                     style: loewExtraBold.copyWith(
-                      fontSize: 26,
+                      fontSize: 72,
                       letterSpacing: 1,
                       color: Colors.black,
                     ),
@@ -244,17 +252,20 @@ class _WideTopBar extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: KioskBackButton(
-                    size: 56,
+                    size: 36,
                     borderWidth: 2,
-                    iconSize: 22,
+                    iconSize: 12,
                     fallback: RouterHelper.getKioskMenuRoute,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          Container(height: 1.5, color: Colors.black),
+          // Same gap as the padding above the row (24), so the divider
+          // sits exactly as far below the logo as the logo sits below the
+          // top.
+          const SizedBox(height: 24),
+          const Divider(height: 1.5, thickness: 1.5, color: Colors.black),
         ],
       ),
     );
@@ -414,51 +425,6 @@ class _WideBreakdownRow extends StatelessWidget {
   }
 }
 
-/// Top bar: back button (left), centered A/CAFÉ brand.
-class _TopBar extends StatelessWidget {
-  final double s;
-  const _TopBar({required this.s});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(132 * s, 40 * s, 132 * s, 0),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 141 * s,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                IgnorePointer(
-                  child: Text('A/CAFÉ',
-                      style: loewExtraBold.copyWith(
-                          fontSize: 90 * s,
-                          letterSpacing: 2 * s,
-                          color: Colors.black)),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: KioskBackButton.scaled(
-                    s: s,
-                    size: 141,
-                    border: 4,
-                    icon: 56,
-                    minBorder: 2,
-                    fallback: RouterHelper.getKioskMenuRoute,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 30 * s),
-          Container(height: (2 * s).clamp(1.0, 2.0), color: Colors.black),
-        ],
-      ),
-    );
-  }
-}
-
 /// Footer: TOTAL + price, then ADD COUPON (outlined) and CHECK OUT (filled).
 class _Footer extends StatelessWidget {
   final double s;
@@ -495,7 +461,7 @@ class _Footer extends StatelessWidget {
           ),
         ],
       ),
-      padding: EdgeInsets.fromLTRB(132 * s, 50 * s, 60 * s, 50 * s),
+      padding: EdgeInsets.fromLTRB(132 * s, 100 * s, 132 * s, 100 * s),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
