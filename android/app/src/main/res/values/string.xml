@@ -1,12 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Acafe</string>
-    <!-- Required so the Facebook SDK auto-initializes at process start. The
-         kiosk has no login, but the flutter_facebook_auth plugin still
-         registers on every FlutterEngine (incl. the FCM background isolate),
-         and its constructor calls LoginManager which needs an initialized SDK.
-         These values only need to exist; no FB login is ever performed. -->
-    <string name="facebook_app_id">482889663914976</string>
-    <string name="fb_login_protocol_scheme">fb482889663914976</string>
-    <string name="facebook_client_token">0000000000000000000000000000000000</string>
 </resources>

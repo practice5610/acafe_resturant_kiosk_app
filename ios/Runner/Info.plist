@@ -20,35 +20,10 @@
 		<string>$(FLUTTER_BUILD_NAME)</string>
 		<key>CFBundleSignature</key>
 		<string>????</string>
-		<key>CFBundleURLTypes</key>
-		<array>
-			<dict>
-				<key>CFBundleTypeRole</key>
-				<string>Editor</string>
-				<key>CFBundleURLName</key>
-				<string>com.acafe.customer</string>
-				<key>CFBundleURLSchemes</key>
-				<array>
-					<string>fb482889663914976</string>
-					<string>com.googleusercontent.apps.410522356318-3u3bo0nncpousqfrbnrhcs2dbp9k9k89</string>
-				</array>
-			</dict>
-		</array>
 		<key>CFBundleVersion</key>
 		<string>$(CURRENT_PROJECT_VERSION)</string>
-		<key>FacebookAppID</key>
-		<string>482889663914976</string>
-		<key>FacebookClientToken</key>
-		<string>e4ad88230ba9a2894186aea7e4545943</string>
-		<key>FacebookDisplayName</key>
-		<string>Acafe</string>
 		<key>FlutterDeepLinkingEnabled</key>
 		<true/>
-		<key>LSApplicationQueriesSchemes</key>
-		<array>
-			<string>fbapi</string>
-			<string>fb-messenger-share-api</string>
-		</array>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 		<key>NSCameraUsageDescription</key>
