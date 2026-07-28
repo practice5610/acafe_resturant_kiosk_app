@@ -60,7 +60,7 @@ class KioskCartScreen extends StatelessWidget {
                                     fontSize: 100 * s,
                                     height: 1,
                                     color: Colors.black)),
-                            SizedBox(height: 12 * s),
+                            SizedBox(height: 22 * s),
                             Text(
                               '${getTranslated('dine_in', context) ?? 'Dine in'} / $itemCount ${getTranslated('items', context) ?? 'items'}',
                               style: scotchDisplayCondLight.copyWith(
