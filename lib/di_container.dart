@@ -5,8 +5,10 @@ import 'package:acafe_customer/common/reposotories/product_repo.dart';
 import 'package:acafe_customer/features/auth/domain/reposotories/auth_repo.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
 import 'package:acafe_customer/features/category/domain/reposotories/category_repo.dart';
 import 'package:acafe_customer/features/coupon/domain/reposotories/coupon_repo.dart';
@@ -50,6 +52,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => CouponRepo(dioClient: sl()));
   sl.registerLazySingleton(() => KioskAuthRepo(dioClient: sl(), sharedPreferences: sl()));
   sl.registerLazySingleton(() => KioskOrderRepo(dioClient: sl()));
+  sl.registerLazySingleton(() => KioskManagerRepo(dioClient: sl()));
 
   // Provider
   sl.registerLazySingleton(() => DataSyncProvider());
@@ -66,6 +69,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => SearchProvider(searchRepo: sl()));
   sl.registerLazySingleton(() => BranchProvider(splashRepo: sl()));
   sl.registerLazySingleton(() => KioskAuthProvider(kioskAuthRepo: sl()));
+  sl.registerLazySingleton(() => KioskManagerProvider(kioskManagerRepo: sl()));
 
 
   // External

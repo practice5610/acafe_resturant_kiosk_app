@@ -200,6 +200,7 @@ class Images {
   static const String closeSvg = 'assets/svg/close_svg.svg';
   static const String searchSvg = 'assets/svg/search_svg.svg';
   static const String filterSvg = 'assets/svg/filter_svg.svg';
+  static const String managerAccessSvg = 'assets/svg/lock.svg';
   static const String houseSvg = 'assets/svg/house_svg.svg';
   static const String buildingSvg = 'assets/svg/building_svg.svg';
   static const String buildingsSvg = 'assets/svg/buildings_svg.svg';

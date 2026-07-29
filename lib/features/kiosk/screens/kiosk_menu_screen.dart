@@ -16,7 +16,9 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dar
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_pin_entry_sheet.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -321,6 +323,13 @@ class _KioskTopBar extends StatelessWidget {
           ),
           const Spacer(),
           // Right-aligned action icons.
+          if (context.watch<KioskAuthProvider>().isPosDevice) ...[
+            _CircleIconButton(
+                s: s,
+                assetPath: Images.managerAccessSvg,
+                onTap: () => openKioskManagerAccess(context)),
+            SizedBox(width: 38 * s),
+          ],
           _CircleIconButton(
               s: s,
               assetPath: Images.searchSvg,
@@ -1390,6 +1399,14 @@ class _WideHeader extends StatelessWidget {
               style: loewExtraBold.copyWith(
                   fontSize: 26, letterSpacing: 1, color: Colors.black)),
           const Spacer(),
+          if (context.watch<KioskAuthProvider>().isPosDevice) ...[
+            KioskCircleIcon(
+              onTap: () => openKioskManagerAccess(context),
+              child: CustomAssetImageWidget(Images.managerAccessSvg,
+                  width: 40, height: 40, fit: BoxFit.contain),
+            ),
+            const SizedBox(width: 12),
+          ],
           KioskCircleIcon(
             onTap: () => RouterHelper.getSearchRoute(),
             child: CustomAssetImageWidget(Images.searchSvg,

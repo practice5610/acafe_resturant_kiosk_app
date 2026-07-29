@@ -49,6 +49,7 @@ class KioskAuthRepo {
     String? deviceName,
     String? username,
     int? deviceId,
+    String? category,
   }) async {
     await sharedPreferences.setString(AppConstants.token, token);
     await sharedPreferences.setInt(AppConstants.branch, branchId);
@@ -63,6 +64,9 @@ class KioskAuthRepo {
     }
     if (deviceId != null) {
       await sharedPreferences.setInt(AppConstants.kioskDeviceId, deviceId);
+    }
+    if (category != null) {
+      await sharedPreferences.setString(AppConstants.kioskDeviceCategory, category);
     }
     // Refresh dio headers so the new token + branch take effect immediately.
     await dioClient.updateHeader(getToken: token);
@@ -82,6 +86,11 @@ class KioskAuthRepo {
       ? sharedPreferences.getInt(AppConstants.kioskDeviceId)
       : null;
 
+  /// 'kiosk' or 'pos'. Defaults to 'kiosk' (the safe/pre-existing behavior)
+  /// if a session was persisted before this field existed.
+  String getDeviceCategory() =>
+      sharedPreferences.getString(AppConstants.kioskDeviceCategory) ?? 'kiosk';
+
   /// Wipe the device session (revoked/inactive/logout).
   Future<void> clearSession() async {
     await sharedPreferences.remove(AppConstants.token);
@@ -89,6 +98,7 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskDeviceName);
     await sharedPreferences.remove(AppConstants.kioskUsername);
     await sharedPreferences.remove(AppConstants.kioskDeviceId);
+    await sharedPreferences.remove(AppConstants.kioskDeviceCategory);
     await sharedPreferences.remove(AppConstants.cartList);
     await dioClient.updateHeader(getToken: null);
   }

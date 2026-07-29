@@ -16,6 +16,10 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_payment_screen.dart'
 // Kiosk success/QR screen disabled — route redirects to the menu instead.
 // import 'package:acafe_customer/features/kiosk/screens/kiosk_success_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_language_screen.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_dashboard_screen.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_sales_overview_screen.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_transactions_screen.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_stock_screen.dart';
 import 'package:acafe_customer/features/maintenance/screens/maintenance_screen.dart';
 import 'package:acafe_customer/features/search/screens/search_result_screen.dart';
 import 'package:acafe_customer/features/search/screens/search_screen.dart';
@@ -45,6 +49,10 @@ class RouterHelper {
   static const String kioskConfirmScreen = '/confirm-kiosk';
   static const String kioskPaymentScreen = '/payment-kiosk';
   static const String kioskSuccessScreen = '/success-kiosk';
+  static const String kioskManagerDashboardScreen = '/manager-dashboard-kiosk';
+  static const String kioskManagerSalesOverviewScreen = '/manager-sales-kiosk';
+  static const String kioskManagerTransactionsScreen = '/manager-transactions-kiosk';
+  static const String kioskManagerStockScreen = '/manager-stock-kiosk';
   static const String languageScreen = '/select-language';
   static const String loginScreen = '/login';
   static const String dashboard = '/';
@@ -71,6 +79,10 @@ class RouterHelper {
   static String getKioskConfirmRoute({RouteAction? action}) => _navigateRoute(kioskConfirmScreen, route: action);
   static String getKioskPaymentRoute({RouteAction? action}) => _navigateRoute(kioskPaymentScreen, route: action);
   static String getKioskSuccessRoute({RouteAction? action}) => _navigateRoute(kioskSuccessScreen, route: action);
+  static String getKioskManagerDashboardRoute({RouteAction? action}) => _navigateRoute(kioskManagerDashboardScreen, route: action);
+  static String getKioskManagerSalesOverviewRoute({RouteAction? action}) => _navigateRoute(kioskManagerSalesOverviewScreen, route: action);
+  static String getKioskManagerTransactionsRoute({RouteAction? action}) => _navigateRoute(kioskManagerTransactionsScreen, route: action);
+  static String getKioskManagerStockRoute({RouteAction? action}) => _navigateRoute(kioskManagerStockScreen, route: action);
   static String getLanguageRoute(bool isFromMenu, {RouteAction? action}) => _navigateRoute('$languageScreen?page=${isFromMenu ? 'menu' : 'splash'}', route: action);
   static String getLoginRoute({RouteAction? action}) => getKioskLoginRoute(action: action);
   static String getMainRoute({RouteAction? action}) => _navigateRoute(dashboard, route: action);
@@ -173,6 +185,14 @@ class RouterHelper {
       // harmlessly sent to the menu instead of rendering the success screen.
       GoRoute(path: kioskSuccessScreen, redirect: (context, state) => kioskMenuScreen),
       // GoRoute(path: kioskSuccessScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskSuccessScreen())),
+      // POS Manager screens -- reachable only after a device with category
+      // 'pos' unlocks the manager icon with its 4-digit configuration_code
+      // (see kiosk_pin_entry_sheet.dart). Not in KioskRouteGuard.publicPaths,
+      // so they stay behind the existing logged-in-device check too.
+      GoRoute(path: kioskManagerDashboardScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskManagerDashboardScreen())),
+      GoRoute(path: kioskManagerSalesOverviewScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskManagerSalesOverviewScreen())),
+      GoRoute(path: kioskManagerTransactionsScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskManagerTransactionsScreen())),
+      GoRoute(path: kioskManagerStockScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskManagerStockScreen())),
       GoRoute(path: maintain, builder: (context, state) => _routeHandler(context, path: _getPath(state), const MaintenanceScreen())),
       GoRoute(path: update, builder: (context, state) => _routeHandler(context, path: _getPath(state), const ForceUpdateScreen())),
       GoRoute(path: languageScreen, builder: (context, state) => KioskLanguageScreen(fromMenu: state.uri.queryParameters['page'] == 'menu')),

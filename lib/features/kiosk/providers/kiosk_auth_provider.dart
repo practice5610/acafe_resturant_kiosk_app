@@ -24,6 +24,10 @@ class KioskAuthProvider extends ChangeNotifier {
   String get deviceName => kioskAuthRepo.getDeviceName();
   int? get deviceId => kioskAuthRepo.getDeviceId();
 
+  /// 'kiosk' or 'pos' -- gates whether the manager icon is shown.
+  String get category => kioskAuthRepo.getDeviceCategory();
+  bool get isPosDevice => category == 'pos';
+
   /// One-time device login. On success persists token + bound branch and
   /// returns success; on failure returns the server message (wrong creds /
   /// inactive device).
@@ -51,6 +55,7 @@ class KioskAuthProvider extends ChangeNotifier {
         deviceName: device['name']?.toString(),
         username: device['username']?.toString(),
         deviceId: device['id'] is int ? device['id'] : int.tryParse('${device['id']}'),
+        category: device['category']?.toString(),
       );
       responseModel = ResponseModel(true, 'logged_in');
     } else {
@@ -86,6 +91,7 @@ class KioskAuthProvider extends ChangeNotifier {
           deviceName: device['name']?.toString(),
           username: device['username']?.toString(),
           deviceId: device['id'] is int ? device['id'] : int.tryParse('${device['id']}'),
+          category: device['category']?.toString(),
         );
       }
       return true;

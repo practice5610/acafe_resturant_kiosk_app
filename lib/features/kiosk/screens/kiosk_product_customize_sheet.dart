@@ -541,14 +541,18 @@ class _DietaryCard extends StatelessWidget {
                 style: loewBold.copyWith(
                     fontSize: 34 * s, height: 1.1, color: Colors.black),
               ),
-              if (priceDelta > 0) ...[
-                SizedBox(height: 6 * s),
-                Text(
-                  '+${PriceConverterHelper.convertPrice(priceDelta)}',
-                  style: swiss721Light.copyWith(
-                      fontSize: 28 * s, color: Colors.black54),
-                ),
-              ],
+              // Always reserve this row's height, even with no price delta
+              // (e.g. the base "Small" option) -- cards sit in a Wrap, which
+              // doesn't stretch siblings to a common height, so omitting this
+              // line entirely made that card shorter than its neighbors.
+              SizedBox(height: 6 * s),
+              Text(
+                priceDelta > 0
+                    ? '+${PriceConverterHelper.convertPrice(priceDelta)}'
+                    : '',
+                style: swiss721Light.copyWith(
+                    fontSize: 28 * s, color: Colors.black54),
+              ),
             ],
           ),
         ),
@@ -806,14 +810,18 @@ class _CupCanCard extends StatelessWidget {
                 style: loewBold.copyWith(
                     fontSize: 36 * s, letterSpacing: 1, color: Colors.black),
               ),
-              if (priceDelta > 0) ...[
-                SizedBox(height: 6 * s),
-                Text(
-                  '+${PriceConverterHelper.convertPrice(priceDelta)}',
-                  style: swiss721Light.copyWith(
-                      fontSize: 28 * s, color: Colors.black54),
-                ),
-              ],
+              // Always reserve this row's height, even with no price delta
+              // (e.g. the base "Small" option) -- cards sit in a Wrap, which
+              // doesn't stretch siblings to a common height, so omitting this
+              // line entirely made that card shorter than its neighbors.
+              SizedBox(height: 6 * s),
+              Text(
+                priceDelta > 0
+                    ? '+${PriceConverterHelper.convertPrice(priceDelta)}'
+                    : '',
+                style: swiss721Light.copyWith(
+                    fontSize: 28 * s, color: Colors.black54),
+              ),
             ],
           ),
         ),
