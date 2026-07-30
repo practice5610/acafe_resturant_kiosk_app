@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_bottom_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
@@ -11,9 +10,26 @@ import 'package:provider/provider.dart';
 
 double? _money(dynamic v) => (v as num?)?.toDouble();
 
+/// "dine_in" -> "Dine In", "pos" -> "POS".
+String _titleCase(String raw) {
+  if (raw.isEmpty) return raw;
+  if (raw.toLowerCase() == 'pos') return 'POS';
+  return raw
+      .split('_')
+      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+}
+
+/// "2026-07-30 10:15:00" -> "10:15".
+String _timeOfDay(String? iso) {
+  if (iso == null || iso.length < 16) return '--:--';
+  return iso.substring(11, 16);
+}
+
 /// Live daily totals for the device's branch -- doubles as both "Daily Sales
 /// Summary" and "End-of-Day Report" (same underlying data either way), with
-/// a "Do Z Report" action that performs the actual close.
+/// a "Close Day" action (mirrors the admin/branch Z Report screen) that
+/// performs the actual close, inline on this same page.
 class KioskManagerSalesOverviewScreen extends StatefulWidget {
   const KioskManagerSalesOverviewScreen({super.key});
 
@@ -73,22 +89,92 @@ class _KioskManagerSalesOverviewScreenState extends State<KioskManagerSalesOverv
   }
 }
 
-class _SalesOverviewBody extends StatelessWidget {
+class _SalesOverviewBody extends StatefulWidget {
   final double s;
   final Map<String, dynamic> data;
   const _SalesOverviewBody({required this.s, required this.data});
 
   @override
+  State<_SalesOverviewBody> createState() => _SalesOverviewBodyState();
+}
+
+class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
+  late final TextEditingController _openingController;
+  final TextEditingController _closingController = TextEditingController();
+  final TextEditingController _commentController = TextEditingController();
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final previous = (widget.data['previous_closing_cash'] as num?)?.toDouble();
+    _openingController = TextEditingController(text: previous != null ? previous.toStringAsFixed(2) : '');
+    _openingController.addListener(_onCashChanged);
+    _closingController.addListener(_onCashChanged);
+  }
+
+  @override
+  void dispose() {
+    _openingController.removeListener(_onCashChanged);
+    _closingController.removeListener(_onCashChanged);
+    _openingController.dispose();
+    _closingController.dispose();
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  void _onCashChanged() => setState(() {});
+
+  double get _expectedCashSales =>
+      ((widget.data['cash'] as Map?)?['expected_cash_sales'] as num?)?.toDouble() ?? 0;
+  double get _openingCash => double.tryParse(_openingController.text.trim()) ?? 0;
+  double get _closingCash => double.tryParse(_closingController.text.trim()) ?? 0;
+  double get _expectedCash => _openingCash + _expectedCashSales;
+  double get _variance => double.parse((_closingCash - _expectedCash).toStringAsFixed(2));
+
+  Future<void> _closeDay(KioskManagerProvider provider) async {
+    final opening = double.tryParse(_openingController.text.trim());
+    final closing = double.tryParse(_closingController.text.trim());
+    if (opening == null || closing == null) {
+      setState(() => _error = 'Enter valid amounts for opening and closing cash');
+      return;
+    }
+    setState(() => _error = null);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _CloseDayConfirmDialog(s: widget.s),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    await provider.closeZReport(
+      reportDate: '${widget.data['report_date']}',
+      openingCash: opening,
+      closingCashCounted: closing,
+      comment: _commentController.text.trim().isEmpty ? null : _commentController.text.trim(),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final double s = widget.s;
+    final data = widget.data;
+    final provider = context.watch<KioskManagerProvider>();
+
     final bool closed = data['closed'] == true;
     final sales = Map<String, dynamic>.from(data['sales'] ?? {});
+    final tradingWindow = Map<String, dynamic>.from(sales['trading_window'] ?? {});
     final transactions = Map<String, dynamic>.from(data['transactions'] ?? {});
+    final byOrderType = Map<String, dynamic>.from(transactions['by_order_type'] ?? {});
     final discounts = Map<String, dynamic>.from(data['discounts'] ?? {});
     final voided = Map<String, dynamic>.from(data['voided'] ?? {});
     final paymentMethods = Map<String, dynamic>.from(data['payment_methods'] ?? {});
     final channelBreakdown = Map<String, dynamic>.from(data['channel_breakdown'] ?? {});
+    final bool channelRecorded = channelBreakdown['recorded'] != false;
     final List channelBuckets = channelBreakdown['buckets'] ?? [];
     final List payments = paymentMethods['methods'] ?? [];
+    final double? approxRefundValue = _money(voided['approx_refund_value']);
 
     return ListView(
       padding: EdgeInsets.fromLTRB(132 * s, 0, 132 * s, 60 * s),
@@ -107,13 +193,50 @@ class _SalesOverviewBody extends StatelessWidget {
           _StatRow(s: s, label: 'Total tax', value: PriceConverterHelper.convertPrice(_money(sales['total_tax']))),
           _StatRow(s: s, label: 'Total discount', value: PriceConverterHelper.convertPrice(_money(sales['total_discount']))),
           _StatRow(s: s, label: 'Average order value', value: PriceConverterHelper.convertPrice(_money(sales['average_order_value']))),
+          _StatRow(
+            s: s,
+            label: 'Trading window',
+            value: tradingWindow['first_order_at'] != null
+                ? '${_timeOfDay(tradingWindow['first_order_at'])} – ${_timeOfDay(tradingWindow['last_order_at'])}'
+                : '—',
+          ),
         ]),
         SizedBox(height: 32 * s),
         _SectionCard(s: s, title: 'Transactions', children: [
           _StatRow(s: s, label: 'Total orders', value: '${transactions['order_count'] ?? 0}'),
           _StatRow(s: s, label: 'Completed', value: '${transactions['completed_order_count'] ?? 0}'),
           _StatRow(s: s, label: 'Canceled/voided', value: '${transactions['canceled_order_count'] ?? 0}'),
-          _StatRow(s: s, label: 'Voided value', value: PriceConverterHelper.convertPrice(_money(voided['value']))),
+          if (byOrderType.isNotEmpty) ...[
+            SizedBox(height: 8 * s),
+            for (final entry in byOrderType.entries)
+              _StatRow(s: s, label: _titleCase(entry.key), value: '${entry.value}'),
+          ],
+        ]),
+        SizedBox(height: 32 * s),
+        _SectionCard(s: s, title: 'Cancelled / voided', children: [
+          _StatRow(s: s, label: 'Count', value: '${voided['count'] ?? 0}'),
+          _StatRow(s: s, label: 'Value', value: PriceConverterHelper.convertPrice(_money(voided['value']))),
+          if (approxRefundValue != null && approxRefundValue > 0)
+            Padding(
+              padding: EdgeInsets.only(top: 8 * s),
+              child: Text(
+                'Approx. refund of previously paid orders: ${PriceConverterHelper.convertPrice(approxRefundValue)}',
+                style: loewRegular.copyWith(fontSize: 26 * s, color: Colors.black45),
+              ),
+            ),
+        ]),
+        SizedBox(height: 32 * s),
+        _SectionCard(s: s, title: 'Channel breakdown', children: [
+          if (!channelRecorded)
+            Text('Not recorded for this closed day',
+                style: loewRegular.copyWith(fontSize: 30 * s, color: Colors.black45))
+          else
+            for (final bucket in channelBuckets)
+              _StatRow(
+                s: s,
+                label: '${bucket['channel']} (${bucket['order_count']})',
+                value: '${PriceConverterHelper.convertPrice(_money(bucket['amount']))} · ${bucket['percentage']}%',
+              ),
         ]),
         SizedBox(height: 32 * s),
         _SectionCard(s: s, title: 'Discounts', children: [
@@ -121,15 +244,7 @@ class _SalesOverviewBody extends StatelessWidget {
           _StatRow(s: s, label: 'Manual', value: PriceConverterHelper.convertPrice(_money(discounts['manual']))),
           _StatRow(s: s, label: 'Referral', value: PriceConverterHelper.convertPrice(_money(discounts['referral']))),
           _StatRow(s: s, label: 'Item level', value: PriceConverterHelper.convertPrice(_money(discounts['item_level']))),
-        ]),
-        SizedBox(height: 32 * s),
-        _SectionCard(s: s, title: 'Channel breakdown', children: [
-          for (final bucket in channelBuckets)
-            _StatRow(
-              s: s,
-              label: '${bucket['channel']} (${bucket['order_count']})',
-              value: '${PriceConverterHelper.convertPrice(_money(bucket['amount']))} · ${bucket['percentage']}%',
-            ),
+          _StatRow(s: s, label: 'Total', value: PriceConverterHelper.convertPrice(_money(discounts['total'])), bold: true),
         ]),
         SizedBox(height: 32 * s),
         _SectionCard(s: s, title: 'Payment methods', children: [
@@ -142,36 +257,22 @@ class _SalesOverviewBody extends StatelessWidget {
               value: PriceConverterHelper.convertPrice(_money(method['amount'])),
             ),
         ]),
-        if (closed) ...[
-          SizedBox(height: 32 * s),
-          _CashReconciliationCard(s: s, data: Map<String, dynamic>.from(data['cash_reconciliation'] ?? {})),
-        ],
-        SizedBox(height: 60 * s),
-        if (!closed)
-          KioskPrimaryButton(
-            // KioskPrimaryButton/KioskCheckoutField are authored against the
-            // narrow 1000px FORM artboard (kioskFormScale), not this page's
-            // 2572px full-page artboard (KioskResponsive.scale) -- reusing
-            // the page's `s` here made the label shrink to ~8px and look
-            // like unreadable mush at normal browser widths.
-            s: kioskFormScale(MediaQuery.sizeOf(context).width),
-            label: 'CLOSE DAY',
-            onTap: () => _openCloseRegisterSheet(context, data),
+        SizedBox(height: 32 * s),
+        if (closed)
+          _CashReconciliationCard(s: s, data: Map<String, dynamic>.from(data['cash_reconciliation'] ?? {}), comment: data['closing_comment'] as String?)
+        else
+          _CloseDaySection(
+            s: s,
+            openingController: _openingController,
+            closingController: _closingController,
+            commentController: _commentController,
+            expectedCash: _expectedCash,
+            variance: _variance,
+            error: _error,
+            loading: provider.closingRegister,
+            onCloseDay: () => _closeDay(provider),
           ),
       ],
-    );
-  }
-
-  void _openCloseRegisterSheet(BuildContext context, Map<String, dynamic> data) {
-    showKioskBottomSheet(
-      context,
-      heightFactor: 0.75,
-      maxWidth: 900,
-      child: _CloseRegisterSheet(
-        s: kioskFormScale(MediaQuery.sizeOf(context).width),
-        reportDate: '${data['report_date']}',
-        previousClosingCash: (data['previous_closing_cash'] as num?)?.toDouble(),
-      ),
     );
   }
 }
@@ -246,7 +347,8 @@ class _StatRow extends StatelessWidget {
   final double s;
   final String label;
   final String value;
-  const _StatRow({required this.s, required this.label, required this.value});
+  final bool bold;
+  const _StatRow({required this.s, required this.label, required this.value, this.bold = false});
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +357,8 @@ class _StatRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(label, style: loewRegular.copyWith(fontSize: 34 * s, color: Colors.black87)),
+            child: Text(label,
+                style: (bold ? loewBold : loewRegular).copyWith(fontSize: 34 * s, color: Colors.black87)),
           ),
           Text(value, style: loewBold.copyWith(fontSize: 34 * s, color: Colors.black)),
         ],
@@ -267,7 +370,8 @@ class _StatRow extends StatelessWidget {
 class _CashReconciliationCard extends StatelessWidget {
   final double s;
   final Map<String, dynamic> data;
-  const _CashReconciliationCard({required this.s, required this.data});
+  final String? comment;
+  const _CashReconciliationCard({required this.s, required this.data, this.comment});
 
   @override
   Widget build(BuildContext context) {
@@ -276,116 +380,250 @@ class _CashReconciliationCard extends StatelessWidget {
       _StatRow(s: s, label: 'Expected cash', value: PriceConverterHelper.convertPrice(_money(data['expected_cash']))),
       _StatRow(s: s, label: 'Closing cash counted', value: PriceConverterHelper.convertPrice(_money(data['closing_cash_counted']))),
       _StatRow(s: s, label: 'Variance', value: PriceConverterHelper.convertPrice(_money(data['cash_variance']))),
+      if (comment != null && comment!.trim().isNotEmpty) ...[
+        SizedBox(height: 8 * s),
+        Text('Comment', style: loewRegular.copyWith(fontSize: 28 * s, color: Colors.black45)),
+        SizedBox(height: 4 * s),
+        Text(comment!, style: loewRegular.copyWith(fontSize: 32 * s, color: Colors.black87)),
+      ],
     ]);
   }
 }
 
-/// "Do Z Report" form: opening cash / closing cash counted / optional
-/// comment, then closes the day via KioskManagerProvider.closeZReport.
-class _CloseRegisterSheet extends StatefulWidget {
+/// Inline "Close Day" form -- opening cash / closing cash counted / optional
+/// comment plus the CLOSE DAY action, merged directly into the Sales
+/// Overview page (no separate popup/sheet).
+class _CloseDaySection extends StatelessWidget {
   final double s;
-  final String reportDate;
-  final double? previousClosingCash;
-  const _CloseRegisterSheet({required this.s, required this.reportDate, this.previousClosingCash});
+  final TextEditingController openingController;
+  final TextEditingController closingController;
+  final TextEditingController commentController;
+  final double expectedCash;
+  final double variance;
+  final String? error;
+  final bool loading;
+  final VoidCallback onCloseDay;
 
-  @override
-  State<_CloseRegisterSheet> createState() => _CloseRegisterSheetState();
-}
+  const _CloseDaySection({
+    required this.s,
+    required this.openingController,
+    required this.closingController,
+    required this.commentController,
+    required this.expectedCash,
+    required this.variance,
+    required this.error,
+    required this.loading,
+    required this.onCloseDay,
+  });
 
-class _CloseRegisterSheetState extends State<_CloseRegisterSheet> {
-  late final TextEditingController _openingController;
-  final TextEditingController _closingController = TextEditingController();
-  final TextEditingController _commentController = TextEditingController();
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _openingController = TextEditingController(
-      text: widget.previousClosingCash != null ? widget.previousClosingCash!.toStringAsFixed(2) : '',
-    );
+  Color _varianceColor() {
+    if (variance > 0) return const Color(0xFF2E7D32);
+    if (variance < 0) return const Color(0xFF8A2E2E);
+    return Colors.black;
   }
 
-  @override
-  void dispose() {
-    _openingController.dispose();
-    _closingController.dispose();
-    _commentController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit(KioskManagerProvider provider) async {
-    final opening = double.tryParse(_openingController.text.trim());
-    final closing = double.tryParse(_closingController.text.trim());
-    if (opening == null || closing == null) {
-      setState(() => _error = 'Enter valid amounts for opening and closing cash');
-      return;
-    }
-    setState(() => _error = null);
-
-    final success = await provider.closeZReport(
-      reportDate: widget.reportDate,
-      openingCash: opening,
-      closingCashCounted: closing,
-      comment: _commentController.text.trim().isEmpty ? null : _commentController.text.trim(),
-    );
-
-    if (!mounted) return;
-    if (success) {
-      Navigator.of(context).pop();
-    }
+  String _varianceText() {
+    final sign = variance > 0 ? '+' : (variance < 0 ? '-' : '');
+    return '$sign${PriceConverterHelper.convertPrice(variance.abs())}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final double s = widget.s;
-    return Consumer<KioskManagerProvider>(
-      builder: (context, provider, _) {
-        return SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: 56 * s, vertical: 48 * s),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('CLOSE DAY',
-                  textAlign: TextAlign.center,
-                  style: loewExtraBold.copyWith(fontSize: 60 * s, color: Colors.black)),
-              SizedBox(height: 36 * s),
-              KioskCheckoutField(
-                s: s,
-                label: 'Opening cash',
-                hint: '0.00',
-                controller: _openingController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-              SizedBox(height: 24 * s),
-              KioskCheckoutField(
-                s: s,
-                label: 'Closing cash counted',
-                hint: '0.00',
-                controller: _closingController,
-                hasError: _error != null,
-                errorText: _error,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-              SizedBox(height: 24 * s),
-              KioskCheckoutField(
-                s: s,
-                label: 'Comment (optional)',
-                hint: 'Notes for this close',
-                controller: _commentController,
-              ),
-              SizedBox(height: 40 * s),
-              KioskPrimaryButton(
-                s: s,
-                label: 'CLOSE REGISTER',
-                loading: provider.closingRegister,
-                onTap: () => _submit(provider),
-              ),
-            ],
+    return _SectionCard(s: s, title: 'Close day', children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _CashInputField(
+              s: s,
+              label: 'Opening cash',
+              controller: openingController,
+            ),
           ),
-        );
-      },
+          SizedBox(width: 32 * s),
+          Expanded(
+            child: _CashReadout(s: s, label: 'Expected cash', value: PriceConverterHelper.convertPrice(expectedCash)),
+          ),
+        ],
+      ),
+      SizedBox(height: 24 * s),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _CashInputField(
+              s: s,
+              label: 'Closing cash counted',
+              controller: closingController,
+              hasError: error != null,
+            ),
+          ),
+          SizedBox(width: 32 * s),
+          Expanded(
+            child: _CashReadout(s: s, label: 'Variance', value: _varianceText(), color: _varianceColor()),
+          ),
+        ],
+      ),
+      if (error != null) ...[
+        SizedBox(height: 12 * s),
+        Text(error!, style: loewRegular.copyWith(fontSize: 28 * s, color: const Color(0xFFEF4444))),
+      ],
+      SizedBox(height: 24 * s),
+      _CashInputField(
+        s: s,
+        label: 'Comment (optional)',
+        controller: commentController,
+        isNumeric: false,
+      ),
+      SizedBox(height: 36 * s),
+      KioskPrimaryButton(
+        s: kioskFormScale(MediaQuery.sizeOf(context).width),
+        label: 'CLOSE DAY',
+        icon: Icons.lock_outline,
+        loading: loading,
+        onTap: onCloseDay,
+      ),
+      SizedBox(height: 16 * s),
+      Text(
+        'Closing a day is permanent and cannot be undone.',
+        style: loewRegular.copyWith(fontSize: 26 * s, color: Colors.black45),
+      ),
+    ]);
+  }
+}
+
+class _CashInputField extends StatelessWidget {
+  final double s;
+  final String label;
+  final TextEditingController controller;
+  final bool isNumeric;
+  final bool hasError;
+  const _CashInputField({
+    required this.s,
+    required this.label,
+    required this.controller,
+    this.isNumeric = true,
+    this.hasError = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: loewRegular.copyWith(fontSize: 28 * s, color: Colors.black54)),
+        SizedBox(height: 10 * s),
+        Container(
+          height: 84 * s,
+          padding: EdgeInsets.symmetric(horizontal: 24 * s),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFBF8EF),
+            borderRadius: BorderRadius.circular(16 * s),
+            border: Border.all(
+              color: hasError ? const Color(0xFFEF4444) : const Color(0xFFB9B5A6),
+              width: 2 * s,
+            ),
+          ),
+          alignment: Alignment.centerLeft,
+          child: TextField(
+            controller: controller,
+            keyboardType: isNumeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+            style: loewRegular.copyWith(fontSize: 32 * s, color: Colors.black),
+            decoration: InputDecoration(
+              isCollapsed: true,
+              border: InputBorder.none,
+              hintText: isNumeric ? '0.00' : 'Notes for this close',
+              hintStyle: loewRegular.copyWith(fontSize: 32 * s, color: const Color(0xFFB9B5A6)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CashReadout extends StatelessWidget {
+  final double s;
+  final String label;
+  final String value;
+  final Color? color;
+  const _CashReadout({required this.s, required this.label, required this.value, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: loewRegular.copyWith(fontSize: 28 * s, color: Colors.black54)),
+        SizedBox(height: 10 * s),
+        Container(
+          height: 84 * s,
+          alignment: Alignment.centerLeft,
+          child: Text(value, style: loewBold.copyWith(fontSize: 34 * s, color: color ?? Colors.black)),
+        ),
+      ],
+    );
+  }
+}
+
+class _CloseDayConfirmDialog extends StatelessWidget {
+  final double s;
+  const _CloseDayConfirmDialog({required this.s});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.lock_outline, color: Colors.black, size: 28),
+                const SizedBox(width: 12),
+                Text('Close day?', style: loewExtraBold.copyWith(fontSize: 32, color: Colors.black)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'This finalizes today\'s Z Report and sends it to the admin. It is permanent and cannot be undone.',
+              style: loewRegular.copyWith(fontSize: 22, color: Colors.black87),
+            ),
+            const SizedBox(height: 28),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      side: const BorderSide(color: Colors.black26),
+                    ),
+                    child: Text('CANCEL', style: loewBold.copyWith(fontSize: 20, color: Colors.black87)),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text('CLOSE DAY', style: loewBold.copyWith(fontSize: 20, color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

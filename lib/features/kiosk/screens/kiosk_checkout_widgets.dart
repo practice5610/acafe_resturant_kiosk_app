@@ -38,6 +38,7 @@ class KioskPrimaryButton extends StatelessWidget {
   final String label;
   final bool loading;
   final VoidCallback? onTap;
+  final IconData? icon;
 
   const KioskPrimaryButton({
     super.key,
@@ -45,6 +46,7 @@ class KioskPrimaryButton extends StatelessWidget {
     required this.label,
     this.loading = false,
     this.onTap,
+    this.icon,
   });
 
   @override
@@ -69,13 +71,22 @@ class KioskPrimaryButton extends StatelessWidget {
                           AlwaysStoppedAnimation<Color>(kCheckoutButtonText),
                     ),
                   )
-                : Text(
-                    label,
-                    style: loewExtraBold.copyWith(
-                      fontSize: 24 * s,
-                      letterSpacing: 1.5 * s,
-                      color: kCheckoutButtonText,
-                    ),
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (icon != null) ...[
+                        Icon(icon, size: 26 * s, color: kCheckoutButtonText),
+                        SizedBox(width: 14 * s),
+                      ],
+                      Text(
+                        label,
+                        style: loewExtraBold.copyWith(
+                          fontSize: 24 * s,
+                          letterSpacing: 1.5 * s,
+                          color: kCheckoutButtonText,
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ),
