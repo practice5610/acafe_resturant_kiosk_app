@@ -32,45 +32,48 @@ class KioskManagerDashboardScreen extends StatelessWidget {
                       RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
                     },
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 132 * s, vertical: 40 * s),
-                      // IntrinsicHeight + stretch makes every tile match the
-                      // tallest one's REAL rendered content height -- no
-                      // guessed fixed height that can overflow if the copy
-                      // (or a translation) ends up longer than expected.
-                      child: IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: _ManagerTile(
-                                s: s,
-                                title: 'SALES OVERVIEW',
-                                subtitle: 'Daily totals, End-of-day report, Do Z Report',
-                                onTap: () => RouterHelper.getKioskManagerSalesOverviewRoute(),
-                              ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 132 * s, vertical: 40 * s),
+                    // IntrinsicHeight + stretch makes every tile match the
+                    // tallest one's REAL rendered content height -- no
+                    // guessed fixed height that can overflow if the copy
+                    // (or a translation) ends up longer than expected.
+                    // NOTE: this row must NOT be wrapped in an outer Expanded --
+                    // that forces a tight height constraint equal to the whole
+                    // remaining screen, which defeats IntrinsicHeight and
+                    // stretches every tile to fill the page instead of just
+                    // matching each other's content height.
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _ManagerTile(
+                              s: s,
+                              title: 'SALES OVERVIEW',
+                              subtitle: 'Daily totals, End-of-day report, Do Z Report',
+                              onTap: () => RouterHelper.getKioskManagerSalesOverviewRoute(),
                             ),
-                            SizedBox(width: 40 * s),
-                            Expanded(
-                              child: _ManagerTile(
-                                s: s,
-                                title: 'TRANSACTION HISTORY',
-                                subtitle: "Today's branch-wide order list",
-                                onTap: () => RouterHelper.getKioskManagerTransactionsRoute(),
-                              ),
+                          ),
+                          SizedBox(width: 40 * s),
+                          Expanded(
+                            child: _ManagerTile(
+                              s: s,
+                              title: 'TRANSACTION HISTORY',
+                              subtitle: "Today's branch-wide order list",
+                              onTap: () => RouterHelper.getKioskManagerTransactionsRoute(),
                             ),
-                            SizedBox(width: 40 * s),
-                            Expanded(
-                              child: _ManagerTile(
-                                s: s,
-                                title: 'MARK OUT OF STOCK',
-                                subtitle: 'Toggle product availability',
-                                onTap: () => RouterHelper.getKioskManagerStockRoute(),
-                              ),
+                          ),
+                          SizedBox(width: 40 * s),
+                          Expanded(
+                            child: _ManagerTile(
+                              s: s,
+                              title: 'MARK OUT OF STOCK',
+                              subtitle: 'Toggle product availability',
+                              onTap: () => RouterHelper.getKioskManagerStockRoute(),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
