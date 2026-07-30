@@ -35,29 +35,42 @@ class KioskManagerDashboardScreen extends StatelessWidget {
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 132 * s, vertical: 40 * s),
-                      child: Wrap(
-                        spacing: 40 * s,
-                        runSpacing: 40 * s,
-                        children: [
-                          _ManagerTile(
-                            s: s,
-                            title: 'SALES OVERVIEW',
-                            subtitle: 'Daily totals, End-of-day report, Do Z Report',
-                            onTap: () => RouterHelper.getKioskManagerSalesOverviewRoute(),
-                          ),
-                          _ManagerTile(
-                            s: s,
-                            title: 'TRANSACTION HISTORY',
-                            subtitle: "Today's branch-wide order list",
-                            onTap: () => RouterHelper.getKioskManagerTransactionsRoute(),
-                          ),
-                          _ManagerTile(
-                            s: s,
-                            title: 'MARK OUT OF STOCK',
-                            subtitle: 'Toggle product availability',
-                            onTap: () => RouterHelper.getKioskManagerStockRoute(),
-                          ),
-                        ],
+                      // IntrinsicHeight + stretch makes every tile match the
+                      // tallest one's REAL rendered content height -- no
+                      // guessed fixed height that can overflow if the copy
+                      // (or a translation) ends up longer than expected.
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _ManagerTile(
+                                s: s,
+                                title: 'SALES OVERVIEW',
+                                subtitle: 'Daily totals, End-of-day report, Do Z Report',
+                                onTap: () => RouterHelper.getKioskManagerSalesOverviewRoute(),
+                              ),
+                            ),
+                            SizedBox(width: 40 * s),
+                            Expanded(
+                              child: _ManagerTile(
+                                s: s,
+                                title: 'TRANSACTION HISTORY',
+                                subtitle: "Today's branch-wide order list",
+                                onTap: () => RouterHelper.getKioskManagerTransactionsRoute(),
+                              ),
+                            ),
+                            SizedBox(width: 40 * s),
+                            Expanded(
+                              child: _ManagerTile(
+                                s: s,
+                                title: 'MARK OUT OF STOCK',
+                                subtitle: 'Toggle product availability',
+                                onTap: () => RouterHelper.getKioskManagerStockRoute(),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -86,31 +99,37 @@ class _ManagerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double tileWidth = 620 * s;
-    return SizedBox(
-      width: tileWidth,
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24 * s),
-        child: KioskTap(
-          onTap: onTap,
-          child: Container(
-            padding: EdgeInsets.all(48 * s),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24 * s),
-              border: Border.all(color: Colors.black, width: 2 * s),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title,
-                    style: loewExtraBold.copyWith(fontSize: 56 * s, color: Colors.black)),
-                SizedBox(height: 16 * s),
-                Text(subtitle,
-                    style: loewRegular.copyWith(fontSize: 36 * s, color: Colors.black54)),
-              ],
-            ),
+    // Width comes from the parent's Expanded; height comes from the parent
+    // Row's IntrinsicHeight + CrossAxisAlignment.stretch, which measures
+    // every tile's natural (min-content) height and stretches all of them
+    // to the tallest one -- no fixed number to guess or overflow.
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24 * s),
+      child: KioskTap(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(48 * s),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24 * s),
+            border: Border.all(color: Colors.black, width: 2 * s),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewExtraBold.copyWith(fontSize: 56 * s, color: Colors.black)),
+              SizedBox(height: 16 * s),
+              Text(subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewRegular.copyWith(fontSize: 36 * s, color: Colors.black54)),
+            ],
           ),
         ),
       ),

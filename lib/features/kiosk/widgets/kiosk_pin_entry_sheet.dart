@@ -4,7 +4,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart' show kioskFormScale;
+import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart'
+    show kioskFormScale;
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -32,13 +33,14 @@ Future<void> openKioskManagerAccess(BuildContext context) async {
     barrierLabel: 'Manager access',
     barrierColor: Colors.transparent, // the sheet paints its own blurred scrim
     transitionDuration: const Duration(milliseconds: 220),
-    pageBuilder: (context, animation, secondaryAnimation) => KioskPinEntrySheet(s: s),
+    pageBuilder: (context, animation, secondaryAnimation) =>
+        KioskPinEntrySheet(s: s),
     transitionBuilder: (context, animation, secondaryAnimation, child) {
       return FadeTransition(
         opacity: animation,
         child: ScaleTransition(
-          scale: Tween(begin: 0.96, end: 1.0)
-              .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          scale: Tween(begin: 0.96, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOut)),
           child: child,
         ),
       );
@@ -66,7 +68,8 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
   @override
   void initState() {
     super.initState();
-    _shakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    _shakeController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 400));
   }
 
   @override
@@ -120,42 +123,51 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
     final double s = widget.s;
     return Consumer<KioskManagerProvider>(
       builder: (context, provider, _) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            // Dimmed, blurred scrim -- tap outside the card to dismiss.
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _close,
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(color: _kManagerText.withValues(alpha: 0.55)),
+        // Material (transparent) provides the DefaultTextStyle every Text below
+        // relies on. Without it, text rendered inside showGeneralDialog falls
+        // back to the framework debug style -> yellow double underline.
+        // Transparency paints nothing, so the blurred scrim is untouched.
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Dimmed, blurred scrim -- tap outside the card to dismiss.
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _close,
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child:
+                      Container(color: _kManagerText.withValues(alpha: 0.55)),
+                ),
               ),
-            ),
-            Center(
-              child: GestureDetector(
-                onTap: () {}, // absorb taps so the card itself never closes the modal
-                child: AnimatedBuilder(
-                  animation: _shakeController,
-                  builder: (context, child) => Transform.translate(
-                    offset: Offset(_shakeOffset(_shakeController.value), 0),
-                    child: child,
-                  ),
-                  child: _ManagerCard(
-                    s: s,
-                    codeLength: _code.length,
-                    error: provider.pinError,
-                    loading: provider.verifyingPin,
-                    onDigit: _onDigit,
-                    onBackspace: _onBackspace,
-                    onClear: _onClear,
-                    onSubmit: _submit,
-                    onClose: _close,
+              Center(
+                child: GestureDetector(
+                  onTap:
+                      () {}, // absorb taps so the card itself never closes the modal
+                  child: AnimatedBuilder(
+                    animation: _shakeController,
+                    builder: (context, child) => Transform.translate(
+                      offset: Offset(_shakeOffset(_shakeController.value), 0),
+                      child: child,
+                    ),
+                    child: _ManagerCard(
+                      s: s,
+                      codeLength: _code.length,
+                      error: provider.pinError,
+                      loading: provider.verifyingPin,
+                      onDigit: _onDigit,
+                      onBackspace: _onBackspace,
+                      onClear: _onClear,
+                      onSubmit: _submit,
+                      onClose: _close,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -235,20 +247,29 @@ class _ManagerCard extends StatelessWidget {
           ),
           SizedBox(height: 22 * s),
           Text('Manager access',
-              style: loewMedium.copyWith(fontSize: 40 * s, color: _kManagerText)),
+              style:
+                  loewMedium.copyWith(fontSize: 40 * s, color: _kManagerText)),
           SizedBox(height: 10 * s),
           Text(
-            hasError ? 'Wrong code, try again' : 'Enter your 4-digit code to unlock',
+            hasError
+                ? 'Wrong code, try again'
+                : 'Enter your 4-digit code to unlock',
             textAlign: TextAlign.center,
             style: loewRegular.copyWith(
               fontSize: 26 * s,
-              color: hasError ? _kManagerDanger : _kManagerText.withValues(alpha: 0.55),
+              color: hasError
+                  ? _kManagerDanger
+                  : _kManagerText.withValues(alpha: 0.55),
             ),
           ),
           SizedBox(height: 30 * s),
           _PinDotsRow(s: s, filled: codeLength, hasError: hasError),
           SizedBox(height: 34 * s),
-          _ManagerKeypad(s: s, onDigit: onDigit, onBackspace: onBackspace, onClear: onClear),
+          _ManagerKeypad(
+              s: s,
+              onDigit: onDigit,
+              onBackspace: onBackspace,
+              onClear: onClear),
           SizedBox(height: 30 * s),
           _UnlockButton(s: s, loading: loading, onTap: onSubmit),
         ],
@@ -271,8 +292,10 @@ class _CloseButton extends StatelessWidget {
       child: KioskTap(
         onTap: onTap,
         child: Container(
-          decoration: const BoxDecoration(color: Color(0xFFECE6D8), shape: BoxShape.circle),
-          child: Icon(Icons.close, size: 20 * s, color: _kManagerText.withValues(alpha: 0.6)),
+          decoration: const BoxDecoration(
+              color: Color(0xFFECE6D8), shape: BoxShape.circle),
+          child: Icon(Icons.close,
+              size: 20 * s, color: _kManagerText.withValues(alpha: 0.6)),
         ),
       ),
     );
@@ -283,7 +306,8 @@ class _PinDotsRow extends StatelessWidget {
   final double s;
   final int filled;
   final bool hasError;
-  const _PinDotsRow({required this.s, required this.filled, required this.hasError});
+  const _PinDotsRow(
+      {required this.s, required this.filled, required this.hasError});
 
   @override
   Widget build(BuildContext context) {
@@ -358,7 +382,11 @@ class _ManagerKeypad extends StatelessWidget {
       return _KeypadKey(s: s, label: 'C', ghost: true, onTap: onClear);
     }
     if (key == '<') {
-      return _KeypadKey(s: s, icon: Icons.backspace_outlined, ghost: true, onTap: onBackspace);
+      return _KeypadKey(
+          s: s,
+          icon: Icons.backspace_outlined,
+          ghost: true,
+          onTap: onBackspace);
     }
     return _KeypadKey(s: s, label: key, onTap: () => onDigit(key));
   }
@@ -413,7 +441,9 @@ class _KeypadKeyState extends State<_KeypadKey> {
             borderRadius: BorderRadius.circular(16 * s),
             border: widget.ghost
                 ? null
-                : Border.all(color: Colors.black.withValues(alpha: 0.08), width: 1.5 * s),
+                : Border.all(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    width: 1.5 * s),
           ),
           child: widget.icon != null
               ? Icon(widget.icon, size: 30 * s, color: _kManagerAccent)
@@ -434,7 +464,8 @@ class _UnlockButton extends StatelessWidget {
   final double s;
   final bool loading;
   final VoidCallback onTap;
-  const _UnlockButton({required this.s, required this.loading, required this.onTap});
+  const _UnlockButton(
+      {required this.s, required this.loading, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -455,11 +486,13 @@ class _UnlockButton extends StatelessWidget {
                     height: 26 * s,
                     child: const CircularProgressIndicator(
                       strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation<Color>(_kManagerSurface),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(_kManagerSurface),
                     ),
                   )
                 : Text('Unlock',
-                    style: loewMedium.copyWith(fontSize: 30 * s, color: _kManagerSurface)),
+                    style: loewMedium.copyWith(
+                        fontSize: 30 * s, color: _kManagerSurface)),
           ),
         ),
       ),

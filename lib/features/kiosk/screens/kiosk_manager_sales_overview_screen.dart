@@ -155,7 +155,7 @@ class _SalesOverviewBody extends StatelessWidget {
             // the page's `s` here made the label shrink to ~8px and look
             // like unreadable mush at normal browser widths.
             s: kioskFormScale(MediaQuery.sizeOf(context).width),
-            label: 'DO Z REPORT',
+            label: 'CLOSE DAY',
             onTap: () => _openCloseRegisterSheet(context, data),
           ),
       ],
@@ -347,7 +347,7 @@ class _CloseRegisterSheetState extends State<_CloseRegisterSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('DO Z REPORT',
+              Text('CLOSE DAY',
                   textAlign: TextAlign.center,
                   style: loewExtraBold.copyWith(fontSize: 60 * s, color: Colors.black)),
               SizedBox(height: 36 * s),
