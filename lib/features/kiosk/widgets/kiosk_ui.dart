@@ -8,6 +8,7 @@ import 'package:acafe_customer/features/language/providers/localization_provider
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -589,6 +590,10 @@ class KioskHeaderBar extends StatelessWidget {
   final double backSize;
   final double backBorder;
   final double backIconSize;
+  /// Optional right-aligned content (e.g. summary chips) rendered in the same
+  /// row as the back button and title, so screens don't need a second row
+  /// of chrome competing with the page content below.
+  final Widget? trailing;
 
   const KioskHeaderBar({
     super.key,
@@ -603,6 +608,7 @@ class KioskHeaderBar extends StatelessWidget {
     this.backSize = 100,
     this.backBorder = 4,
     this.backIconSize = 50,
+    this.trailing,
   });
 
   @override
@@ -638,6 +644,11 @@ class KioskHeaderBar extends StatelessWidget {
                     fallback: fallback,
                   ),
                 ),
+                if (trailing != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: trailing!,
+                  ),
               ],
             ),
           ),
@@ -646,6 +657,68 @@ class KioskHeaderBar extends StatelessWidget {
           SizedBox(height: verticalPadding * s),
           Container(height: (2 * s).clamp(1.0, 2.0), color: Colors.black),
         ],
+      ),
+    );
+  }
+}
+
+/// Premium pill toggle for availability rows (stock screen, etc).
+///
+/// Flutter's stock `Switch` is a fixed Material size that never scales with
+/// `s` -- on kiosk layouts, where every surrounding font/image is scaled down
+/// by `s`, that fixed size reads as oversized next to everything else. This
+/// widget is built from scratch so its track/thumb scale exactly like the
+/// rest of the screen.
+class KioskSwitch extends StatelessWidget {
+  final bool value;
+  final double s;
+  final ValueChanged<bool>? onChanged;
+
+  const KioskSwitch({
+    super.key,
+    required this.value,
+    required this.s,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double width = 68 * s;
+    final double height = 38 * s;
+    final double thumbSize = height - 6 * s;
+
+    return KioskTap(
+      onTap: onChanged == null ? null : () => onChanged!(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        width: width,
+        height: height,
+        padding: EdgeInsets.all(3 * s),
+        decoration: BoxDecoration(
+          color: value ? BrandColors.secondary : const Color(0xFFE3DFD3),
+          borderRadius: BorderRadius.circular(height / 2),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: thumbSize,
+            height: thumbSize,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 3 * s,
+                  offset: Offset(0, 1 * s),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

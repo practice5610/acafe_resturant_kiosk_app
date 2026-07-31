@@ -52,7 +52,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => CouponRepo(dioClient: sl()));
   sl.registerLazySingleton(() => KioskAuthRepo(dioClient: sl(), sharedPreferences: sl()));
   sl.registerLazySingleton(() => KioskOrderRepo(dioClient: sl()));
-  sl.registerLazySingleton(() => KioskManagerRepo(dioClient: sl()));
+  sl.registerLazySingleton(() => KioskManagerRepo(dioClient: sl(), sharedPreferences: sl()));
 
   // Provider
   sl.registerLazySingleton(() => DataSyncProvider());

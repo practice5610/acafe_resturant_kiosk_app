@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/exception/api_error_handler.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Device-authenticated "POS Manager" calls: PIN check, live sales overview,
 /// Z Report close, transaction history, and the stock-toggle screen. All
@@ -9,8 +10,9 @@ import 'package:acafe_customer/common/models/api_response_model.dart';
 /// branch/device id is ever sent from the client.
 class KioskManagerRepo {
   final DioClient dioClient;
+  final SharedPreferences sharedPreferences;
 
-  KioskManagerRepo({required this.dioClient});
+  KioskManagerRepo({required this.dioClient, required this.sharedPreferences});
 
   /// Checks the entered 4-digit PIN against the device's configuration_code.
   ///

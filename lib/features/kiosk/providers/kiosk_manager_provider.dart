@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/helper/api_checker_helper.dart';
+import 'package:acafe_customer/utill/app_constants.dart';
 
 /// Backs the PIN-gated "POS Manager" screens: the PIN check itself, the live
 /// Sales Overview / Do-Z-Report action, Transaction History, and the
@@ -165,10 +169,16 @@ class KioskManagerProvider extends ChangeNotifier {
 
   int _productsTotal = 0;
   int _productsOffset = 1;
-  static const int _productsLimit = 25;
+  static const int _productsLimit = 100;
   String _productsSearch = '';
 
   bool get hasMoreProducts => _products.length < _productsTotal;
+
+  /// Loaded-set out-of-stock count -- accurate once [loadAllProducts] has
+  /// pulled every page, which is what the Mark-Out-of-Stock screen always
+  /// does (a manager needs the true count, not just what's scrolled into
+  /// view).
+  int get outOfStockCount => _products.where((p) => p['is_available'] != true).length;
 
   // Per-product in-flight guard so a double-tap can't queue conflicting
   // toggle requests for the same row.
@@ -207,6 +217,90 @@ class KioskManagerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Pulls every page for the given [search] so the stock screen's stats
+  /// ("N products" / "M out of stock") and All/In-stock/Out filter always
+  /// reflect the whole branch menu, not just the first page.
+  Future<void> loadAllProducts({String? search}) async {
+    await loadProducts(search: search);
+    while (hasMoreProducts) {
+      await loadProducts(reset: false);
+    }
+    if ((search == null || search.isEmpty)) {
+      await _persistProductsToDisk();
+    }
+  }
+
+  /// Instant-first-paint version of [loadAllProducts] for screen entry: shows
+  /// whatever was on disk from the last session immediately (no spinner),
+  /// then always re-validates against the network in the background so stock
+  /// status stays accurate. Falls back to a normal (spinner-shown) load only
+  /// when there is no disk cache yet -- mirrors the stale-while-revalidate
+  /// pattern CategoryProvider already uses for the kiosk menu prefetch.
+  Future<void> loadAllProductsWithCache() async {
+    if (_hydrateProductsFromDisk()) {
+      notifyListeners();
+      unawaited(_refreshAllProductsSilently());
+    } else {
+      await loadAllProducts();
+    }
+  }
+
+  bool _hydrateProductsFromDisk() {
+    final raw = kioskManagerRepo.sharedPreferences
+        .getString(AppConstants.kioskManagerStockCacheKey);
+    if (raw == null) return false;
+
+    try {
+      final List cached = jsonDecode(raw);
+      final products =
+          cached.map((p) => Map<String, dynamic>.from(p)).toList();
+      if (products.isEmpty) return false;
+      _products = products;
+      _productsTotal = products.length;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _persistProductsToDisk() async {
+    try {
+      await kioskManagerRepo.sharedPreferences.setString(
+        AppConstants.kioskManagerStockCacheKey,
+        jsonEncode(_products),
+      );
+    } catch (_) {
+      // Best-effort persistence -- in-memory list still works this session.
+    }
+  }
+
+  /// Re-pulls the full product list without ever clearing what's already on
+  /// screen, so a stale-cache refresh never flashes a loading state.
+  Future<void> _refreshAllProductsSilently() async {
+    final List<Map<String, dynamic>> fresh = [];
+    int offset = 1;
+    int total = 0;
+    do {
+      final apiResponse = await kioskManagerRepo.getProducts(
+        limit: _productsLimit,
+        offset: offset,
+      );
+      if (apiResponse.response == null || apiResponse.response!.statusCode != 200) {
+        return;
+      }
+      final data = apiResponse.response!.data;
+      total = data['total_size'] ?? 0;
+      final List items = data['products'] ?? [];
+      fresh.addAll(items.map((p) => Map<String, dynamic>.from(p)));
+      offset++;
+    } while (fresh.length < total);
+
+    _products = fresh;
+    _productsTotal = total;
+    notifyListeners();
+    await _persistProductsToDisk();
+  }
+
   Future<void> toggleProductAvailability(int productId, bool nextStatus) async {
     if (_togglingProductIds.contains(productId)) return;
 
@@ -231,5 +325,9 @@ class KioskManagerProvider extends ChangeNotifier {
 
     _togglingProductIds.remove(productId);
     notifyListeners();
+
+    if (success) {
+      await _persistProductsToDisk();
+    }
   }
 }

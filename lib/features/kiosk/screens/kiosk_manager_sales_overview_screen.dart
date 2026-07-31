@@ -10,6 +10,14 @@ import 'package:provider/provider.dart';
 
 double? _money(dynamic v) => (v as num?)?.toDouble();
 
+/// Laravel serializes an empty PHP associative array as a JSON `[]`, not
+/// `{}` -- indistinguishable from a genuinely empty list. `countBy()` in
+/// ZReportService hits exactly this on a day with zero orders (e.g.
+/// `by_order_type`), so `Map<String, dynamic>.from(x)` would otherwise throw
+/// "List<dynamic> is not a subtype of Map" the first time a report has no
+/// transactions yet. Treat anything that isn't already a Map as empty.
+Map<String, dynamic> _asMap(dynamic v) => v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+
 /// "dine_in" -> "Dine In", "pos" -> "POS".
 String _titleCase(String raw) {
   if (raw.isEmpty) return raw;
@@ -163,14 +171,14 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
     final provider = context.watch<KioskManagerProvider>();
 
     final bool closed = data['closed'] == true;
-    final sales = Map<String, dynamic>.from(data['sales'] ?? {});
-    final tradingWindow = Map<String, dynamic>.from(sales['trading_window'] ?? {});
-    final transactions = Map<String, dynamic>.from(data['transactions'] ?? {});
-    final byOrderType = Map<String, dynamic>.from(transactions['by_order_type'] ?? {});
-    final discounts = Map<String, dynamic>.from(data['discounts'] ?? {});
-    final voided = Map<String, dynamic>.from(data['voided'] ?? {});
-    final paymentMethods = Map<String, dynamic>.from(data['payment_methods'] ?? {});
-    final channelBreakdown = Map<String, dynamic>.from(data['channel_breakdown'] ?? {});
+    final sales = _asMap(data['sales']);
+    final tradingWindow = _asMap(sales['trading_window']);
+    final transactions = _asMap(data['transactions']);
+    final byOrderType = _asMap(transactions['by_order_type']);
+    final discounts = _asMap(data['discounts']);
+    final voided = _asMap(data['voided']);
+    final paymentMethods = _asMap(data['payment_methods']);
+    final channelBreakdown = _asMap(data['channel_breakdown']);
     final bool channelRecorded = channelBreakdown['recorded'] != false;
     final List channelBuckets = channelBreakdown['buckets'] ?? [];
     final List payments = paymentMethods['methods'] ?? [];
@@ -259,7 +267,7 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
         ]),
         SizedBox(height: 32 * s),
         if (closed)
-          _CashReconciliationCard(s: s, data: Map<String, dynamic>.from(data['cash_reconciliation'] ?? {}), comment: data['closing_comment'] as String?)
+          _CashReconciliationCard(s: s, data: _asMap(data['cash_reconciliation']), comment: data['closing_comment'] as String?)
         else
           _CloseDaySection(
             s: s,
