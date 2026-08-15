@@ -53,6 +53,7 @@ class Product {
   double? _price;
   List<Variation>? _variations;
   List<AddOns>? _addOns;
+  List<AddOnGroup>? _addOnGroups;
   double? _tax;
   int? _status;
   String? _createdAt;
@@ -79,6 +80,7 @@ class Product {
         double? price,
         List<Variation>? variations,
         List<AddOns>? addOns,
+        List<AddOnGroup>? addOnGroups,
         double? tax,
         int? status,
         String? createdAt,
@@ -105,6 +107,7 @@ class Product {
     _price = price;
     _variations = variations;
     _addOns = addOns;
+    _addOnGroups = addOnGroups;
     _tax = tax;
     _status = status;
     _createdAt = createdAt;
@@ -131,6 +134,36 @@ class Product {
   double? get price => _price;
   List<Variation>? get variations => _variations;
   List<AddOns>? get addOns => _addOns;
+  List<AddOnGroup>? get addOnGroups => _addOnGroups;
+  List<AddOnGroup> get effectiveAddOnGroups {
+    if (_addOnGroups != null && _addOnGroups!.isNotEmpty) {
+      return _addOnGroups!;
+    }
+    if (_addOns != null && _addOns!.isNotEmpty) {
+      return [
+        AddOnGroup(
+          selectionType: 'multi',
+          isRequired: false,
+          min: 0,
+          addons: _addOns!,
+        ),
+      ];
+    }
+    return [];
+  }
+
+  int? indexOfAddOn(int? id) {
+    if (id == null || _addOns == null) {
+      return null;
+    }
+    for (int i = 0; i < _addOns!.length; i++) {
+      if (_addOns![i].id == id) {
+        return i;
+      }
+    }
+    return null;
+  }
+
   double? get tax => _tax;
   int? get status => _status;
   String? get createdAt => _createdAt;
@@ -174,6 +207,16 @@ class Product {
      }catch(e){
        _addOns = [];
      }
+    }
+    if (json['add_on_groups'] != null) {
+      _addOnGroups = [];
+      try {
+        json['add_on_groups'].forEach((v) {
+          _addOnGroups!.add(AddOnGroup.fromJson(v));
+        });
+      } catch (e) {
+        _addOnGroups = [];
+      }
     }
     _tax = json['tax'].toDouble();
     _tax = json['tax'].toDouble();
@@ -239,6 +282,9 @@ class Product {
 
     if (_addOns != null) {
       data['add_ons'] = _addOns!.map((v) => v.toJson()).toList();
+    }
+    if (_addOnGroups != null) {
+      data['add_on_groups'] = _addOnGroups!.map((v) => v.toJson()).toList();
     }
     data['tax'] = _tax;
     data['status'] = _status;
@@ -412,14 +458,16 @@ class AddOns {
   String? _createdAt;
   String? _updatedAt;
   double? _tax; // percentage
+  String? _image;
 
-  AddOns({int? id, String? name, double? price, String? createdAt, String? updatedAt, double? tax}) {
+  AddOns({int? id, String? name, double? price, String? createdAt, String? updatedAt, double? tax, String? image}) {
     _id = id;
     _name = name;
     _price = price;
     _createdAt = createdAt;
     _updatedAt = updatedAt;
     _tax = tax;
+    _image = image;
   }
 
   int? get id => _id;
@@ -428,6 +476,8 @@ class AddOns {
   String? get createdAt => _createdAt;
   String? get updatedAt => _updatedAt;
   double? get tax => _tax;
+  String? get image => _image;
+  bool get hasImage => _image != null && _image!.isNotEmpty && _image != 'def.png';
 
   AddOns.fromJson(Map<String, dynamic> json) {
     _id = json['id'];
@@ -436,6 +486,7 @@ class AddOns {
     _createdAt = json['created_at'];
     _updatedAt = json['updated_at'];
     _tax = double.tryParse('${json['tax']}');
+    _image = json['image'];
   }
 
   Map<String, dynamic> toJson() {
@@ -446,7 +497,57 @@ class AddOns {
     data['created_at'] = _createdAt;
     data['updated_at'] = _updatedAt;
     data['tax'] = _tax;
+    data['image'] = _image;
     return data;
+  }
+}
+
+class AddOnGroup {
+  int? id;
+  String? name;
+  String? selectionType;
+  bool isRequired;
+  int min;
+  int? max;
+  List<AddOns> addons;
+
+  AddOnGroup({
+    this.id,
+    this.name,
+    this.selectionType = 'multi',
+    this.isRequired = false,
+    this.min = 0,
+    this.max,
+    this.addons = const [],
+  });
+
+  bool get isSingle => selectionType == 'single';
+
+  AddOnGroup.fromJson(Map<String, dynamic> json)
+      : id = json['id'],
+        name = json['name'],
+        selectionType = json['selection_type'] ?? 'multi',
+        isRequired = json['is_required'] == true || '${json['is_required']}' == '1',
+        min = int.tryParse('${json['min']}') ?? 0,
+        max = json['max'] == null ? null : int.tryParse('${json['max']}'),
+        addons = [] {
+    if (json['addons'] != null) {
+      json['addons'].forEach((v) {
+        addons.add(AddOns.fromJson(v));
+      });
+    }
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'selection_type': selectionType,
+      'is_required': isRequired,
+      'min': min,
+      'max': max,
+      'addons': addons.map((v) => v.toJson()).toList(),
+    };
   }
 }
 

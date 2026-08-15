@@ -18,14 +18,21 @@ double? _money(dynamic v) => (v as num?)?.toDouble();
 /// transactions yet. Treat anything that isn't already a Map as empty.
 Map<String, dynamic> _asMap(dynamic v) => v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
 
-/// "dine_in" -> "Dine In", "pos" -> "POS".
+/// "dine_in" -> "Dine-in", "take_away" -> "Takeaway", "pos" -> "Takeaway".
 String _titleCase(String raw) {
-  if (raw.isEmpty) return raw;
-  if (raw.toLowerCase() == 'pos') return 'POS';
-  return raw
-      .split('_')
-      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-      .join(' ');
+  switch (raw.toLowerCase()) {
+    case 'dine_in':
+      return 'Dine-in';
+    case 'take_away':
+    case 'pos':
+      return 'Takeaway';
+    default:
+      if (raw.isEmpty) return raw;
+      return raw
+          .split('_')
+          .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+          .join(' ');
+  }
 }
 
 /// "2026-07-30 10:15:00" -> "10:15".
@@ -178,10 +185,9 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
     final discounts = _asMap(data['discounts']);
     final voided = _asMap(data['voided']);
     final paymentMethods = _asMap(data['payment_methods']);
-    final channelBreakdown = _asMap(data['channel_breakdown']);
-    final bool channelRecorded = channelBreakdown['recorded'] != false;
-    final List channelBuckets = channelBreakdown['buckets'] ?? [];
     final List payments = paymentMethods['methods'] ?? [];
+    final channelBreakdown = _asMap(data['channel_breakdown']);
+    final List channelBuckets = channelBreakdown['buckets'] ?? [];
     final double? approxRefundValue = _money(voided['approx_refund_value']);
 
     return ListView(
@@ -234,19 +240,6 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
             ),
         ]),
         SizedBox(height: 32 * s),
-        _SectionCard(s: s, title: 'Channel breakdown', children: [
-          if (!channelRecorded)
-            Text('Not recorded for this closed day',
-                style: loewRegular.copyWith(fontSize: 30 * s, color: Colors.black45))
-          else
-            for (final bucket in channelBuckets)
-              _StatRow(
-                s: s,
-                label: '${bucket['channel']} (${bucket['order_count']})',
-                value: '${PriceConverterHelper.convertPrice(_money(bucket['amount']))} · ${bucket['percentage']}%',
-              ),
-        ]),
-        SizedBox(height: 32 * s),
         _SectionCard(s: s, title: 'Discounts', children: [
           _StatRow(s: s, label: 'Coupon', value: PriceConverterHelper.convertPrice(_money(discounts['coupon']))),
           _StatRow(s: s, label: 'Manual', value: PriceConverterHelper.convertPrice(_money(discounts['manual']))),
@@ -255,7 +248,18 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
           _StatRow(s: s, label: 'Total', value: PriceConverterHelper.convertPrice(_money(discounts['total'])), bold: true),
         ]),
         SizedBox(height: 32 * s),
-        _SectionCard(s: s, title: 'Payment methods', children: [
+        _SectionCard(s: s, title: 'Order source', children: [
+          if (channelBuckets.isEmpty)
+            _StatRow(s: s, label: 'No orders recorded', value: ''),
+          for (final bucket in channelBuckets)
+            _StatRow(
+              s: s,
+              label: '${bucket['channel']} (${bucket['order_count']})',
+              value: PriceConverterHelper.convertPrice(_money(bucket['amount'])),
+            ),
+        ]),
+        SizedBox(height: 32 * s),
+        _SectionCard(s: s, title: 'Payment breakdown', children: [
           if (payments.isEmpty)
             _StatRow(s: s, label: 'No payments recorded', value: ''),
           for (final method in payments)

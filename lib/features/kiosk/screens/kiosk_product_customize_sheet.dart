@@ -32,6 +32,21 @@ const Color _kCreamText = Color(0xFFF3F3DD);
 /// treatment and are only shown when the product actually has them.
 final RegExp _kCupCanPattern = RegExp(r'cup|can', caseSensitive: false);
 
+String _addonImageUrl(BuildContext context, Product product, AddOns addon) {
+  final splash = Provider.of<SplashProvider>(context, listen: false);
+  if (addon.hasImage) {
+    return '${splash.baseUrls?.addonImageUrl}/${addon.image}';
+  }
+  return '${splash.baseUrls?.productImageUrl}/${product.image}';
+}
+
+String _addonGroupTitle(BuildContext context, AddOnGroup group) {
+  final String name = (group.name != null && group.name!.isNotEmpty)
+      ? group.name!
+      : (getTranslated('add_add_ons', context) ?? 'Add add-ons');
+  return group.isRequired ? '$name *' : name;
+}
+
 /// Entry point: tap a product in the kiosk menu -> open the customization screen.
 ///
 /// Reuses the existing [ProductProvider] customization state and the existing
@@ -47,7 +62,7 @@ void openKioskCustomize(BuildContext context, Product product,
   final variations = product.variations ?? [];
   final addOns = product.addOns ?? [];
 
-  if (cart == null && variations.isEmpty && addOns.isEmpty) {
+  if (cart == null && variations.isEmpty && addOns.isEmpty && product.effectiveAddOnGroups.isEmpty) {
     // No modifiers -> add directly.
     Provider.of<CartProvider>(context, listen: false).addToCart(
         buildKioskCartModel(context, product), productProvider.cartIndex);
@@ -147,6 +162,31 @@ class KioskProductCustomizeScreen extends StatelessWidget {
         return false;
       }
     }
+    for (final group in product.effectiveAddOnGroups) {
+      final List<int> indexes = [];
+      for (final addon in group.addons) {
+        final int? i = product.indexOfAddOn(addon.id);
+        if (i != null) {
+          indexes.add(i);
+        }
+      }
+      int selected = 0;
+      for (final int i in indexes) {
+        if (i < productProvider.addOnActiveList.length &&
+            productProvider.addOnActiveList[i]) {
+          selected++;
+        }
+      }
+      final bool required = group.isRequired || group.min > 0;
+      final int min = group.isSingle ? (required ? 1 : 0) : group.min;
+      if (required && selected < min) {
+        showCustomSnackBarHelper(
+          '${getTranslated('choose_a_variation_from', context)} ${group.name ?? ''}',
+          isError: true,
+        );
+        return false;
+      }
+    }
     return true;
   }
 
@@ -170,7 +210,6 @@ class KioskProductCustomizeScreen extends StatelessWidget {
     final cupCanVariations = indexedVariations
         .where((e) => _kCupCanPattern.hasMatch(e.value.name ?? ''))
         .toList();
-    final addOns = product.addOns ?? [];
 
     return Scaffold(
       backgroundColor: KioskUI.pageBg,
@@ -183,7 +222,6 @@ class KioskProductCustomizeScreen extends StatelessWidget {
                 productProvider: productProvider,
                 dietaryVariations: dietaryVariations,
                 cupCanVariations: cupCanVariations,
-                addOns: addOns,
                 onAddToCart: () => _addToCart(context, productProvider),
               );
             }
@@ -212,7 +250,7 @@ class KioskProductCustomizeScreen extends StatelessWidget {
                                   product: product,
                                   productProvider: productProvider,
                                 ),
-                              if (addOns.isNotEmpty)
+                              if (product.effectiveAddOnGroups.isNotEmpty)
                                 _AddOnsSection(
                                     s: s,
                                     product: product,
@@ -584,7 +622,7 @@ class _RadioDot extends StatelessWidget {
   }
 }
 
-/// Add-ons: tap a card to toggle it on/off (qty defaults to 1).
+/// Add-ons: grouped like Lightspeed. Single-choice groups act as radios.
 class _AddOnsSection extends StatelessWidget {
   final double s;
   final Product product;
@@ -594,27 +632,66 @@ class _AddOnsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final addOns = product.addOns ?? [];
+    return Column(
+      children: [
+        for (final group in product.effectiveAddOnGroups)
+          _GroupedAddOnCards(
+            s: s,
+            product: product,
+            productProvider: productProvider,
+            group: group,
+          ),
+      ],
+    );
+  }
+}
+
+class _GroupedAddOnCards extends StatelessWidget {
+  final double s;
+  final Product product;
+  final ProductProvider productProvider;
+  final AddOnGroup group;
+  const _GroupedAddOnCards({
+    required this.s,
+    required this.product,
+    required this.productProvider,
+    required this.group,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final List<int> groupIndexes = [
+      for (final addon in group.addons)
+        if (product.indexOfAddOn(addon.id) != null) product.indexOfAddOn(addon.id)!,
+    ];
 
     return _SectionPanel(
       s: s,
-      title: getTranslated('add_add_ons', context) ?? 'Add add-ons',
+      title: _addonGroupTitle(context, group),
       child: Wrap(
         spacing: 24 * s,
         runSpacing: 24 * s,
-        children: List.generate(addOns.length, (i) {
-          final bool active = i < productProvider.addOnActiveList.length &&
-              productProvider.addOnActiveList[i];
-          return _AddOnCard(
-            s: s,
-            name: addOns[i].name ?? '',
-            priceDelta: addOns[i].price ?? 0,
-            image: '${splash.baseUrls?.productImageUrl}/${product.image}',
-            selected: active,
-            onTap: () => productProvider.addAddOn(!active, i),
-          );
-        }),
+        children: [
+          for (final addon in group.addons)
+            if (product.indexOfAddOn(addon.id) != null)
+              _AddOnCard(
+                s: s,
+                name: addon.name ?? '',
+                priceDelta: addon.price ?? 0,
+                image: _addonImageUrl(context, product, addon),
+                selected: product.indexOfAddOn(addon.id)! <
+                        productProvider.addOnActiveList.length &&
+                    productProvider
+                        .addOnActiveList[product.indexOfAddOn(addon.id)!],
+                onTap: () => productProvider.toggleAddOnInGroup(
+                  index: product.indexOfAddOn(addon.id)!,
+                  isSingle: group.isSingle,
+                  groupIndexes: groupIndexes,
+                  isRequired: group.isRequired,
+                  maxSelect: group.max,
+                ),
+              ),
+        ],
       ),
     );
   }
@@ -868,7 +945,6 @@ class _WideCustomizeLayout extends StatelessWidget {
   final ProductProvider productProvider;
   final List<MapEntry<int, Variation>> dietaryVariations;
   final List<MapEntry<int, Variation>> cupCanVariations;
-  final List<AddOns> addOns;
   final VoidCallback onAddToCart;
 
   const _WideCustomizeLayout({
@@ -876,7 +952,6 @@ class _WideCustomizeLayout extends StatelessWidget {
     required this.productProvider,
     required this.dietaryVariations,
     required this.cupCanVariations,
-    required this.addOns,
     required this.onAddToCart,
   });
 
@@ -971,7 +1046,7 @@ class _WideCustomizeLayout extends StatelessWidget {
                               product: product,
                               productProvider: productProvider,
                             ),
-                          if (addOns.isNotEmpty)
+                          if (product.effectiveAddOnGroups.isNotEmpty)
                             _WideAddOnsSection(
                               product: product,
                               productProvider: productProvider,
@@ -1082,33 +1157,70 @@ class _WideAddOnsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final addOns = product.addOns ?? [];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final group in product.effectiveAddOnGroups)
+          _WideGroupedAddOns(
+            product: product,
+            productProvider: productProvider,
+            group: group,
+          ),
+      ],
+    );
+  }
+}
+
+class _WideGroupedAddOns extends StatelessWidget {
+  final Product product;
+  final ProductProvider productProvider;
+  final AddOnGroup group;
+
+  const _WideGroupedAddOns({
+    required this.product,
+    required this.productProvider,
+    required this.group,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final List<int> groupIndexes = [
+      for (final addon in group.addons)
+        if (product.indexOfAddOn(addon.id) != null) product.indexOfAddOn(addon.id)!,
+    ];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(getTranslated('add_add_ons', context) ?? 'Add add-ons',
+          Text(_addonGroupTitle(context, group),
               style: loewBold.copyWith(
                   fontSize: KioskUI.section, color: Colors.black)),
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: List.generate(addOns.length, (i) {
-              final bool active = i < productProvider.addOnActiveList.length &&
-                  productProvider.addOnActiveList[i];
-              return _WideOptionCard(
-                name: addOns[i].name ?? '',
-                priceDelta: addOns[i].price ?? 0,
-                image:
-                    '${splash.baseUrls?.productImageUrl}/${product.image}',
-                selected: active,
-                onTap: () => productProvider.addAddOn(!active, i),
-              );
-            }),
+            children: [
+              for (final addon in group.addons)
+                if (product.indexOfAddOn(addon.id) != null)
+                  _WideOptionCard(
+                    name: addon.name ?? '',
+                    priceDelta: addon.price ?? 0,
+                    image: _addonImageUrl(context, product, addon),
+                    selected: product.indexOfAddOn(addon.id)! <
+                            productProvider.addOnActiveList.length &&
+                        productProvider
+                            .addOnActiveList[product.indexOfAddOn(addon.id)!],
+                    onTap: () => productProvider.toggleAddOnInGroup(
+                      index: product.indexOfAddOn(addon.id)!,
+                      isSingle: group.isSingle,
+                      groupIndexes: groupIndexes,
+                      isRequired: group.isRequired,
+                      maxSelect: group.max,
+                    ),
+                  ),
+            ],
           ),
         ],
       ),

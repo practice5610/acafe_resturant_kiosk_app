@@ -443,6 +443,7 @@ class ConfigModel {
 
 class BaseUrls {
   String? _productImageUrl;
+  String? _addonImageUrl;
   String? _customerImageUrl;
   String? _bannerImageUrl;
   String? _categoryImageUrl;
@@ -457,6 +458,7 @@ class BaseUrls {
 
   BaseUrls(
       {String? productImageUrl,
+        String? addonImageUrl,
         String? customerImageUrl,
         String? bannerImageUrl,
         String? categoryImageUrl,
@@ -470,6 +472,7 @@ class BaseUrls {
         String? getWayImageUrl,
       }) {
     _productImageUrl = productImageUrl;
+    _addonImageUrl = addonImageUrl;
     _customerImageUrl = customerImageUrl;
     _bannerImageUrl = bannerImageUrl;
     _categoryImageUrl = categoryImageUrl;
@@ -484,6 +487,7 @@ class BaseUrls {
   }
 
   String? get productImageUrl => _productImageUrl;
+  String? get addonImageUrl => _addonImageUrl;
   String? get customerImageUrl => _customerImageUrl;
   String? get bannerImageUrl => _bannerImageUrl;
   String? get categoryImageUrl => _categoryImageUrl;
@@ -498,6 +502,7 @@ class BaseUrls {
 
   BaseUrls.fromJson(Map<String, dynamic> json) {
     _productImageUrl = json['product_image_url'] ?? '';
+    _addonImageUrl = json['addon_image_url'] ?? json['product_image_url'] ?? '';
     _customerImageUrl = json['customer_image_url'] ?? '';
     _bannerImageUrl = json['banner_image_url'] ?? '';
     _categoryImageUrl = json['category_image_url'] ?? '';
@@ -514,6 +519,7 @@ class BaseUrls {
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
     data['product_image_url'] = _productImageUrl;
+    data['addon_image_url'] = _addonImageUrl;
     data['customer_image_url'] = _customerImageUrl;
     data['banner_image_url'] = _bannerImageUrl;
     data['category_image_url'] = _categoryImageUrl;

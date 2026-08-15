@@ -335,6 +335,49 @@ class ProductProvider extends DataSyncProvider {
     notifyListeners();
   }
 
+  void toggleAddOnInGroup({
+    required int index,
+    required bool isSingle,
+    required List<int> groupIndexes,
+    required bool isRequired,
+    int? maxSelect,
+  }) {
+    if (index < 0 || index >= _addOnActiveList.length) {
+      return;
+    }
+
+    if (isSingle) {
+      final bool currentlyOn = _addOnActiveList[index];
+      if (currentlyOn && !isRequired) {
+        _addOnActiveList[index] = false;
+      } else {
+        for (final int i in groupIndexes) {
+          if (i >= 0 && i < _addOnActiveList.length) {
+            _addOnActiveList[i] = i == index;
+          }
+        }
+      }
+      notifyListeners();
+      return;
+    }
+
+    final bool turningOn = !_addOnActiveList[index];
+    if (turningOn && maxSelect != null) {
+      int count = 0;
+      for (final int i in groupIndexes) {
+        if (i >= 0 && i < _addOnActiveList.length && _addOnActiveList[i]) {
+          count++;
+        }
+      }
+      if (count >= maxSelect) {
+        return;
+      }
+    }
+
+    _addOnActiveList[index] = turningOn;
+    notifyListeners();
+  }
+
 
   bool checkStock(Product product, {int? quantity}){
     int? stock;
