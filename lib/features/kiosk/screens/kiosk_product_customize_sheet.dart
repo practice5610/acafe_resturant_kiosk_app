@@ -32,6 +32,21 @@ const Color _kCreamText = Color(0xFFF3F3DD);
 /// treatment and are only shown when the product actually has them.
 final RegExp _kCupCanPattern = RegExp(r'cup|can', caseSensitive: false);
 
+/// Size groups (Small / Medium / Large) are often stored as separate
+/// one-option variations. Render them as one addon-style horizontal card row.
+final RegExp _kSizePattern =
+    RegExp(r'(small|medium|large|\bsizes?\b)', caseSensitive: false);
+
+bool _isSizeVariation(Variation variation) {
+  final name = (variation.name ?? '').trim();
+  if (_kSizePattern.hasMatch(name)) return true;
+  final values = variation.variationValues ?? [];
+  if (values.length == 1) {
+    return _kSizePattern.hasMatch((values.first.level ?? '').trim());
+  }
+  return false;
+}
+
 String _addonImageUrl(BuildContext context, Product product, AddOns addon) {
   final splash = Provider.of<SplashProvider>(context, listen: false);
   if (addon.hasImage) {
@@ -204,11 +219,18 @@ class KioskProductCustomizeScreen extends StatelessWidget {
     // Split out the cup/can group(s) so they render with the big two-card style.
     final List<MapEntry<int, Variation>> indexedVariations =
         List.generate(variations.length, (i) => MapEntry(i, variations[i]));
-    final dietaryVariations = indexedVariations
-        .where((e) => !_kCupCanPattern.hasMatch(e.value.name ?? ''))
-        .toList();
     final cupCanVariations = indexedVariations
         .where((e) => _kCupCanPattern.hasMatch(e.value.name ?? ''))
+        .toList();
+    final sizeVariations = indexedVariations
+        .where((e) =>
+            !_kCupCanPattern.hasMatch(e.value.name ?? '') &&
+            _isSizeVariation(e.value))
+        .toList();
+    final dietaryVariations = indexedVariations
+        .where((e) =>
+            !_kCupCanPattern.hasMatch(e.value.name ?? '') &&
+            !_isSizeVariation(e.value))
         .toList();
 
     return Scaffold(
@@ -220,6 +242,7 @@ class KioskProductCustomizeScreen extends StatelessWidget {
               return _WideCustomizeLayout(
                 product: product,
                 productProvider: productProvider,
+                sizeVariations: sizeVariations,
                 dietaryVariations: dietaryVariations,
                 cupCanVariations: cupCanVariations,
                 onAddToCart: () => _addToCart(context, productProvider),
@@ -242,6 +265,13 @@ class KioskProductCustomizeScreen extends StatelessWidget {
                                   s: s,
                                   product: product,
                                   productProvider: productProvider),
+                              if (sizeVariations.isNotEmpty)
+                                _SizeOptionsPanel(
+                                  s: s,
+                                  entries: sizeVariations,
+                                  product: product,
+                                  productProvider: productProvider,
+                                ),
                               for (final entry in dietaryVariations)
                                 _VariationSection(
                                   s: s,
@@ -439,6 +469,7 @@ class _SectionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       margin: EdgeInsets.symmetric(vertical: 18 * s),
       padding: EdgeInsets.all(45 * s),
       decoration: BoxDecoration(
@@ -451,7 +482,71 @@ class _SectionPanel extends StatelessWidget {
           Text(title,
               style: loewBold.copyWith(fontSize: 54 * s, color: Colors.black)),
           SizedBox(height: 30 * s),
-          child,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small / Medium / Large as one addon-style panel: title + horizontal cards.
+class _SizeOptionsPanel extends StatelessWidget {
+  final double s;
+  final List<MapEntry<int, Variation>> entries;
+  final Product product;
+  final ProductProvider productProvider;
+  const _SizeOptionsPanel({
+    required this.s,
+    required this.entries,
+    required this.product,
+    required this.productProvider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    return _SectionPanel(
+      s: s,
+      title: getTranslated('size', context) ?? 'Size',
+      child: Wrap(
+        alignment: WrapAlignment.start,
+        spacing: 24 * s,
+        runSpacing: 24 * s,
+        children: [
+          for (final entry in entries)
+            for (int i = 0;
+                i < (entry.value.variationValues?.length ?? 0);
+                i++)
+              _AddOnCard(
+                s: s,
+                name: (entry.value.variationValues![i].level ??
+                        entry.value.name ??
+                        '')
+                    .trim(),
+                priceDelta: entry.value.variationValues![i].optionPrice ?? 0,
+                image: KioskProductImageHelper.optionCardImageUrl(
+                  product: product,
+                  value: entry.value.variationValues![i],
+                  productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                ),
+                selected: productProvider.selectedVariations[entry.key][i] ??
+                    false,
+                onTap: () {
+                  productProvider.setCartVariationIndex(
+                      entry.key, i, product, entry.value.isMultiSelect!);
+                  productProvider.checkIsRequiredSelected(
+                    index: entry.key,
+                    isMultiSelect: entry.value.isMultiSelect!,
+                    variations:
+                        productProvider.selectedVariations[entry.key],
+                    min: entry.value.min,
+                    max: entry.value.max,
+                  );
+                },
+              ),
         ],
       ),
     );
@@ -485,6 +580,7 @@ class _VariationSection extends StatelessWidget {
       s: s,
       title: title,
       child: Wrap(
+        alignment: WrapAlignment.start,
         spacing: 24 * s,
         runSpacing: 24 * s,
         children: List.generate(values.length, (i) {
@@ -633,6 +729,7 @@ class _AddOnsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final group in product.effectiveAddOnGroups)
           _GroupedAddOnCards(
@@ -669,6 +766,7 @@ class _GroupedAddOnCards extends StatelessWidget {
       s: s,
       title: _addonGroupTitle(context, group),
       child: Wrap(
+        alignment: WrapAlignment.start,
         spacing: 24 * s,
         runSpacing: 24 * s,
         children: [
@@ -943,6 +1041,7 @@ class _AddToCartBar extends StatelessWidget {
 class _WideCustomizeLayout extends StatelessWidget {
   final Product product;
   final ProductProvider productProvider;
+  final List<MapEntry<int, Variation>> sizeVariations;
   final List<MapEntry<int, Variation>> dietaryVariations;
   final List<MapEntry<int, Variation>> cupCanVariations;
   final VoidCallback onAddToCart;
@@ -950,6 +1049,7 @@ class _WideCustomizeLayout extends StatelessWidget {
   const _WideCustomizeLayout({
     required this.product,
     required this.productProvider,
+    required this.sizeVariations,
     required this.dietaryVariations,
     required this.cupCanVariations,
     required this.onAddToCart,
@@ -1039,6 +1139,12 @@ class _WideCustomizeLayout extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 24),
+                          if (sizeVariations.isNotEmpty)
+                            _WideSizeOptionsSection(
+                              entries: sizeVariations,
+                              product: product,
+                              productProvider: productProvider,
+                            ),
                           for (final entry in dietaryVariations)
                             _WideVariationSection(
                               variation: entry.value,
@@ -1081,6 +1187,74 @@ class _WideCustomizeLayout extends StatelessWidget {
   }
 }
 
+class _WideSizeOptionsSection extends StatelessWidget {
+  final List<MapEntry<int, Variation>> entries;
+  final Product product;
+  final ProductProvider productProvider;
+
+  const _WideSizeOptionsSection({
+    required this.entries,
+    required this.product,
+    required this.productProvider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(getTranslated('size', context) ?? 'Size',
+              style: loewBold.copyWith(
+                  fontSize: KioskUI.section, color: Colors.black)),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.start,
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final entry in entries)
+                for (int i = 0;
+                    i < (entry.value.variationValues?.length ?? 0);
+                    i++)
+                  _WideOptionCard(
+                    name: (entry.value.variationValues![i].level ??
+                            entry.value.name ??
+                            '')
+                        .trim(),
+                    priceDelta:
+                        entry.value.variationValues![i].optionPrice ?? 0,
+                    image: KioskProductImageHelper.optionCardImageUrl(
+                      product: product,
+                      value: entry.value.variationValues![i],
+                      productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                    ),
+                    selected:
+                        productProvider.selectedVariations[entry.key][i] ??
+                            false,
+                    onTap: () {
+                      productProvider.setCartVariationIndex(entry.key, i,
+                          product, entry.value.isMultiSelect!);
+                      productProvider.checkIsRequiredSelected(
+                        index: entry.key,
+                        isMultiSelect: entry.value.isMultiSelect!,
+                        variations:
+                            productProvider.selectedVariations[entry.key],
+                        min: entry.value.min,
+                        max: entry.value.max,
+                      );
+                    },
+                  ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _WideVariationSection extends StatelessWidget {
   final Variation variation;
   final int variationIndex;
@@ -1112,6 +1286,7 @@ class _WideVariationSection extends StatelessWidget {
                   fontSize: KioskUI.section, color: Colors.black)),
           const SizedBox(height: 12),
           Wrap(
+            alignment: WrapAlignment.start,
             spacing: 12,
             runSpacing: 12,
             children: List.generate(values.length, (i) {
@@ -1158,7 +1333,7 @@ class _WideAddOnsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final group in product.effectiveAddOnGroups)
           _WideGroupedAddOns(
@@ -1199,6 +1374,7 @@ class _WideGroupedAddOns extends StatelessWidget {
                   fontSize: KioskUI.section, color: Colors.black)),
           const SizedBox(height: 12),
           Wrap(
+            alignment: WrapAlignment.start,
             spacing: 12,
             runSpacing: 12,
             children: [

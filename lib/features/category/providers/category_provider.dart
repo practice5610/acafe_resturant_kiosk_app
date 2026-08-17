@@ -38,7 +38,6 @@ class CategoryProvider extends DataSyncProvider {
 
   // Kiosk menu prefetch cache (singleton — shared between welcome + menu screens).
   String? _kioskPrefetchLocale;
-  DateTime? _kioskPrefetchCompletedAt;
   Future<void>? _kioskPrefetchFuture;
   final Map<String, ProductModel> _kioskProductsByCategory = {};
 
@@ -64,17 +63,14 @@ class CategoryProvider extends DataSyncProvider {
 
   /// Prefetch categories + all category products for the kiosk welcome screen.
   /// Non-blocking when called without await. Safe to call multiple times.
+  /// Does not hit the network when the in-memory menu is already ready, unless
+  /// [force] is true (language change).
   Future<void> prefetchKioskMenu({
     required String localeCode,
     bool force = false,
-    bool background = false,
+    bool background = false, // ignored; kept for existing call sites
   }) {
-    if (!force &&
-        !background &&
-        isKioskMenuReadyFor(localeCode) &&
-        _kioskPrefetchCompletedAt != null &&
-        DateTime.now().difference(_kioskPrefetchCompletedAt!) <
-            _kioskMenuCacheMaxAge) {
+    if (!force && isKioskMenuReadyFor(localeCode)) {
       return Future.value();
     }
 
@@ -82,8 +78,10 @@ class CategoryProvider extends DataSyncProvider {
       return _kioskPrefetchFuture!;
     }
 
-    _kioskPrefetchFuture =
-        _runKioskPrefetch(localeCode: localeCode, background: background);
+    _kioskPrefetchFuture = _runKioskPrefetch(
+      localeCode: localeCode,
+      force: force,
+    );
     return _kioskPrefetchFuture!.whenComplete(() => _kioskPrefetchFuture = null);
   }
 
@@ -99,12 +97,13 @@ class CategoryProvider extends DataSyncProvider {
     await prefetchKioskMenu(localeCode: localeCode, force: true);
   }
 
-  /// Hydrate from SharedPreferences then refresh in the background (SWR).
+  /// Hydrate from SharedPreferences. Network prefetch only if the cache is empty.
   Future<void> warmKioskMenuFromDisk(String localeCode) async {
     if (_hydrateKioskMenuFromDisk(localeCode)) {
       notifyListeners();
     }
-    prefetchKioskMenu(localeCode: localeCode, background: true);
+    if (isKioskMenuReadyFor(localeCode)) return;
+    await prefetchKioskMenu(localeCode: localeCode);
   }
 
   /// Poll the network for menu changes (newly-published/removed products,
@@ -132,7 +131,6 @@ class CategoryProvider extends DataSyncProvider {
     if (!ok) return;
 
     _kioskPrefetchLocale = localeCode;
-    _kioskPrefetchCompletedAt = DateTime.now();
     await _persistKioskMenuToDisk(localeCode);
 
     // Only rebuild when the menu genuinely changed, so the grid doesn't flicker
@@ -169,13 +167,15 @@ class CategoryProvider extends DataSyncProvider {
 
   Future<void> _runKioskPrefetch({
     required String localeCode,
-    required bool background,
+    bool force = false,
   }) async {
-    if (!background) {
+    if (!force) {
       final hydrated = _hydrateKioskMenuFromDisk(localeCode);
       if (hydrated && isKioskMenuReadyFor(localeCode)) {
         notifyListeners();
+        return;
       }
+      if (isKioskMenuReadyFor(localeCode)) return;
     }
 
     var ok = await _fetchKioskMenuFromNetwork(localeCode);
@@ -185,7 +185,6 @@ class CategoryProvider extends DataSyncProvider {
 
     if (ok) {
       _kioskPrefetchLocale = localeCode;
-      _kioskPrefetchCompletedAt = DateTime.now();
       await _persistKioskMenuToDisk(localeCode);
     }
     notifyListeners();
@@ -228,8 +227,6 @@ class CategoryProvider extends DataSyncProvider {
       }
 
       _kioskPrefetchLocale = localeCode;
-      _kioskPrefetchCompletedAt =
-          DateTime.fromMillisecondsSinceEpoch(fetchedAtMs);
       return _categoryProductModel != null;
     } catch (_) {
       return false;
@@ -333,8 +330,7 @@ class CategoryProvider extends DataSyncProvider {
 
   /// Switch the kiosk menu to [categoryID] using cached products for an instant,
   /// loading-free swap. Falls back to a network load only when that category was
-  /// never prefetched. When the cache is stale it refreshes silently in the
-  /// background (the grid stays visible — the update is applied in place).
+  /// never prefetched.
   Future<void> selectKioskCategory(String categoryID) async {
     final cached = _kioskProductsByCategory[categoryID];
 
@@ -342,13 +338,6 @@ class CategoryProvider extends DataSyncProvider {
       _selectedSubCategoryId = categoryID;
       _categoryProductModel = cached;
       notifyListeners();
-
-      final fresh = _kioskPrefetchCompletedAt != null &&
-          DateTime.now().difference(_kioskPrefetchCompletedAt!) <
-              _kioskMenuCacheMaxAge;
-      if (!fresh) {
-        _refreshKioskCategorySilently(categoryID);
-      }
       return;
     }
 
@@ -356,33 +345,6 @@ class CategoryProvider extends DataSyncProvider {
     await getCategoryProductList(categoryID, 1, limit: _kioskPrefetchProductLimit);
     if (_categoryProductModel != null) {
       _kioskProductsByCategory[categoryID] = _categoryProductModel!;
-    }
-  }
-
-  /// Re-pull one category's products and update the cache without ever clearing
-  /// the currently-shown products (so there is no loading flash on the grid).
-  Future<void> _refreshKioskCategorySilently(String categoryID) async {
-    if (categoryRepo == null) return;
-    try {
-      final ApiResponseModel resp = await categoryRepo!.getCategoryProductList(
-        categoryID: categoryID,
-        offset: 1,
-        type: 'all',
-        limit: _kioskPrefetchProductLimit,
-      );
-      if (resp.response?.statusCode != 200) return;
-
-      final model = ProductModel.fromJson(resp.response!.data);
-      _kioskProductsByCategory[categoryID] = model;
-      if (_selectedSubCategoryId == categoryID) {
-        _categoryProductModel = model;
-        notifyListeners();
-      }
-      if (_kioskPrefetchLocale != null) {
-        await _persistKioskMenuToDisk(_kioskPrefetchLocale!);
-      }
-    } catch (_) {
-      // Best-effort silent refresh — the cached data stays on screen.
     }
   }
 

@@ -75,14 +75,8 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     final categories = Provider.of<CategoryProvider>(context, listen: false);
     final splash = Provider.of<SplashProvider>(context, listen: false);
 
-    // Show disk-cached data instantly and kick a background refresh.
-    categories.warmKioskMenuFromDisk(locale);
-
-    // Precache once data is ready. Using the prefetch future (not just the disk
-    // hydrate) covers a COLD first launch too: the disk cache is empty, so this
-    // resolves only after the network prefetch lands — then we warm the images
-    // while the intro video is still playing.
-    categories.prefetchKioskMenu(localeCode: locale).then((_) {
+    // Disk cache if present; one network prefetch only when the cache is empty.
+    categories.warmKioskMenuFromDisk(locale).then((_) {
       if (!mounted) return;
       KioskMenuImageHelper.precacheAroundSelected(context, categories, splash);
     });
