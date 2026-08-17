@@ -20,6 +20,8 @@
   "items": "Items",
   "item": "Item",
   "add_to_cart": "Add to Cart",
+  "instructions": "Instructions",
+  "instructions_hint": "SPECIAL INSTRUCTIONS (Optional)",
   "checkout": "Checkout",
   "delivery_address": "Delivery Address",
   "add": "Add",

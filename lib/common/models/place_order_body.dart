@@ -174,6 +174,7 @@ class Cart {
   double? _taxAmount;
   List<int?>? _addOnIds;
   List<int?>? _addOnQtys;
+  String? _instruction;
 
   Cart(
       String productId,
@@ -184,7 +185,9 @@ class Cart {
         int? quantity,
         double? taxAmount,
         List<int?> addOnIds,
-        List<int?> addOnQtys) {
+        List<int?> addOnQtys, {
+        String? instruction,
+      }) {
     _productId = productId;
     _price = price;
     _variant = variant;
@@ -194,6 +197,7 @@ class Cart {
     _taxAmount = taxAmount;
     _addOnIds = addOnIds;
     _addOnQtys = addOnQtys;
+    _instruction = instruction;
   }
 
   String? get productId => _productId;
@@ -205,6 +209,7 @@ class Cart {
   double? get taxAmount => _taxAmount;
   List<int?>? get addOnIds => _addOnIds;
   List<int?>? get addOnQtys => _addOnQtys;
+  String? get instruction => _instruction;
 
   Cart.fromJson(Map<String, dynamic> json) {
     _productId = json['product_id'];
@@ -224,6 +229,10 @@ class Cart {
     _taxAmount = json['tax_amount'];
     _addOnIds = json['add_on_ids'].cast<int>();
     _addOnQtys = json['add_on_qtys'].cast<int>();
+    final rawInstruction = json['instruction'];
+    if (rawInstruction is String && rawInstruction.trim().isNotEmpty) {
+      _instruction = rawInstruction.trim();
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -239,6 +248,9 @@ class Cart {
     data['tax_amount'] = _taxAmount;
     data['add_on_ids'] = _addOnIds;
     data['add_on_qtys'] = _addOnQtys;
+    if (_instruction != null && _instruction!.trim().isNotEmpty) {
+      data['instruction'] = _instruction;
+    }
     return data;
   }
 }

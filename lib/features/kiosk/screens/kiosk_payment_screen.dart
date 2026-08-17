@@ -136,6 +136,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       carts.add(Cart(
         cart.product!.id.toString(), cart.discountedPrice.toString(), [], variations,
         cart.discountAmount, cart.quantity, cart.taxAmount, addOnIdList, addOnQtyList,
+        instruction: cart.instruction,
       ));
     }
 

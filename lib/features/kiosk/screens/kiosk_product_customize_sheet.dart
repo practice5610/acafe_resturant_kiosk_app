@@ -77,7 +77,10 @@ void openKioskCustomize(BuildContext context, Product product,
   final variations = product.variations ?? [];
   final addOns = product.addOns ?? [];
 
-  if (cart == null && variations.isEmpty && addOns.isEmpty && product.effectiveAddOnGroups.isEmpty) {
+  if (cart == null &&
+      variations.isEmpty &&
+      addOns.isEmpty &&
+      product.effectiveAddOnGroups.isEmpty) {
     // No modifiers -> add directly.
     Provider.of<CartProvider>(context, listen: false).addToCart(
         buildKioskCartModel(context, product), productProvider.cartIndex);
@@ -86,15 +89,19 @@ void openKioskCustomize(BuildContext context, Product product,
 
   Navigator.of(context).push(
     MaterialPageRoute(
-      builder: (_) =>
-          KioskProductCustomizeScreen(product: product, cartIndex: cartIndex),
+      builder: (_) => KioskProductCustomizeScreen(
+        product: product,
+        cartIndex: cartIndex,
+        initialInstruction: cart?.instruction,
+      ),
     ),
   );
 }
 
 /// Builds the cart line from the current [ProductProvider] selection state.
 /// Mirrors the math in the web app's CartBottomSheetWidget so prices match.
-CartModel buildKioskCartModel(BuildContext context, Product product) {
+CartModel buildKioskCartModel(BuildContext context, Product product,
+    {String? instruction}) {
   final productProvider = Provider.of<ProductProvider>(context, listen: false);
 
   final branch = ProductHelper.getBranchProductVariationWithPrice(product);
@@ -141,14 +148,50 @@ CartModel buildKioskCartModel(BuildContext context, Product product) {
     addOnIdList,
     product,
     productProvider.selectedVariations,
+    instruction: instruction,
   );
 }
 
-class KioskProductCustomizeScreen extends StatelessWidget {
+class KioskProductCustomizeScreen extends StatefulWidget {
   final Product product;
   final int? cartIndex;
-  const KioskProductCustomizeScreen(
-      {super.key, required this.product, this.cartIndex});
+  final String? initialInstruction;
+  const KioskProductCustomizeScreen({
+    super.key,
+    required this.product,
+    this.cartIndex,
+    this.initialInstruction,
+  });
+
+  @override
+  State<KioskProductCustomizeScreen> createState() =>
+      _KioskProductCustomizeScreenState();
+}
+
+class _KioskProductCustomizeScreenState
+    extends State<KioskProductCustomizeScreen> {
+  late final TextEditingController _instructionController;
+
+  Product get product => widget.product;
+  int? get cartIndex => widget.cartIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _instructionController =
+        TextEditingController(text: widget.initialInstruction ?? '');
+  }
+
+  @override
+  void dispose() {
+    _instructionController.dispose();
+    super.dispose();
+  }
+
+  String? get _instruction {
+    final text = _instructionController.text.trim();
+    return text.isEmpty ? null : text;
+  }
 
   /// Same validation rules as the web app, run before adding to the cart.
   bool _validate(BuildContext context, ProductProvider productProvider) {
@@ -208,7 +251,7 @@ class KioskProductCustomizeScreen extends StatelessWidget {
   void _addToCart(BuildContext context, ProductProvider productProvider) {
     if (!_validate(context, productProvider)) return;
     Provider.of<CartProvider>(context, listen: false).addToCart(
-        buildKioskCartModel(context, product),
+        buildKioskCartModel(context, product, instruction: _instruction),
         cartIndex ?? productProvider.cartIndex);
     Navigator.of(context).pop();
   }
@@ -245,6 +288,7 @@ class KioskProductCustomizeScreen extends StatelessWidget {
                 sizeVariations: sizeVariations,
                 dietaryVariations: dietaryVariations,
                 cupCanVariations: cupCanVariations,
+                instructionController: _instructionController,
                 onAddToCart: () => _addToCart(context, productProvider),
               );
             }
@@ -293,6 +337,10 @@ class KioskProductCustomizeScreen extends StatelessWidget {
                                   product: product,
                                   productProvider: productProvider,
                                 ),
+                              _InstructionsSection(
+                                s: s,
+                                controller: _instructionController,
+                              ),
                             ],
                           ),
                         ),
@@ -517,9 +565,7 @@ class _SizeOptionsPanel extends StatelessWidget {
         runSpacing: 24 * s,
         children: [
           for (final entry in entries)
-            for (int i = 0;
-                i < (entry.value.variationValues?.length ?? 0);
-                i++)
+            for (int i = 0; i < (entry.value.variationValues?.length ?? 0); i++)
               _AddOnCard(
                 s: s,
                 name: (entry.value.variationValues![i].level ??
@@ -532,16 +578,15 @@ class _SizeOptionsPanel extends StatelessWidget {
                   value: entry.value.variationValues![i],
                   productImageBaseUrl: splash.baseUrls?.productImageUrl,
                 ),
-                selected: productProvider.selectedVariations[entry.key][i] ??
-                    false,
+                selected:
+                    productProvider.selectedVariations[entry.key][i] ?? false,
                 onTap: () {
                   productProvider.setCartVariationIndex(
                       entry.key, i, product, entry.value.isMultiSelect!);
                   productProvider.checkIsRequiredSelected(
                     index: entry.key,
                     isMultiSelect: entry.value.isMultiSelect!,
-                    variations:
-                        productProvider.selectedVariations[entry.key],
+                    variations: productProvider.selectedVariations[entry.key],
                     min: entry.value.min,
                     max: entry.value.max,
                   );
@@ -759,7 +804,8 @@ class _GroupedAddOnCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<int> groupIndexes = [
       for (final addon in group.addons)
-        if (product.indexOfAddOn(addon.id) != null) product.indexOfAddOn(addon.id)!,
+        if (product.indexOfAddOn(addon.id) != null)
+          product.indexOfAddOn(addon.id)!,
     ];
 
     return _SectionPanel(
@@ -1005,6 +1051,44 @@ class _CupCanCard extends StatelessWidget {
   }
 }
 
+/// Optional free-text instructions, shown after all option sections.
+class _InstructionsSection extends StatelessWidget {
+  final double s;
+  final TextEditingController controller;
+  const _InstructionsSection({required this.s, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionPanel(
+      s: s,
+      title: 'Instructions',
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(horizontal: 28 * s, vertical: 12 * s),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(40 * s),
+        ),
+        child: TextField(
+          controller: controller,
+          maxLength: 255,
+          textInputAction: TextInputAction.done,
+          textCapitalization: TextCapitalization.sentences,
+          style: loewRegular.copyWith(fontSize: 36 * s, color: Colors.black),
+          decoration: InputDecoration(
+            isCollapsed: true,
+            counterText: '',
+            border: InputBorder.none,
+            hintText: 'Special instructions (optional)',
+            hintStyle:
+                loewRegular.copyWith(fontSize: 36 * s, color: Colors.black38),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Pinned full-width "ADD TO CART" button.
 class _AddToCartBar extends StatelessWidget {
   final double s;
@@ -1044,6 +1128,7 @@ class _WideCustomizeLayout extends StatelessWidget {
   final List<MapEntry<int, Variation>> sizeVariations;
   final List<MapEntry<int, Variation>> dietaryVariations;
   final List<MapEntry<int, Variation>> cupCanVariations;
+  final TextEditingController instructionController;
   final VoidCallback onAddToCart;
 
   const _WideCustomizeLayout({
@@ -1052,6 +1137,7 @@ class _WideCustomizeLayout extends StatelessWidget {
     required this.sizeVariations,
     required this.dietaryVariations,
     required this.cupCanVariations,
+    required this.instructionController,
     required this.onAddToCart,
   });
 
@@ -1164,20 +1250,70 @@ class _WideCustomizeLayout extends StatelessWidget {
                               product: product,
                               productProvider: productProvider,
                             ),
+                          _WideInstructionsSection(
+                            controller: instructionController,
+                          ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
                   KioskButton(
-                    label: getTranslated('add_to_cart', context)
-                            ?.toUpperCase() ??
-                        'ADD TO CART',
+                    label:
+                        getTranslated('add_to_cart', context)?.toUpperCase() ??
+                            'ADD TO CART',
                     height: KioskUI.primaryButtonHeight,
                     maxWidth: 720,
                     onTap: onAddToCart,
                   ),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WideInstructionsSection extends StatelessWidget {
+  final TextEditingController controller;
+  const _WideInstructionsSection({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Instructions',
+            style: loewBold.copyWith(
+                fontSize: KioskUI.section, color: Colors.black),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(KioskUI.radius),
+            ),
+            child: TextField(
+              controller: controller,
+              maxLength: 255,
+              textInputAction: TextInputAction.done,
+              textCapitalization: TextCapitalization.sentences,
+              style: loewRegular.copyWith(
+                  fontSize: KioskUI.body, color: Colors.black),
+              decoration: InputDecoration(
+                isCollapsed: true,
+                counterText: '',
+                border: InputBorder.none,
+                hintText: 'SPECIAL INSTRUCTIONS (Optional)',
+                hintStyle: loewRegular.copyWith(
+                    fontSize: KioskUI.body, color: Colors.black38),
               ),
             ),
           ),
@@ -1231,12 +1367,12 @@ class _WideSizeOptionsSection extends StatelessWidget {
                       value: entry.value.variationValues![i],
                       productImageBaseUrl: splash.baseUrls?.productImageUrl,
                     ),
-                    selected:
-                        productProvider.selectedVariations[entry.key][i] ??
-                            false,
+                    selected: productProvider.selectedVariations[entry.key]
+                            [i] ??
+                        false,
                     onTap: () {
-                      productProvider.setCartVariationIndex(entry.key, i,
-                          product, entry.value.isMultiSelect!);
+                      productProvider.setCartVariationIndex(
+                          entry.key, i, product, entry.value.isMultiSelect!);
                       productProvider.checkIsRequiredSelected(
                         index: entry.key,
                         isMultiSelect: entry.value.isMultiSelect!,
@@ -1361,7 +1497,8 @@ class _WideGroupedAddOns extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<int> groupIndexes = [
       for (final addon in group.addons)
-        if (product.indexOfAddOn(addon.id) != null) product.indexOfAddOn(addon.id)!,
+        if (product.indexOfAddOn(addon.id) != null)
+          product.indexOfAddOn(addon.id)!,
     ];
 
     return Padding(

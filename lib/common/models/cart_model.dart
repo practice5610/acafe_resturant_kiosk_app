@@ -10,6 +10,7 @@ class CartModel {
   List<AddOn>? _addOnIds;
   Product? _product;
   List<List<bool?>>? _variations;
+  String? _instruction;
 
 
   CartModel(
@@ -21,8 +22,9 @@ class CartModel {
       double? taxAmount,
       List<AddOn> addOnIds,
       Product? product,
-      List<List<bool?>> variations,
-      ) {
+      List<List<bool?>> variations, {
+      String? instruction,
+      }) {
     _price = price;
     _discountedPrice = discountedPrice;
     _variation = variation;
@@ -32,6 +34,7 @@ class CartModel {
     _addOnIds = addOnIds;
     _product = product;
     _variations = variations;
+    _instruction = instruction;
   }
 
   double? get price => _price;
@@ -46,6 +49,7 @@ class CartModel {
   List<AddOn>? get addOnIds => _addOnIds;
   Product? get product => _product;
   List<List<bool?>>? get variations => _variations;
+  String? get instruction => _instruction;
 
 
   CartModel.fromJson(Map<String, dynamic> json) {
@@ -78,6 +82,10 @@ class CartModel {
         }
       }
     }
+    final rawInstruction = json['instruction'];
+    if (rawInstruction is String && rawInstruction.trim().isNotEmpty) {
+      _instruction = rawInstruction.trim();
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -95,6 +103,9 @@ class CartModel {
     }
     data['product'] = _product!.toJson();
     data['variations'] = _variations;
+    if (_instruction != null && _instruction!.trim().isNotEmpty) {
+      data['instruction'] = _instruction;
+    }
     return data;
   }
 }

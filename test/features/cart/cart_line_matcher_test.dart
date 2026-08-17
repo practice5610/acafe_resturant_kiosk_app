@@ -53,5 +53,39 @@ void main() {
       ];
       expect(findMatchingCartLineIndex(cart, _line(productId: 1)), -1);
     });
+
+    test('does not match when instructions differ', () {
+      final cart = [
+        CartModel(
+          10,
+          10,
+          const [],
+          0,
+          1,
+          0,
+          const [],
+          Product(id: 1, name: 'Item'),
+          const [],
+          instruction: 'SPECIAL INSTRUCTIONS (Optional)',
+        ),
+      ];
+      expect(
+        findMatchingCartLineIndex(
+          cart,
+          CartModel(
+            10,
+            10,
+            const [],
+            0,
+            1,
+            0,
+            const [],
+            Product(id: 1, name: 'Item'),
+            const [],
+          ),
+        ),
+        -1,
+      );
+    });
   });
 }

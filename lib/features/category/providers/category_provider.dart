@@ -97,6 +97,41 @@ class CategoryProvider extends DataSyncProvider {
     await prefetchKioskMenu(localeCode: localeCode, force: true);
   }
 
+  /// Instantly hide (or restore via network refresh) a product on the kiosk
+  /// menu after the POS manager toggles availability. The menu is otherwise
+  /// served from memory/disk and would keep showing an out-of-stock item
+  /// until a full restart.
+  void applyKioskAvailability({required int productId, required bool isAvailable}) {
+    if (!isAvailable) {
+      var changed = false;
+      for (final model in _kioskProductsByCategory.values) {
+        final list = model.products;
+        if (list == null) continue;
+        final before = list.length;
+        list.removeWhere((p) => p.id == productId);
+        if (list.length != before) {
+          changed = true;
+          final total = model.totalSize;
+          if (total != null && total > 0) {
+            model.totalSize = total - 1;
+          }
+        }
+      }
+      if (changed) {
+        notifyListeners();
+        final locale = _kioskPrefetchLocale;
+        if (locale != null) {
+          _persistKioskMenuToDisk(locale);
+        }
+      }
+    }
+
+    final locale = _kioskPrefetchLocale;
+    if (locale != null) {
+      prefetchKioskMenu(localeCode: locale, force: true);
+    }
+  }
+
   /// Hydrate from SharedPreferences. Network prefetch only if the cache is empty.
   Future<void> warmKioskMenuFromDisk(String localeCode) async {
     if (_hydrateKioskMenuFromDisk(localeCode)) {
@@ -156,6 +191,8 @@ class CategoryProvider extends DataSyncProvider {
           ..write(product.price)
           ..write(':')
           ..write(product.status)
+          ..write(':')
+          ..write(product.branchProduct?.isAvailable)
           ..write(':')
           ..write(product.updatedAt)
           ..write(',');

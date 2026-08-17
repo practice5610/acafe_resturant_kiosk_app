@@ -273,6 +273,10 @@ List<String> _modifierLines(CartModel cart) {
       lines.add('+ ${qty > 1 ? '$qty x ' : ''}${match.first.name}');
     }
   }
+  final instruction = cart.instruction?.trim();
+  if (instruction != null && instruction.isNotEmpty) {
+    lines.add(instruction);
+  }
   return lines;
 }
 

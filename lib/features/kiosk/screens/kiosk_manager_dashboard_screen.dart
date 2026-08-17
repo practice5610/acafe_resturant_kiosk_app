@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
+import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
@@ -29,6 +31,11 @@ class KioskManagerDashboardScreen extends StatelessWidget {
                     title: 'MANAGER',
                     onBack: () {
                       context.read<KioskManagerProvider>().lockManagerAccess();
+                      final locale = context.read<LocalizationProvider>().locale.languageCode;
+                      context.read<CategoryProvider>().prefetchKioskMenu(
+                            localeCode: locale,
+                            force: true,
+                          );
                       RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
                     },
                   ),

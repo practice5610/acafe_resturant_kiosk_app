@@ -236,7 +236,15 @@ class KioskManagerProvider extends ChangeNotifier {
   /// status stays accurate. Falls back to a normal (spinner-shown) load only
   /// when there is no disk cache yet -- mirrors the stale-while-revalidate
   /// pattern CategoryProvider already uses for the kiosk menu prefetch.
+  ///
+  /// Always re-validates, even when this session already has an in-memory
+  /// list, so navigating back into the screen (or after an API scope fix)
+  /// cannot keep a stale count on screen.
   Future<void> loadAllProductsWithCache() async {
+    if (_products.isNotEmpty) {
+      unawaited(_refreshAllProductsSilently());
+      return;
+    }
     if (_hydrateProductsFromDisk()) {
       notifyListeners();
       unawaited(_refreshAllProductsSilently());
@@ -301,11 +309,11 @@ class KioskManagerProvider extends ChangeNotifier {
     await _persistProductsToDisk();
   }
 
-  Future<void> toggleProductAvailability(int productId, bool nextStatus) async {
-    if (_togglingProductIds.contains(productId)) return;
+  Future<bool> toggleProductAvailability(int productId, bool nextStatus) async {
+    if (_togglingProductIds.contains(productId)) return false;
 
     final index = _products.indexWhere((p) => p['id'] == productId);
-    if (index == -1) return;
+    if (index == -1) return false;
 
     // Optimistic update.
     final previous = _products[index]['is_available'];
@@ -329,5 +337,6 @@ class KioskManagerProvider extends ChangeNotifier {
     if (success) {
       await _persistProductsToDisk();
     }
+    return success;
   }
 }

@@ -9,11 +9,13 @@ int findMatchingCartLineIndex(List<CartModel?> cartList, CartModel candidate) {
   return -1;
 }
 
-/// Same product + same variation picks + same add-ons => one cart line.
+/// Same product + same variation picks + same add-ons + same instruction
+/// => one cart line.
 bool cartLinesMatch(CartModel a, CartModel b) {
   if (a.product?.id != b.product?.id) return false;
   if (!_variationSelectionsMatch(a.variations, b.variations)) return false;
   if (!_addOnsMatch(a.addOnIds, b.addOnIds)) return false;
+  if ((a.instruction ?? '').trim() != (b.instruction ?? '').trim()) return false;
   return true;
 }
 
