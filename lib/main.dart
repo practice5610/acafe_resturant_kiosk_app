@@ -14,6 +14,7 @@ import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/realtime/product_realtime_scope.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
@@ -191,8 +192,9 @@ class _MyAppState extends State<MyApp> {
 
     final splashProvider = Provider.of<SplashProvider>(context, listen: false);
 
-    return MaterialApp.router(
-      routerConfig: RouterHelper.goRoutes,
+    return ProductRealtimeScope(
+      child: MaterialApp.router(
+        routerConfig: RouterHelper.goRoutes,
       title: splashProvider.configModel?.restaurantName ?? AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: Provider.of<ThemeProvider>(context).darkTheme
@@ -249,6 +251,7 @@ class _MyAppState extends State<MyApp> {
           child: content,
         );
       },
+    ),
     );
   }
 }

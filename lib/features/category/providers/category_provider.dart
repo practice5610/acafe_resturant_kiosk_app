@@ -627,4 +627,87 @@ class CategoryProvider extends DataSyncProvider {
     _isSearch = !_isSearch;
     notifyListeners();
   }
+
+  int _menuRevision = 0;
+  int get menuRevision => _menuRevision;
+  void setMenuRevision(int revision) {
+    if (revision > _menuRevision) {
+      _menuRevision = revision;
+    }
+  }
+
+  void applyRealtimeRemove(int productId) {
+    var changed = false;
+    for (final model in _kioskProductsByCategory.values) {
+      final list = model.products;
+      if (list == null) continue;
+      final before = list.length;
+      list.removeWhere((p) => p.id == productId);
+      if (list.length != before) {
+        changed = true;
+        final total = model.totalSize;
+        if (total != null && total > 0) {
+          model.totalSize = total - 1;
+        }
+      }
+    }
+    if (changed) {
+      notifyListeners();
+      final locale = _kioskPrefetchLocale;
+      if (locale != null) {
+        _persistKioskMenuToDisk(locale);
+      }
+    }
+  }
+
+  void applyRealtimeUpsert(Product product) {
+    final int? id = product.id;
+    if (id == null) return;
+
+    var found = false;
+    for (final model in _kioskProductsByCategory.values) {
+      final list = model.products;
+      if (list == null) continue;
+      final index = list.indexWhere((p) => p.id == id);
+      if (index >= 0) {
+        list[index] = product;
+        found = true;
+      }
+    }
+
+    if (!found) {
+      String? categoryId;
+      if (product.categoryIds != null) {
+        for (final cat in product.categoryIds!) {
+          final cid = cat.id;
+          if (cid != null && _kioskProductsByCategory.containsKey(cid)) {
+            categoryId = cid;
+            break;
+          }
+        }
+        categoryId ??= product.categoryIds!.isNotEmpty
+            ? product.categoryIds!.first.id
+            : null;
+      }
+      categoryId ??= _selectedSubCategoryId;
+      if (categoryId == null) return;
+
+      final ProductModel model = _kioskProductsByCategory.putIfAbsent(
+        categoryId,
+        () => ProductModel.fromJson({'products': <dynamic>[]}),
+      );
+      model.products ??= [];
+      model.products!.insert(0, product);
+      model.totalSize = (model.totalSize ?? model.products!.length - 1) + 1;
+    }
+
+    if (_selectedSubCategoryId != null) {
+      _categoryProductModel = _kioskProductsByCategory[_selectedSubCategoryId];
+    }
+    notifyListeners();
+    final locale = _kioskPrefetchLocale;
+    if (locale != null) {
+      _persistKioskMenuToDisk(locale);
+    }
+  }
 }

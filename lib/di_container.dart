@@ -9,6 +9,8 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
+import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
+import 'package:acafe_customer/features/realtime/product_realtime_gateway.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
 import 'package:acafe_customer/features/category/domain/reposotories/category_repo.dart';
 import 'package:acafe_customer/features/coupon/domain/reposotories/coupon_repo.dart';
@@ -70,6 +72,11 @@ Future<void> init() async {
   sl.registerLazySingleton(() => BranchProvider(splashRepo: sl()));
   sl.registerLazySingleton(() => KioskAuthProvider(kioskAuthRepo: sl()));
   sl.registerLazySingleton(() => KioskManagerProvider(kioskManagerRepo: sl()));
+  sl.registerLazySingleton(() => ProductRealtimeGateway());
+  sl.registerLazySingleton(() => ProductRealtimeController(
+        productRepo: sl(),
+        gateway: sl(),
+      ));
 
 
   // External

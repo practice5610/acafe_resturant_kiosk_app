@@ -5,7 +5,7 @@ import 'package:acafe_customer/common/reposotories/data_sync_repo.dart';
 import 'package:acafe_customer/data/datasource/remote/exception/api_error_handler.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:dio/dio.dart';
 
 class ProductRepo extends DataSyncRepo {
   ProductRepo({required super.dioClient, required super.sharedPreferences});
@@ -126,6 +126,26 @@ class ProductRepo extends DataSyncRepo {
 
   }
 
+  Future<ApiResponseModel> getProductDetails(int id) async {
+    try {
+      final response = await dioClient.get('${AppConstants.productDetailsUri}$id');
+      return ApiResponseModel.withSuccess(response);
+    } on DioException catch (e) {
+      return ApiResponseModel.withError(e);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
 
+  Future<ApiResponseModel> syncMenu({required int sinceRevision}) async {
+    try {
+      final response = await dioClient.get(
+        '${AppConstants.productSyncUri}?since_revision=$sinceRevision',
+      );
+      return ApiResponseModel.withSuccess(response);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
 
 }

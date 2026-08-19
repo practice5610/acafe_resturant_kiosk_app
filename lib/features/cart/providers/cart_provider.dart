@@ -80,6 +80,23 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removeByProductId(int productId) {
+    final remaining = <CartModel?>[];
+    for (final cart in _cartList) {
+      if (cart?.product?.id == productId) {
+        _amount = _amount - ((cart!.discountedPrice ?? 0) * (cart.quantity ?? 1));
+      } else {
+        remaining.add(cart);
+      }
+    }
+    if (remaining.length == _cartList.length) {
+      return;
+    }
+    _cartList = remaining;
+    cartRepo!.addToCartList(_cartList);
+    notifyListeners();
+  }
+
   void removeAddOn(int index, int addOnIndex) {
     _cartList[index]!.addOnIds!.removeAt(addOnIndex);
     cartRepo!.addToCartList(_cartList);

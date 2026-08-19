@@ -82,6 +82,10 @@ class KioskAuthRepo {
   String getDeviceName() =>
       sharedPreferences.getString(AppConstants.kioskDeviceName) ?? '';
 
+  int? getBranchId() => sharedPreferences.containsKey(AppConstants.branch)
+      ? sharedPreferences.getInt(AppConstants.branch)
+      : null;
+
   int? getDeviceId() => sharedPreferences.containsKey(AppConstants.kioskDeviceId)
       ? sharedPreferences.getInt(AppConstants.kioskDeviceId)
       : null;

@@ -23,6 +23,7 @@ class KioskAuthProvider extends ChangeNotifier {
   String get branchName => kioskAuthRepo.getBranchName();
   String get deviceName => kioskAuthRepo.getDeviceName();
   int? get deviceId => kioskAuthRepo.getDeviceId();
+  int? get branchId => kioskAuthRepo.getBranchId();
 
   /// 'kiosk' or 'pos' -- gates whether the manager icon is shown.
   String get category => kioskAuthRepo.getDeviceCategory();

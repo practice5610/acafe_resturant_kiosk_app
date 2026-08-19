@@ -77,6 +77,7 @@ class AppConstants {
   static const String reviewUri = '/api/v1/products/reviews/submit';
   static const String getReview = '/api/v1/products/reviews/';
   static const String productDetailsUri = '/api/v1/products/details/';
+  static const String productSyncUri = '/api/v1/products/sync';
   static const String lastLocationUri =
       '/api/v1/delivery-man/last-location?deliveryman_id=';
   static const String deliverManReviewUri =

@@ -1,3 +1,5 @@
+import 'package:acafe_customer/features/realtime/websocket_config.dart';
+
 class ConfigModel {
   String? _restaurantName;
   String? _restaurantLogo;
@@ -58,6 +60,7 @@ class ConfigModel {
   CustomerLogin? _customerLogin;
   int? _googleMapStatus;
   int? _halalTagStatus;
+  WebsocketConfig? _websocket;
 
 
   ConfigModel(
@@ -254,6 +257,7 @@ class ConfigModel {
   CustomerLogin? get customerLogin => _customerLogin;
   int? get googleMapStatus => _googleMapStatus;
   int? get halalTagStatus => _halalTagStatus;
+  WebsocketConfig? get websocket => _websocket;
 
 
 
@@ -370,6 +374,13 @@ class ConfigModel {
     _cutleryStatus = '${json['cutlery_status']}'.contains('1');
     _googleMapStatus = json['google_map_status'];
     _halalTagStatus = int.tryParse(json['halal_tag_status'].toString());
+    _websocket = WebsocketConfig.fromJson(
+      json['websocket'] is Map<String, dynamic>
+          ? json['websocket'] as Map<String, dynamic>
+          : json['websocket'] is Map
+              ? Map<String, dynamic>.from(json['websocket'] as Map)
+              : null,
+    );
   }
 
   Map<String, dynamic> toJson() {
