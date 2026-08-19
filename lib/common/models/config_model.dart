@@ -459,7 +459,6 @@ class BaseUrls {
   String? _bannerImageUrl;
   String? _categoryImageUrl;
   String? _categoryBannerImageUrl;
-  String? _reviewImageUrl;
   String? _notificationImageUrl;
   String? _restaurantImageUrl;
   String? _deliveryManImageUrl;
@@ -474,7 +473,6 @@ class BaseUrls {
         String? bannerImageUrl,
         String? categoryImageUrl,
         String? categoryBannerImageUrl,
-        String? reviewImageUrl,
         String? notificationImageUrl,
         String? restaurantImageUrl,
         String? deliveryManImageUrl,
@@ -488,7 +486,6 @@ class BaseUrls {
     _bannerImageUrl = bannerImageUrl;
     _categoryImageUrl = categoryImageUrl;
     _categoryBannerImageUrl = categoryBannerImageUrl;
-    _reviewImageUrl = reviewImageUrl;
     _notificationImageUrl = notificationImageUrl;
     _restaurantImageUrl = restaurantImageUrl;
     _deliveryManImageUrl = deliveryManImageUrl;
@@ -503,7 +500,6 @@ class BaseUrls {
   String? get bannerImageUrl => _bannerImageUrl;
   String? get categoryImageUrl => _categoryImageUrl;
   String? get categoryBannerImageUrl => _categoryBannerImageUrl;
-  String? get reviewImageUrl => _reviewImageUrl;
   String? get notificationImageUrl => _notificationImageUrl;
   String? get restaurantImageUrl => _restaurantImageUrl;
   String? get deliveryManImageUrl => _deliveryManImageUrl;
@@ -518,7 +514,6 @@ class BaseUrls {
     _bannerImageUrl = json['banner_image_url'] ?? '';
     _categoryImageUrl = json['category_image_url'] ?? '';
     _categoryBannerImageUrl = json['category_banner_image_url'];
-    _reviewImageUrl = json['review_image_url'] ?? '';
     _notificationImageUrl = json['notification_image_url'];
     _restaurantImageUrl = json['restaurant_image_url'] ?? '';
     _deliveryManImageUrl = json['delivery_man_image_url'] ?? '';
@@ -534,7 +529,6 @@ class BaseUrls {
     data['customer_image_url'] = _customerImageUrl;
     data['banner_image_url'] = _bannerImageUrl;
     data['category_image_url'] = _categoryImageUrl;
-    data['review_image_url'] = _reviewImageUrl;
     data['notification_image_url'] = _notificationImageUrl;
     data['restaurant_image_url'] = _restaurantImageUrl;
     data['delivery_man_image_url'] = _deliveryManImageUrl;

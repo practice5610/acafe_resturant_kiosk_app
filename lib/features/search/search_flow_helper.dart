@@ -32,13 +32,11 @@ class SearchFlowHelper {
   static bool hasActiveFilters({
     required int? selectedSortByIndex,
     required int? selectedPriceIndex,
-    required int? selectedRatingIndex,
     required bool halalTagStatus,
     required List<int> selectedCategoryIds,
   }) {
     return selectedSortByIndex != null ||
         selectedPriceIndex != null ||
-        selectedRatingIndex != null ||
         halalTagStatus ||
         selectedCategoryIds.isNotEmpty;
   }

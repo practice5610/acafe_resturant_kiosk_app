@@ -72,7 +72,6 @@ class Images {
   static const String chat = 'assets/image/chat.png';
   static const String discountBannerAvatar = 'assets/image/discount_banner_avatar.png';
   static const String branchCoverPhoto = 'assets/image/branch_cover_photo.png';
-  static const String ratingFood = 'assets/image/rating_food.png';
   static const String callIcon = 'assets/image/call_icon.png';
   static const String locationBannerImage = 'assets/image/location_banner_image.png';
   static const String orderAnimation = 'assets/json/order_animation.json';

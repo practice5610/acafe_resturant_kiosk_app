@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:acafe_customer/common/models/config_model.dart';
-import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/helper/json_parser_helper.dart';
 
 class OrderModel {
@@ -480,8 +479,6 @@ class DeliveryMan {
   String? _updatedAt;
   String? _authToken;
   String? _fcmToken;
-  int? _ratingCount;
-  List<AvgRating>? _rating;
 
   DeliveryMan(
       {int? id,
@@ -497,9 +494,7 @@ class DeliveryMan {
         String? createdAt,
         String? updatedAt,
         String? authToken,
-        String? fcmToken,
-        int? ratingCount,
-        List<AvgRating>? rating}) {
+        String? fcmToken}) {
     _id = id;
     _fName = fName;
     _lName = lName;
@@ -514,8 +509,6 @@ class DeliveryMan {
     _updatedAt = updatedAt;
     _authToken = authToken;
     _fcmToken = fcmToken;
-    _rating = rating;
-    _ratingCount = ratingCount;
   }
 
   int? get id => _id;
@@ -532,8 +525,6 @@ class DeliveryMan {
   String? get updatedAt => _updatedAt;
   String? get authToken => _authToken;
   String? get fcmToken => _fcmToken;
-  int? get ratingCount => _ratingCount;
-  List<AvgRating>? get rating => _rating;
 
   DeliveryMan.fromJson(Map<String, dynamic> json) {
     _id = json['id'];
@@ -550,13 +541,6 @@ class DeliveryMan {
     _updatedAt = json['updated_at'];
     _authToken = json['auth_token'];
     _fcmToken = json['fcm_token'];
-    _ratingCount = int.tryParse(json['reviews_count'].toString());
-    if (json['rating'] != null) {
-      _rating = [];
-      json['rating'].forEach((v) {
-        _rating!.add(AvgRating.fromJson(v));
-      });
-    }
   }
 
   Map<String, dynamic> toJson() {
@@ -575,10 +559,6 @@ class DeliveryMan {
     data['updated_at'] = _updatedAt;
     data['auth_token'] = _authToken;
     data['fcm_token'] = _fcmToken;
-    data['reviews_count'] = _ratingCount;
-    if (_rating != null) {
-      data['rating'] = _rating!.map((v) => v.toJson()).toList();
-    }
     return data;
   }
 }

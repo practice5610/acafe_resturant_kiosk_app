@@ -5,11 +5,9 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/data_sync_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/search/search_flow_helper.dart';
-import 'package:acafe_customer/features/search/domain/models/rating_model.dart';
 import 'package:acafe_customer/features/search/domain/models/search_recommend_model.dart';
 import 'package:acafe_customer/features/search/domain/reposotories/search_repo.dart';
 import 'package:acafe_customer/helper/api_checker_helper.dart';
-import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/main.dart';
 import 'package:provider/provider.dart';
 
@@ -23,13 +21,6 @@ class SearchProvider extends DataSyncProvider {
   List<List<int>> _priceList = [];
   // final List<int> _priceList = [10, 100, 1000, 10000];
 
-  List<RatingModel> get _ratingList => [
-    RatingModel(title: getTranslated('only_rating_5', Get.context!)!, value: 5),
-    RatingModel(title: getTranslated('4+rating', Get.context!)!, value: 4),
-    RatingModel(title: getTranslated('3+rating', Get.context!)!, value: 3),
-    RatingModel(title: getTranslated('2+rating', Get.context!)!, value: 2),
-    RatingModel(title: getTranslated('1+rating', Get.context!)!, value: 1),
-  ];
 
   final List<String> _sortByList = [
     'a_to_z',
@@ -47,7 +38,6 @@ class SearchProvider extends DataSyncProvider {
   List<String>? _productSearchName;
   List<String>? _autoCompletedName;
   SearchRecommendModel? _searchRecommendModel;
-  int? _selectedRatingIndex;
   int? _selectedSortByIndex;
   bool _halalTagStatus = false;
   bool _filtersCommitted = false;
@@ -65,8 +55,6 @@ class SearchProvider extends DataSyncProvider {
   List<String>? get productSearchName=> _productSearchName;
   List<String>? get autoCompletedName=> _autoCompletedName;
   SearchRecommendModel? get searchRecommendModel=> _searchRecommendModel;
-  List<RatingModel>? get ratingList => _ratingList;
-  int? get selectedRatingIndex => _selectedRatingIndex;
   List<String> get getSortByList => _sortByList;
   int? get selectedSortByIndex => _selectedSortByIndex;
   bool get halalTagStatus => _halalTagStatus;
@@ -192,7 +180,6 @@ class SearchProvider extends DataSyncProvider {
       categoriesId: categoryProvider.selectedCategoryList,
       minPrice: _selectedPriceIndex != null ? _priceList[_selectedPriceIndex!].first.toString(): null,
       maxPrice: _selectedPriceIndex != null ? _priceList[_selectedPriceIndex!].last.toString() : null,
-      rating: _selectedRatingIndex != null ? _ratingList[_selectedRatingIndex!].value : null,
       sortBy: _selectedSortByIndex != null ? _sortByList[_selectedSortByIndex!] : null,
       halalTag: halalTagStatus
     );
@@ -248,11 +235,6 @@ class SearchProvider extends DataSyncProvider {
     notifyListeners();
   }
 
-  void onChangeRating(int? index) {
-    _selectedRatingIndex = index;
-    notifyListeners();
-  }
-
   void commitFilters() {
     _filtersCommitted = true;
     notifyListeners();
@@ -260,7 +242,6 @@ class SearchProvider extends DataSyncProvider {
 
   void resetFilterData({bool isUpdate = true, CategoryProvider? categoryProvider}) {
     _selectedPriceIndex = null;
-    _selectedRatingIndex = null;
     _selectedSortByIndex = null;
     _halalTagStatus = false;
     _filtersCommitted = false;
@@ -280,7 +261,6 @@ class SearchProvider extends DataSyncProvider {
     return SearchFlowHelper.hasActiveFilters(
       selectedSortByIndex: _selectedSortByIndex,
       selectedPriceIndex: _selectedPriceIndex,
-      selectedRatingIndex: _selectedRatingIndex,
       halalTagStatus: _halalTagStatus,
       selectedCategoryIds: selectedCategoryIds,
     );

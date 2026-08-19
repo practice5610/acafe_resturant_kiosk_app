@@ -13,7 +13,6 @@ class SearchRepo extends DataSyncRepo{
     String? minPrice,
     String? maxPrice,
     List<int>? categoriesId,
-    double? rating,
     String? productType,
     String? sortBy,
     bool? halalTag,
@@ -25,7 +24,6 @@ class SearchRepo extends DataSyncRepo{
       if (minPrice != null) 'min_price': minPrice,
       if (maxPrice != null) 'max_price': maxPrice,
       if (categoriesId != null && categoriesId.isNotEmpty) 'category_id': categoriesId,
-      if (rating != null) 'rating': rating,
       if (productType != null) 'product_type': productType,
       if (sortBy != null) 'sort_by': sortBy,
       if(halalTag != null) 'is_halal' : halalTag ? 1 : 0

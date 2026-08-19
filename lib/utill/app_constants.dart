@@ -74,14 +74,10 @@ class AppConstants {
       'https://fcm.googleapis.com/fcm/send';
   static const String updateProfileUri = '/api/v1/customer/update-profile';
   static const String searchUri = '/api/v1/products/search';
-  static const String reviewUri = '/api/v1/products/reviews/submit';
-  static const String getReview = '/api/v1/products/reviews/';
   static const String productDetailsUri = '/api/v1/products/details/';
   static const String productSyncUri = '/api/v1/products/sync';
   static const String lastLocationUri =
       '/api/v1/delivery-man/last-location?deliveryman_id=';
-  static const String deliverManReviewUri =
-      '/api/v1/delivery-man/reviews/submit';
   static const String distanceMatrixUri = '/api/v1/mapapi/distance-api';
   static const String searchLocationUri =
       '/api/v1/mapapi/place-api-autocomplete';

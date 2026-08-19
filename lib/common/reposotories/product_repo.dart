@@ -94,15 +94,6 @@ class ProductRepo extends DataSyncRepo {
   // }
 
 
-  Future<ApiResponseModel> getReview({int? id, int ? offset}) async {
-    try {
-      final response = await dioClient.get("${AppConstants.getReview}$id?limit=10&offset=$offset");
-      return ApiResponseModel.withSuccess(response);
-    } catch (e) {
-      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
-    }
-  }
-
 
   Future<ApiResponseModel> getFrequentlyBoughtProductApi(int offset) async {
     try {

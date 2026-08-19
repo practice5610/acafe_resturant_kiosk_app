@@ -65,12 +65,10 @@ class Product {
   String? _discountType;
   String? _taxType;
   int? _setMenu;
-  List<AvgRating>? _rating;
   BranchProduct? _branchProduct;
   double? _mainPrice;
   bool? _isChanged;
   String? _changeReason;
-  int? _reviewCount;
 
   Product(
       {int? id,
@@ -92,12 +90,10 @@ class Product {
         String? discountType,
         String? taxType,
         int? setMenu,
-        List<AvgRating>? rating,
         BranchProduct? branchProduct,
         double? mainPrice,
         bool? isChanged,
         String? changeReason,
-        int? reviewCount,
         int? halalStatus,
       }) {
     _id = id;
@@ -119,12 +115,10 @@ class Product {
     _discountType = discountType;
     _taxType = taxType;
     _setMenu = setMenu;
-    _rating = rating;
     _branchProduct = branchProduct;
     _mainPrice = mainPrice;
     _isChanged = isChanged;
     _changeReason = changeReason;
-    _reviewCount = reviewCount;
   }
 
   int? get id => _id;
@@ -175,12 +169,10 @@ class Product {
   String? get discountType => _discountType;
   String? get taxType => _taxType;
   int? get setMenu => _setMenu;
-  List<AvgRating>? get rating => _rating;
   String? productType;
   BranchProduct? get branchProduct => _branchProduct;
   bool? get isChanged => _isChanged;
   String? get changeReason => _changeReason;
-  int? get reviewCount => _reviewCount;
 
   Product.fromJson(Map<String, dynamic> json) {
     _id = json['id'];
@@ -240,12 +232,6 @@ class Product {
     _discountType = json['discount_type'];
     _taxType = json['tax_type'];
     _setMenu = json['set_menu'];
-    if (json['rating'] != null) {
-      _rating = [];
-      json['rating'].forEach((v) {
-        _rating!.add(AvgRating.fromJson(v));
-      });
-    }
     productType=  json["product_type"];
     if(json['branch_product'] != null) {
       _branchProduct =  BranchProduct.fromJson(json['branch_product']);
@@ -265,7 +251,6 @@ class Product {
     if(json.containsKey('change_reason')){
       _changeReason = json['change_reason'];
     }
-    _reviewCount = int.tryParse('${json['reviews_count']}');
   }
 
   Map<String, dynamic> toJson() {
@@ -303,11 +288,7 @@ class Product {
     data['tax_type'] = _taxType;
     data['set_menu'] = _setMenu;
     data['main_price'] = _mainPrice;
-    if (_rating != null) {
-      data['rating'] = _rating!.map((v) => v.toJson()).toList();
-    }
     data['branch_product'] = _branchProduct;
-    data['reviews_count'] = _reviewCount;
     return data;
   }
 }
@@ -601,29 +582,5 @@ class ChoiceOption {
   }
 }
 
-class AvgRating {
-  double? _average;
-  int? _productId;
-
-  AvgRating({double? average, int? productId}) {
-    _average = average;
-    _productId = productId;
-  }
-
-  double? get average => _average;
-  int? get productId => _productId;
-
-  AvgRating.fromJson(Map<String, dynamic> json) {
-    _average = double.tryParse('${json['average']}');
-    _productId = json['product_id'];
-  }
-
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = <String, dynamic>{};
-    data['average'] = _average;
-    data['product_id'] = _productId;
-    return data;
-  }
-}
 
 
