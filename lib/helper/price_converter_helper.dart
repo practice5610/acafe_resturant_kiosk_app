@@ -24,7 +24,7 @@ class PriceConverterHelper {
   }
 
   static double? convertWithDiscount(double? price, double? discount, String? discountType) {
-    if(discountType == 'amount') {
+    if(discountType == 'amount' && (discount ?? 0) > 0) {
       price = price! - discount!;
     }else if(discountType == 'percent' && (discount ?? 0) > 0) {
       price = price! - ((discount! / 100) * price);
@@ -44,13 +44,17 @@ class PriceConverterHelper {
 
 
 
+  /// Discount amount in currency, 0 when there is no discount.
+  /// Anything that is not a type the app can compute ('off', null, unknown)
+  /// means "no discount" — returning the untouched price here made the widgets
+  /// draw a struck-through old price identical to the new one.
   static double? convertDiscount(BuildContext context, double? price, double? discount, String? discountType) {
     if(discountType == 'amount') {
-      price =  discount;
+      return discount ?? 0;
     }else if(discountType == 'percent') {
-      price = (discount! / 100) * price!;
+      return ((discount ?? 0) / 100) * (price ?? 0);
     }
-    return price;
+    return 0;
   }
 
   static double calculation(double amount, double discount, String type, int quantity) {
