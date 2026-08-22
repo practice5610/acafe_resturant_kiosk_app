@@ -74,17 +74,16 @@ class KioskProductImageHelper {
     );
   }
 
-  /// Full URL for a variation option card (option image, else product default).
+  /// Full URL for a variation option card. Empty when the option has no image
+  /// of its own — cards must not fall back to the product photo.
   static String optionCardImageUrl({
-    required Product product,
     required VariationValue value,
     required String? productImageBaseUrl,
   }) {
-    final filename =
-        _hasImage(value.image) ? value.image : product.image;
+    if (!_hasImage(value.image)) return '';
     return resolveUrl(
       productImageBaseUrl: productImageBaseUrl,
-      filename: filename,
+      filename: value.image,
     );
   }
 

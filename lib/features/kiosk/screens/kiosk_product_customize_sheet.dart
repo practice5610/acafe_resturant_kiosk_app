@@ -47,12 +47,10 @@ bool _isSizeVariation(Variation variation) {
   return false;
 }
 
-String _addonImageUrl(BuildContext context, Product product, AddOns addon) {
+String _addonImageUrl(BuildContext context, AddOns addon) {
+  if (!addon.hasImage) return '';
   final splash = Provider.of<SplashProvider>(context, listen: false);
-  if (addon.hasImage) {
-    return '${splash.baseUrls?.addonImageUrl}/${addon.image}';
-  }
-  return '${splash.baseUrls?.productImageUrl}/${product.image}';
+  return '${splash.baseUrls?.addonImageUrl}/${addon.image}';
 }
 
 String _addonGroupTitle(BuildContext context, AddOnGroup group) {
@@ -574,7 +572,6 @@ class _SizeOptionsPanel extends StatelessWidget {
                     .trim(),
                 priceDelta: entry.value.variationValues![i].optionPrice ?? 0,
                 image: KioskProductImageHelper.optionCardImageUrl(
-                  product: product,
                   value: entry.value.variationValues![i],
                   productImageBaseUrl: splash.baseUrls?.productImageUrl,
                 ),
@@ -636,7 +633,6 @@ class _VariationSection extends StatelessWidget {
             name: values[i].level?.trim() ?? '',
             priceDelta: values[i].optionPrice ?? 0,
             image: KioskProductImageHelper.optionCardImageUrl(
-              product: product,
               value: values[i],
               productImageBaseUrl: splash.baseUrls?.productImageUrl,
             ),
@@ -705,10 +701,7 @@ class _DietaryCard extends StatelessWidget {
                 child: SizedBox(
                   width: 240 * s,
                   height: 240 * s,
-                  child: CustomImageWidget(
-                      placeholder: Images.placeholderImage,
-                      image: image,
-                      fit: BoxFit.cover),
+                  child: _OptionImageSlot(image: image, fit: BoxFit.cover),
                 ),
               ),
               SizedBox(height: 20 * s),
@@ -822,7 +815,7 @@ class _GroupedAddOnCards extends StatelessWidget {
                 s: s,
                 name: addon.name ?? '',
                 priceDelta: addon.price ?? 0,
-                image: _addonImageUrl(context, product, addon),
+                image: _addonImageUrl(context, addon),
                 selected: product.indexOfAddOn(addon.id)! <
                         productProvider.addOnActiveList.length &&
                     productProvider
@@ -883,10 +876,7 @@ class _AddOnCard extends StatelessWidget {
                 child: SizedBox(
                   width: double.infinity,
                   height: 240 * s,
-                  child: CustomImageWidget(
-                      placeholder: Images.placeholderImage,
-                      image: image,
-                      fit: BoxFit.cover),
+                  child: _OptionImageSlot(image: image, fit: BoxFit.cover),
                 ),
               ),
               SizedBox(height: 20 * s),
@@ -952,7 +942,6 @@ class _CupCanSection extends StatelessWidget {
                 name: values[i].level?.trim() ?? '',
                 priceDelta: values[i].optionPrice ?? 0,
                 image: KioskProductImageHelper.optionCardImageUrl(
-                  product: product,
                   value: values[i],
                   productImageBaseUrl: splash.baseUrls?.productImageUrl,
                 ),
@@ -1016,11 +1005,7 @@ class _CupCanCard extends StatelessWidget {
           child: Column(
             children: [
               Expanded(
-                child: CustomImageWidget(
-                  placeholder: Images.placeholderImage,
-                  image: image,
-                  fit: BoxFit.contain,
-                ),
+                child: _OptionImageSlot(image: image, fit: BoxFit.contain),
               ),
               SizedBox(height: 16 * s),
               Text(
@@ -1363,7 +1348,6 @@ class _WideSizeOptionsSection extends StatelessWidget {
                     priceDelta:
                         entry.value.variationValues![i].optionPrice ?? 0,
                     image: KioskProductImageHelper.optionCardImageUrl(
-                      product: product,
                       value: entry.value.variationValues![i],
                       productImageBaseUrl: splash.baseUrls?.productImageUrl,
                     ),
@@ -1433,7 +1417,6 @@ class _WideVariationSection extends StatelessWidget {
                 name: values[i].level?.trim() ?? '',
                 priceDelta: values[i].optionPrice ?? 0,
                 image: KioskProductImageHelper.optionCardImageUrl(
-                  product: product,
                   value: values[i],
                   productImageBaseUrl: splash.baseUrls?.productImageUrl,
                 ),
@@ -1520,7 +1503,7 @@ class _WideGroupedAddOns extends StatelessWidget {
                   _WideOptionCard(
                     name: addon.name ?? '',
                     priceDelta: addon.price ?? 0,
-                    image: _addonImageUrl(context, product, addon),
+                    image: _addonImageUrl(context, addon),
                     selected: product.indexOfAddOn(addon.id)! <
                             productProvider.addOnActiveList.length &&
                         productProvider
@@ -1582,11 +1565,7 @@ class _WideOptionCard extends StatelessWidget {
                   Expanded(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: CustomImageWidget(
-                        placeholder: Images.placeholderImage,
-                        image: image,
-                        fit: BoxFit.cover,
-                      ),
+                      child: _OptionImageSlot(image: image, fit: BoxFit.cover),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -1611,6 +1590,27 @@ class _WideOptionCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Reserved image slot for variation / add-on cards. When the option has no
+/// image of its own, the slot stays empty (no product photo, no placeholder)
+/// so card size is unchanged.
+class _OptionImageSlot extends StatelessWidget {
+  final String image;
+  final BoxFit fit;
+  const _OptionImageSlot({required this.image, this.fit = BoxFit.cover});
+
+  @override
+  Widget build(BuildContext context) {
+    if (image.isEmpty || CustomImageWidget.isDefaultImage(image)) {
+      return const SizedBox.expand();
+    }
+    return CustomImageWidget(
+      placeholder: Images.placeholderImage,
+      image: image,
+      fit: fit,
     );
   }
 }
