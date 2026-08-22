@@ -403,6 +403,10 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
+    final String heroImage = KioskProductImageHelper.heroImageUrl(
+      product: product,
+      productImageBaseUrl: splash.baseUrls?.productImageUrl,
+    );
     final String description =
         (product.description ?? '').replaceAll(RegExp(r'<[^>]*>'), '').trim();
 
@@ -423,17 +427,9 @@ class _Header extends StatelessWidget {
         SizedBox(
           height: 720 * s,
           child: CustomImageWidget(
-            key: ValueKey(KioskProductImageHelper.heroImageUrl(
-              product: product,
-              selectedVariations: productProvider.selectedVariations,
-              productImageBaseUrl: splash.baseUrls?.productImageUrl,
-            )),
+            key: ValueKey(heroImage),
             placeholder: Images.placeholderImage,
-            image: KioskProductImageHelper.heroImageUrl(
-              product: product,
-              selectedVariations: productProvider.selectedVariations,
-              productImageBaseUrl: splash.baseUrls?.productImageUrl,
-            ),
+            image: heroImage,
             fit: BoxFit.contain,
           ),
         ),
@@ -1164,7 +1160,6 @@ class _WideCustomizeLayout extends StatelessWidget {
     final splash = Provider.of<SplashProvider>(context, listen: false);
     final String image = KioskProductImageHelper.heroImageUrl(
       product: product,
-      selectedVariations: productProvider.selectedVariations,
       productImageBaseUrl: splash.baseUrls?.productImageUrl,
     );
     final String description =
