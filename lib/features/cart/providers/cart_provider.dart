@@ -80,6 +80,27 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removeOtherLinesForProduct(int productId, int keepIndex) {
+    if (keepIndex < 0 || keepIndex >= _cartList.length) {
+      return;
+    }
+    final remaining = <CartModel?>[];
+    for (int i = 0; i < _cartList.length; i++) {
+      final line = _cartList[i];
+      if (i != keepIndex && line?.product?.id == productId) {
+        _amount = _amount - ((line!.discountedPrice ?? 0) * (line.quantity ?? 1));
+      } else {
+        remaining.add(line);
+      }
+    }
+    if (remaining.length == _cartList.length) {
+      return;
+    }
+    _cartList = remaining;
+    cartRepo!.addToCartList(_cartList);
+    notifyListeners();
+  }
+
   void removeByProductId(int productId) {
     final remaining = <CartModel?>[];
     for (final cart in _cartList) {

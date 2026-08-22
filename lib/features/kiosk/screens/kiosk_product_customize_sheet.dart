@@ -66,24 +66,44 @@ String _addonGroupTitle(BuildContext context, AddOnGroup group) {
 /// [CartModel] / [CartProvider.addToCart] pipeline, so a kiosk order is
 /// identical to a web order. Products with no variations and no add-ons are
 /// added straight to the cart (e.g. merchandise).
+///
+/// If this product is already in the cart (and the caller did not pass a line),
+/// reopen that line so previous add-ons / variations stay selected and Add to
+/// Cart updates it instead of inserting a duplicate.
 void openKioskCustomize(BuildContext context, Product product,
     {CartModel? cart, int? cartIndex}) {
+  final cartProvider = Provider.of<CartProvider>(context, listen: false);
   final productProvider = Provider.of<ProductProvider>(context, listen: false);
-  productProvider.initData(product, cart);
-  productProvider.initProductVariationStatus(product.variations?.length ?? 0);
 
   final variations = product.variations ?? [];
   final addOns = product.addOns ?? [];
+  final bool hasModifiers = variations.isNotEmpty ||
+      addOns.isNotEmpty ||
+      product.effectiveAddOnGroups.isNotEmpty;
 
-  if (cart == null &&
-      variations.isEmpty &&
-      addOns.isEmpty &&
-      product.effectiveAddOnGroups.isEmpty) {
-    // No modifiers -> add directly.
-    Provider.of<CartProvider>(context, listen: false).addToCart(
+  if (!hasModifiers) {
+    productProvider.initData(product, null);
+    productProvider.initProductVariationStatus(0);
+    cartProvider.addToCart(
         buildKioskCartModel(context, product), productProvider.cartIndex);
     return;
   }
+
+  bool replaceOtherProductLines = false;
+  if (cart == null) {
+    for (int i = cartProvider.cartList.length - 1; i >= 0; i--) {
+      final line = cartProvider.cartList[i];
+      if (line?.product?.id == product.id) {
+        cart = line;
+        cartIndex = i;
+        replaceOtherProductLines = true;
+        break;
+      }
+    }
+  }
+
+  productProvider.initData(product, cart);
+  productProvider.initProductVariationStatus(product.variations?.length ?? 0);
 
   Navigator.of(context).push(
     MaterialPageRoute(
@@ -91,6 +111,7 @@ void openKioskCustomize(BuildContext context, Product product,
         product: product,
         cartIndex: cartIndex,
         initialInstruction: cart?.instruction,
+        replaceOtherProductLines: replaceOtherProductLines,
       ),
     ),
   );
@@ -154,11 +175,15 @@ class KioskProductCustomizeScreen extends StatefulWidget {
   final Product product;
   final int? cartIndex;
   final String? initialInstruction;
+  /// When true, saving replaces this product's cart line and drops any other
+  /// leftover lines for the same product (menu tap reopened an existing item).
+  final bool replaceOtherProductLines;
   const KioskProductCustomizeScreen({
     super.key,
     required this.product,
     this.cartIndex,
     this.initialInstruction,
+    this.replaceOtherProductLines = false,
   });
 
   @override
@@ -248,9 +273,17 @@ class _KioskProductCustomizeScreenState
 
   void _addToCart(BuildContext context, ProductProvider productProvider) {
     if (!_validate(context, productProvider)) return;
-    Provider.of<CartProvider>(context, listen: false).addToCart(
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final int? index = cartIndex ?? productProvider.cartIndex;
+    cartProvider.addToCart(
         buildKioskCartModel(context, product, instruction: _instruction),
-        cartIndex ?? productProvider.cartIndex);
+        index);
+    if (widget.replaceOtherProductLines &&
+        product.id != null &&
+        index != null &&
+        index >= 0) {
+      cartProvider.removeOtherLinesForProduct(product.id!, index);
+    }
     Navigator.of(context).pop();
   }
 
