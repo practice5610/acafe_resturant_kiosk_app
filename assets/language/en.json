@@ -870,5 +870,9 @@
   "offline": "Offline",
   "order_note": "Order Note",
   "search_item": "Search item",
-  "update_profile": "Update Profile"
+  "update_profile": "Update Profile",
+  "add_an_order_note": "Add an order note",
+  "anything_we_should_know": "Anything we should know?",
+  "space": "Space",
+  "clear": "Clear"
 }

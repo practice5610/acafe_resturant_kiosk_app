@@ -20,6 +20,15 @@ class KioskPlaceResult {
   const KioskPlaceResult({required this.success, this.orderId, this.message});
 }
 
+/// `order_note` sent with a kiosk order: the existing "Kiosk order — <name>"
+/// identifier, plus the customer's own note from the cart screen when they
+/// wrote one. Kept in one place so both checkout paths format it identically.
+String kioskOrderNote({required String name, required String note}) {
+  final String base = name.isNotEmpty ? 'Kiosk order — $name' : 'Kiosk order';
+  final String trimmed = note.trim();
+  return trimmed.isEmpty ? base : '$base\n$trimmed';
+}
+
 /// Places the current cart as a guest kiosk order via the SAME path as the user
 /// web app (OrderProvider.placeOrder → /api/v1/customer/order/place), so it
 /// lands in the orders table and kitchen app identically.
@@ -101,7 +110,7 @@ Future<KioskPlaceResult> placeKioskOrder(
     deviceId: kioskAuthProvider.deviceId,
     deliveryTime: 'now',
     deliveryDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-    orderNote: name.isNotEmpty ? 'Kiosk order — $name' : 'Kiosk order',
+    orderNote: kioskOrderNote(name: name, note: cartProvider.orderNote),
     distance: 0,
     isPartial: '0',
     isCutleryRequired: '0',

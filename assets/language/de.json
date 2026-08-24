@@ -856,5 +856,9 @@
   "offline": "Offline",
   "order_note": "Bestellnotiz",
   "search_item": "Artikel suchen",
-  "update_profile": "Profil aktualisieren"
+  "update_profile": "Profil aktualisieren",
+  "add_an_order_note": "Bestellnotiz hinzufügen",
+  "anything_we_should_know": "Sollen wir etwas wissen?",
+  "space": "Leertaste",
+  "clear": "Löschen"
 }

@@ -6,6 +6,7 @@ import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_order_note_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_order_line_card.dart';
@@ -17,6 +18,8 @@ import 'package:provider/provider.dart';
 
 const Color _kCardBg = Color(0xFFFBF8EF);
 const Color _kCheckoutText = Color(0xFFFAF9F5);
+const Color _kNoteDivider = Color(0xFFDED9C7);
+const Color _kNoteHintText = Color(0xFF8A8275);
 
 /// "MY ORDER" — review the cart, edit/remove lines, then go to checkout.
 class KioskCartScreen extends StatelessWidget {
@@ -94,6 +97,8 @@ class KioskCartScreen extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (cartList.isNotEmpty)
+                        _OrderNoteBar(s: s, note: cartProvider.orderNote),
                       _Footer(
                         s: s,
                         cartList: cartList,
@@ -310,6 +315,14 @@ class _WideSummaryCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (enabled) ...[
+            _WideOrderNoteRow(
+              note: context.watch<CartProvider>().orderNote,
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: _kNoteDivider),
+            const SizedBox(height: 16),
+          ],
           _WideBreakdownRow(
             label: (getTranslated('items_total', context) ?? 'ITEMS TOTAL')
                 .toUpperCase(),
@@ -394,6 +407,57 @@ class _WideSummaryCard extends StatelessWidget {
   }
 }
 
+/// Wide-layout twin of [_OrderNoteBar]: same behaviour, sized to the 400px
+/// summary column instead of the full-width strip.
+class _WideOrderNoteRow extends StatelessWidget {
+  final String note;
+  const _WideOrderNoteRow({required this.note});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasNote = note.trim().isNotEmpty;
+
+    return KioskTap(
+      onTap: () => openKioskOrderNote(context),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  getTranslated('add_an_order_note', context) ??
+                      'Add an order note',
+                  style: loewBold.copyWith(
+                      fontSize: KioskUI.body, height: 1.1, color: Colors.black),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  hasNote
+                      ? note
+                      : (getTranslated('anything_we_should_know', context) ??
+                          'Anything we should know?'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewRegular.copyWith(
+                    fontSize: KioskUI.caption,
+                    height: 1.25,
+                    color: hasNote ? Colors.black87 : _kNoteHintText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Icon(hasNote ? Icons.edit_outlined : Icons.add,
+              size: 20, color: Colors.black87),
+        ],
+      ),
+    );
+  }
+}
+
 /// Small label/value row used by the wide summary card's price breakdown.
 class _WideBreakdownRow extends StatelessWidget {
   final String label;
@@ -421,6 +485,72 @@ class _WideBreakdownRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// "Add an order note" strip between the item list and the footer. Tapping it
+/// opens the on-screen keyboard sheet; once a note exists the row shows it back
+/// so the customer can see what they wrote without reopening the editor.
+class _OrderNoteBar extends StatelessWidget {
+  final double s;
+  final String note;
+  const _OrderNoteBar({required this.s, required this.note});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasNote = note.trim().isNotEmpty;
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _kNoteDivider)),
+      ),
+      child: KioskTap(
+        onTap: () => openKioskOrderNote(context),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(132 * s, 46 * s, 132 * s, 46 * s),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      getTranslated('add_an_order_note', context) ??
+                          'Add an order note',
+                      style: loewBold.copyWith(
+                          fontSize: 46 * s, height: 1.1, color: Colors.black),
+                    ),
+                    SizedBox(height: 10 * s),
+                    Text(
+                      hasNote
+                          ? note
+                          : (getTranslated('anything_we_should_know', context) ??
+                              'Anything we should know?'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: loewRegular.copyWith(
+                        fontSize: 38 * s,
+                        height: 1.25,
+                        color: hasNote ? Colors.black87 : _kNoteHintText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: 32 * s),
+              // Plus while empty, pencil once written — the affordance changes
+              // with what the tap will actually do.
+              Icon(
+                hasNote ? Icons.edit_outlined : Icons.add,
+                size: (52 * s).clamp(20.0, 40.0),
+                color: Colors.black87,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -856,5 +856,9 @@
   "offline": "Offline",
   "order_note": "Bestelnotitie",
   "search_item": "Artikel zoeken",
-  "update_profile": "Profiel bijwerken"
+  "update_profile": "Profiel bijwerken",
+  "add_an_order_note": "Voeg een bestelnotitie toe",
+  "anything_we_should_know": "Iets wat we moeten weten?",
+  "space": "Spatie",
+  "clear": "Wissen"
 }

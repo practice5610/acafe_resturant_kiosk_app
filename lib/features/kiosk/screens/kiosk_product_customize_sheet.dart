@@ -218,7 +218,10 @@ class KioskProductCustomizeScreen extends StatefulWidget {
 
 class _KioskProductCustomizeScreenState
     extends State<KioskProductCustomizeScreen> {
-  late final TextEditingController _instructionController;
+  /// Per-line note. There is no longer a field for it on this screen — the note
+  /// moved to a single order-level note on the cart — but an existing line's
+  /// text is carried through so editing a line cannot silently wipe it.
+  String? _instruction;
   final ScrollController _optionsScrollController = ScrollController();
 
   Product get product => widget.product;
@@ -227,20 +230,14 @@ class _KioskProductCustomizeScreenState
   @override
   void initState() {
     super.initState();
-    _instructionController =
-        TextEditingController(text: widget.initialInstruction ?? '');
+    final String initial = widget.initialInstruction?.trim() ?? '';
+    _instruction = initial.isEmpty ? null : initial;
   }
 
   @override
   void dispose() {
-    _instructionController.dispose();
     _optionsScrollController.dispose();
     super.dispose();
-  }
-
-  String? get _instruction {
-    final text = _instructionController.text.trim();
-    return text.isEmpty ? null : text;
   }
 
   /// Same validation rules as the web app, run before adding to the cart.
@@ -346,7 +343,6 @@ class _KioskProductCustomizeScreenState
                 sizeVariations: sizeVariations,
                 dietaryVariations: dietaryVariations,
                 cupCanVariations: cupCanVariations,
-                instructionController: _instructionController,
                 onAddToCart: () => _addToCart(context, productProvider),
               );
             }
@@ -421,15 +417,8 @@ class _KioskProductCustomizeScreenState
                           ),
                         ),
                       ),
-                      // Instructions + Add to cart stay pinned; only the
-                      // variations / add-ons above them scroll.
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 86 * s),
-                        child: _InstructionsSection(
-                          s: s,
-                          controller: _instructionController,
-                        ),
-                      ),
+                      // Add to cart stays pinned; only the variations /
+                      // add-ons above it scroll.
                       _AddToCartBar(
                           s: s,
                           onTap: () => _addToCart(context, productProvider)),
@@ -1207,8 +1196,12 @@ class _CupCanSection extends StatelessWidget {
     return _SectionPanel(
       s: s,
       title: title,
+      // No CrossAxisAlignment.stretch here: _SectionPanel puts this child in an
+      // Align inside a scrollable column, so the Row's incoming maxHeight is
+      // unbounded and stretch would hand each card a tight infinite height —
+      // which fails layout for the whole options list. The cards carry an
+      // explicit height, so they are equal-height without it.
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: List.generate(values.length, (i) {
           final bool selected =
               productProvider.selectedVariations[variationIndex][i] ?? false;
@@ -1439,44 +1432,6 @@ class _CupCanTick extends StatelessWidget {
   }
 }
 
-/// Optional free-text instructions, shown after all option sections.
-class _InstructionsSection extends StatelessWidget {
-  final double s;
-  final TextEditingController controller;
-  const _InstructionsSection({required this.s, required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionPanel(
-      s: s,
-      title: 'Instructions',
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(horizontal: 28 * s, vertical: 12 * s),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(40 * s),
-        ),
-        child: TextField(
-          controller: controller,
-          maxLength: 255,
-          textInputAction: TextInputAction.done,
-          textCapitalization: TextCapitalization.sentences,
-          style: loewRegular.copyWith(fontSize: 36 * s, color: Colors.black),
-          decoration: InputDecoration(
-            isCollapsed: true,
-            counterText: '',
-            border: InputBorder.none,
-            hintText: 'Special instructions (optional)',
-            hintStyle:
-                loewRegular.copyWith(fontSize: 36 * s, color: Colors.black38),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Pinned full-width "ADD TO CART" button.
 class _AddToCartBar extends StatelessWidget {
   final double s;
@@ -1516,7 +1471,6 @@ class _WideCustomizeLayout extends StatefulWidget {
   final List<MapEntry<int, Variation>> sizeVariations;
   final List<MapEntry<int, Variation>> dietaryVariations;
   final List<MapEntry<int, Variation>> cupCanVariations;
-  final TextEditingController instructionController;
   final VoidCallback onAddToCart;
 
   const _WideCustomizeLayout({
@@ -1525,7 +1479,6 @@ class _WideCustomizeLayout extends StatefulWidget {
     required this.sizeVariations,
     required this.dietaryVariations,
     required this.cupCanVariations,
-    required this.instructionController,
     required this.onAddToCart,
   });
 
@@ -1543,8 +1496,6 @@ class _WideCustomizeLayoutState extends State<_WideCustomizeLayout> {
       widget.dietaryVariations;
   List<MapEntry<int, Variation>> get cupCanVariations =>
       widget.cupCanVariations;
-  TextEditingController get instructionController =>
-      widget.instructionController;
   VoidCallback get onAddToCart => widget.onAddToCart;
 
   @override
@@ -1682,11 +1633,8 @@ class _WideCustomizeLayoutState extends State<_WideCustomizeLayout> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Instructions + Add to cart stay pinned; only the
-                  // variations / add-ons above them scroll.
-                  _WideInstructionsSection(
-                    controller: instructionController,
-                  ),
+                  // Add to cart stays pinned; only the variations / add-ons
+                  // above it scroll.
                   KioskButton(
                     label:
                         getTranslated('add_to_cart', context)?.toUpperCase() ??
@@ -1696,53 +1644,6 @@ class _WideCustomizeLayoutState extends State<_WideCustomizeLayout> {
                     onTap: onAddToCart,
                   ),
                 ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WideInstructionsSection extends StatelessWidget {
-  final TextEditingController controller;
-  const _WideInstructionsSection({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Instructions',
-            style: loewBold.copyWith(
-                fontSize: KioskUI.section, color: Colors.black),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(KioskUI.radius),
-            ),
-            child: TextField(
-              controller: controller,
-              maxLength: 255,
-              textInputAction: TextInputAction.done,
-              textCapitalization: TextCapitalization.sentences,
-              style: loewRegular.copyWith(
-                  fontSize: KioskUI.body, color: Colors.black),
-              decoration: InputDecoration(
-                isCollapsed: true,
-                counterText: '',
-                border: InputBorder.none,
-                hintText: 'SPECIAL INSTRUCTIONS (Optional)',
-                hintStyle: loewRegular.copyWith(
-                    fontSize: KioskUI.body, color: Colors.black38),
               ),
             ),
           ),

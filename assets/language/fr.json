@@ -856,5 +856,9 @@
   "offline": "Hors ligne",
   "order_note": "Note de commande",
   "search_item": "Rechercher un article",
-  "update_profile": "Mettre à jour le profil"
+  "update_profile": "Mettre à jour le profil",
+  "add_an_order_note": "Ajouter une note",
+  "anything_we_should_know": "Quelque chose à signaler ?",
+  "space": "Espace",
+  "clear": "Effacer"
 }

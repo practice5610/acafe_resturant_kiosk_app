@@ -856,5 +856,9 @@
   "offline": "Offline",
   "order_note": "Nota dell'ordine",
   "search_item": "Cerca articolo",
-  "update_profile": "Aggiorna profilo"
+  "update_profile": "Aggiorna profilo",
+  "add_an_order_note": "Aggiungi una nota",
+  "anything_we_should_know": "Qualcosa che dovremmo sapere?",
+  "space": "Spazio",
+  "clear": "Cancella"
 }

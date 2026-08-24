@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
@@ -160,7 +161,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       branchId: branchId,
       deliveryTime: 'now',
       deliveryDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-      orderNote: name.isNotEmpty ? 'Kiosk order — $name' : 'Kiosk order',
+      orderNote: kioskOrderNote(name: name, note: cartProvider.orderNote),
       distance: 0,
       isPartial: '0',
       isCutleryRequired: '0',

@@ -856,5 +856,9 @@
   "offline": "غير متصل",
   "order_note": "ملاحظة الطلب",
   "search_item": "بحث عن عنصر",
-  "update_profile": "تحديث الملف الشخصي"
+  "update_profile": "تحديث الملف الشخصي",
+  "add_an_order_note": "أضف ملاحظة للطلب",
+  "anything_we_should_know": "هل من شيء يجب أن نعرفه؟",
+  "space": "مسافة",
+  "clear": "مسح"
 }

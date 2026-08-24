@@ -17,9 +17,20 @@ class CartProvider extends ChangeNotifier {
   double _amount = 0.0;
   bool _isCartUpdate = false;
 
+  /// One free-text note for the whole order, written on the cart screen. It
+  /// replaces the per-item "Instructions" field the customize screen used to
+  /// carry, and rides along on the order as `order_note`.
+  String _orderNote = '';
+
   List<CartModel?> get cartList => _cartList;
   double get amount => _amount;
   bool get isCartUpdate => _isCartUpdate;
+  String get orderNote => _orderNote;
+
+  void setOrderNote(String note) {
+    _orderNote = note.trim();
+    notifyListeners();
+  }
 
 
   void getCartData(BuildContext context) {
@@ -127,6 +138,7 @@ class CartProvider extends ChangeNotifier {
   void clearCartList() {
     _cartList = [];
     _amount = 0;
+    _orderNote = '';
     cartRepo!.addToCartList(_cartList);
     notifyListeners();
   }
