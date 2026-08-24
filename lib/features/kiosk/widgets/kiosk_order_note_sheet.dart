@@ -5,6 +5,7 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 // Palette for this modal only, kept in the kiosk's cream family.
@@ -60,9 +61,11 @@ class KioskOrderNoteSheet extends StatefulWidget {
 
 class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
   late final TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
 
   /// One-shot shift, the way a phone keyboard behaves: it capitalises the next
-  /// letter and then releases itself.
+  /// letter and then releases itself. It only affects the on-screen keys — a
+  /// physical keyboard carries its own shift.
   bool _shift = true;
 
   @override
@@ -77,37 +80,70 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
 
+  /// The field is editable, so the caret can be anywhere — including wherever a
+  /// physical keyboard or a tap on the text left it. Every on-screen key edits
+  /// at the current selection rather than blindly appending, so the two input
+  /// methods stay in step, and focus is handed straight back to the field.
+  TextSelection get _selection {
+    final TextEditingValue value = _controller.value;
+    return value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+  }
+
+  void _apply(String text, int caret) {
+    _controller.value = _controller.value.copyWith(
+      text: text,
+      selection: TextSelection.collapsed(offset: caret),
+      composing: TextRange.empty,
+    );
+    _focusNode.requestFocus();
+  }
+
   void _insert(String value) {
-    if (_controller.text.length >= _kNoteMaxLength) return;
+    final TextSelection sel = _selection;
+    final String text = _controller.text.replaceRange(sel.start, sel.end, value);
+    if (text.length > _kNoteMaxLength) return;
     setState(() {
-      _controller.text = _controller.text + value;
       if (value.trim().isNotEmpty) _shift = false;
     });
+    _apply(text, sel.start + value.length);
   }
 
   void _onLetter(String letter) =>
       _insert(_shift ? letter.toUpperCase() : letter.toLowerCase());
 
   void _onBackspace() {
-    final String text = _controller.text;
-    if (text.isEmpty) return;
+    final TextSelection sel = _selection;
+    final String current = _controller.text;
+
+    late final String text;
+    late final int caret;
+    if (sel.start != sel.end) {
+      // A selection (drag, or ⌘A from the physical keyboard) deletes wholesale.
+      text = current.replaceRange(sel.start, sel.end, '');
+      caret = sel.start;
+    } else {
+      if (sel.start == 0) return;
+      text = current.replaceRange(sel.start - 1, sel.start, '');
+      caret = sel.start - 1;
+    }
+
     setState(() {
-      _controller.text = text.substring(0, text.length - 1);
-      // Back at the start, offer a capital again.
-      if (_controller.text.isEmpty) _shift = true;
+      if (text.isEmpty) _shift = true;
     });
+    _apply(text, caret);
   }
 
   void _onClear() {
     if (_controller.text.isEmpty) return;
-    setState(() {
-      _controller.clear();
-      _shift = true;
-    });
+    setState(() => _shift = true);
+    _apply('', 0);
   }
 
   /// Discards edits — the note in the provider is left as it was.
@@ -159,6 +195,7 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
                             child: _NoteCard(
                               width: cardWidth,
                               controller: _controller,
+                              focusNode: _focusNode,
                               onBack: _cancel,
                             ),
                           ),
@@ -190,11 +227,13 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
 class _NoteCard extends StatelessWidget {
   final double width;
   final TextEditingController controller;
+  final FocusNode focusNode;
   final VoidCallback onBack;
 
   const _NoteCard({
     required this.width,
     required this.controller,
+    required this.focusNode,
     required this.onBack,
   });
 
@@ -259,15 +298,21 @@ class _NoteCard extends StatelessWidget {
             ),
             child: TextField(
               controller: controller,
-              // Driven entirely by the on-screen keys — readOnly keeps the OS
-              // keyboard from opening on a touchscreen kiosk, while showCursor
-              // keeps a caret visible so typing reads as typing.
-              readOnly: true,
-              showCursor: true,
+              focusNode: focusNode,
+              // Editable on purpose: the kiosk also runs as a web app on a
+              // machine with a real keyboard, so both input paths have to work.
+              // The on-screen keys write through the same controller/selection,
+              // so the two stay in sync.
               autofocus: true,
               maxLines: null,
               expands: true,
               textAlignVertical: TextAlignVertical.top,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+              // Caps typed input the same way the on-screen keys are capped.
+              inputFormatters: const [
+                _NoteLengthFormatter(_kNoteMaxLength),
+              ],
               cursorColor: _kNoteInk,
               cursorWidth: 2,
               style: loewRegular.copyWith(
@@ -578,5 +623,18 @@ class _ContinueButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Caps the note without the character counter a plain `maxLength` would add,
+/// and without truncating mid-edit when the caret is not at the end.
+class _NoteLengthFormatter extends TextInputFormatter {
+  final int max;
+  const _NoteLengthFormatter(this.max);
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return newValue.text.length > max ? oldValue : newValue;
   }
 }
