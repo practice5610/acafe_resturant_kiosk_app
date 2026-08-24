@@ -20,19 +20,46 @@ class KioskRouteGuard {
     RouterHelper.languageScreen,
   };
 
+  /// Paths that only make sense while the device is *not* bound to a branch.
+  /// Once it is logged in these all bounce to the welcome screen, so the
+  /// browser Back button can never land back on the login form.
+  static const Set<String> _authEntryPaths = {
+    RouterHelper.dashboard,
+    RouterHelper.splashScreen,
+    RouterHelper.loginScreen,
+    RouterHelper.kioskLoginScreen,
+  };
+
   /// Returns a redirect path, or null when navigation may proceed.
   static String? redirect(BuildContext context, String path) {
-    if (path == RouterHelper.dashboard ||
-        path.isEmpty ||
-        path == RouterHelper.loginScreen) {
-      return RouterHelper.kioskLoginScreen;
-    }
+    final bool isAuthEntry = path.isEmpty || _authEntryPaths.contains(path);
 
-    if (!kIsWeb) return null;
-    if (publicPaths.contains(path)) return null;
+    if (!kIsWeb) {
+      // Native keeps the old behaviour: '/' and '/login' funnel to kiosk login.
+      if (isAuthEntry && path != RouterHelper.kioskLoginScreen) {
+        return RouterHelper.kioskLoginScreen;
+      }
+      return null;
+    }
 
     final isLoggedIn =
         Provider.of<KioskAuthProvider>(context, listen: false).isLoggedIn();
+
+    // Already bound to a branch -> the login screen is unreachable. This is what
+    // stops browser Back (and a manually typed /kiosk-login) from showing the
+    // login form again after a successful device login. `/kiosk-start` is
+    // deliberately not in this set: bootstrap still needs to run so it can
+    // re-validate the session.
+    if (isLoggedIn && isAuthEntry) {
+      return RouterHelper.kioskWelcomeScreen;
+    }
+
+    if (isAuthEntry && path != RouterHelper.kioskLoginScreen) {
+      return RouterHelper.kioskLoginScreen;
+    }
+
+    if (publicPaths.contains(path)) return null;
+
     if (!isLoggedIn) {
       return RouterHelper.kioskLoginScreen;
     }
