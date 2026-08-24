@@ -164,6 +164,11 @@ class Images {
   //svg
   static const String kioskLogoWhiteSvg = 'assets/svg/acafe_logo_white.svg';
   static const String kioskDownArrow = 'assets/image/kiosk_down_arrow.gif';
+  // Vessel artwork for the kiosk "Can or cup?" step. The backend generates that
+  // variation group from a switch and ships no images with it, so the kiosk
+  // supplies its own.
+  static const String kioskCupImage = 'assets/image/cup.png';
+  static const String kioskCanImage = 'assets/image/can.png';
   static const String placeholderUserSvg = 'assets/svg/placeholder_user.svg';
   static const String darkModeSvg = 'assets/svg/dark_mode.svg';
   static const String lightModeSvg = 'assets/svg/light_mode.svg';

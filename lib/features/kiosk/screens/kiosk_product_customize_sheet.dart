@@ -32,8 +32,29 @@ const Color _kDarkButton = Color(0xFF1E1E1E);
 const Color _kCreamText = Color(0xFFF3F3DD);
 
 /// Variation groups whose name mentions "cup"/"can" get the big two-card
-/// treatment and are only shown when the product actually has them.
-final RegExp _kCupCanPattern = RegExp(r'cup|can', caseSensitive: false);
+/// treatment and are only shown when the product actually has them. This is the
+/// name the backend's Cup/Can switch generates ("Can or cup?"); the pattern
+/// stays loose so hand-authored groups from before the switch still match.
+/// Word-bounded on purpose — an unbounded `can` also matched "Pecan".
+final RegExp _kCupCanPattern = RegExp(r'\b(cups?|cans?)\b', caseSensitive: false);
+
+/// Warm card outline + selected ink for the option cards. Kept in the screen's
+/// cream family rather than a neutral grey, so an unselected card reads as part
+/// of the panel instead of a box drawn on top of it.
+const Color _kCardBorder = Color(0xFFE8E2D5);
+const Color _kCardBorderSelected = Color(0xFF1E1E1E);
+const Color _kInkText = Color(0xFF2B2B2B);
+
+/// Local artwork for the "Can or cup?" vessels. That group is generated from the
+/// product's Cup/Can switch in the backend and carries no images of its own, so
+/// the kiosk matches an option to a bundled asset by name. Anything unrecognised
+/// falls back to the variation's own uploaded image.
+String? _localVesselAsset(String label) {
+  final String value = label.toLowerCase().trim();
+  if (value.contains('cup')) return Images.kioskCupImage;
+  if (value.contains('can')) return Images.kioskCanImage;
+  return null;
+}
 
 /// Size groups (Small / Medium / Large) are often stored as separate
 /// one-option variations. Render them as one addon-style horizontal card row.
@@ -1177,21 +1198,31 @@ class _CupCanSection extends StatelessWidget {
         ? variation.name!
         : (getTranslated('can_or_cup', context) ?? 'Can or cup?');
 
+    // Cup and can are normally both free, so the price line is dropped entirely
+    // rather than left as an empty row eating vertical space. It comes back the
+    // moment any option actually carries a surcharge.
+    final bool anyPriced =
+        values.any((value) => (value.optionPrice ?? 0) > 0);
+
     return _SectionPanel(
       s: s,
       title: title,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: List.generate(values.length, (i) {
           final bool selected =
               productProvider.selectedVariations[variationIndex][i] ?? false;
+          final String label = values[i].level?.trim() ?? '';
           return Expanded(
             child: Padding(
               padding:
-                  EdgeInsets.only(right: i < values.length - 1 ? 30 * s : 0),
+                  EdgeInsets.only(right: i < values.length - 1 ? 28 * s : 0),
               child: _CupCanCard(
                 s: s,
-                name: values[i].level?.trim() ?? '',
+                name: label,
                 priceDelta: values[i].optionPrice ?? 0,
+                showPrice: anyPriced,
+                assetImage: _localVesselAsset(label),
                 image: KioskProductImageHelper.optionCardImageUrl(
                   value: values[i],
                   productImageBaseUrl: splash.baseUrls?.productImageUrl,
@@ -1222,6 +1253,14 @@ class _CupCanCard extends StatelessWidget {
   final double s;
   final String name;
   final double priceDelta;
+
+  /// Draw the price line at all. Off when no option in the group is priced, so
+  /// two free vessels do not each carry an empty row.
+  final bool showPrice;
+
+  /// Bundled artwork for a recognised vessel. Takes precedence over [image],
+  /// which stays as the fallback for a hand-authored group with its own upload.
+  final String? assetImage;
   final String image;
   final bool selected;
   final VoidCallback onTap;
@@ -1229,6 +1268,8 @@ class _CupCanCard extends StatelessWidget {
     required this.s,
     required this.name,
     required this.priceDelta,
+    required this.showPrice,
+    required this.assetImage,
     required this.image,
     required this.selected,
     required this.onTap,
@@ -1236,53 +1277,164 @@ class _CupCanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(40 * s),
-      clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        onTap: onTap,
-        child: Container(
-          height: 640 * s,
-          padding: EdgeInsets.all(40 * s),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(40 * s),
-            border: Border.all(
-              color: selected ? Colors.black : Colors.black12,
-              width:
-                  selected ? (6 * s).clamp(2.0, 8.0) : (2 * s).clamp(1.0, 3.0),
-            ),
+    final double radius = 40 * s;
+    // Hairline at rest, a deliberate 3px ink edge once chosen. The old 6*s
+    // selected border grew to 8px on a big kiosk and read as a bug.
+    final double borderWidth =
+        selected ? (4 * s).clamp(2.0, 3.0) : (2 * s).clamp(1.0, 1.5);
+
+    return KioskTap(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        height: 620 * s,
+        padding: EdgeInsets.fromLTRB(34 * s, 34 * s, 34 * s, 30 * s),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(
+            color: selected ? _kCardBorderSelected : _kCardBorder,
+            width: borderWidth,
           ),
-          child: Column(
-            children: [
-              Expanded(
-                child: _OptionImageSlot(image: image, fit: BoxFit.contain),
+          // A single soft shadow that deepens on selection — enough to lift the
+          // card off the cream panel without the "floating chip" look that two
+          // stacked shadows give.
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: selected ? 0.10 : 0.04),
+              blurRadius: selected ? 28 * s : 16 * s,
+              offset: Offset(0, selected ? 10 * s : 6 * s),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  // Warm pedestal so a transparent PNG has something to sit on
+                  // instead of hovering in the middle of a white rectangle.
+                  Positioned.fill(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(
+                        widthFactor: 0.78,
+                        heightFactor: 0.5,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: Alignment.bottomCenter,
+                              radius: 0.9,
+                              colors: [
+                                _kPanelBg,
+                                _kPanelBg.withValues(alpha: 0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10 * s),
+                      child: _VesselImage(
+                        assetImage: assetImage,
+                        image: image,
+                      ),
+                    ),
+                  ),
+                  // Selection tick, top-right — the same affordance the dietary
+                  // row uses, so one glance reads both sections the same way.
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: _CupCanTick(s: s, selected: selected),
+                  ),
+                ],
               ),
-              SizedBox(height: 16 * s),
-              Text(
-                name.toUpperCase(),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: loewBold.copyWith(
-                    fontSize: 36 * s, letterSpacing: 1, color: Colors.black),
+            ),
+            SizedBox(height: 22 * s),
+            Text(
+              name.toUpperCase(),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: loewBold.copyWith(
+                fontSize: 34 * s,
+                letterSpacing: 3 * s,
+                height: 1.0,
+                color: _kInkText,
               ),
-              // Always reserve this row's height, even with no price delta
-              // (e.g. the base "Small" option) -- cards sit in a Wrap, which
-              // doesn't stretch siblings to a common height, so omitting this
-              // line entirely made that card shorter than its neighbors.
-              SizedBox(height: 6 * s),
+            ),
+            if (showPrice) ...[
+              SizedBox(height: 10 * s),
               Text(
                 priceDelta > 0
                     ? '+${PriceConverterHelper.convertPrice(priceDelta)}'
                     : '',
                 style: swiss721Light.copyWith(
-                    fontSize: 28 * s, color: Colors.black54),
+                    fontSize: 26 * s, color: Colors.black54),
               ),
             ],
-          ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+/// Vessel artwork: a bundled asset when the option is a recognised cup/can,
+/// otherwise whatever image the variation itself was given.
+class _VesselImage extends StatelessWidget {
+  final String? assetImage;
+  final String image;
+  const _VesselImage({required this.assetImage, required this.image});
+
+  @override
+  Widget build(BuildContext context) {
+    final String? asset = assetImage;
+    if (asset != null) {
+      return Image.asset(
+        asset,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, __, ___) =>
+            _OptionImageSlot(image: image, fit: BoxFit.contain),
+      );
+    }
+    return _OptionImageSlot(image: image, fit: BoxFit.contain);
+  }
+}
+
+/// Filled tick when chosen, an empty ring when not — so an untouched required
+/// group visibly reads as "nothing picked yet".
+class _CupCanTick extends StatelessWidget {
+  final double s;
+  final bool selected;
+  const _CupCanTick({required this.s, required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    final double size = (44 * s).clamp(20.0, 40.0);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? _kCardBorderSelected : Colors.transparent,
+        border: Border.all(
+          color: selected ? _kCardBorderSelected : _kCardBorder,
+          width: (3 * s).clamp(1.5, 2.5),
+        ),
+      ),
+      child: selected
+          ? Icon(Icons.check_rounded,
+              size: size * 0.62, color: Colors.white)
+          : null,
     );
   }
 }
@@ -1523,6 +1675,7 @@ class _WideCustomizeLayoutState extends State<_WideCustomizeLayout> {
                               variationIndex: entry.key,
                               product: product,
                               productProvider: productProvider,
+                              useVesselArt: true,
                             ),
                         ],
                       ),
@@ -1672,11 +1825,17 @@ class _WideVariationSection extends StatelessWidget {
   final Product product;
   final ProductProvider productProvider;
 
+  /// Only the cup/can group opts into bundled artwork. Matching every group by
+  /// name would misfire on ordinary options that merely contain "can" or "cup"
+  /// (a "Pecan" syrup, say).
+  final bool useVesselArt;
+
   const _WideVariationSection({
     required this.variation,
     required this.variationIndex,
     required this.product,
     required this.productProvider,
+    this.useVesselArt = false,
   });
 
   @override
@@ -1704,9 +1863,11 @@ class _WideVariationSection extends StatelessWidget {
               final bool selected =
                   productProvider.selectedVariations[variationIndex][i] ??
                       false;
+              final String label = values[i].level?.trim() ?? '';
               return _WideOptionCard(
-                name: values[i].level?.trim() ?? '',
+                name: label,
                 priceDelta: values[i].optionPrice ?? 0,
+                assetImage: useVesselArt ? _localVesselAsset(label) : null,
                 image: KioskProductImageHelper.optionCardImageUrl(
                   value: values[i],
                   productImageBaseUrl: splash.baseUrls?.productImageUrl,
@@ -1819,6 +1980,10 @@ class _WideOptionCard extends StatelessWidget {
   final String name;
   final double priceDelta;
   final String image;
+
+  /// Bundled vessel artwork, set only for the cup/can group. Drawn with
+  /// `contain` rather than `cover` so a transparent PNG is not cropped.
+  final String? assetImage;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1826,6 +1991,7 @@ class _WideOptionCard extends StatelessWidget {
     required this.name,
     required this.priceDelta,
     required this.image,
+    this.assetImage,
     required this.selected,
     required this.onTap,
   });
@@ -1856,7 +2022,9 @@ class _WideOptionCard extends StatelessWidget {
                   Expanded(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: _OptionImageSlot(image: image, fit: BoxFit.cover),
+                      child: assetImage != null
+                          ? _VesselImage(assetImage: assetImage, image: image)
+                          : _OptionImageSlot(image: image, fit: BoxFit.cover),
                     ),
                   ),
                   const SizedBox(height: 6),
