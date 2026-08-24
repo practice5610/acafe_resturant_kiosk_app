@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
@@ -14,6 +16,7 @@ import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
+import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -175,6 +178,7 @@ class KioskProductCustomizeScreen extends StatefulWidget {
   final Product product;
   final int? cartIndex;
   final String? initialInstruction;
+
   /// When true, saving replaces this product's cart line and drops any other
   /// leftover lines for the same product (menu tap reopened an existing item).
   final bool replaceOtherProductLines;
@@ -194,6 +198,7 @@ class KioskProductCustomizeScreen extends StatefulWidget {
 class _KioskProductCustomizeScreenState
     extends State<KioskProductCustomizeScreen> {
   late final TextEditingController _instructionController;
+  final ScrollController _optionsScrollController = ScrollController();
 
   Product get product => widget.product;
   int? get cartIndex => widget.cartIndex;
@@ -208,6 +213,7 @@ class _KioskProductCustomizeScreenState
   @override
   void dispose() {
     _instructionController.dispose();
+    _optionsScrollController.dispose();
     super.dispose();
   }
 
@@ -326,20 +332,42 @@ class _KioskProductCustomizeScreenState
             return LayoutBuilder(
               builder: (context, constraints) {
                 final double s = KioskResponsive.scale(constraints.maxWidth);
+                // A portrait kiosk can afford the full-height hero; a medium
+                // tablet or a resized browser window cannot — there the header
+                // collapses into a compact row so the options keep the screen.
+                final bool compactHeader =
+                    constraints.maxHeight < constraints.maxWidth * 1.3;
                 return KioskCenteredContent(
                   child: Column(
                     children: [
+                      // Product image, name, description and the quantity
+                      // stepper stay put — only the options below them scroll.
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(86 * s, 30 * s, 86 * s, 0),
+                        child: compactHeader
+                            ? _CompactHeader(
+                                s: s,
+                                viewportHeight: constraints.maxHeight,
+                                product: product,
+                                productProvider: productProvider,
+                              )
+                            : _Header(
+                                s: s,
+                                product: product,
+                                productProvider: productProvider),
+                      ),
                       Expanded(
-                        child: SingleChildScrollView(
-                          padding: EdgeInsets.fromLTRB(
-                              86 * s, 30 * s, 86 * s, 30 * s),
+                        child: _OptionsScrollArea(
+                          controller: _optionsScrollController,
+                          padding:
+                              EdgeInsets.fromLTRB(86 * s, 0, 86 * s, 30 * s),
+                          thickness: 30 * s,
+                          minThumbLength: 160 * s,
+                          scrollbarPadding:
+                              EdgeInsets.fromLTRB(0, 0, 24 * s, 30 * s),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _Header(
-                                  s: s,
-                                  product: product,
-                                  productProvider: productProvider),
                               if (sizeVariations.isNotEmpty)
                                 _SizeOptionsPanel(
                                   s: s,
@@ -368,12 +396,17 @@ class _KioskProductCustomizeScreenState
                                   product: product,
                                   productProvider: productProvider,
                                 ),
-                              _InstructionsSection(
-                                s: s,
-                                controller: _instructionController,
-                              ),
                             ],
                           ),
+                        ),
+                      ),
+                      // Instructions + Add to cart stay pinned; only the
+                      // variations / add-ons above them scroll.
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 86 * s),
+                        child: _InstructionsSection(
+                          s: s,
+                          controller: _instructionController,
                         ),
                       ),
                       _AddToCartBar(
@@ -458,6 +491,89 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// Header for short / medium viewports (landscape tablets, resized windows).
+///
+/// The photo shrinks to a small square and the name, description and stepper
+/// sit beside it, so the variations and add-ons below get most of the height
+/// instead of a hero image that pushes them off-screen.
+class _CompactHeader extends StatelessWidget {
+  final double s;
+  final double viewportHeight;
+  final Product product;
+  final ProductProvider productProvider;
+  const _CompactHeader({
+    required this.s,
+    required this.viewportHeight,
+    required this.product,
+    required this.productProvider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    final String heroImage = KioskProductImageHelper.heroImageUrl(
+      product: product,
+      productImageBaseUrl: splash.baseUrls?.productImageUrl,
+    );
+    final String description =
+        (product.description ?? '').replaceAll(RegExp(r'<[^>]*>'), '').trim();
+    // Never let the photo eat more than a quarter of the viewport.
+    final double imageSize = math.min(460 * s, viewportHeight * 0.25);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        KioskBackButton.scaled(
+          s: s,
+          size: 110,
+          border: 2,
+          icon: 46,
+          fallback: RouterHelper.getKioskMenuRoute,
+        ),
+        SizedBox(width: 28 * s),
+        SizedBox(
+          width: imageSize,
+          height: imageSize,
+          child: CustomImageWidget(
+            key: ValueKey(heroImage),
+            placeholder: Images.placeholderImage,
+            image: heroImage,
+            fit: BoxFit.contain,
+          ),
+        ),
+        SizedBox(width: 36 * s),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                product.name ?? '',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: loewExtraBold.copyWith(
+                    fontSize: 56 * s, color: Colors.black),
+              ),
+              if (description.isNotEmpty) ...[
+                SizedBox(height: 10 * s),
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: scotchDisplayLight.copyWith(
+                      fontSize: 30 * s, height: 1.2, color: Colors.black87),
+                ),
+              ],
+              SizedBox(height: 18 * s),
+              _QuantityStepper(s: s, productProvider: productProvider),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _QuantityStepper extends StatelessWidget {
   final double s;
   final ProductProvider productProvider;
@@ -468,6 +584,7 @@ class _QuantityStepper extends StatelessWidget {
     final int qty = productProvider.quantity ?? 1;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         _StepperButton(
           s: s,
@@ -527,6 +644,111 @@ class _StepperButton extends StatelessWidget {
             style: loewExtraBold.copyWith(
                 fontSize: 70 * s, color: filled ? _kCreamText : Colors.black),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Scrollable options area (variations / add-ons) with a kiosk-sized scrollbar
+/// that is visible from the first frame — the guest should see that the list
+/// scrolls without having to drag it first.
+///
+/// The thumb is only painted when the content is actually taller than the
+/// viewport, so a product whose options all fit shows no indicator at all.
+class _OptionsScrollArea extends StatefulWidget {
+  final ScrollController controller;
+  final EdgeInsets padding;
+  final double thickness;
+  final double minThumbLength;
+  final EdgeInsets scrollbarPadding;
+  final Widget child;
+
+  const _OptionsScrollArea({
+    required this.controller,
+    required this.padding,
+    required this.thickness,
+    required this.minThumbLength,
+    required this.scrollbarPadding,
+    required this.child,
+  });
+
+  @override
+  State<_OptionsScrollArea> createState() => _OptionsScrollAreaState();
+}
+
+class _OptionsScrollAreaState extends State<_OptionsScrollArea> {
+  @override
+  void initState() {
+    super.initState();
+    _revealScrollbar();
+  }
+
+  @override
+  void didUpdateWidget(covariant _OptionsScrollArea oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Selecting an option can grow / shrink the list, so re-check.
+    _revealScrollbar();
+  }
+
+  /// [RawScrollbar] fades its thumb in only once it sees a scroll notification,
+  /// which means an untouched screen can render with no indicator at all even
+  /// though `thumbVisibility` is on. Emitting a zero-delta scroll update after
+  /// the frame settles makes the thumb appear straight away.
+  void _revealScrollbar() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ScrollController controller = widget.controller;
+      if (!controller.hasClients) return;
+      final ScrollPosition position = controller.position;
+      if (!position.hasContentDimensions) return;
+      position.didUpdateScrollPositionBy(0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScrollConfiguration(
+      // Drop the thin scrollbar the desktop/web scroll behavior adds, so only
+      // the kiosk-sized one below is drawn.
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: RawScrollbar(
+        controller: widget.controller,
+        thumbVisibility: true,
+        trackVisibility: true,
+        interactive: true,
+        thickness: widget.thickness,
+        radius: Radius.circular(widget.thickness),
+        minThumbLength: widget.minThumbLength,
+        padding: widget.scrollbarPadding,
+        // Warm brand tones instead of a black bar: tan thumb on the cream
+        // card-border colour, so the indicator sits inside the kiosk palette.
+        thumbColor: BrandColors.secondary,
+        trackColor: BrandColors.cardBorder.withValues(alpha: 0.55),
+        trackBorderColor: Colors.transparent,
+        trackRadius: Radius.circular(widget.thickness),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // When the options are shorter than the area, centre them instead
+            // of pinning them to the top — otherwise short products leave a
+            // large empty band above the Instructions panel.
+            final double minHeight = math.max(
+              0,
+              constraints.maxHeight - widget.padding.vertical,
+            );
+            return SingleChildScrollView(
+              controller: widget.controller,
+              padding: widget.padding,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: minHeight),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [widget.child],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1136,7 +1358,7 @@ class _AddToCartBar extends StatelessWidget {
 }
 
 /// Two-column product detail for wide screens (image left 480px, options right).
-class _WideCustomizeLayout extends StatelessWidget {
+class _WideCustomizeLayout extends StatefulWidget {
   final Product product;
   final ProductProvider productProvider;
   final List<MapEntry<int, Variation>> sizeVariations;
@@ -1154,6 +1376,30 @@ class _WideCustomizeLayout extends StatelessWidget {
     required this.instructionController,
     required this.onAddToCart,
   });
+
+  @override
+  State<_WideCustomizeLayout> createState() => _WideCustomizeLayoutState();
+}
+
+class _WideCustomizeLayoutState extends State<_WideCustomizeLayout> {
+  final ScrollController _optionsScrollController = ScrollController();
+
+  Product get product => widget.product;
+  ProductProvider get productProvider => widget.productProvider;
+  List<MapEntry<int, Variation>> get sizeVariations => widget.sizeVariations;
+  List<MapEntry<int, Variation>> get dietaryVariations =>
+      widget.dietaryVariations;
+  List<MapEntry<int, Variation>> get cupCanVariations =>
+      widget.cupCanVariations;
+  TextEditingController get instructionController =>
+      widget.instructionController;
+  VoidCallback get onAddToCart => widget.onAddToCart;
+
+  @override
+  void dispose() {
+    _optionsScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1201,43 +1447,58 @@ class _WideCustomizeLayout extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Name, description and the quantity stepper stay put — only
+                  // the variations / add-ons below them scroll.
+                  Padding(
+                    padding: const EdgeInsets.only(right: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          product.name ?? '',
+                          style: loewExtraBold.copyWith(
+                            fontSize: KioskUI.heading,
+                            color: Colors.black,
+                          ),
+                        ),
+                        if (description.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            description,
+                            style: scotchDisplayLight.copyWith(
+                              fontSize: KioskUI.body,
+                              height: 1.3,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        Center(
+                          child: KioskQtyStepper(
+                            quantity: productProvider.quantity ?? 1,
+                            onDecrement: () {
+                              if ((productProvider.quantity ?? 1) > 1) {
+                                productProvider.setQuantity(false);
+                              }
+                            },
+                            onIncrement: () =>
+                                productProvider.setQuantity(true),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
                   Expanded(
-                    child: SingleChildScrollView(
+                    child: _OptionsScrollArea(
+                      controller: _optionsScrollController,
+                      padding: const EdgeInsets.only(right: 20),
+                      thickness: 10,
+                      minThumbLength: 56,
+                      scrollbarPadding: EdgeInsets.zero,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            product.name ?? '',
-                            style: loewExtraBold.copyWith(
-                              fontSize: KioskUI.heading,
-                              color: Colors.black,
-                            ),
-                          ),
-                          if (description.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              description,
-                              style: scotchDisplayLight.copyWith(
-                                fontSize: KioskUI.body,
-                                height: 1.3,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                          Center(
-                            child: KioskQtyStepper(
-                              quantity: productProvider.quantity ?? 1,
-                              onDecrement: () {
-                                if ((productProvider.quantity ?? 1) > 1) {
-                                  productProvider.setQuantity(false);
-                                }
-                              },
-                              onIncrement: () =>
-                                  productProvider.setQuantity(true),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
                           if (sizeVariations.isNotEmpty)
                             _WideSizeOptionsSection(
                               entries: sizeVariations,
@@ -1263,14 +1524,16 @@ class _WideCustomizeLayout extends StatelessWidget {
                               product: product,
                               productProvider: productProvider,
                             ),
-                          _WideInstructionsSection(
-                            controller: instructionController,
-                          ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // Instructions + Add to cart stay pinned; only the
+                  // variations / add-ons above them scroll.
+                  _WideInstructionsSection(
+                    controller: instructionController,
+                  ),
                   KioskButton(
                     label:
                         getTranslated('add_to_cart', context)?.toUpperCase() ??

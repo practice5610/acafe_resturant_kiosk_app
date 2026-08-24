@@ -9,12 +9,11 @@ import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
-import 'package:video_player/video_player.dart';
 
-/// Kiosk intro screen — a full-screen background video with the white A/CAFÉ
-/// logo pinned to the top, a "FOLLOW THE INSTRUCTIONS" prompt in the middle and
-/// an animated down-arrow at the bottom (per the Figma "Overlay-Content"
-/// design). Tapping anywhere on the screen goes to the menu.
+/// Kiosk intro screen — a full-screen background image with the black A/CAFÉ
+/// logo pinned to the top, a "TOUCH TO ORDER" prompt in the middle and an
+/// animated down-arrow at the bottom (per the Figma "Overlay-Content" design).
+/// Tapping anywhere on the screen goes to the menu.
 ///
 /// Menu data (categories + products) is prefetched in the background so the
 /// menu screen renders instantly when the user taps to continue.
@@ -26,52 +25,41 @@ class KioskWelcomeScreen extends StatefulWidget {
 }
 
 class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
-  static const String _videoAsset = 'assets/video/kiosk_intro.mp4';
+  static const String _introImageAsset = 'assets/video/kiosk_intro_Image.png';
+  static const AssetImage _introImage = AssetImage(_introImageAsset);
 
-  VideoPlayerController? _controller;
-  bool _videoReady = false;
+  bool _imageReady = false;
   bool _orderLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _initVideo();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startMenuPrefetch());
   }
 
-  Future<void> _initVideo() async {
-    final controller = VideoPlayerController.asset(_videoAsset);
-    try {
-      await controller.initialize();
-      await controller.setLooping(true);
-      await controller.setVolume(0);
-      await controller.play();
-      if (!mounted) {
-        controller.dispose();
-        return;
-      }
-      setState(() {
-        _controller = controller;
-        _videoReady = true;
-      });
-    } catch (_) {
-      // No video asset bundled (or it failed to load) -> use the fallback
-      // background instead of crashing the kiosk.
-      controller.dispose();
-      if (mounted) setState(() => _videoReady = false);
-    }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _precacheIntro();
   }
 
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
+  Future<void> _precacheIntro() async {
+    if (_imageReady) return;
+    try {
+      await precacheImage(_introImage, context);
+    } catch (_) {
+      // Asset missing or failed to decode -> keep the solid dark background
+      // instead of crashing the kiosk.
+      return;
+    }
+    if (mounted) setState(() => _imageReady = true);
   }
 
   void _startMenuPrefetch() {
     if (!mounted) return;
-    final locale =
-        Provider.of<LocalizationProvider>(context, listen: false).locale.languageCode;
+    final locale = Provider.of<LocalizationProvider>(context, listen: false)
+        .locale
+        .languageCode;
     final categories = Provider.of<CategoryProvider>(context, listen: false);
     final splash = Provider.of<SplashProvider>(context, listen: false);
 
@@ -86,8 +74,9 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     if (_orderLoading) return;
     setState(() => _orderLoading = true);
 
-    final locale =
-        Provider.of<LocalizationProvider>(context, listen: false).locale.languageCode;
+    final locale = Provider.of<LocalizationProvider>(context, listen: false)
+        .locale
+        .languageCode;
     final categories = Provider.of<CategoryProvider>(context, listen: false);
     final splash = Provider.of<SplashProvider>(context, listen: false);
 
@@ -123,8 +112,8 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
         ? 28.0
         : (size.width * 0.054).clamp(20.0, 150.0);
     final double arrowSize = Responsive.isWide(context)
-        ? 80.0
-        : (size.height * 0.12).clamp(52.0, 300.0);
+        ? 140.0
+        : (size.height * 0.19).clamp(90.0, 440.0);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -134,11 +123,11 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Background: video if available, otherwise a solid dark fill.
+            // Background: intro image if available, otherwise a solid dark fill.
             _buildBackground(),
 
             // Gentle top + bottom dark scrim so the logo, prompt and arrow stay
-            // readable over the (potentially bright) video.
+            // readable over the (potentially bright) image.
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -161,19 +150,23 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
                 child: Column(
                   children: [
                     SizedBox(height: size.height * 0.035),
-                    // A/CAFÉ white logo pinned to the top.
+                    // A/CAFÉ logo pinned to the top (white artwork tinted black).
                     SvgPicture.asset(
                       Images.kioskLogoWhiteSvg,
                       width: logoWidth,
                       fit: BoxFit.contain,
+                      colorFilter: const ColorFilter.mode(
+                        Colors.black,
+                        BlendMode.srcIn,
+                      ),
                     ),
                     const Spacer(),
                     // Center prompt.
                     Text(
-                      'FOLLOW THE INSTRUCTIONS',
+                      'TOUCH TO ORDER',
                       textAlign: TextAlign.center,
                       style: loewExtraBold.copyWith(
-                        color: Colors.white,
+                        color: Colors.black,
                         fontSize: instructionFont,
                         height: 1.1,
                       ),
@@ -190,14 +183,17 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
                                 height: 40,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 3,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.black),
                                 ),
                               )
                             : Image.asset(
                                 Images.kioskDownArrow,
+                                width: arrowSize,
                                 height: arrowSize,
                                 fit: BoxFit.contain,
+                                color: Colors.black,
+                                colorBlendMode: BlendMode.srcIn,
                               ),
                       ),
                     ),
@@ -213,26 +209,22 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   }
 
   Widget _buildBackground() {
-    final bool ready = _videoReady && _controller != null;
-    // Solid background that matches the video's dark first frame — no default
-    // image is ever shown, so there is no poster->video swap/flicker. The video
-    // then fades in once initialized and the first frame is ready.
+    // Solid dark background shown until the intro image is decoded — no default
+    // image is ever shown, so there is no swap/flicker. The intro then fades in
+    // once it is fully in the image cache.
     return Stack(
       fit: StackFit.expand,
       children: [
         const ColoredBox(color: Colors.black),
         AnimatedOpacity(
-          opacity: ready ? 1 : 0,
+          opacity: _imageReady ? 1 : 0,
           duration: const Duration(milliseconds: 400),
-          child: ready
-              ? FittedBox(
+          child: _imageReady
+              ? const Image(
+                  image: _introImage,
                   fit: BoxFit.cover,
-                  clipBehavior: Clip.hardEdge,
-                  child: SizedBox(
-                    width: _controller!.value.size.width,
-                    height: _controller!.value.size.height,
-                    child: VideoPlayer(_controller!),
-                  ),
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.medium,
                 )
               : const SizedBox.shrink(),
         ),

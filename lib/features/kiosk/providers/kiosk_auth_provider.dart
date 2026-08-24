@@ -95,11 +95,17 @@ class KioskAuthProvider extends ChangeNotifier {
           category: device['category']?.toString(),
         );
       }
+      // ProductRealtimeScope watches this provider, so the restored session has
+      // to announce itself -- otherwise a device that admin re-bound to another
+      // branch keeps listening on the old branch's channel. login() and
+      // logout() already notify; this path was the only one that did not.
+      notifyListeners();
       return true;
     }
 
     // Revoked / inactive / network-invalid token: wipe so the kiosk re-logs in.
     await kioskAuthRepo.clearSession();
+    notifyListeners();
     return false;
   }
 

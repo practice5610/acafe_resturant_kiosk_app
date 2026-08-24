@@ -36,7 +36,15 @@ class ProductRealtimeGateway {
     if (!config.isUsable || branchId <= 0) {
       return;
     }
-    if (_wantConnected && _branchId == branchId && isConnected) {
+    // The endpoint has to match too. isConnected can read true while nothing
+    // is actually connected -- _subscribed is set optimistically by the 400ms
+    // fallback in _open() -- so against a host that hangs rather than refuses,
+    // comparing the branch alone would skip the reconnect a corrected config
+    // needs.
+    if (_wantConnected &&
+        _branchId == branchId &&
+        _config?.socketUri == config.socketUri &&
+        isConnected) {
       return;
     }
 
@@ -173,7 +181,11 @@ class ProductRealtimeGateway {
 
   Future<void> disconnect() async {
     _wantConnected = false;
-    _connectedOnce = false;
+    // _connectedOnce deliberately survives a disconnect. The gateway is a
+    // session-long singleton, so the flag means "already subscribed once this
+    // session" -- the predicate for reconciling a gap on the next subscribe.
+    // Clearing it made every pause/resume look like a first connect and
+    // silently skipped the syncMenu reconciliation.
     _channelName = null;
     _branchId = null;
     _config = null;

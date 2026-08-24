@@ -20,6 +20,7 @@ class ProductRealtimeScope extends StatefulWidget {
 
 class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
   int? _startedForBranch;
+  String? _startedForEndpoint;
 
   @override
   void initState() {
@@ -46,13 +47,36 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
       if (_startedForBranch != null) {
         await controller.stop();
         _startedForBranch = null;
+        _startedForEndpoint = null;
       }
       return;
     }
-    if (_startedForBranch == branchId) {
+
+    // Config is served cache-first at boot (see DataSyncRepo), so the stale
+    // cached copy can carry an old Reverb host while the fresh one lands
+    // moments later. Comparing the branch alone would skip that swap and leave
+    // the socket retrying a dead endpoint for the rest of the session.
+    final endpoint = config.socketUri?.toString();
+    if (_startedForBranch == branchId && _startedForEndpoint == endpoint) {
       return;
     }
+
+    // Resolve providers before the await so context is not used across it.
+    final categories = context.read<CategoryProvider>();
+    final cart = context.read<CartProvider>();
+    final localization = context.read<LocalizationProvider>();
+
+    // Claim the slot before any await. _sync() runs from a post-frame callback
+    // on every rebuild, so a concurrent call must early-return rather than open
+    // a second connection.
+    final bool restarting = _startedForBranch != null;
     _startedForBranch = branchId;
+    _startedForEndpoint = endpoint;
+
+    if (restarting) {
+      await controller.stop();
+      if (!mounted) return;
+    }
     if (kDebugMode) {
       debugPrint(
         'ProductRealtimeScope connecting branch=$branchId '
@@ -62,9 +86,9 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
     await controller.start(
       config: config,
       branchId: branchId,
-      categories: context.read<CategoryProvider>(),
-      cart: context.read<CartProvider>(),
-      localization: context.read<LocalizationProvider>(),
+      categories: categories,
+      cart: cart,
+      localization: localization,
     );
   }
 
