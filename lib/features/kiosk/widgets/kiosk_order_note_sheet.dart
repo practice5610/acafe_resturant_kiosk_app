@@ -107,7 +107,8 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
 
   void _insert(String value) {
     final TextSelection sel = _selection;
-    final String text = _controller.text.replaceRange(sel.start, sel.end, value);
+    final String text =
+        _controller.text.replaceRange(sel.start, sel.end, value);
     if (text.length > _kNoteMaxLength) return;
     setState(() {
       if (value.trim().isNotEmpty) _shift = false;
@@ -181,7 +182,8 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
                 // a tablet and a resized browser window alike.
                 final double width = constraints.maxWidth;
                 final double gutter = (width * 0.035).clamp(10.0, 28.0);
-                final double cardWidth = (width - gutter * 2).clamp(280.0, 900.0);
+                final double cardWidth =
+                    (width - gutter * 2).clamp(280.0, 900.0);
 
                 return Column(
                   children: [
@@ -383,8 +385,29 @@ class _KeyboardPanel extends StatelessWidget {
     required this.onContinue,
   });
 
-  static const List<String> _row1 = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
-  static const List<String> _row2 = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
+  static const List<String> _row1 = [
+    'q',
+    'w',
+    'e',
+    'r',
+    't',
+    'y',
+    'u',
+    'i',
+    'o',
+    'p'
+  ];
+  static const List<String> _row2 = [
+    'a',
+    's',
+    'd',
+    'f',
+    'g',
+    'h',
+    'j',
+    'k',
+    'l'
+  ];
   static const List<String> _row3 = ['z', 'x', 'c', 'v', 'b', 'n', 'm'];
 
   @override
@@ -571,8 +594,7 @@ class _Key extends StatelessWidget {
         ),
         child: icon != null
             ? Icon(icon,
-                size: fontSize * 1.15,
-                color: dark ? Colors.white : _kNoteText)
+                size: fontSize * 1.15, color: dark ? Colors.white : _kNoteText)
             : Text(
                 label ?? '',
                 maxLines: 1,

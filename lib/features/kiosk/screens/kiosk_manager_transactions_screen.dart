@@ -15,10 +15,12 @@ class KioskManagerTransactionsScreen extends StatefulWidget {
   const KioskManagerTransactionsScreen({super.key});
 
   @override
-  State<KioskManagerTransactionsScreen> createState() => _KioskManagerTransactionsScreenState();
+  State<KioskManagerTransactionsScreen> createState() =>
+      _KioskManagerTransactionsScreenState();
 }
 
-class _KioskManagerTransactionsScreenState extends State<KioskManagerTransactionsScreen> {
+class _KioskManagerTransactionsScreenState
+    extends State<KioskManagerTransactionsScreen> {
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -38,7 +40,8 @@ class _KioskManagerTransactionsScreenState extends State<KioskManagerTransaction
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 400) {
       final provider = context.read<KioskManagerProvider>();
       if (!provider.transactionsLoading && provider.hasMoreTransactions) {
         provider.loadTransactions(reset: false);
@@ -65,8 +68,10 @@ class _KioskManagerTransactionsScreenState extends State<KioskManagerTransaction
                   Expanded(
                     child: Consumer<KioskManagerProvider>(
                       builder: (context, provider, _) {
-                        if (provider.transactionsLoading && provider.transactions.isEmpty) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (provider.transactionsLoading &&
+                            provider.transactions.isEmpty) {
+                          return const Center(
+                              child: CircularProgressIndicator());
                         }
                         if (provider.transactions.isEmpty) {
                           return Center(
@@ -76,17 +81,21 @@ class _KioskManagerTransactionsScreenState extends State<KioskManagerTransaction
                         }
                         return ListView.separated(
                           controller: _scrollController,
-                          padding: EdgeInsets.fromLTRB(132 * s, 0, 132 * s, 60 * s),
-                          itemCount: provider.transactions.length + (provider.hasMoreTransactions ? 1 : 0),
+                          padding:
+                              EdgeInsets.fromLTRB(132 * s, 0, 132 * s, 60 * s),
+                          itemCount: provider.transactions.length +
+                              (provider.hasMoreTransactions ? 1 : 0),
                           separatorBuilder: (_, __) => SizedBox(height: 16 * s),
                           itemBuilder: (context, index) {
                             if (index >= provider.transactions.length) {
                               return Padding(
                                 padding: EdgeInsets.symmetric(vertical: 40 * s),
-                                child: const Center(child: CircularProgressIndicator()),
+                                child: const Center(
+                                    child: CircularProgressIndicator()),
                               );
                             }
-                            return _TransactionRow(s: s, order: provider.transactions[index]);
+                            return _TransactionRow(
+                                s: s, order: provider.transactions[index]);
                           },
                         );
                       },
@@ -147,9 +156,12 @@ class _TransactionRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('#${order['id']}',
-                    style: loewBold.copyWith(fontSize: 32 * s, color: Colors.black)),
+                    style: loewBold.copyWith(
+                        fontSize: 32 * s, color: Colors.black)),
                 SizedBox(height: 4 * s),
-                Text(time, style: loewRegular.copyWith(fontSize: 26 * s, color: Colors.black54)),
+                Text(time,
+                    style: loewRegular.copyWith(
+                        fontSize: 26 * s, color: Colors.black54)),
               ],
             ),
           ),
@@ -160,18 +172,22 @@ class _TransactionRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(30 * s),
             ),
             child: Text(channelLabel,
-                style: loewBold.copyWith(fontSize: 24 * s, color: channelColor)),
+                style:
+                    loewBold.copyWith(fontSize: 24 * s, color: channelColor)),
           ),
           SizedBox(width: 20 * s),
           Expanded(
             child: Text(
               '${order['item_count'] ?? 0} items · ${order['payment_method'] ?? '-'}',
-              style: loewRegular.copyWith(fontSize: 28 * s, color: Colors.black87),
+              style:
+                  loewRegular.copyWith(fontSize: 28 * s, color: Colors.black87),
             ),
           ),
           Text(
-            PriceConverterHelper.convertPrice((order['order_amount'] as num?)?.toDouble()),
-            style: loewExtraBold.copyWith(fontSize: 32 * s, color: Colors.black),
+            PriceConverterHelper.convertPrice(
+                (order['order_amount'] as num?)?.toDouble()),
+            style:
+                loewExtraBold.copyWith(fontSize: 32 * s, color: Colors.black),
           ),
         ],
       ),

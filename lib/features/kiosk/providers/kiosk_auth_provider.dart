@@ -41,7 +41,8 @@ class KioskAuthProvider extends ChangeNotifier {
         await kioskAuthRepo.login(username.trim(), password);
     ResponseModel responseModel;
 
-    if (apiResponse.response != null && apiResponse.response!.statusCode == 200) {
+    if (apiResponse.response != null &&
+        apiResponse.response!.statusCode == 200) {
       final Map data = apiResponse.response!.data;
       final String token = data['token'];
       final Map branch = data['branch'] ?? {};
@@ -55,12 +56,15 @@ class KioskAuthProvider extends ChangeNotifier {
         branchName: branch['name']?.toString(),
         deviceName: device['name']?.toString(),
         username: device['username']?.toString(),
-        deviceId: device['id'] is int ? device['id'] : int.tryParse('${device['id']}'),
+        deviceId: device['id'] is int
+            ? device['id']
+            : int.tryParse('${device['id']}'),
         category: device['category']?.toString(),
       );
       responseModel = ResponseModel(true, 'logged_in');
     } else {
-      _loginError = ApiCheckerHelper.getError(apiResponse).errors![0].message ?? '';
+      _loginError =
+          ApiCheckerHelper.getError(apiResponse).errors![0].message ?? '';
       responseModel = ResponseModel(false, _loginError);
     }
 
@@ -77,7 +81,8 @@ class KioskAuthProvider extends ChangeNotifier {
     }
 
     final ApiResponseModel apiResponse = await kioskAuthRepo.getMe();
-    if (apiResponse.response != null && apiResponse.response!.statusCode == 200) {
+    if (apiResponse.response != null &&
+        apiResponse.response!.statusCode == 200) {
       final Map data = apiResponse.response!.data;
       final Map branch = data['branch'] ?? {};
       final Map device = data['device'] ?? {};
@@ -91,7 +96,9 @@ class KioskAuthProvider extends ChangeNotifier {
           branchName: branch['name']?.toString(),
           deviceName: device['name']?.toString(),
           username: device['username']?.toString(),
-          deviceId: device['id'] is int ? device['id'] : int.tryParse('${device['id']}'),
+          deviceId: device['id'] is int
+              ? device['id']
+              : int.tryParse('${device['id']}'),
           category: device['category']?.toString(),
         );
       }

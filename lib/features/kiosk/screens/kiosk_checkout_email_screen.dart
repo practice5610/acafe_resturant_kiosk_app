@@ -10,7 +10,8 @@ class KioskCheckoutEmailScreen extends StatefulWidget {
   const KioskCheckoutEmailScreen({super.key});
 
   @override
-  State<KioskCheckoutEmailScreen> createState() => _KioskCheckoutEmailScreenState();
+  State<KioskCheckoutEmailScreen> createState() =>
+      _KioskCheckoutEmailScreenState();
 }
 
 class _KioskCheckoutEmailScreenState extends State<KioskCheckoutEmailScreen> {
@@ -22,7 +23,8 @@ class _KioskCheckoutEmailScreenState extends State<KioskCheckoutEmailScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _focusNode.requestFocus());
   }
 
   @override
@@ -53,17 +55,21 @@ class _KioskCheckoutEmailScreenState extends State<KioskCheckoutEmailScreen> {
     return KioskCheckoutScaffold(
       activeStep: 1,
       title: getTranslated('want_a_receipt', context) ?? 'Want a receipt?',
-      subtitle: getTranslated('well_send_your_receipt_to_this_address', context) ??
-          "We'll send your receipt to this address.",
+      subtitle:
+          getTranslated('well_send_your_receipt_to_this_address', context) ??
+              "We'll send your receipt to this address.",
       subtitleFontSize: 44,
       fieldBuilder: (s) => KioskCheckoutField(
         s: s,
-        label: getTranslated('email_optional', context)?.toUpperCase() ?? 'EMAIL (OPTIONAL)',
-        hint: getTranslated('enter_your_email', context)?.toUpperCase() ?? 'ENTER YOUR EMAIL',
+        label: getTranslated('email_optional', context)?.toUpperCase() ??
+            'EMAIL (OPTIONAL)',
+        hint: getTranslated('enter_your_email', context)?.toUpperCase() ??
+            'ENTER YOUR EMAIL',
         controller: _controller,
         focusNode: _focusNode,
         hasError: _showError,
-        errorText: getTranslated('email_not_correct', context) ?? 'Email not correct',
+        errorText:
+            getTranslated('email_not_correct', context) ?? 'Email not correct',
         keyboardType: TextInputType.emailAddress,
         onChanged: (_) {
           if (_showError) setState(() => _showError = false);

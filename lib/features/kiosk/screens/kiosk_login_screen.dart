@@ -63,7 +63,8 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
 
     if (!mounted) return;
     if (response.isSuccess) {
-      RouterHelper.getKioskWelcomeRoute(action: RouteAction.pushNamedAndRemoveUntil);
+      RouterHelper.getKioskWelcomeRoute(
+          action: RouteAction.pushNamedAndRemoveUntil);
     }
     // On failure the error is shown inline via the provider's loginError.
   }
@@ -77,9 +78,10 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
           builder: (context, constraints) {
             // Form width is capped, so sizes stay comfortable on large screens
             // and shrink only when the screen is narrower than the cap.
-            final double formWidth = constraints.maxWidth < kKioskFormDesignWidth
-                ? constraints.maxWidth
-                : kKioskFormDesignWidth;
+            final double formWidth =
+                constraints.maxWidth < kKioskFormDesignWidth
+                    ? constraints.maxWidth
+                    : kKioskFormDesignWidth;
             final double s = kioskFormScale(formWidth);
 
             return Consumer<KioskAuthProvider>(
@@ -87,22 +89,28 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
                 return SingleChildScrollView(
                   child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: kKioskFormDesignWidth),
+                      constraints:
+                          const BoxConstraints(maxWidth: kKioskFormDesignWidth),
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(40 * s, 64 * s, 40 * s, 56 * s),
+                        padding:
+                            EdgeInsets.fromLTRB(40 * s, 64 * s, 40 * s, 56 * s),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
                               'A/CAFÉ',
                               textAlign: TextAlign.center,
-                              style: loewExtraBold.copyWith(fontSize: 64 * s, letterSpacing: 3 * s, color: Colors.black),
+                              style: loewExtraBold.copyWith(
+                                  fontSize: 64 * s,
+                                  letterSpacing: 3 * s,
+                                  color: Colors.black),
                             ),
                             SizedBox(height: 14 * s),
                             Text(
                               'Device login',
                               textAlign: TextAlign.center,
-                              style: loewMedium.copyWith(fontSize: 26 * s, color: Colors.black),
+                              style: loewMedium.copyWith(
+                                  fontSize: 26 * s, color: Colors.black),
                             ),
                             SizedBox(height: 8 * s),
                             Opacity(
@@ -110,7 +118,10 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
                               child: Text(
                                 'Sign in once to bind this kiosk to its branch.',
                                 textAlign: TextAlign.center,
-                                style: loewRegular.copyWith(fontSize: 18 * s, height: 1.3, color: Colors.black),
+                                style: loewRegular.copyWith(
+                                    fontSize: 18 * s,
+                                    height: 1.3,
+                                    color: Colors.black),
                               ),
                             ),
                             SizedBox(height: 56 * s),
@@ -124,7 +135,8 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
                               errorText: _usernameError,
                               textInputAction: TextInputAction.next,
                               onChanged: (_) {
-                                if (_usernameError != null) setState(() => _usernameError = null);
+                                if (_usernameError != null)
+                                  setState(() => _usernameError = null);
                               },
                               onSubmitted: (_) => _passwordFocus.requestFocus(),
                             ),
@@ -141,14 +153,18 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
                               textInputAction: TextInputAction.done,
                               suffix: IconButton(
                                 icon: Icon(
-                                  _obscure ? Icons.visibility_off : Icons.visibility,
+                                  _obscure
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
                                   color: Colors.black54,
                                   size: 26 * s,
                                 ),
-                                onPressed: () => setState(() => _obscure = !_obscure),
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
                               ),
                               onChanged: (_) {
-                                if (_passwordError != null) setState(() => _passwordError = null);
+                                if (_passwordError != null)
+                                  setState(() => _passwordError = null);
                               },
                               onSubmitted: (_) => _submit(),
                             ),
@@ -214,7 +230,9 @@ class _LoginField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: loewExtraBold.copyWith(fontSize: 22 * s, color: Colors.black)),
+        Text(label,
+            style:
+                loewExtraBold.copyWith(fontSize: 22 * s, color: Colors.black)),
         SizedBox(height: 10 * s),
         Container(
           constraints: BoxConstraints(minHeight: 74 * s),
@@ -224,7 +242,9 @@ class _LoginField extends StatelessWidget {
             borderRadius: BorderRadius.circular(18 * s),
             border: Border.all(
               color: hasError ? kCheckoutErrorRed : kCheckoutHintColor,
-              width: hasError ? (2.5 * s).clamp(1.5, 3.0) : (1.5 * s).clamp(1.0, 2.0),
+              width: hasError
+                  ? (2.5 * s).clamp(1.5, 3.0)
+                  : (1.5 * s).clamp(1.0, 2.0),
             ),
           ),
           child: Row(
@@ -240,12 +260,14 @@ class _LoginField extends StatelessWidget {
                   enableSuggestions: false,
                   textInputAction: textInputAction,
                   cursorColor: Colors.black,
-                  style: loewRegular.copyWith(fontSize: 24 * s, color: Colors.black),
+                  style: loewRegular.copyWith(
+                      fontSize: 24 * s, color: Colors.black),
                   decoration: InputDecoration(
                     isCollapsed: true,
                     border: InputBorder.none,
                     hintText: hint,
-                    hintStyle: loewRegular.copyWith(fontSize: 24 * s, color: kCheckoutHintColor),
+                    hintStyle: loewRegular.copyWith(
+                        fontSize: 24 * s, color: kCheckoutHintColor),
                   ),
                   onChanged: onChanged,
                   onSubmitted: onSubmitted,
@@ -257,7 +279,9 @@ class _LoginField extends StatelessWidget {
         ),
         if (hasError) ...[
           SizedBox(height: 8 * s),
-          Text(errorText!, style: loewMedium.copyWith(fontSize: 16 * s, color: kCheckoutErrorRed)),
+          Text(errorText!,
+              style: loewMedium.copyWith(
+                  fontSize: 16 * s, color: kCheckoutErrorRed)),
         ],
       ],
     );
@@ -276,14 +300,18 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: kCheckoutErrorRed.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18 * s),
-        border: Border.all(color: kCheckoutErrorRed.withValues(alpha: 0.4), width: (1.5 * s).clamp(1.0, 2.0)),
+        border: Border.all(
+            color: kCheckoutErrorRed.withValues(alpha: 0.4),
+            width: (1.5 * s).clamp(1.0, 2.0)),
       ),
       child: Row(
         children: [
           Icon(Icons.error_outline, color: kCheckoutErrorRed, size: 24 * s),
           SizedBox(width: 12 * s),
           Expanded(
-            child: Text(message, style: loewMedium.copyWith(fontSize: 18 * s, height: 1.2, color: kCheckoutErrorRed)),
+            child: Text(message,
+                style: loewMedium.copyWith(
+                    fontSize: 18 * s, height: 1.2, color: kCheckoutErrorRed)),
           ),
         ],
       ),

@@ -49,7 +49,8 @@ class KioskMenuImageHelper {
     for (int d = 1; d <= neighbours; d++) {
       for (final n in [index - d, index + d]) {
         if (n >= 0 && n < list.length) {
-          precacheProducts(context, splash, _productsForIndex(categories, list, n));
+          precacheProducts(
+              context, splash, _productsForIndex(categories, list, n));
         }
       }
     }
@@ -82,8 +83,8 @@ class KioskMenuImageHelper {
     return categories.kioskProductsForCategoryIds([id]);
   }
 
-  static void _precacheCategoryThumbnails(
-      BuildContext context, CategoryProvider categories, SplashProvider splash) {
+  static void _precacheCategoryThumbnails(BuildContext context,
+      CategoryProvider categories, SplashProvider splash) {
     final String? base = splash.baseUrls?.categoryImageUrl;
     if (base == null) return;
     for (final category in categories.categoryList ?? const []) {

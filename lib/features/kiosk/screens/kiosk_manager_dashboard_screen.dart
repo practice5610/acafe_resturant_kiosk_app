@@ -31,16 +31,21 @@ class KioskManagerDashboardScreen extends StatelessWidget {
                     title: 'MANAGER',
                     onBack: () {
                       context.read<KioskManagerProvider>().lockManagerAccess();
-                      final locale = context.read<LocalizationProvider>().locale.languageCode;
+                      final locale = context
+                          .read<LocalizationProvider>()
+                          .locale
+                          .languageCode;
                       context.read<CategoryProvider>().prefetchKioskMenu(
                             localeCode: locale,
                             force: true,
                           );
-                      RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
+                      RouterHelper.getKioskMenuRoute(
+                          action: RouteAction.pushReplacement);
                     },
                   ),
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 132 * s, vertical: 40 * s),
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 132 * s, vertical: 40 * s),
                     // IntrinsicHeight + stretch makes every tile match the
                     // tallest one's REAL rendered content height -- no
                     // guessed fixed height that can overflow if the copy
@@ -58,8 +63,10 @@ class KioskManagerDashboardScreen extends StatelessWidget {
                             child: _ManagerTile(
                               s: s,
                               title: 'SALES OVERVIEW',
-                              subtitle: 'Daily totals, End-of-day report, Do Z Report',
-                              onTap: () => RouterHelper.getKioskManagerSalesOverviewRoute(),
+                              subtitle:
+                                  'Daily totals, End-of-day report, Do Z Report',
+                              onTap: () => RouterHelper
+                                  .getKioskManagerSalesOverviewRoute(),
                             ),
                           ),
                           SizedBox(width: 40 * s),
@@ -68,7 +75,8 @@ class KioskManagerDashboardScreen extends StatelessWidget {
                               s: s,
                               title: 'TRANSACTION HISTORY',
                               subtitle: "Today's branch-wide order list",
-                              onTap: () => RouterHelper.getKioskManagerTransactionsRoute(),
+                              onTap: () => RouterHelper
+                                  .getKioskManagerTransactionsRoute(),
                             ),
                           ),
                           SizedBox(width: 40 * s),
@@ -77,7 +85,8 @@ class KioskManagerDashboardScreen extends StatelessWidget {
                               s: s,
                               title: 'MARK OUT OF STOCK',
                               subtitle: 'Toggle product availability',
-                              onTap: () => RouterHelper.getKioskManagerStockRoute(),
+                              onTap: () =>
+                                  RouterHelper.getKioskManagerStockRoute(),
                             ),
                           ),
                         ],
@@ -133,12 +142,14 @@ class _ManagerTile extends StatelessWidget {
               Text(title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: loewExtraBold.copyWith(fontSize: 56 * s, color: Colors.black)),
+                  style: loewExtraBold.copyWith(
+                      fontSize: 56 * s, color: Colors.black)),
               SizedBox(height: 16 * s),
               Text(subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: loewRegular.copyWith(fontSize: 36 * s, color: Colors.black54)),
+                  style: loewRegular.copyWith(
+                      fontSize: 36 * s, color: Colors.black54)),
             ],
           ),
         ),

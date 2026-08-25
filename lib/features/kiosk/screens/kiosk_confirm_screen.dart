@@ -147,14 +147,13 @@ class _WideConfirmScreen extends StatelessWidget {
           builder: (context, cartProvider, couponProvider, _) {
             final cartList = cartProvider.cartList;
             final double couponDiscount = couponProvider.discount ?? 0;
-            final double total =
-                kioskPayableTotal(cartList, couponDiscount);
+            final double total = kioskPayableTotal(cartList, couponDiscount);
             return Stack(
               children: [
                 Center(
                   child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxWidth: KioskUI.checkoutColumnMaxWidth),
+                    constraints: const BoxConstraints(
+                        maxWidth: KioskUI.checkoutColumnMaxWidth),
                     child: Column(
                       children: [
                         Padding(
@@ -208,7 +207,8 @@ class _WideConfirmScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (placing) const Positioned.fill(child: _WideConfirmedOverlay()),
+                if (placing)
+                  const Positioned.fill(child: _WideConfirmedOverlay()),
               ],
             );
           },

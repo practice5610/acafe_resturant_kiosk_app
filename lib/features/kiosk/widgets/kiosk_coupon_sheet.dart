@@ -53,15 +53,14 @@ class _KioskCouponSheetState extends State<KioskCouponSheet> {
     coupon.removeCouponData(true);
     if (code.isEmpty) {
       showCustomSnackBarHelper(
-        getTranslated('enter_a_Coupon_code', context) ??
-            'Enter a coupon code',
+        getTranslated('enter_a_Coupon_code', context) ?? 'Enter a coupon code',
       );
       return;
     }
     if (coupon.isLoading) return;
 
-    final discount =
-        await coupon.applyCoupon(code, widget.orderAmount, selectedIndex: index);
+    final discount = await coupon.applyCoupon(code, widget.orderAmount,
+        selectedIndex: index);
     if (!mounted) return;
 
     if ((discount ?? 0) > 0) {
@@ -84,8 +83,7 @@ class _KioskCouponSheetState extends State<KioskCouponSheet> {
     _controller.clear();
     coupon.removeCouponData(true);
     showCustomSnackBarHelper(
-      getTranslated('coupon_removed_successfully', context) ??
-          'Coupon removed',
+      getTranslated('coupon_removed_successfully', context) ?? 'Coupon removed',
       isError: false,
     );
   }
@@ -98,8 +96,10 @@ class _KioskCouponSheetState extends State<KioskCouponSheet> {
         final double s =
             wide ? 1.0 : KioskResponsive.scale(constraints.maxWidth);
 
-        final double titleSize = wide ? KioskUI.heading : (48 * s).clamp(28.0, 36.0);
-        final double bodySize = wide ? KioskUI.body : (32 * s).clamp(16.0, 22.0);
+        final double titleSize =
+            wide ? KioskUI.heading : (48 * s).clamp(28.0, 36.0);
+        final double bodySize =
+            wide ? KioskUI.body : (32 * s).clamp(16.0, 22.0);
         final double fieldHeight = wide ? 56.0 : (88 * s).clamp(52.0, 64.0);
         final double radius = wide ? KioskUI.radius : 20 * s;
         final double hPad = wide ? 24.0 : 32 * s;
@@ -208,8 +208,7 @@ class _KioskCouponSheetState extends State<KioskCouponSheet> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: _kFieldBg,
-                                    borderRadius:
-                                        BorderRadius.circular(radius),
+                                    borderRadius: BorderRadius.circular(radius),
                                     border: Border.all(
                                       color: _kCheckoutHintColor,
                                       width: wide ? 1.5 : 2 * s,
@@ -261,7 +260,8 @@ class _KioskCouponSheetState extends State<KioskCouponSheet> {
                                       ? SizedBox(
                                           width: wide ? 24 : 40 * s,
                                           height: wide ? 24 : 40 * s,
-                                          child: const CircularProgressIndicator(
+                                          child:
+                                              const CircularProgressIndicator(
                                             strokeWidth: 2.5,
                                             valueColor:
                                                 AlwaysStoppedAnimation<Color>(
@@ -310,8 +310,7 @@ class _KioskCouponSheetState extends State<KioskCouponSheet> {
                         if (coupon.availableCouponList?.isNotEmpty ??
                             false) ...[
                           Text(
-                            getTranslated(
-                                    'available_coupon_for_this_order',
+                            getTranslated('available_coupon_for_this_order',
                                     context) ??
                                 'Available for this order',
                             style: loewBold.copyWith(

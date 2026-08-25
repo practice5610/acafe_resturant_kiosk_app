@@ -179,7 +179,8 @@ class KioskCheckoutStepper extends StatelessWidget {
       }
     }
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: KioskUI.checkoutColumnMaxWidth),
+      constraints:
+          const BoxConstraints(maxWidth: KioskUI.checkoutColumnMaxWidth),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: row,
@@ -206,7 +207,9 @@ class _StepNode extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: state != _StepState.upcoming ? KioskUI.dark : Colors.transparent,
+            color: state != _StepState.upcoming
+                ? KioskUI.dark
+                : Colors.transparent,
             border: Border.all(color: Colors.black, width: 2),
           ),
           child: switch (state) {
@@ -456,8 +459,8 @@ class KioskProductCard extends StatelessWidget {
                     top: 10,
                     left: 10,
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: badgeColor ?? KioskUI.popularGreen,
                         borderRadius: BorderRadius.circular(20),
@@ -481,7 +484,9 @@ class KioskProductCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: loewBold.copyWith(
-                        fontSize: KioskUI.body, height: 1.15, color: Colors.black),
+                        fontSize: KioskUI.body,
+                        height: 1.15,
+                        color: Colors.black),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -590,6 +595,7 @@ class KioskHeaderBar extends StatelessWidget {
   final double backSize;
   final double backBorder;
   final double backIconSize;
+
   /// Optional right-aligned content (e.g. summary chips) rendered in the same
   /// row as the back button and title, so screens don't need a second row
   /// of chrome competing with the page content below.

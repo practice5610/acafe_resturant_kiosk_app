@@ -73,15 +73,17 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double formWidth = constraints.maxWidth < kKioskFormDesignWidth
-                ? constraints.maxWidth
-                : kKioskFormDesignWidth;
+            final double formWidth =
+                constraints.maxWidth < kKioskFormDesignWidth
+                    ? constraints.maxWidth
+                    : kKioskFormDesignWidth;
             final double s = kioskFormScale(formWidth);
             final double side = 40 * s;
 
             return Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: kKioskFormDesignWidth),
+                constraints:
+                    const BoxConstraints(maxWidth: kKioskFormDesignWidth),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -118,7 +120,8 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                       child: Opacity(
                         opacity: 0.6,
                         child: Text(
-                          getTranslated('you_want_to_see_for_the_app', context)!,
+                          getTranslated(
+                              'you_want_to_see_for_the_app', context)!,
                           textAlign: TextAlign.center,
                           style: loewRegular.copyWith(
                             fontSize: 18 * s,

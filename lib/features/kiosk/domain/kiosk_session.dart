@@ -70,7 +70,8 @@ double kioskItemsTotal(List<CartModel?> cartList) {
   double total = 0;
   for (final cart in cartList) {
     if (cart == null) continue;
-    total += (cart.price ?? 0) * (cart.quantity ?? 1) + _kioskLineAddOnsTotal(cart);
+    total +=
+        (cart.price ?? 0) * (cart.quantity ?? 1) + _kioskLineAddOnsTotal(cart);
   }
   return total;
 }
@@ -97,7 +98,9 @@ double kioskTaxTotal(List<CartModel?> cartList) {
 
 /// Grand total shown on the order summary = items − discount + tax.
 double kioskGrandTotal(List<CartModel?> cartList) =>
-    kioskItemsTotal(cartList) - kioskDiscountTotal(cartList) + kioskTaxTotal(cartList);
+    kioskItemsTotal(cartList) -
+    kioskDiscountTotal(cartList) +
+    kioskTaxTotal(cartList);
 
 /// Subtotal used for coupon min-purchase checks (before tax and coupon).
 double kioskOrderAmountBeforeCoupon(List<CartModel?> cartList) =>

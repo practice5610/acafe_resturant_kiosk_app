@@ -54,10 +54,12 @@ class KioskAuthRepo {
     await sharedPreferences.setString(AppConstants.token, token);
     await sharedPreferences.setInt(AppConstants.branch, branchId);
     if (branchName != null) {
-      await sharedPreferences.setString(AppConstants.kioskBranchName, branchName);
+      await sharedPreferences.setString(
+          AppConstants.kioskBranchName, branchName);
     }
     if (deviceName != null) {
-      await sharedPreferences.setString(AppConstants.kioskDeviceName, deviceName);
+      await sharedPreferences.setString(
+          AppConstants.kioskDeviceName, deviceName);
     }
     if (username != null) {
       await sharedPreferences.setString(AppConstants.kioskUsername, username);
@@ -66,7 +68,8 @@ class KioskAuthRepo {
       await sharedPreferences.setInt(AppConstants.kioskDeviceId, deviceId);
     }
     if (category != null) {
-      await sharedPreferences.setString(AppConstants.kioskDeviceCategory, category);
+      await sharedPreferences.setString(
+          AppConstants.kioskDeviceCategory, category);
     }
     // Refresh dio headers so the new token + branch take effect immediately.
     await dioClient.updateHeader(getToken: token);
@@ -86,9 +89,10 @@ class KioskAuthRepo {
       ? sharedPreferences.getInt(AppConstants.branch)
       : null;
 
-  int? getDeviceId() => sharedPreferences.containsKey(AppConstants.kioskDeviceId)
-      ? sharedPreferences.getInt(AppConstants.kioskDeviceId)
-      : null;
+  int? getDeviceId() =>
+      sharedPreferences.containsKey(AppConstants.kioskDeviceId)
+          ? sharedPreferences.getInt(AppConstants.kioskDeviceId)
+          : null;
 
   /// 'kiosk' or 'pos'. Defaults to 'kiosk' (the safe/pre-existing behavior)
   /// if a session was persisted before this field existed.

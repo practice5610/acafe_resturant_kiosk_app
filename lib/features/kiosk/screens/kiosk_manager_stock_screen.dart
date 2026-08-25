@@ -48,7 +48,8 @@ class KioskManagerStockScreen extends StatefulWidget {
   const KioskManagerStockScreen({super.key});
 
   @override
-  State<KioskManagerStockScreen> createState() => _KioskManagerStockScreenState();
+  State<KioskManagerStockScreen> createState() =>
+      _KioskManagerStockScreenState();
 }
 
 class _KioskManagerStockScreenState extends State<KioskManagerStockScreen> {
@@ -91,8 +92,8 @@ class _KioskManagerStockScreenState extends State<KioskManagerStockScreen> {
   List<Map<String, dynamic>> _search(List<Map<String, dynamic>> products) {
     if (_query.isEmpty) return products;
     return products
-        .where((p) =>
-            (p['name']?.toString().toLowerCase() ?? '').contains(_query))
+        .where(
+            (p) => (p['name']?.toString().toLowerCase() ?? '').contains(_query))
         .toList();
   }
 
@@ -182,10 +183,13 @@ class _KioskManagerStockScreenState extends State<KioskManagerStockScreen> {
                   Expanded(
                     child: Consumer<KioskManagerProvider>(
                       builder: (context, provider, _) {
-                        if (provider.productsLoading && provider.products.isEmpty) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (provider.productsLoading &&
+                            provider.products.isEmpty) {
+                          return const Center(
+                              child: CircularProgressIndicator());
                         }
-                        final filtered = _applyFilter(_search(provider.products));
+                        final filtered =
+                            _applyFilter(_search(provider.products));
                         if (filtered.isEmpty) {
                           return Center(
                             child: Text(
@@ -201,8 +205,10 @@ class _KioskManagerStockScreenState extends State<KioskManagerStockScreen> {
                           );
                         }
                         return GridView.builder(
-                          padding: EdgeInsets.fromLTRB(132 * s, 0, 132 * s, 60 * s),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          padding:
+                              EdgeInsets.fromLTRB(132 * s, 0, 132 * s, 60 * s),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: columns,
                             mainAxisSpacing: 20 * s,
                             crossAxisSpacing: 20 * s,
@@ -220,7 +226,9 @@ class _KioskManagerStockScreenState extends State<KioskManagerStockScreen> {
                                 final ok = await provider
                                     .toggleProductAvailability(id, value);
                                 if (!ok || !context.mounted) return;
-                                context.read<CategoryProvider>().applyKioskAvailability(
+                                context
+                                    .read<CategoryProvider>()
+                                    .applyKioskAvailability(
                                       productId: id,
                                       isAvailable: value,
                                     );
@@ -498,7 +506,8 @@ class _StatChip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: loewExtraBold.copyWith(fontSize: 30 * s, color: fg)),
+          Text(value,
+              style: loewExtraBold.copyWith(fontSize: 30 * s, color: fg)),
           Text(label,
               style: loewMedium.copyWith(
                   fontSize: 18 * s, color: fg.withValues(alpha: 0.65))),
@@ -591,7 +600,8 @@ class _FilterSegment extends StatelessWidget {
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               constraints: BoxConstraints(minWidth: 46 * s),
-              padding: EdgeInsets.symmetric(horizontal: 12 * s, vertical: 5 * s),
+              padding:
+                  EdgeInsets.symmetric(horizontal: 12 * s, vertical: 5 * s),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: badgeBg,
@@ -599,8 +609,7 @@ class _FilterSegment extends StatelessWidget {
               ),
               child: Text(
                 '$count',
-                style:
-                    loewExtraBold.copyWith(fontSize: 20 * s, color: badgeFg),
+                style: loewExtraBold.copyWith(fontSize: 20 * s, color: badgeFg),
               ),
             ),
           ],
@@ -634,7 +643,9 @@ class _ProductStockCard extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(20 * s),
         decoration: BoxDecoration(
-          color: isAvailable ? Colors.white : _kOutOfStockBg.withValues(alpha: 0.55),
+          color: isAvailable
+              ? Colors.white
+              : _kOutOfStockBg.withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(22 * s),
           boxShadow: _cardShadow(s),
         ),
@@ -659,7 +670,8 @@ class _ProductStockCard extends StatelessWidget {
                     product['name']?.toString() ?? '',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: loewBold.copyWith(fontSize: 30 * s, color: Colors.black),
+                    style: loewBold.copyWith(
+                        fontSize: 30 * s, color: Colors.black),
                   ),
                   SizedBox(height: 10 * s),
                   _StatusPill(
@@ -719,7 +731,9 @@ class _StatusPill extends StatelessWidget {
           ),
           if (caption != null) ...[
             SizedBox(width: 9 * s),
-            Text(caption!, style: loewMedium.copyWith(fontSize: 21 * s, color: fg.withValues(alpha: 0.75))),
+            Text(caption!,
+                style: loewMedium.copyWith(
+                    fontSize: 21 * s, color: fg.withValues(alpha: 0.75))),
           ],
         ],
       ),

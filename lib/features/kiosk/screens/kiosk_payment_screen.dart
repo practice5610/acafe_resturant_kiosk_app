@@ -39,7 +39,8 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
   final KioskPaymentService _payment = SimulatedKioskPaymentService();
 
   // Stable across retries of this checkout attempt (idempotency).
-  final String _idempotencyKey = 'kiosk-${DateTime.now().millisecondsSinceEpoch}';
+  final String _idempotencyKey =
+      'kiosk-${DateTime.now().millisecondsSinceEpoch}';
 
   _Phase _phase = _Phase.processing;
   double _amount = 0;
@@ -70,7 +71,8 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
 
   Future<void> _startPayment() async {
     setState(() => _phase = _Phase.processing);
-    final result = await _payment.pay(amount: _amount, idempotencyKey: _idempotencyKey);
+    final result =
+        await _payment.pay(amount: _amount, idempotencyKey: _idempotencyKey);
     if (!mounted) return;
 
     switch (result.status) {
@@ -120,10 +122,14 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       final List<OrderVariation> variations = [];
       final productVariations = cart.product?.variations;
       final selected = cart.variations;
-      if (productVariations != null && selected != null && selected.isNotEmpty) {
+      if (productVariations != null &&
+          selected != null &&
+          selected.isNotEmpty) {
         for (int i = 0; i < productVariations.length; i++) {
           if (i < selected.length && selected[i].contains(true)) {
-            variations.add(OrderVariation(name: productVariations[i].name, values: OrderVariationValue(label: [])));
+            variations.add(OrderVariation(
+                name: productVariations[i].name,
+                values: OrderVariationValue(label: [])));
             final values = productVariations[i].variationValues ?? [];
             for (int j = 0; j < values.length; j++) {
               if (j < selected[i].length && (selected[i][j] ?? false)) {
@@ -135,8 +141,15 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       }
 
       carts.add(Cart(
-        cart.product!.id.toString(), cart.discountedPrice.toString(), [], variations,
-        cart.discountAmount, cart.quantity, cart.taxAmount, addOnIdList, addOnQtyList,
+        cart.product!.id.toString(),
+        cart.discountedPrice.toString(),
+        [],
+        variations,
+        cart.discountAmount,
+        cart.quantity,
+        cart.taxAmount,
+        addOnIdList,
+        addOnQtyList,
         instruction: cart.instruction,
       ));
     }
@@ -169,7 +182,8 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       bringChangeAmount: 0,
     );
 
-    orderProvider.placeOrder(placeOrderBody, (bool success, String? message, String orderId) {
+    orderProvider.placeOrder(placeOrderBody,
+        (bool success, String? message, String orderId) {
       if (!mounted) return;
       if (success) {
         cartProvider.clearCartList();
@@ -229,8 +243,16 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            Center(child: _phase == _Phase.failed ? const SizedBox() : _processingView()),
-            if (_phase == _Phase.failed) _FailureModal(countdown: _stopCountdown, message: _errorMessage, onRetry: _retry, onStop: _stop),
+            Center(
+                child: _phase == _Phase.failed
+                    ? const SizedBox()
+                    : _processingView()),
+            if (_phase == _Phase.failed)
+              _FailureModal(
+                  countdown: _stopCountdown,
+                  message: _errorMessage,
+                  onRetry: _retry,
+                  onStop: _stop),
           ],
         ),
       ),
@@ -241,18 +263,26 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(width: 64, height: 64, child: CircularProgressIndicator(strokeWidth: 5)),
+        const SizedBox(
+            width: 64,
+            height: 64,
+            child: CircularProgressIndicator(strokeWidth: 5)),
         const SizedBox(height: Dimensions.paddingSizeExtraLarge),
         Text(
           _phase == _Phase.submitting
-              ? (getTranslated('placing_your_order', context) ?? 'Placing your order…')
-              : (getTranslated('follow_instructions_on_reader', context) ?? 'Follow the instructions on the card reader'),
+              ? (getTranslated('placing_your_order', context) ??
+                  'Placing your order…')
+              : (getTranslated('follow_instructions_on_reader', context) ??
+                  'Follow the instructions on the card reader'),
           textAlign: TextAlign.center,
-          style: rubikSemiBold.copyWith(fontSize: Dimensions.fontSizeLarge, color: Theme.of(context).textTheme.bodyLarge!.color),
+          style: rubikSemiBold.copyWith(
+              fontSize: Dimensions.fontSizeLarge,
+              color: Theme.of(context).textTheme.bodyLarge!.color),
         ),
         const SizedBox(height: Dimensions.paddingSizeDefault),
         Text(PriceConverterHelper.convertPrice(_amount),
-            style: rubikBold.copyWith(fontSize: 28, color: Theme.of(context).primaryColor)),
+            style: rubikBold.copyWith(
+                fontSize: 28, color: Theme.of(context).primaryColor)),
       ],
     );
   }
@@ -263,7 +293,11 @@ class _FailureModal extends StatelessWidget {
   final String? message;
   final VoidCallback onRetry;
   final VoidCallback onStop;
-  const _FailureModal({required this.countdown, this.message, required this.onRetry, required this.onStop});
+  const _FailureModal(
+      {required this.countdown,
+      this.message,
+      required this.onRetry,
+      required this.onStop});
 
   @override
   Widget build(BuildContext context) {
@@ -283,23 +317,37 @@ class _FailureModal extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 36,
-              backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-              child: Icon(Icons.error_outline, size: 40, color: Theme.of(context).primaryColor),
+              backgroundColor:
+                  Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              child: Icon(Icons.error_outline,
+                  size: 40, color: Theme.of(context).primaryColor),
             ),
             const SizedBox(height: Dimensions.paddingSizeDefault),
             Text(getTranslated('payment_failed', context) ?? 'Payment failed…',
-                style: rubikSemiBold.copyWith(fontSize: Dimensions.fontSizeLarge, color: Theme.of(context).primaryColor)),
+                style: rubikSemiBold.copyWith(
+                    fontSize: Dimensions.fontSizeLarge,
+                    color: Theme.of(context).primaryColor)),
             if (message != null && message!.isNotEmpty) ...[
               const SizedBox(height: Dimensions.paddingSizeSmall),
-              Text(message!, textAlign: TextAlign.center,
-                  style: rubikRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).hintColor)),
+              Text(message!,
+                  textAlign: TextAlign.center,
+                  style: rubikRegular.copyWith(
+                      fontSize: Dimensions.fontSizeSmall,
+                      color: Theme.of(context).hintColor)),
             ],
             const SizedBox(height: Dimensions.paddingSizeExtraLarge),
             Row(
               children: [
-                Expanded(child: _Btn(label: getTranslated('retry', context) ?? 'Retry', onTap: onRetry)),
+                Expanded(
+                    child: _Btn(
+                        label: getTranslated('retry', context) ?? 'Retry',
+                        onTap: onRetry)),
                 const SizedBox(width: Dimensions.paddingSizeDefault),
-                Expanded(child: _Btn(label: '${getTranslated('stop', context) ?? 'Stop'} ($countdown)', onTap: onStop)),
+                Expanded(
+                    child: _Btn(
+                        label:
+                            '${getTranslated('stop', context) ?? 'Stop'} ($countdown)',
+                        onTap: onStop)),
               ],
             ),
           ],
@@ -322,7 +370,11 @@ class _Btn extends StatelessWidget {
       clipBehavior: Clip.hardEdge,
       child: KioskTap(
         onTap: onTap,
-        child: Container(height: 50, alignment: Alignment.center, child: Text(label, style: rubikSemiBold.copyWith(color: Colors.white))),
+        child: Container(
+            height: 50,
+            alignment: Alignment.center,
+            child: Text(label,
+                style: rubikSemiBold.copyWith(color: Colors.white))),
       ),
     );
   }

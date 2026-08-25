@@ -53,8 +53,8 @@ class KioskCartScreen extends StatelessWidget {
                       ),
                       Expanded(
                         child: ListView(
-                          padding: EdgeInsets.fromLTRB(
-                              132 * s, 0, 60 * s, 40 * s),
+                          padding:
+                              EdgeInsets.fromLTRB(132 * s, 0, 60 * s, 40 * s),
                           children: [
                             Text(
                                 getTranslated('my_order', context) ??
@@ -526,7 +526,8 @@ class _OrderNoteBar extends StatelessWidget {
                     Text(
                       hasNote
                           ? note
-                          : (getTranslated('anything_we_should_know', context) ??
+                          : (getTranslated(
+                                  'anything_we_should_know', context) ??
                               'Anything we should know?'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

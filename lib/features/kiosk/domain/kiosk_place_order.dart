@@ -46,7 +46,8 @@ Future<KioskPlaceResult> placeKioskOrder(
   final splashProvider = Provider.of<SplashProvider>(context, listen: false);
   final authProvider = Provider.of<AuthProvider>(context, listen: false);
   final couponProvider = Provider.of<CouponProvider>(context, listen: false);
-  final kioskAuthProvider = Provider.of<KioskAuthProvider>(context, listen: false);
+  final kioskAuthProvider =
+      Provider.of<KioskAuthProvider>(context, listen: false);
 
   // Kiosk orders are placed as a guest — make sure a guest account exists so the
   // backend's required guest_id is attached by the order repository.
@@ -72,7 +73,9 @@ Future<KioskPlaceResult> placeKioskOrder(
     if (productVariations != null && selected != null && selected.isNotEmpty) {
       for (int i = 0; i < productVariations.length; i++) {
         if (i < selected.length && selected[i].contains(true)) {
-          variations.add(OrderVariation(name: productVariations[i].name, values: OrderVariationValue(label: [])));
+          variations.add(OrderVariation(
+              name: productVariations[i].name,
+              values: OrderVariationValue(label: [])));
           final values = productVariations[i].variationValues ?? [];
           for (int j = 0; j < values.length; j++) {
             if (j < selected[i].length && (selected[i][j] ?? false)) {
@@ -84,8 +87,15 @@ Future<KioskPlaceResult> placeKioskOrder(
     }
 
     carts.add(Cart(
-      cart.product!.id.toString(), cart.discountedPrice.toString(), [], variations,
-      cart.discountAmount, cart.quantity, cart.taxAmount, addOnIdList, addOnQtyList,
+      cart.product!.id.toString(),
+      cart.discountedPrice.toString(),
+      [],
+      variations,
+      cart.discountAmount,
+      cart.quantity,
+      cart.taxAmount,
+      addOnIdList,
+      addOnQtyList,
       instruction: cart.instruction,
     ));
   }
@@ -119,9 +129,11 @@ Future<KioskPlaceResult> placeKioskOrder(
   );
 
   final completer = Completer<KioskPlaceResult>();
-  orderProvider.placeOrder(placeOrderBody, (bool success, String? message, String orderId) {
+  orderProvider.placeOrder(placeOrderBody,
+      (bool success, String? message, String orderId) {
     if (!completer.isCompleted) {
-      completer.complete(KioskPlaceResult(success: success, orderId: orderId, message: message));
+      completer.complete(KioskPlaceResult(
+          success: success, orderId: orderId, message: message));
     }
   }, asGuest: true);
   return completer.future;

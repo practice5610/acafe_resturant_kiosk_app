@@ -43,14 +43,16 @@ class SimulatedKioskPaymentService implements KioskPaymentService {
   bool _canceled = false;
 
   @override
-  Future<KioskPaymentResult> pay({required double amount, required String idempotencyKey}) async {
+  Future<KioskPaymentResult> pay(
+      {required double amount, required String idempotencyKey}) async {
     _canceled = false;
     await Future.delayed(const Duration(seconds: 4));
     if (_canceled) {
       return const KioskPaymentResult(KioskPaymentStatus.canceled);
     }
     if (forceFailure) {
-      return const KioskPaymentResult(KioskPaymentStatus.failed, message: 'Payment failed');
+      return const KioskPaymentResult(KioskPaymentStatus.failed,
+          message: 'Payment failed');
     }
     return KioskPaymentResult(
       KioskPaymentStatus.paid,

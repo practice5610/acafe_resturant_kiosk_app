@@ -42,7 +42,9 @@ class KioskManagerProvider extends ChangeNotifier {
       return true;
     }
 
-    _pinError = (response?.data is Map ? response!.data['message']?.toString() : null) ??
+    _pinError = (response?.data is Map
+            ? response!.data['message']?.toString()
+            : null) ??
         'Incorrect code';
     notifyListeners();
     return false;
@@ -75,8 +77,10 @@ class KioskManagerProvider extends ChangeNotifier {
     _salesLoading = true;
     notifyListeners();
 
-    final apiResponse = await kioskManagerRepo.getSalesOverview(reportDate: reportDate);
-    if (apiResponse.response != null && apiResponse.response!.statusCode == 200) {
+    final apiResponse =
+        await kioskManagerRepo.getSalesOverview(reportDate: reportDate);
+    if (apiResponse.response != null &&
+        apiResponse.response!.statusCode == 200) {
       _salesData = Map<String, dynamic>.from(apiResponse.response!.data);
     } else {
       ApiCheckerHelper.checkApi(apiResponse);
@@ -103,7 +107,8 @@ class KioskManagerProvider extends ChangeNotifier {
     );
 
     _closingRegister = false;
-    final success = apiResponse.response != null && apiResponse.response!.statusCode == 200;
+    final success =
+        apiResponse.response != null && apiResponse.response!.statusCode == 200;
     if (success) {
       final data = apiResponse.response!.data['data'];
       _salesData = data != null ? Map<String, dynamic>.from(data) : _salesData;
@@ -143,7 +148,8 @@ class KioskManagerProvider extends ChangeNotifier {
       offset: _transactionsOffset,
     );
 
-    if (apiResponse.response != null && apiResponse.response!.statusCode == 200) {
+    if (apiResponse.response != null &&
+        apiResponse.response!.statusCode == 200) {
       final data = apiResponse.response!.data;
       _transactionsTotal = data['total_size'] ?? 0;
       final List orders = data['orders'] ?? [];
@@ -178,7 +184,8 @@ class KioskManagerProvider extends ChangeNotifier {
   /// pulled every page, which is what the Mark-Out-of-Stock screen always
   /// does (a manager needs the true count, not just what's scrolled into
   /// view).
-  int get outOfStockCount => _products.where((p) => p['is_available'] != true).length;
+  int get outOfStockCount =>
+      _products.where((p) => p['is_available'] != true).length;
 
   // Per-product in-flight guard so a double-tap can't queue conflicting
   // toggle requests for the same row.
@@ -200,7 +207,8 @@ class KioskManagerProvider extends ChangeNotifier {
       offset: _productsOffset,
     );
 
-    if (apiResponse.response != null && apiResponse.response!.statusCode == 200) {
+    if (apiResponse.response != null &&
+        apiResponse.response!.statusCode == 200) {
       final data = apiResponse.response!.data;
       _productsTotal = data['total_size'] ?? 0;
       final List items = data['products'] ?? [];
@@ -260,8 +268,7 @@ class KioskManagerProvider extends ChangeNotifier {
 
     try {
       final List cached = jsonDecode(raw);
-      final products =
-          cached.map((p) => Map<String, dynamic>.from(p)).toList();
+      final products = cached.map((p) => Map<String, dynamic>.from(p)).toList();
       if (products.isEmpty) return false;
       _products = products;
       _productsTotal = products.length;
@@ -293,7 +300,8 @@ class KioskManagerProvider extends ChangeNotifier {
         limit: _productsLimit,
         offset: offset,
       );
-      if (apiResponse.response == null || apiResponse.response!.statusCode != 200) {
+      if (apiResponse.response == null ||
+          apiResponse.response!.statusCode != 200) {
         return;
       }
       final data = apiResponse.response!.data;
@@ -321,9 +329,10 @@ class KioskManagerProvider extends ChangeNotifier {
     _togglingProductIds.add(productId);
     notifyListeners();
 
-    final apiResponse =
-        await kioskManagerRepo.setProductStatus(id: productId, status: nextStatus);
-    final success = apiResponse.response != null && apiResponse.response!.statusCode == 200;
+    final apiResponse = await kioskManagerRepo.setProductStatus(
+        id: productId, status: nextStatus);
+    final success =
+        apiResponse.response != null && apiResponse.response!.statusCode == 200;
 
     if (!success) {
       // Revert on failure.

@@ -16,7 +16,8 @@ double? _money(dynamic v) => (v as num?)?.toDouble();
 /// `by_order_type`), so `Map<String, dynamic>.from(x)` would otherwise throw
 /// "List<dynamic> is not a subtype of Map" the first time a report has no
 /// transactions yet. Treat anything that isn't already a Map as empty.
-Map<String, dynamic> _asMap(dynamic v) => v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+Map<String, dynamic> _asMap(dynamic v) =>
+    v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
 
 /// "dine_in" -> "Dine-in", "take_away" -> "Takeaway", "pos" -> "Takeaway".
 String _titleCase(String raw) {
@@ -49,10 +50,12 @@ class KioskManagerSalesOverviewScreen extends StatefulWidget {
   const KioskManagerSalesOverviewScreen({super.key});
 
   @override
-  State<KioskManagerSalesOverviewScreen> createState() => _KioskManagerSalesOverviewScreenState();
+  State<KioskManagerSalesOverviewScreen> createState() =>
+      _KioskManagerSalesOverviewScreenState();
 }
 
-class _KioskManagerSalesOverviewScreenState extends State<KioskManagerSalesOverviewScreen> {
+class _KioskManagerSalesOverviewScreenState
+    extends State<KioskManagerSalesOverviewScreen> {
   @override
   void initState() {
     super.initState();
@@ -82,7 +85,8 @@ class _KioskManagerSalesOverviewScreenState extends State<KioskManagerSalesOverv
                       builder: (context, provider, _) {
                         final data = provider.salesData;
                         if (provider.salesLoading && data == null) {
-                          return const Center(child: CircularProgressIndicator());
+                          return const Center(
+                              child: CircularProgressIndicator());
                         }
                         if (data == null) {
                           return Center(
@@ -123,7 +127,8 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
   void initState() {
     super.initState();
     final previous = (widget.data['previous_closing_cash'] as num?)?.toDouble();
-    _openingController = TextEditingController(text: previous != null ? previous.toStringAsFixed(2) : '');
+    _openingController = TextEditingController(
+        text: previous != null ? previous.toStringAsFixed(2) : '');
     _openingController.addListener(_onCashChanged);
     _closingController.addListener(_onCashChanged);
   }
@@ -141,17 +146,23 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
   void _onCashChanged() => setState(() {});
 
   double get _expectedCashSales =>
-      ((widget.data['cash'] as Map?)?['expected_cash_sales'] as num?)?.toDouble() ?? 0;
-  double get _openingCash => double.tryParse(_openingController.text.trim()) ?? 0;
-  double get _closingCash => double.tryParse(_closingController.text.trim()) ?? 0;
+      ((widget.data['cash'] as Map?)?['expected_cash_sales'] as num?)
+          ?.toDouble() ??
+      0;
+  double get _openingCash =>
+      double.tryParse(_openingController.text.trim()) ?? 0;
+  double get _closingCash =>
+      double.tryParse(_closingController.text.trim()) ?? 0;
   double get _expectedCash => _openingCash + _expectedCashSales;
-  double get _variance => double.parse((_closingCash - _expectedCash).toStringAsFixed(2));
+  double get _variance =>
+      double.parse((_closingCash - _expectedCash).toStringAsFixed(2));
 
   Future<void> _closeDay(KioskManagerProvider provider) async {
     final opening = double.tryParse(_openingController.text.trim());
     final closing = double.tryParse(_closingController.text.trim());
     if (opening == null || closing == null) {
-      setState(() => _error = 'Enter valid amounts for opening and closing cash');
+      setState(
+          () => _error = 'Enter valid amounts for opening and closing cash');
       return;
     }
     setState(() => _error = null);
@@ -167,7 +178,9 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
       reportDate: '${widget.data['report_date']}',
       openingCash: opening,
       closingCashCounted: closing,
-      comment: _commentController.text.trim().isEmpty ? null : _commentController.text.trim(),
+      comment: _commentController.text.trim().isEmpty
+          ? null
+          : _commentController.text.trim(),
     );
   }
 
@@ -196,17 +209,34 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
         Text('${data['report_date'] ?? ''}',
             style: loewBold.copyWith(fontSize: 44 * s, color: Colors.black54)),
         SizedBox(height: 20 * s),
-        if (closed)
-          _ClosedBadge(s: s, data: data)
-        else
-          _OpenBadge(s: s),
+        if (closed) _ClosedBadge(s: s, data: data) else _OpenBadge(s: s),
         SizedBox(height: 48 * s),
         _SectionCard(s: s, title: 'Sales', children: [
-          _StatRow(s: s, label: 'Gross sales', value: PriceConverterHelper.convertPrice(_money(sales['gross_sales']))),
-          _StatRow(s: s, label: 'Net sales', value: PriceConverterHelper.convertPrice(_money(sales['net_sales']))),
-          _StatRow(s: s, label: 'Total tax', value: PriceConverterHelper.convertPrice(_money(sales['total_tax']))),
-          _StatRow(s: s, label: 'Total discount', value: PriceConverterHelper.convertPrice(_money(sales['total_discount']))),
-          _StatRow(s: s, label: 'Average order value', value: PriceConverterHelper.convertPrice(_money(sales['average_order_value']))),
+          _StatRow(
+              s: s,
+              label: 'Gross sales',
+              value: PriceConverterHelper.convertPrice(
+                  _money(sales['gross_sales']))),
+          _StatRow(
+              s: s,
+              label: 'Net sales',
+              value: PriceConverterHelper.convertPrice(
+                  _money(sales['net_sales']))),
+          _StatRow(
+              s: s,
+              label: 'Total tax',
+              value: PriceConverterHelper.convertPrice(
+                  _money(sales['total_tax']))),
+          _StatRow(
+              s: s,
+              label: 'Total discount',
+              value: PriceConverterHelper.convertPrice(
+                  _money(sales['total_discount']))),
+          _StatRow(
+              s: s,
+              label: 'Average order value',
+              value: PriceConverterHelper.convertPrice(
+                  _money(sales['average_order_value']))),
           _StatRow(
             s: s,
             label: 'Trading window',
@@ -217,35 +247,71 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
         ]),
         SizedBox(height: 32 * s),
         _SectionCard(s: s, title: 'Transactions', children: [
-          _StatRow(s: s, label: 'Total orders', value: '${transactions['order_count'] ?? 0}'),
-          _StatRow(s: s, label: 'Completed', value: '${transactions['completed_order_count'] ?? 0}'),
-          _StatRow(s: s, label: 'Canceled/voided', value: '${transactions['canceled_order_count'] ?? 0}'),
+          _StatRow(
+              s: s,
+              label: 'Total orders',
+              value: '${transactions['order_count'] ?? 0}'),
+          _StatRow(
+              s: s,
+              label: 'Completed',
+              value: '${transactions['completed_order_count'] ?? 0}'),
+          _StatRow(
+              s: s,
+              label: 'Canceled/voided',
+              value: '${transactions['canceled_order_count'] ?? 0}'),
           if (byOrderType.isNotEmpty) ...[
             SizedBox(height: 8 * s),
             for (final entry in byOrderType.entries)
-              _StatRow(s: s, label: _titleCase(entry.key), value: '${entry.value}'),
+              _StatRow(
+                  s: s, label: _titleCase(entry.key), value: '${entry.value}'),
           ],
         ]),
         SizedBox(height: 32 * s),
         _SectionCard(s: s, title: 'Cancelled / voided', children: [
           _StatRow(s: s, label: 'Count', value: '${voided['count'] ?? 0}'),
-          _StatRow(s: s, label: 'Value', value: PriceConverterHelper.convertPrice(_money(voided['value']))),
+          _StatRow(
+              s: s,
+              label: 'Value',
+              value:
+                  PriceConverterHelper.convertPrice(_money(voided['value']))),
           if (approxRefundValue != null && approxRefundValue > 0)
             Padding(
               padding: EdgeInsets.only(top: 8 * s),
               child: Text(
                 'Approx. refund of previously paid orders: ${PriceConverterHelper.convertPrice(approxRefundValue)}',
-                style: loewRegular.copyWith(fontSize: 26 * s, color: Colors.black45),
+                style: loewRegular.copyWith(
+                    fontSize: 26 * s, color: Colors.black45),
               ),
             ),
         ]),
         SizedBox(height: 32 * s),
         _SectionCard(s: s, title: 'Discounts', children: [
-          _StatRow(s: s, label: 'Coupon', value: PriceConverterHelper.convertPrice(_money(discounts['coupon']))),
-          _StatRow(s: s, label: 'Manual', value: PriceConverterHelper.convertPrice(_money(discounts['manual']))),
-          _StatRow(s: s, label: 'Referral', value: PriceConverterHelper.convertPrice(_money(discounts['referral']))),
-          _StatRow(s: s, label: 'Item level', value: PriceConverterHelper.convertPrice(_money(discounts['item_level']))),
-          _StatRow(s: s, label: 'Total', value: PriceConverterHelper.convertPrice(_money(discounts['total'])), bold: true),
+          _StatRow(
+              s: s,
+              label: 'Coupon',
+              value: PriceConverterHelper.convertPrice(
+                  _money(discounts['coupon']))),
+          _StatRow(
+              s: s,
+              label: 'Manual',
+              value: PriceConverterHelper.convertPrice(
+                  _money(discounts['manual']))),
+          _StatRow(
+              s: s,
+              label: 'Referral',
+              value: PriceConverterHelper.convertPrice(
+                  _money(discounts['referral']))),
+          _StatRow(
+              s: s,
+              label: 'Item level',
+              value: PriceConverterHelper.convertPrice(
+                  _money(discounts['item_level']))),
+          _StatRow(
+              s: s,
+              label: 'Total',
+              value:
+                  PriceConverterHelper.convertPrice(_money(discounts['total'])),
+              bold: true),
         ]),
         SizedBox(height: 32 * s),
         _SectionCard(s: s, title: 'Order source', children: [
@@ -255,7 +321,8 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
             _StatRow(
               s: s,
               label: '${bucket['channel']} (${bucket['order_count']})',
-              value: PriceConverterHelper.convertPrice(_money(bucket['amount'])),
+              value:
+                  PriceConverterHelper.convertPrice(_money(bucket['amount'])),
             ),
         ]),
         SizedBox(height: 32 * s),
@@ -266,12 +333,16 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
             _StatRow(
               s: s,
               label: '${method['method']} (${method['order_count']})',
-              value: PriceConverterHelper.convertPrice(_money(method['amount'])),
+              value:
+                  PriceConverterHelper.convertPrice(_money(method['amount'])),
             ),
         ]),
         SizedBox(height: 32 * s),
         if (closed)
-          _CashReconciliationCard(s: s, data: _asMap(data['cash_reconciliation']), comment: data['closing_comment'] as String?)
+          _CashReconciliationCard(
+              s: s,
+              data: _asMap(data['cash_reconciliation']),
+              comment: data['closing_comment'] as String?)
         else
           _CloseDaySection(
             s: s,
@@ -301,7 +372,8 @@ class _OpenBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(40 * s),
       ),
       child: Text('LIVE · REGISTER OPEN',
-          style: loewBold.copyWith(fontSize: 32 * s, color: const Color(0xFF2E7D32))),
+          style: loewBold.copyWith(
+              fontSize: 32 * s, color: const Color(0xFF2E7D32))),
     );
   }
 }
@@ -320,7 +392,8 @@ class _ClosedBadge extends StatelessWidget {
       ),
       child: Text(
         'CLOSED · Z#${data['z_number'] ?? '-'} · ${data['closed_by'] ?? ''}',
-        style: loewBold.copyWith(fontSize: 32 * s, color: const Color(0xFF8A2E2E)),
+        style:
+            loewBold.copyWith(fontSize: 32 * s, color: const Color(0xFF8A2E2E)),
       ),
     );
   }
@@ -330,7 +403,8 @@ class _SectionCard extends StatelessWidget {
   final double s;
   final String title;
   final List<Widget> children;
-  const _SectionCard({required this.s, required this.title, required this.children});
+  const _SectionCard(
+      {required this.s, required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -346,7 +420,8 @@ class _SectionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title.toUpperCase(),
-              style: loewExtraBold.copyWith(fontSize: 36 * s, color: Colors.black)),
+              style: loewExtraBold.copyWith(
+                  fontSize: 36 * s, color: Colors.black)),
           SizedBox(height: 24 * s),
           ...children,
         ],
@@ -360,7 +435,11 @@ class _StatRow extends StatelessWidget {
   final String label;
   final String value;
   final bool bold;
-  const _StatRow({required this.s, required this.label, required this.value, this.bold = false});
+  const _StatRow(
+      {required this.s,
+      required this.label,
+      required this.value,
+      this.bold = false});
 
   @override
   Widget build(BuildContext context) {
@@ -370,9 +449,11 @@ class _StatRow extends StatelessWidget {
         children: [
           Expanded(
             child: Text(label,
-                style: (bold ? loewBold : loewRegular).copyWith(fontSize: 34 * s, color: Colors.black87)),
+                style: (bold ? loewBold : loewRegular)
+                    .copyWith(fontSize: 34 * s, color: Colors.black87)),
           ),
-          Text(value, style: loewBold.copyWith(fontSize: 34 * s, color: Colors.black)),
+          Text(value,
+              style: loewBold.copyWith(fontSize: 34 * s, color: Colors.black)),
         ],
       ),
     );
@@ -383,20 +464,41 @@ class _CashReconciliationCard extends StatelessWidget {
   final double s;
   final Map<String, dynamic> data;
   final String? comment;
-  const _CashReconciliationCard({required this.s, required this.data, this.comment});
+  const _CashReconciliationCard(
+      {required this.s, required this.data, this.comment});
 
   @override
   Widget build(BuildContext context) {
     return _SectionCard(s: s, title: 'Cash reconciliation', children: [
-      _StatRow(s: s, label: 'Opening cash', value: PriceConverterHelper.convertPrice(_money(data['opening_cash']))),
-      _StatRow(s: s, label: 'Expected cash', value: PriceConverterHelper.convertPrice(_money(data['expected_cash']))),
-      _StatRow(s: s, label: 'Closing cash counted', value: PriceConverterHelper.convertPrice(_money(data['closing_cash_counted']))),
-      _StatRow(s: s, label: 'Variance', value: PriceConverterHelper.convertPrice(_money(data['cash_variance']))),
+      _StatRow(
+          s: s,
+          label: 'Opening cash',
+          value:
+              PriceConverterHelper.convertPrice(_money(data['opening_cash']))),
+      _StatRow(
+          s: s,
+          label: 'Expected cash',
+          value:
+              PriceConverterHelper.convertPrice(_money(data['expected_cash']))),
+      _StatRow(
+          s: s,
+          label: 'Closing cash counted',
+          value: PriceConverterHelper.convertPrice(
+              _money(data['closing_cash_counted']))),
+      _StatRow(
+          s: s,
+          label: 'Variance',
+          value:
+              PriceConverterHelper.convertPrice(_money(data['cash_variance']))),
       if (comment != null && comment!.trim().isNotEmpty) ...[
         SizedBox(height: 8 * s),
-        Text('Comment', style: loewRegular.copyWith(fontSize: 28 * s, color: Colors.black45)),
+        Text('Comment',
+            style:
+                loewRegular.copyWith(fontSize: 28 * s, color: Colors.black45)),
         SizedBox(height: 4 * s),
-        Text(comment!, style: loewRegular.copyWith(fontSize: 32 * s, color: Colors.black87)),
+        Text(comment!,
+            style:
+                loewRegular.copyWith(fontSize: 32 * s, color: Colors.black87)),
       ],
     ]);
   }
@@ -454,7 +556,10 @@ class _CloseDaySection extends StatelessWidget {
           ),
           SizedBox(width: 32 * s),
           Expanded(
-            child: _CashReadout(s: s, label: 'Expected cash', value: PriceConverterHelper.convertPrice(expectedCash)),
+            child: _CashReadout(
+                s: s,
+                label: 'Expected cash',
+                value: PriceConverterHelper.convertPrice(expectedCash)),
           ),
         ],
       ),
@@ -472,13 +577,19 @@ class _CloseDaySection extends StatelessWidget {
           ),
           SizedBox(width: 32 * s),
           Expanded(
-            child: _CashReadout(s: s, label: 'Variance', value: _varianceText(), color: _varianceColor()),
+            child: _CashReadout(
+                s: s,
+                label: 'Variance',
+                value: _varianceText(),
+                color: _varianceColor()),
           ),
         ],
       ),
       if (error != null) ...[
         SizedBox(height: 12 * s),
-        Text(error!, style: loewRegular.copyWith(fontSize: 28 * s, color: const Color(0xFFEF4444))),
+        Text(error!,
+            style: loewRegular.copyWith(
+                fontSize: 28 * s, color: const Color(0xFFEF4444))),
       ],
       SizedBox(height: 24 * s),
       _CashInputField(
@@ -523,7 +634,9 @@ class _CashInputField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: loewRegular.copyWith(fontSize: 28 * s, color: Colors.black54)),
+        Text(label,
+            style:
+                loewRegular.copyWith(fontSize: 28 * s, color: Colors.black54)),
         SizedBox(height: 10 * s),
         Container(
           height: 84 * s,
@@ -532,20 +645,24 @@ class _CashInputField extends StatelessWidget {
             color: const Color(0xFFFBF8EF),
             borderRadius: BorderRadius.circular(16 * s),
             border: Border.all(
-              color: hasError ? const Color(0xFFEF4444) : const Color(0xFFB9B5A6),
+              color:
+                  hasError ? const Color(0xFFEF4444) : const Color(0xFFB9B5A6),
               width: 2 * s,
             ),
           ),
           alignment: Alignment.centerLeft,
           child: TextField(
             controller: controller,
-            keyboardType: isNumeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+            keyboardType: isNumeric
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.text,
             style: loewRegular.copyWith(fontSize: 32 * s, color: Colors.black),
             decoration: InputDecoration(
               isCollapsed: true,
               border: InputBorder.none,
               hintText: isNumeric ? '0.00' : 'Notes for this close',
-              hintStyle: loewRegular.copyWith(fontSize: 32 * s, color: const Color(0xFFB9B5A6)),
+              hintStyle: loewRegular.copyWith(
+                  fontSize: 32 * s, color: const Color(0xFFB9B5A6)),
             ),
           ),
         ),
@@ -559,19 +676,24 @@ class _CashReadout extends StatelessWidget {
   final String label;
   final String value;
   final Color? color;
-  const _CashReadout({required this.s, required this.label, required this.value, this.color});
+  const _CashReadout(
+      {required this.s, required this.label, required this.value, this.color});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: loewRegular.copyWith(fontSize: 28 * s, color: Colors.black54)),
+        Text(label,
+            style:
+                loewRegular.copyWith(fontSize: 28 * s, color: Colors.black54)),
         SizedBox(height: 10 * s),
         Container(
           height: 84 * s,
           alignment: Alignment.centerLeft,
-          child: Text(value, style: loewBold.copyWith(fontSize: 34 * s, color: color ?? Colors.black)),
+          child: Text(value,
+              style: loewBold.copyWith(
+                  fontSize: 34 * s, color: color ?? Colors.black)),
         ),
       ],
     );
@@ -597,7 +719,9 @@ class _CloseDayConfirmDialog extends StatelessWidget {
               children: [
                 const Icon(Icons.lock_outline, color: Colors.black, size: 28),
                 const SizedBox(width: 12),
-                Text('Close day?', style: loewExtraBold.copyWith(fontSize: 32, color: Colors.black)),
+                Text('Close day?',
+                    style: loewExtraBold.copyWith(
+                        fontSize: 32, color: Colors.black)),
               ],
             ),
             const SizedBox(height: 16),
@@ -613,10 +737,13 @@ class _CloseDayConfirmDialog extends StatelessWidget {
                     onPressed: () => Navigator.of(context).pop(false),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
                       side: const BorderSide(color: Colors.black26),
                     ),
-                    child: Text('CANCEL', style: loewBold.copyWith(fontSize: 20, color: Colors.black87)),
+                    child: Text('CANCEL',
+                        style: loewBold.copyWith(
+                            fontSize: 20, color: Colors.black87)),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -626,9 +753,12 @@ class _CloseDayConfirmDialog extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
                     ),
-                    child: Text('CLOSE DAY', style: loewBold.copyWith(fontSize: 20, color: Colors.white)),
+                    child: Text('CLOSE DAY',
+                        style: loewBold.copyWith(
+                            fontSize: 20, color: Colors.white)),
                   ),
                 ),
               ],

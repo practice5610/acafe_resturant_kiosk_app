@@ -41,7 +41,7 @@ void main() {
     const metrics = {
       '_kScrollbarWidth': '20', // Rectangle 100/101 width
       '_kScrollbarRadius': '15', // Rectangle 100/101 radius
-      '_kAddOnViewport': '1205', // Rectangle 101 height (track)
+
     };
 
     metrics.forEach((name, value) {
@@ -62,6 +62,34 @@ void main() {
         contains('loewExtraBold.copyWith(\n              fontSize: 72 * s, height: 1.0'),
         reason: 'Inspect: Loew / ExtraBold / 72px / line-height 100%',
       );
+    });
+  });
+
+  group('responsive', () {
+    test('panels share the option-card corner radius', () {
+      expect(source, contains('BorderRadius.circular(_kOptionRadius * s)'));
+      expect(source.contains('BorderRadius.circular(70 * s)'), isFalse,
+          reason: 'the panel had its own radius; it now follows the cards');
+    });
+
+    test('cards are sized from available width, not a fixed artboard value',
+        () {
+      expect(source, contains('_optionCardWidth('));
+      expect(source, contains('width: cardWidth'),
+          reason: 'both card types must take the computed width');
+      // The rule itself lives in a testable helper.
+      expect(source, contains('kioskOptionCardWidth('));
+    });
+
+    test('the header compacts when the viewport is too short for the hero',
+        () {
+      expect(source, contains('_kFullHeroMinViewport'));
+      expect(source, contains('constraints.maxHeight < _kFullHeroMinViewport'));
+    });
+
+    test('cup/can cards are capped against the viewport height', () {
+      expect(source, contains('MediaQuery.sizeOf(context).height * 0.22'),
+          reason: 'vessel cards must not eat the add-on list on a short screen');
     });
   });
 
@@ -114,14 +142,108 @@ void main() {
   });
 
   group('Figma layout rules', () {
-    test('dietary options are one horizontally-scrolling row, not a Wrap', () {
-      expect(source, contains('_HorizontalOptionRow'));
+    test('every variation row scrolls sideways and never wraps', () {
       expect(source, contains('scrollDirection: Axis.horizontal'));
+
+      // Both dietary AND size are variations, so both must use the single-line
+      // row. Size used to be a Wrap, which spilled onto a second line.
+      for (final String panel in ['_VariationSection', '_SizeOptionsPanel']) {
+        final int start = source.indexOf('class $panel');
+        expect(start, greaterThan(-1), reason: '$panel should exist');
+        final int end = source.indexOf('\nclass ', start + 10);
+        final String body = source.substring(start, end);
+
+        expect(body, contains('_HorizontalOptionRow('),
+            reason: '$panel must lay its cards out in one scrolling row');
+        expect(body.contains('child: Wrap('), isFalse,
+            reason: '$panel must not wrap onto a second line');
+      }
     });
 
-    test('add-ons scroll inside their own capped viewport', () {
+    test('variations are NOT inside any vertical scroller', () {
+      // The rule, stated three times by the user and got wrong twice: a
+      // variation row moves horizontally and never vertically. Making the row
+      // horizontal was not enough — the panels also have to sit OUTSIDE the
+      // vertical scroll area, or the whole row scrolls up and down with the
+      // page.
+      final int scrollArea = source.indexOf('child: _AddOnScrollBox(');
+      final int sizePanel = source.indexOf('_SizeOptionsPanel(');
+      final int dietary = source.indexOf('_VariationSection(');
+
+      expect(sizePanel, greaterThan(-1));
+      expect(dietary, greaterThan(-1));
+      expect(scrollArea, greaterThan(-1));
+      expect(sizePanel, lessThan(scrollArea),
+          reason: 'size must be pinned above the scroller');
+      expect(dietary, lessThan(scrollArea),
+          reason: 'dietary must be pinned above the scroller');
+    });
+
+    test('the add-on scroller carries no horizontal axis', () {
+      final int start = source.indexOf('class _AddOnScrollBoxState');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      expect(body.contains('Axis.horizontal'), isFalse,
+          reason: 'add-ons scroll vertically only');
+    });
+
+    test('the horizontal row carries no vertical axis', () {
+      final int start = source.indexOf('class _HorizontalOptionRow');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      expect(body, contains('scrollDirection: Axis.horizontal'));
+      expect(body.contains('Axis.vertical'), isFalse);
+    });
+
+    test('the outer options list has no scrollbar of its own', () {
+      // build() lives on the State class, so slice from there.
+      final int start = source.indexOf('class _OptionsScrollAreaState');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      expect(body.contains('RawScrollbar'), isFalse,
+          reason: 'the page-length tan bar was removed; only the add-on '
+              'panels carry an indicator, where scrolling actually happens');
+      expect(body, contains('scrollbars: false'));
+    });
+
+    test('the add-on panel keeps its own indicator', () {
+      final int start = source.indexOf('class _AddOnScrollBoxState');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      expect(body, contains('RawScrollbar'));
+      expect(body, contains('thumbColor: _kScrollThumb'));
+      expect(body, contains('trackColor: _kScrollTrack'));
+    });
+
+    test('add-ons are the only vertical scroller', () {
       expect(source, contains('_AddOnScrollBox'));
-      expect(source, contains('maxHeight: _kAddOnViewport * s'));
+      expect(source.contains('_kAddOnViewport'), isFalse,
+          reason: 'the fixed viewport cap is gone with the pinned layout');
+
+      // Exactly one instance: several stacked scrollers is what made the page
+      // and the group both scroll at once.
+      expect('_AddOnScrollBox('.allMatches(source).length, 2,
+          reason: 'one constructor declaration + one usage');
+    });
+
+    test('the scroll indicator lives INSIDE the add-ons panel', () {
+      final int section = source.indexOf('class _AddOnsSection');
+      final int end = source.indexOf('\nclass ', section + 10);
+      final String body = source.substring(section, end);
+
+      // The section builds the panel and the scroller together, so the bar is
+      // drawn within the panel's padding rather than beside the whole region.
+      final int panel = body.indexOf('_SectionPanel(');
+      final int scroller = body.indexOf('_AddOnScrollBox(');
+      expect(panel, greaterThan(-1));
+      expect(scroller, greaterThan(panel),
+          reason: 'the scroller must be a child of the panel, not its sibling');
+      expect(body, contains('fill: true'),
+          reason: 'the panel has to give the scroller its remaining height');
     });
 
     test('cup/can is pinned outside the scroll area, above the action bar', () {

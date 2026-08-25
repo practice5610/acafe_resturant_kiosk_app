@@ -28,7 +28,8 @@ class KioskManagerRepo {
       final response = await dioClient.post(
         '/api/v1/kiosk/manager/verify-code',
         data: {'code': code},
-        options: Options(validateStatus: (status) => status != null && status < 500),
+        options:
+            Options(validateStatus: (status) => status != null && status < 500),
       );
       return ApiResponseModel.withSuccess(response);
     } catch (e) {
@@ -40,7 +41,8 @@ class KioskManagerRepo {
     try {
       final response = await dioClient.get(
         '/api/v1/kiosk/manager/sales-overview',
-        queryParameters: reportDate != null ? {'report_date': reportDate} : null,
+        queryParameters:
+            reportDate != null ? {'report_date': reportDate} : null,
       );
       return ApiResponseModel.withSuccess(response);
     } catch (e) {
@@ -110,7 +112,8 @@ class KioskManagerRepo {
     }
   }
 
-  Future<ApiResponseModel> setProductStatus({required int id, required bool status}) async {
+  Future<ApiResponseModel> setProductStatus(
+      {required int id, required bool status}) async {
     try {
       final response = await dioClient.post(
         '/api/v1/kiosk/manager/products/status',

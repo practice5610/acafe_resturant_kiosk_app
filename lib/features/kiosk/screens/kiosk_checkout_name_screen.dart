@@ -10,7 +10,8 @@ class KioskCheckoutNameScreen extends StatefulWidget {
   const KioskCheckoutNameScreen({super.key});
 
   @override
-  State<KioskCheckoutNameScreen> createState() => _KioskCheckoutNameScreenState();
+  State<KioskCheckoutNameScreen> createState() =>
+      _KioskCheckoutNameScreenState();
 }
 
 class _KioskCheckoutNameScreenState extends State<KioskCheckoutNameScreen> {
@@ -22,7 +23,8 @@ class _KioskCheckoutNameScreenState extends State<KioskCheckoutNameScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _focusNode.requestFocus());
   }
 
   @override
@@ -52,12 +54,14 @@ class _KioskCheckoutNameScreenState extends State<KioskCheckoutNameScreen> {
       fieldBuilder: (s) => KioskCheckoutField(
         s: s,
         label: getTranslated('name', context)?.toUpperCase() ?? 'NAME',
-        hint: getTranslated('enter_your_name', context)?.toUpperCase() ?? 'ENTER YOUR NAME',
+        hint: getTranslated('enter_your_name', context)?.toUpperCase() ??
+            'ENTER YOUR NAME',
         controller: _controller,
         focusNode: _focusNode,
         hasError: _showError,
-        errorText: getTranslated('please_enter_your_name_to_continue', context) ??
-            'Please enter your name to continue',
+        errorText:
+            getTranslated('please_enter_your_name_to_continue', context) ??
+                'Please enter your name to continue',
         textCapitalization: TextCapitalization.words,
         onChanged: (_) {
           if (_showError) setState(() => _showError = false);

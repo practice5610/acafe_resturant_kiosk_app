@@ -279,7 +279,8 @@ class _WideCheckoutBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: KioskUI.checkoutColumnMaxWidth),
+        constraints:
+            const BoxConstraints(maxWidth: KioskUI.checkoutColumnMaxWidth),
         child: Column(
           children: [
             Padding(

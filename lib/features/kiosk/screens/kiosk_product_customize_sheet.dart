@@ -7,6 +7,7 @@ import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_option_layout.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
@@ -19,7 +20,6 @@ import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
-import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -38,12 +38,38 @@ const Color _kDarkButton = Color(0xFF1E1E1E);
 const Color _kCreamText = Color(0xFFF3F3DD);
 
 // Add-on scroller — Figma `Rectangle 100` (thumb) over `Rectangle 101` (track):
-// both 20px wide, 15px radius, thumb #000000 on a #B9B5A6 track. The track is
-// 1205px tall, which is the height the add-on viewport clips to: two full rows
-// plus a peek of the third, so it reads as scrollable at a glance.
+// both 20px wide, 15px radius, thumb #000000 on a #B9B5A6 track. The add-on
+// area is the screen's ONLY vertical scroller — everything else is pinned — so
+// this is the one indicator on the page.
 const double _kScrollbarWidth = 20;
 const double _kScrollbarRadius = 15;
-const double _kAddOnViewport = 1205;
+// Option-card metrics, scaled down ~18% from the raw artboard values: at full
+// Figma size the cards read as oversized boxes on the real kiosk once the
+// panels gained their borders.
+const double _kDietaryCardWidth = 350; // was 426
+const double _kAddOnCardWidth = 424; // was 520
+const double _kOptionCardPad = 22; // was 28
+const double _kOptionImage = 190; // was 240
+const double _kOptionRadius = 30; // was 40
+const double _kOptionInnerRadius = 20; // was 24
+const double _kOptionGap = 16; // was 20
+const double _kOptionNameSize = 28; // was 32/34
+const double _kOptionPriceSize = 24; // was 28
+const double _kOptionCardSpacing = 20; // was 24
+
+/// The full-height hero only fits on a genuinely tall portrait kiosk. Below
+/// this the header collapses to the compact side-by-side layout, which is what
+/// keeps the add-on list from being squeezed to a sliver on a laptop window.
+const double _kFullHeroMinViewport = 1150;
+
+/// Width for one option card inside a panel [width] px wide — see
+/// `kiosk_option_layout.dart` for the rule.
+double _optionCardWidth(double width, double s) => kioskOptionCardWidth(
+      width: width,
+      cardWidth: _kAddOnCardWidth * s,
+      gap: _kOptionCardSpacing * s,
+    );
+
 const Color _kScrollThumb = Color(0xFF000000);
 const Color _kScrollTrack = _kPanelBorder;
 
@@ -369,8 +395,12 @@ class _KioskProductCustomizeScreenState
                 // A portrait kiosk can afford the full-height hero; a medium
                 // tablet or a resized browser window cannot — there the header
                 // collapses into a compact row so the options keep the screen.
+                // Compact when the viewport is landscape-ish OR simply not
+                // tall enough to carry the full hero and still leave the
+                // add-ons room to breathe.
                 final bool compactHeader =
-                    constraints.maxHeight < constraints.maxWidth * 1.3;
+                    constraints.maxHeight < constraints.maxWidth * 1.3 ||
+                        constraints.maxHeight < _kFullHeroMinViewport;
                 return KioskCenteredContent(
                   child: Column(
                     children: [
@@ -390,42 +420,51 @@ class _KioskProductCustomizeScreenState
                                 product: product,
                                 productProvider: productProvider),
                       ),
-                      Expanded(
-                        child: _OptionsScrollArea(
-                          controller: _optionsScrollController,
-                          padding:
-                              EdgeInsets.fromLTRB(86 * s, 0, 86 * s, 30 * s),
-                          thickness: 30 * s,
-                          minThumbLength: 160 * s,
-                          scrollbarPadding:
-                              EdgeInsets.fromLTRB(0, 0, 24 * s, 30 * s),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (sizeVariations.isNotEmpty)
-                                _SizeOptionsPanel(
-                                  s: s,
-                                  entries: sizeVariations,
-                                  product: product,
-                                  productProvider: productProvider,
-                                ),
-                              for (final entry in dietaryVariations)
-                                _VariationSection(
-                                  s: s,
-                                  variation: entry.value,
-                                  variationIndex: entry.key,
-                                  product: product,
-                                  productProvider: productProvider,
-                                ),
-                              if (product.effectiveAddOnGroups.isNotEmpty)
-                                _AddOnsSection(
-                                    s: s,
-                                    product: product,
-                                    productProvider: productProvider),
-                            ],
-                          ),
+                      // VARIATIONS ARE PINNED. Each is a single line that
+                      // scrolls sideways, and none of them sit in a vertical
+                      // scroller — so a size or milk row can only ever move
+                      // horizontally, never up and down with the page.
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 86 * s),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (sizeVariations.isNotEmpty)
+                              _SizeOptionsPanel(
+                                s: s,
+                                entries: sizeVariations,
+                                product: product,
+                                productProvider: productProvider,
+                              ),
+                            for (final entry in dietaryVariations)
+                              _VariationSection(
+                                s: s,
+                                variation: entry.value,
+                                variationIndex: entry.key,
+                                product: product,
+                                productProvider: productProvider,
+                              ),
+                          ],
                         ),
                       ),
+                      // ADD-ONS ARE THE ONLY VERTICAL SCROLLER. They take
+                      // whatever height is left and scroll inside it, with the
+                      // design's black-on-#B9B5A6 indicator.
+                      if (product.effectiveAddOnGroups.isNotEmpty)
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 86 * s),
+                            // The section owns the panel AND the scroller, so
+                            // the indicator is drawn inside the panel box.
+                            child: _AddOnsSection(
+                              s: s,
+                              product: product,
+                              productProvider: productProvider,
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
                       // Cup / can and the action bar are both pinned to the
                       // bottom, per the design: the vessel is the last decision
                       // before adding, so it must not scroll out of reach.
@@ -527,7 +566,7 @@ class _Header extends StatelessWidget {
         ],
         SizedBox(height: 30 * s),
         _QuantityStepper(s: s, productProvider: productProvider),
-        SizedBox(height: 20 * s),
+        SizedBox(height: _kOptionGap * s),
       ],
     );
   }
@@ -701,17 +740,11 @@ class _StepperButton extends StatelessWidget {
 class _OptionsScrollArea extends StatefulWidget {
   final ScrollController controller;
   final EdgeInsets padding;
-  final double thickness;
-  final double minThumbLength;
-  final EdgeInsets scrollbarPadding;
   final Widget child;
 
   const _OptionsScrollArea({
     required this.controller,
     required this.padding,
-    required this.thickness,
-    required this.minThumbLength,
-    required this.scrollbarPadding,
     required this.child,
   });
 
@@ -720,78 +753,38 @@ class _OptionsScrollArea extends StatefulWidget {
 }
 
 class _OptionsScrollAreaState extends State<_OptionsScrollArea> {
-  @override
-  void initState() {
-    super.initState();
-    _revealScrollbar();
-  }
-
-  @override
-  void didUpdateWidget(covariant _OptionsScrollArea oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Selecting an option can grow / shrink the list, so re-check.
-    _revealScrollbar();
-  }
-
-  /// [RawScrollbar] fades its thumb in only once it sees a scroll notification,
-  /// which means an untouched screen can render with no indicator at all even
-  /// though `thumbVisibility` is on. Emitting a zero-delta scroll update after
-  /// the frame settles makes the thumb appear straight away.
-  void _revealScrollbar() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final ScrollController controller = widget.controller;
-      if (!controller.hasClients) return;
-      final ScrollPosition position = controller.position;
-      if (!position.hasContentDimensions) return;
-      position.didUpdateScrollPositionBy(0);
-    });
-  }
+  // The scrollbar-reveal workaround that used to live here went with the
+  // scrollbar itself — there is no outer indicator to coax into view any more.
 
   @override
   Widget build(BuildContext context) {
     return ScrollConfiguration(
-      // Drop the thin scrollbar the desktop/web scroll behavior adds, so only
-      // the kiosk-sized one below is drawn.
+      // No scrollbar on the outer options list at all — the panels already
+      // carry their own indicators where scrolling actually happens (the
+      // add-ons), and a second tan bar down the whole page just added noise.
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: RawScrollbar(
-        controller: widget.controller,
-        thumbVisibility: true,
-        trackVisibility: true,
-        interactive: true,
-        thickness: widget.thickness,
-        radius: Radius.circular(widget.thickness),
-        minThumbLength: widget.minThumbLength,
-        padding: widget.scrollbarPadding,
-        // Warm brand tones instead of a black bar: tan thumb on the cream
-        // card-border colour, so the indicator sits inside the kiosk palette.
-        thumbColor: BrandColors.secondary,
-        trackColor: BrandColors.cardBorder.withValues(alpha: 0.55),
-        trackBorderColor: Colors.transparent,
-        trackRadius: Radius.circular(widget.thickness),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // When the options are shorter than the area, centre them instead
-            // of pinning them to the top — otherwise short products leave a
-            // large empty band above the Instructions panel.
-            final double minHeight = math.max(
-              0,
-              constraints.maxHeight - widget.padding.vertical,
-            );
-            return SingleChildScrollView(
-              controller: widget.controller,
-              padding: widget.padding,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: minHeight),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [widget.child],
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // When the options are shorter than the area, centre them instead
+          // of pinning them to the top — otherwise short products leave a
+          // large empty band above the Instructions panel.
+          final double minHeight = math.max(
+            0,
+            constraints.maxHeight - widget.padding.vertical,
+          );
+          return SingleChildScrollView(
+            controller: widget.controller,
+            padding: widget.padding,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: minHeight),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [widget.child],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -804,8 +797,11 @@ class _OptionsScrollAreaState extends State<_OptionsScrollArea> {
 /// drag. `physics` is always scrollable so a short list still feels the same.
 class _HorizontalOptionRow extends StatelessWidget {
   final double s;
-  final List<Widget> children;
-  const _HorizontalOptionRow({required this.s, required this.children});
+
+  /// Built with the card width derived from the row's own width, so the cards
+  /// scale with the device instead of holding a fixed artboard size.
+  final List<Widget> Function(double cardWidth) builder;
+  const _HorizontalOptionRow({required this.s, required this.builder});
 
   @override
   Widget build(BuildContext context) {
@@ -813,19 +809,23 @@ class _HorizontalOptionRow extends StatelessWidget {
       width: double.infinity,
       child: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (int i = 0; i < children.length; i++) ...[
-                if (i > 0) SizedBox(width: 24 * s),
-                children[i],
+        child: LayoutBuilder(builder: (context, constraints) {
+          final double cardWidth = _optionCardWidth(constraints.maxWidth, s);
+          final List<Widget> children = builder(cardWidth);
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < children.length; i++) ...[
+                  if (i > 0) SizedBox(width: _kOptionCardSpacing * s),
+                  children[i],
+                ],
               ],
-            ],
-          ),
-        ),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -882,14 +882,10 @@ class _AddOnScrollBoxState extends State<_AddOnScrollBox> {
     final double thickness =
         (_kScrollbarWidth * s).clamp(4.0, _kScrollbarWidth);
 
-    return ConstrainedBox(
-      // maxHeight, not a fixed height: a group with a single row should stay
-      // one row tall rather than reserving two rows of empty panel. Only a
-      // group long enough to overflow gets clipped and scrolls.
-      constraints: BoxConstraints(
-        maxHeight: _kAddOnViewport * s,
-        minWidth: double.infinity,
-      ),
+    // No height of its own: this lives in an Expanded and fills whatever the
+    // pinned header, variations, cup/can and action bar leave behind.
+    return SizedBox(
+      width: double.infinity,
       child: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
         child: RawScrollbar(
@@ -918,34 +914,49 @@ class _AddOnScrollBoxState extends State<_AddOnScrollBox> {
 class _SectionPanel extends StatelessWidget {
   final double s;
   final String title;
+
+  /// Let the child take the panel's remaining height instead of sizing to its
+  /// content. Used by the add-ons panel so its scroller — and therefore the
+  /// scroll indicator — lives INSIDE the panel box rather than beside it.
+  final bool fill;
   final Widget child;
-  const _SectionPanel(
-      {required this.s, required this.title, required this.child});
+  const _SectionPanel({
+    required this.s,
+    required this.title,
+    required this.child,
+    this.fill = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       margin: EdgeInsets.symmetric(vertical: 18 * s),
-      padding: EdgeInsets.all(45 * s),
+      padding: EdgeInsets.all(38 * s),
       decoration: BoxDecoration(
         color: _kPanelBg,
-        borderRadius: BorderRadius.circular(70 * s),
+        // Same corner as the option cards, so tuning _kOptionRadius moves the
+        // whole screen's rounding together.
+        borderRadius: BorderRadius.circular(_kOptionRadius * s),
         border: Border.all(
           color: _kPanelBorder,
           width: (4 * s).clamp(1.0, 4.0),
         ),
       ),
       child: Column(
+        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
               style: loewBold.copyWith(fontSize: 54 * s, color: Colors.black)),
           SizedBox(height: 30 * s),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: child,
-          ),
+          if (fill)
+            Expanded(child: child)
+          else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: child,
+            ),
         ],
       ),
     );
@@ -971,14 +982,15 @@ class _SizeOptionsPanel extends StatelessWidget {
     return _SectionPanel(
       s: s,
       title: getTranslated('size', context) ?? 'Size',
-      child: Wrap(
-        alignment: WrapAlignment.start,
-        spacing: 24 * s,
-        runSpacing: 24 * s,
-        children: [
+      // Size is a variation, so it follows the same rule as the dietary row:
+      // always one line that scrolls sideways, never wrapping onto a second.
+      child: _HorizontalOptionRow(
+        s: s,
+        builder: (cardWidth) => [
           for (final entry in entries)
             for (int i = 0; i < (entry.value.variationValues?.length ?? 0); i++)
               _AddOnCard(
+                width: cardWidth,
                 s: s,
                 name: (entry.value.variationValues![i].level ??
                         entry.value.name ??
@@ -1040,11 +1052,12 @@ class _VariationSection extends StatelessWidget {
       // add-ons off screen — it just scrolls.
       child: _HorizontalOptionRow(
         s: s,
-        children: List.generate(values.length, (i) {
+        builder: (cardWidth) => List.generate(values.length, (i) {
           final bool selected =
               productProvider.selectedVariations[variationIndex][i] ?? false;
           return _DietaryCard(
             s: s,
+            width: cardWidth,
             name: values[i].level?.trim() ?? '',
             priceDelta: values[i].optionPrice ?? 0,
             image: KioskProductImageHelper.optionCardImageUrl(
@@ -1072,6 +1085,10 @@ class _VariationSection extends StatelessWidget {
 
 class _DietaryCard extends StatelessWidget {
   final double s;
+
+  /// Width computed from the space actually available. Falls back to the
+  /// artboard value when a caller has no layout information.
+  final double? width;
   final String name;
   final double priceDelta;
   final String image;
@@ -1079,6 +1096,7 @@ class _DietaryCard extends StatelessWidget {
   final VoidCallback onTap;
   const _DietaryCard({
     required this.s,
+    this.width,
     required this.name,
     required this.priceDelta,
     required this.image,
@@ -1090,15 +1108,15 @@ class _DietaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(40 * s),
+      borderRadius: BorderRadius.circular(_kOptionRadius * s),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: onTap,
         child: Container(
-          width: 426 * s, // Figma dietary card
-          padding: EdgeInsets.all(28 * s),
+          width: width ?? _kDietaryCardWidth * s,
+          padding: EdgeInsets.all(_kOptionCardPad * s),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(40 * s),
+            borderRadius: BorderRadius.circular(_kOptionRadius * s),
             border: Border.all(
               color: selected ? Colors.black : _kPanelBorder,
               width:
@@ -1112,21 +1130,23 @@ class _DietaryCard extends StatelessWidget {
                 child: _RadioDot(s: s, selected: selected),
               ),
               ClipRRect(
-                borderRadius: BorderRadius.circular(24 * s),
+                borderRadius: BorderRadius.circular(_kOptionInnerRadius * s),
                 child: SizedBox(
-                  width: 240 * s,
-                  height: 240 * s,
+                  width: _kOptionImage * s,
+                  height: _kOptionImage * s,
                   child: _OptionImageSlot(image: image, fit: BoxFit.cover),
                 ),
               ),
-              SizedBox(height: 20 * s),
+              SizedBox(height: _kOptionGap * s),
               Text(
                 name.toUpperCase(),
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: loewBold.copyWith(
-                    fontSize: 34 * s, height: 1.1, color: Colors.black),
+                    fontSize: _kOptionNameSize * s,
+                    height: 1.1,
+                    color: Colors.black),
               ),
               // Always reserve this row's height, even with no price delta
               // (e.g. the base "Small" option) -- cards sit in a Wrap, which
@@ -1138,7 +1158,7 @@ class _DietaryCard extends StatelessWidget {
                     ? '+${PriceConverterHelper.convertPrice(priceDelta)}'
                     : '',
                 style: swiss721Light.copyWith(
-                    fontSize: 28 * s, color: Colors.black54),
+                    fontSize: _kOptionPriceSize * s, color: Colors.black54),
               ),
             ],
           ),
@@ -1181,17 +1201,49 @@ class _AddOnsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final group in product.effectiveAddOnGroups)
-          _GroupedAddOnCards(
-            s: s,
-            product: product,
-            productProvider: productProvider,
-            group: group,
-          ),
-      ],
+    final groups = product.effectiveAddOnGroups;
+
+    // One panel for the whole add-on area, with the scroller INSIDE it — so the
+    // indicator sits within the panel box next to the cards, the way the design
+    // draws it, rather than running down the outside of the region.
+    //
+    // A single group titles the panel with its own name; several groups keep
+    // the design's "Add add-ons" heading and label each block inside.
+    final bool single = groups.length == 1;
+
+    return _SectionPanel(
+      s: s,
+      fill: true,
+      title: single
+          ? _addonGroupTitle(context, groups.first)
+          : (getTranslated('add_add_ons', context) ?? 'Add add-ons'),
+      child: _AddOnScrollBox(
+        s: s,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (int i = 0; i < groups.length; i++) ...[
+              if (!single) ...[
+                if (i > 0) SizedBox(height: 32 * s),
+                Padding(
+                  padding: EdgeInsets.only(bottom: 20 * s),
+                  child: Text(
+                    _addonGroupTitle(context, groups[i]),
+                    style: loewBold.copyWith(
+                        fontSize: 40 * s, color: Colors.black87),
+                  ),
+                ),
+              ],
+              _GroupedAddOnCards(
+                s: s,
+                product: product,
+                productProvider: productProvider,
+                group: groups[i],
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1216,44 +1268,49 @@ class _GroupedAddOnCards extends StatelessWidget {
           product.indexOfAddOn(addon.id)!,
     ];
 
-    return _SectionPanel(
-      s: s,
-      title: _addonGroupTitle(context, group),
-      child: _AddOnScrollBox(
-        s: s,
-        child: Wrap(
-          alignment: WrapAlignment.start,
-          spacing: 24 * s,
-          runSpacing: 24 * s,
-          children: [
-            for (final addon in group.addons)
-              if (product.indexOfAddOn(addon.id) != null)
-                _AddOnCard(
-                  s: s,
-                  name: addon.name ?? '',
-                  priceDelta: addon.price ?? 0,
-                  image: _addonImageUrl(context, addon),
-                  selected: product.indexOfAddOn(addon.id)! <
-                          productProvider.addOnActiveList.length &&
-                      productProvider
-                          .addOnActiveList[product.indexOfAddOn(addon.id)!],
-                  onTap: () => productProvider.toggleAddOnInGroup(
-                    index: product.indexOfAddOn(addon.id)!,
-                    isSingle: group.isSingle,
-                    groupIndexes: groupIndexes,
-                    isRequired: group.isRequired,
-                    maxSelect: group.max,
-                  ),
+    // Cards only — the heading and the panel chrome belong to _AddOnsSection
+    // now, so every group shares one panel and one scroller.
+    return LayoutBuilder(builder: (context, constraints) {
+      // Cards fill the row they are given: fewer, still-legible cards on a
+      // narrow window instead of the same count squeezed into slivers.
+      final double cardWidth = _optionCardWidth(constraints.maxWidth, s);
+      return Wrap(
+        alignment: WrapAlignment.start,
+        spacing: _kOptionCardSpacing * s,
+        runSpacing: _kOptionCardSpacing * s,
+        children: [
+          for (final addon in group.addons)
+            if (product.indexOfAddOn(addon.id) != null)
+              _AddOnCard(
+                s: s,
+                width: cardWidth,
+                name: addon.name ?? '',
+                priceDelta: addon.price ?? 0,
+                image: _addonImageUrl(context, addon),
+                selected: product.indexOfAddOn(addon.id)! <
+                        productProvider.addOnActiveList.length &&
+                    productProvider
+                        .addOnActiveList[product.indexOfAddOn(addon.id)!],
+                onTap: () => productProvider.toggleAddOnInGroup(
+                  index: product.indexOfAddOn(addon.id)!,
+                  isSingle: group.isSingle,
+                  groupIndexes: groupIndexes,
+                  isRequired: group.isRequired,
+                  maxSelect: group.max,
                 ),
-          ],
-        ),
-      ),
-    );
+              ),
+        ],
+      );
+    });
   }
 }
 
 class _AddOnCard extends StatelessWidget {
   final double s;
+
+  /// Width computed from the space actually available. Falls back to the
+  /// artboard value when a caller has no layout information.
+  final double? width;
   final String name;
   final double priceDelta;
   final String image;
@@ -1261,6 +1318,7 @@ class _AddOnCard extends StatelessWidget {
   final VoidCallback onTap;
   const _AddOnCard({
     required this.s,
+    this.width,
     required this.name,
     required this.priceDelta,
     required this.image,
@@ -1272,15 +1330,15 @@ class _AddOnCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(40 * s),
+      borderRadius: BorderRadius.circular(_kOptionRadius * s),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: onTap,
         child: Container(
-          width: 520 * s,
-          padding: EdgeInsets.all(28 * s),
+          width: width ?? _kAddOnCardWidth * s,
+          padding: EdgeInsets.all(_kOptionCardPad * s),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(40 * s),
+            borderRadius: BorderRadius.circular(_kOptionRadius * s),
             border: Border.all(
               color: selected ? Colors.black : _kPanelBorder,
               width:
@@ -1290,27 +1348,29 @@ class _AddOnCard extends StatelessWidget {
           child: Column(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(24 * s),
+                borderRadius: BorderRadius.circular(_kOptionInnerRadius * s),
                 child: SizedBox(
                   width: double.infinity,
-                  height: 240 * s,
+                  height: _kOptionImage * s,
                   child: _OptionImageSlot(image: image, fit: BoxFit.cover),
                 ),
               ),
-              SizedBox(height: 20 * s),
+              SizedBox(height: _kOptionGap * s),
               Text(
                 name.toUpperCase(),
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: loewBold.copyWith(
-                    fontSize: 32 * s, height: 1.1, color: Colors.black),
+                    fontSize: _kOptionNameSize * s,
+                    height: 1.1,
+                    color: Colors.black),
               ),
               SizedBox(height: 6 * s),
               Text(
                 '+${PriceConverterHelper.convertPrice(priceDelta)}',
                 style: swiss721Light.copyWith(
-                    fontSize: 28 * s, color: Colors.black54),
+                    fontSize: _kOptionPriceSize * s, color: Colors.black54),
               ),
             ],
           ),
@@ -1437,7 +1497,10 @@ class _CupCanCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOut,
-        height: 620 * s,
+        // Capped against the viewport as well as the artboard: on a short
+        // window the vessel cards would otherwise take the height the add-on
+        // list needs.
+        height: math.min(620 * s, MediaQuery.sizeOf(context).height * 0.22),
         padding: EdgeInsets.fromLTRB(34 * s, 34 * s, 34 * s, 30 * s),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1783,29 +1846,34 @@ class _WideCustomizeLayoutState extends State<_WideCustomizeLayout> {
                       ],
                     ),
                   ),
+                  // Same rule as the narrow layout: variations are pinned and
+                  // only ever move sideways; the add-ons are the one vertical
+                  // scroller.
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (sizeVariations.isNotEmpty)
+                        _WideSizeOptionsSection(
+                          entries: sizeVariations,
+                          product: product,
+                          productProvider: productProvider,
+                        ),
+                      for (final entry in dietaryVariations)
+                        _WideVariationSection(
+                          variation: entry.value,
+                          variationIndex: entry.key,
+                          product: product,
+                          productProvider: productProvider,
+                        ),
+                    ],
+                  ),
                   Expanded(
                     child: _OptionsScrollArea(
                       controller: _optionsScrollController,
                       padding: const EdgeInsets.only(right: 20),
-                      thickness: 10,
-                      minThumbLength: 56,
-                      scrollbarPadding: EdgeInsets.zero,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (sizeVariations.isNotEmpty)
-                            _WideSizeOptionsSection(
-                              entries: sizeVariations,
-                              product: product,
-                              productProvider: productProvider,
-                            ),
-                          for (final entry in dietaryVariations)
-                            _WideVariationSection(
-                              variation: entry.value,
-                              variationIndex: entry.key,
-                              product: product,
-                              productProvider: productProvider,
-                            ),
                           if (product.effectiveAddOnGroups.isNotEmpty)
                             _WideAddOnsSection(
                               product: product,

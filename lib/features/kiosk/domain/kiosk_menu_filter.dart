@@ -11,7 +11,8 @@ import 'package:provider/provider.dart';
 
 /// Opens the shared search [FilterWidget] sheet for the kiosk menu.
 void openKioskMenuFilterSheet(BuildContext context) {
-  final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
+  final categoryProvider =
+      Provider.of<CategoryProvider>(context, listen: false);
   final searchProvider = Provider.of<SearchProvider>(context, listen: false);
 
   if (categoryProvider.categoryList == null) {
@@ -91,16 +92,15 @@ List<Product> filterKioskProducts({
   List<Product> filtered = List<Product>.from(products);
 
   final int? priceIndex = searchProvider.selectedPriceIndex;
-  if (priceIndex != null && priceIndex < searchProvider.priceFilterList.length) {
+  if (priceIndex != null &&
+      priceIndex < searchProvider.priceFilterList.length) {
     final range = searchProvider.priceFilterList[priceIndex];
     final double min = range.first.toDouble();
     final double max = range.last.toDouble();
-    filtered = filtered
-        .where((p) {
-          final price = kioskProductUnitPrice(p);
-          return price >= min && price <= max;
-        })
-        .toList();
+    filtered = filtered.where((p) {
+      final price = kioskProductUnitPrice(p);
+      return price >= min && price <= max;
+    }).toList();
   }
 
   final int? sortIndex = searchProvider.selectedSortByIndex;
@@ -113,11 +113,13 @@ List<Product> filterKioskProducts({
         filtered.sort((a, b) => (b.name ?? '').compareTo(a.name ?? ''));
       case 'price_high_to_low':
         filtered.sort(
-          (a, b) => kioskProductUnitPrice(b).compareTo(kioskProductUnitPrice(a)),
+          (a, b) =>
+              kioskProductUnitPrice(b).compareTo(kioskProductUnitPrice(a)),
         );
       case 'price_low_to_high':
         filtered.sort(
-          (a, b) => kioskProductUnitPrice(a).compareTo(kioskProductUnitPrice(b)),
+          (a, b) =>
+              kioskProductUnitPrice(a).compareTo(kioskProductUnitPrice(b)),
         );
     }
   }

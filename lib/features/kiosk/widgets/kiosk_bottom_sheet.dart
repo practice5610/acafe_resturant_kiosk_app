@@ -30,8 +30,7 @@ class KioskBottomSheet extends StatelessWidget {
     final double viewportHeight = MediaQuery.sizeOf(context).height;
     final double maxHeight = viewportHeight * heightFactor;
     final bool wide = Responsive.isWide(context);
-    final double widthCap =
-        maxWidth ?? (wide ? 640.0 : double.infinity);
+    final double widthCap = maxWidth ?? (wide ? 640.0 : double.infinity);
 
     final BoxConstraints childConstraints = expandToHeightFactor
         ? BoxConstraints(
