@@ -6,6 +6,9 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/responsive/responsive.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
@@ -27,21 +30,35 @@ import 'package:provider/provider.dart';
 // (node 559:7646). Every size is taken from the 2572px-wide artboard and scaled
 // by `s = KioskResponsive.scale(screenWidth)`, reproducing the design at any size.
 // ===========================================================================
-const Color _kPanelBg = Color(0xFFFCFAF4);
+// Figma `02a - Menu Browse (Full Page)` (node 1385:13510), 2572x5400 artboard.
+// Panel fill and border are the design's own tokens, not the generic cream.
+const Color _kPanelBg = Color(0xFFFBF8EF); // (inspect) panel background
+const Color _kPanelBorder = Color(0xFFB9B5A6); // (inspect) border / track
 const Color _kDarkButton = Color(0xFF1E1E1E);
 const Color _kCreamText = Color(0xFFF3F3DD);
+
+// Add-on scroller — Figma `Rectangle 100` (thumb) over `Rectangle 101` (track):
+// both 20px wide, 15px radius, thumb #000000 on a #B9B5A6 track. The track is
+// 1205px tall, which is the height the add-on viewport clips to: two full rows
+// plus a peek of the third, so it reads as scrollable at a glance.
+const double _kScrollbarWidth = 20;
+const double _kScrollbarRadius = 15;
+const double _kAddOnViewport = 1205;
+const Color _kScrollThumb = Color(0xFF000000);
+const Color _kScrollTrack = _kPanelBorder;
 
 /// Variation groups whose name mentions "cup"/"can" get the big two-card
 /// treatment and are only shown when the product actually has them. This is the
 /// name the backend's Cup/Can switch generates ("Can or cup?"); the pattern
 /// stays loose so hand-authored groups from before the switch still match.
 /// Word-bounded on purpose — an unbounded `can` also matched "Pecan".
-final RegExp _kCupCanPattern = RegExp(r'\b(cups?|cans?)\b', caseSensitive: false);
+final RegExp _kCupCanPattern =
+    RegExp(r'\b(cups?|cans?)\b', caseSensitive: false);
 
-/// Warm card outline + selected ink for the option cards. Kept in the screen's
-/// cream family rather than a neutral grey, so an unselected card reads as part
-/// of the panel instead of a box drawn on top of it.
-const Color _kCardBorder = Color(0xFFE8E2D5);
+/// Card outline + selected ink for the option cards — the design's own border
+/// token, so an unselected card reads as part of the panel rather than a box
+/// drawn on top of it.
+const Color _kCardBorder = _kPanelBorder;
 const Color _kCardBorderSelected = Color(0xFF1E1E1E);
 const Color _kInkText = Color(0xFF2B2B2B);
 
@@ -405,23 +422,30 @@ class _KioskProductCustomizeScreenState
                                     s: s,
                                     product: product,
                                     productProvider: productProvider),
-                              for (final entry in cupCanVariations)
-                                _CupCanSection(
-                                  s: s,
-                                  variation: entry.value,
-                                  variationIndex: entry.key,
-                                  product: product,
-                                  productProvider: productProvider,
-                                ),
                             ],
                           ),
                         ),
                       ),
-                      // Add to cart stays pinned; only the variations /
-                      // add-ons above it scroll.
-                      _AddToCartBar(
-                          s: s,
-                          onTap: () => _addToCart(context, productProvider)),
+                      // Cup / can and the action bar are both pinned to the
+                      // bottom, per the design: the vessel is the last decision
+                      // before adding, so it must not scroll out of reach.
+                      for (final entry in cupCanVariations)
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 86 * s),
+                          child: _CupCanSection(
+                            s: s,
+                            variation: entry.value,
+                            variationIndex: entry.key,
+                            product: product,
+                            productProvider: productProvider,
+                          ),
+                        ),
+                      _ActionBar(
+                        s: s,
+                        product: product,
+                        productProvider: productProvider,
+                        onAddToCart: () => _addToCart(context, productProvider),
+                      ),
                     ],
                   ),
                 );
@@ -467,20 +491,28 @@ class _Header extends StatelessWidget {
             fallback: RouterHelper.getKioskMenuRoute,
           ),
         ),
-        SizedBox(
-          height: 720 * s,
-          child: CustomImageWidget(
-            key: ValueKey(heroImage),
-            placeholder: Images.placeholderImage,
-            image: heroImage,
-            fit: BoxFit.contain,
+        // Figma hero: 453 x 731 on the 2572 artboard, centred — a portrait
+        // box, so a landscape photo letterboxes inside it instead of stretching
+        // to the full panel width the way it used to.
+        Center(
+          child: SizedBox(
+            width: 453 * s,
+            height: 731 * s,
+            child: CustomImageWidget(
+              key: ValueKey(heroImage),
+              placeholder: Images.placeholderImage,
+              image: heroImage,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
         SizedBox(height: 24 * s),
         Text(
           product.name ?? '',
           textAlign: TextAlign.center,
-          style: loewExtraBold.copyWith(fontSize: 64 * s, color: Colors.black),
+          // (inspect) Loew / ExtraBold / 72px / line-height 100%.
+          style: loewExtraBold.copyWith(
+              fontSize: 72 * s, height: 1.0, color: Colors.black),
         ),
         if (description.isNotEmpty) ...[
           SizedBox(height: 12 * s),
@@ -765,6 +797,123 @@ class _OptionsScrollAreaState extends State<_OptionsScrollArea> {
   }
 }
 
+/// One row of option cards that scrolls sideways.
+///
+/// The kiosk has no visible horizontal scrollbar in the design, so the row is
+/// laid out with the cards at their natural width and simply overflows into a
+/// drag. `physics` is always scrollable so a short list still feels the same.
+class _HorizontalOptionRow extends StatelessWidget {
+  final double s;
+  final List<Widget> children;
+  const _HorizontalOptionRow({required this.s, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (int i = 0; i < children.length; i++) ...[
+                if (i > 0) SizedBox(width: 24 * s),
+                children[i],
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Add-on grid clipped to the design's viewport height with its own vertical
+/// scroller — Figma draws a #000000 thumb on a #B9B5A6 track, 20px wide with a
+/// 15px radius, rather than letting the add-ons run on down the page.
+class _AddOnScrollBox extends StatefulWidget {
+  final double s;
+  final Widget child;
+  const _AddOnScrollBox({required this.s, required this.child});
+
+  @override
+  State<_AddOnScrollBox> createState() => _AddOnScrollBoxState();
+}
+
+class _AddOnScrollBoxState extends State<_AddOnScrollBox> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _reveal();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AddOnScrollBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _reveal();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// RawScrollbar only fades its thumb in once it has seen a scroll
+  /// notification, so an untouched panel would render with no indicator at all.
+  /// A zero-delta update after the first frame makes it visible immediately.
+  void _reveal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      final ScrollPosition position = _controller.position;
+      if (!position.hasContentDimensions) return;
+      position.didUpdateScrollPositionBy(0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double s = widget.s;
+    final double thickness =
+        (_kScrollbarWidth * s).clamp(4.0, _kScrollbarWidth);
+
+    return ConstrainedBox(
+      // maxHeight, not a fixed height: a group with a single row should stay
+      // one row tall rather than reserving two rows of empty panel. Only a
+      // group long enough to overflow gets clipped and scrolls.
+      constraints: BoxConstraints(
+        maxHeight: _kAddOnViewport * s,
+        minWidth: double.infinity,
+      ),
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: RawScrollbar(
+          controller: _controller,
+          thumbVisibility: true,
+          trackVisibility: true,
+          interactive: true,
+          thickness: thickness,
+          radius: Radius.circular(_kScrollbarRadius * s),
+          trackRadius: Radius.circular(_kScrollbarRadius * s),
+          thumbColor: _kScrollThumb,
+          trackColor: _kScrollTrack,
+          trackBorderColor: Colors.transparent,
+          child: SingleChildScrollView(
+            controller: _controller,
+            padding: EdgeInsets.only(right: thickness + 16 * s),
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A light rounded panel wrapping a titled section.
 class _SectionPanel extends StatelessWidget {
   final double s;
@@ -782,6 +931,10 @@ class _SectionPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kPanelBg,
         borderRadius: BorderRadius.circular(70 * s),
+        border: Border.all(
+          color: _kPanelBorder,
+          width: (4 * s).clamp(1.0, 4.0),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -882,10 +1035,11 @@ class _VariationSection extends StatelessWidget {
     return _SectionPanel(
       s: s,
       title: title,
-      child: Wrap(
-        alignment: WrapAlignment.start,
-        spacing: 24 * s,
-        runSpacing: 24 * s,
+      // Figma keeps the dietary options on ONE row that scrolls sideways, so a
+      // product with many milks never grows the panel vertically and pushes the
+      // add-ons off screen — it just scrolls.
+      child: _HorizontalOptionRow(
+        s: s,
         children: List.generate(values.length, (i) {
           final bool selected =
               productProvider.selectedVariations[variationIndex][i] ?? false;
@@ -941,12 +1095,12 @@ class _DietaryCard extends StatelessWidget {
       child: KioskTap(
         onTap: onTap,
         child: Container(
-          width: 400 * s,
+          width: 426 * s, // Figma dietary card
           padding: EdgeInsets.all(28 * s),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(40 * s),
             border: Border.all(
-              color: selected ? Colors.black : Colors.black12,
+              color: selected ? Colors.black : _kPanelBorder,
               width:
                   selected ? (6 * s).clamp(2.0, 8.0) : (2 * s).clamp(1.0, 3.0),
             ),
@@ -1065,31 +1219,34 @@ class _GroupedAddOnCards extends StatelessWidget {
     return _SectionPanel(
       s: s,
       title: _addonGroupTitle(context, group),
-      child: Wrap(
-        alignment: WrapAlignment.start,
-        spacing: 24 * s,
-        runSpacing: 24 * s,
-        children: [
-          for (final addon in group.addons)
-            if (product.indexOfAddOn(addon.id) != null)
-              _AddOnCard(
-                s: s,
-                name: addon.name ?? '',
-                priceDelta: addon.price ?? 0,
-                image: _addonImageUrl(context, addon),
-                selected: product.indexOfAddOn(addon.id)! <
-                        productProvider.addOnActiveList.length &&
-                    productProvider
-                        .addOnActiveList[product.indexOfAddOn(addon.id)!],
-                onTap: () => productProvider.toggleAddOnInGroup(
-                  index: product.indexOfAddOn(addon.id)!,
-                  isSingle: group.isSingle,
-                  groupIndexes: groupIndexes,
-                  isRequired: group.isRequired,
-                  maxSelect: group.max,
+      child: _AddOnScrollBox(
+        s: s,
+        child: Wrap(
+          alignment: WrapAlignment.start,
+          spacing: 24 * s,
+          runSpacing: 24 * s,
+          children: [
+            for (final addon in group.addons)
+              if (product.indexOfAddOn(addon.id) != null)
+                _AddOnCard(
+                  s: s,
+                  name: addon.name ?? '',
+                  priceDelta: addon.price ?? 0,
+                  image: _addonImageUrl(context, addon),
+                  selected: product.indexOfAddOn(addon.id)! <
+                          productProvider.addOnActiveList.length &&
+                      productProvider
+                          .addOnActiveList[product.indexOfAddOn(addon.id)!],
+                  onTap: () => productProvider.toggleAddOnInGroup(
+                    index: product.indexOfAddOn(addon.id)!,
+                    isSingle: group.isSingle,
+                    groupIndexes: groupIndexes,
+                    isRequired: group.isRequired,
+                    maxSelect: group.max,
+                  ),
                 ),
-              ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1125,7 +1282,7 @@ class _AddOnCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(40 * s),
             border: Border.all(
-              color: selected ? Colors.black : Colors.black12,
+              color: selected ? Colors.black : _kPanelBorder,
               width:
                   selected ? (6 * s).clamp(2.0, 8.0) : (2 * s).clamp(1.0, 3.0),
             ),
@@ -1190,8 +1347,7 @@ class _CupCanSection extends StatelessWidget {
     // Cup and can are normally both free, so the price line is dropped entirely
     // rather than left as an empty row eating vertical space. It comes back the
     // moment any option actually carries a surcharge.
-    final bool anyPriced =
-        values.any((value) => (value.optionPrice ?? 0) > 0);
+    final bool anyPriced = values.any((value) => (value.optionPrice ?? 0) > 0);
 
     return _SectionPanel(
       s: s,
@@ -1425,40 +1581,75 @@ class _CupCanTick extends StatelessWidget {
         ),
       ),
       child: selected
-          ? Icon(Icons.check_rounded,
-              size: size * 0.62, color: Colors.white)
+          ? Icon(Icons.check_rounded, size: size * 0.62, color: Colors.white)
           : null,
     );
   }
 }
 
 /// Pinned full-width "ADD TO CART" button.
-class _AddToCartBar extends StatelessWidget {
+/// Pinned bottom pair from the Figma design: CANCEL ITEM (outlined) beside
+/// ADD TO CART with the running line total.
+///
+/// Both are [KioskCheckoutButton] — the same shared control the checkout steps
+/// and login use — so weight, radius, height and the wide-screen behaviour stay
+/// consistent across the kiosk instead of this screen growing its own button.
+class _ActionBar extends StatelessWidget {
   final double s;
-  final VoidCallback onTap;
-  const _AddToCartBar({required this.s, required this.onTap});
+  final Product product;
+
+  /// Rebuilt from the live selection, so the price tracks quantity, variations
+  /// and add-ons as they change.
+  final ProductProvider productProvider;
+  final VoidCallback onAddToCart;
+  const _ActionBar({
+    required this.s,
+    required this.product,
+    required this.productProvider,
+    required this.onAddToCart,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final double total = kioskLineTotal(buildKioskCartModel(context, product));
+    final String addLabel =
+        '${getTranslated('add_to_cart', context)?.toUpperCase() ?? 'ADD TO CART'}'
+        '  ${PriceConverterHelper.convertPrice(total)}';
+
     return Padding(
       padding: EdgeInsets.fromLTRB(86 * s, 16 * s, 86 * s, 24 * s),
-      child: Material(
-        color: _kDarkButton,
-        borderRadius: BorderRadius.circular(80 * s),
-        clipBehavior: Clip.antiAlias,
-        child: KioskTap(
-          onTap: onTap,
-          child: Container(
-            height: 180 * s,
-            alignment: Alignment.center,
-            child: Text(
-              getTranslated('add_to_cart', context)?.toUpperCase() ??
-                  'ADD TO CART',
-              style: loewExtraBold.copyWith(
-                  fontSize: 54 * s, letterSpacing: 2, color: _kCreamText),
+      // No CrossAxisAlignment.stretch: this Row sits directly in the screen's
+      // Column, whose children get an UNBOUNDED height, so stretch would hand
+      // each button a tight infinite height and fail layout for the whole body.
+      // KioskCheckoutButton sizes itself, so the pair is equal-height anyway.
+      child: Row(
+        children: [
+          Expanded(
+            child: KioskCheckoutButton(
+              s: s,
+              filled: false,
+              fontSize: 54,
+              label: getTranslated('cancel_item', context)?.toUpperCase() ??
+                  'CANCEL ITEM',
+              // Same route as the back button: drop the customize sheet and
+              // return to the menu.
+              onTap: () => KioskNavigationHelper.popOrNavigate(
+                context,
+                fallback: RouterHelper.getKioskMenuRoute,
+              ),
             ),
           ),
-        ),
+          SizedBox(width: 28 * s),
+          Expanded(
+            child: KioskCheckoutButton(
+              s: s,
+              filled: true,
+              fontSize: 54,
+              label: addLabel,
+              onTap: onAddToCart,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1633,15 +1824,37 @@ class _WideCustomizeLayoutState extends State<_WideCustomizeLayout> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Add to cart stays pinned; only the variations / add-ons
-                  // above it scroll.
-                  KioskButton(
-                    label:
-                        getTranslated('add_to_cart', context)?.toUpperCase() ??
-                            'ADD TO CART',
-                    height: KioskUI.primaryButtonHeight,
-                    maxWidth: 720,
-                    onTap: onAddToCart,
+                  // Cancel / add to cart stay pinned; only the variations and
+                  // add-ons above them scroll. Same pair as the narrow layout.
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: KioskButton(
+                            label: getTranslated('cancel_item', context)
+                                    ?.toUpperCase() ??
+                                'CANCEL ITEM',
+                            filled: false,
+                            height: KioskUI.primaryButtonHeight,
+                            onTap: () => KioskNavigationHelper.popOrNavigate(
+                              context,
+                              fallback: RouterHelper.getKioskMenuRoute,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: KioskButton(
+                            label:
+                                '${getTranslated('add_to_cart', context)?.toUpperCase() ?? 'ADD TO CART'}'
+                                '  ${PriceConverterHelper.convertPrice(kioskLineTotal(buildKioskCartModel(context, product)))}',
+                            height: KioskUI.primaryButtonHeight,
+                            onTap: onAddToCart,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1912,7 +2125,7 @@ class _WideOptionCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected ? Colors.black : Colors.black12,
+              color: selected ? Colors.black : _kPanelBorder,
               width: selected ? 2 : 1,
             ),
           ),

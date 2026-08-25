@@ -876,5 +876,6 @@
   "your_order_will_be_waiting": "Ihre Bestellung wartet in der App — in jeder Filiale nutzbar.",
   "or_enter_code_in_app": "Oder geben Sie diesen Code in der App ein",
   "instructions": "Anweisungen",
-  "instructions_hint": "BESONDERE WÜNSCHE (optional)"
+  "instructions_hint": "BESONDERE WÜNSCHE (optional)",
+  "cancel_item": "Artikel abbrechen"
 }

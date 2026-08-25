@@ -876,5 +876,6 @@
   "space": "Space",
   "clear": "Clear",
   "select_language": "Select language",
-  "choose_your_preferred_language": "Choose your preferred language"
+  "choose_your_preferred_language": "Choose your preferred language",
+  "cancel_item": "Cancel item"
 }

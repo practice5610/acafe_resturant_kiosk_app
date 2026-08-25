@@ -876,5 +876,6 @@
   "your_order_will_be_waiting": "Je bestelling staat klaar in de app — te gebruiken bij elke vestiging.",
   "or_enter_code_in_app": "Of voer deze code in de app in",
   "instructions": "Instructies",
-  "instructions_hint": "SPECIALE INSTRUCTIES (optioneel)"
+  "instructions_hint": "SPECIALE INSTRUCTIES (optioneel)",
+  "cancel_item": "Item annuleren"
 }

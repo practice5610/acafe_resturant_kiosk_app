@@ -876,5 +876,6 @@
   "your_order_will_be_waiting": "Votre commande vous attend dans l'app — utilisable dans tous les établissements.",
   "or_enter_code_in_app": "Ou saisissez ce code dans l'app",
   "instructions": "Instructions",
-  "instructions_hint": "INSTRUCTIONS SPÉCIALES (facultatif)"
+  "instructions_hint": "INSTRUCTIONS SPÉCIALES (facultatif)",
+  "cancel_item": "Annuler l'article"
 }
