@@ -5,7 +5,6 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
-import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_option_layout.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
@@ -31,9 +30,11 @@ import 'package:provider/provider.dart';
 // by `s = KioskResponsive.scale(screenWidth)`, reproducing the design at any size.
 // ===========================================================================
 // Figma `02a - Menu Browse (Full Page)` (node 1385:13510), 2572x5400 artboard.
-// Panel fill and border are the design's own tokens, not the generic cream.
-const Color _kPanelBg = Color(0xFFFBF8EF); // (inspect) panel background
-const Color _kPanelBorder = Color(0xFFB9B5A6); // (inspect) border / track
+// Section panels are white cards with a soft shadow; the page cream sits behind.
+const Color _kPanelBg = Color(0xFFFFFFFF); // section card fill
+const Color _kPanelBorder = Color(0xFFB9B5A6); // scroll track
+const Color _kCardIdleBorder = Color(0xFFD9D4C4); // unselected option cards
+const Color _kStepperMinus = Color(0xFFE8E6DF); // header / in-card minus
 const Color _kDarkButton = Color(0xFF1E1E1E);
 const Color _kCreamText = Color(0xFFF3F3DD);
 
@@ -43,32 +44,116 @@ const Color _kCreamText = Color(0xFFF3F3DD);
 // this is the one indicator on the page.
 const double _kScrollbarWidth = 20;
 const double _kScrollbarRadius = 15;
-// Option-card metrics, scaled down ~18% from the raw artboard values: at full
-// Figma size the cards read as oversized boxes on the real kiosk once the
-// panels gained their borders.
-const double _kDietaryCardWidth = 350; // was 426
-const double _kAddOnCardWidth = 424; // was 520
-const double _kOptionCardPad = 22; // was 28
-const double _kOptionImage = 190; // was 240
-const double _kOptionRadius = 30; // was 40
-const double _kOptionInnerRadius = 20; // was 24
-const double _kOptionGap = 16; // was 20
-const double _kOptionNameSize = 28; // was 32/34
-const double _kOptionPriceSize = 24; // was 28
-const double _kOptionCardSpacing = 20; // was 24
+// Option-card metrics. These are now CEILINGS, not fixed sizes: a card sizes
+// its own interior from the width it is actually given (see
+// [_OptionCardMetrics]) and only grows up to these artboard values. The screen
+// scale `s` bottoms out at KioskResponsive.minScale so type stays legible on a
+// small device — but that floor also froze the boxes, so below ~1070px the
+// panel kept shrinking while the image slot, padding and radii did not. That is
+// what left oversized cards wrapped around 7px labels on a laptop window.
+const double _kDietaryCardWidth = 300; // was 350
+const double _kAddOnCardWidth = 360; // was 424
+const double _kOptionCardPad = 16;
+const double _kOptionImage = 220;
+const double _kOptionRadius = 16;
+const double _kOptionInnerRadius = 12;
+const double _kOptionGap = 12;
+const double _kOptionNameSize = 26;
+const double _kOptionPriceSize = 18;
+const double _kOptionCardSpacing = 16;
 
 /// The full-height hero only fits on a genuinely tall portrait kiosk. Below
 /// this the header collapses to the compact side-by-side layout, which is what
 /// keeps the add-on list from being squeezed to a sliver on a laptop window.
 const double _kFullHeroMinViewport = 1150;
 
+/// Gutter between option cards. Floored so a small screen keeps the cards
+/// visibly separate instead of running them into one grey block. Used by BOTH
+/// the width rule and the rows that lay the cards out, so the row keeps
+/// dividing exactly.
+double _optionGap(double s) =>
+    (_kOptionCardSpacing * s).clamp(6.0, _kOptionCardSpacing);
+
 /// Width for one option card inside a panel [width] px wide — see
 /// `kiosk_option_layout.dart` for the rule.
 double _optionCardWidth(double width, double s) => kioskOptionCardWidth(
       width: width,
       cardWidth: _kAddOnCardWidth * s,
-      gap: _kOptionCardSpacing * s,
+      gap: _optionGap(s),
     );
+
+/// True when an option carries artwork of its own — the same test
+/// [_OptionImageSlot] paints by. A row where NOTHING has an image drops the
+/// image slot altogether rather than reserving a band of empty white, which is
+/// what made size cards and image-less add-ons read as big blank boxes.
+bool _hasOptionArt(String image) =>
+    image.isNotEmpty && !CustomImageWidget.isDefaultImage(image);
+
+/// Everything inside an option card, derived from the card's own width.
+///
+/// The card width already comes from the space available (`_optionCardWidth`),
+/// so driving the interior off it is what makes the card the same *shape* on a
+/// phone-width window and a 4K kiosk. Each value has a floor (legibility, touch
+/// target) and a ceiling (the artboard constant above).
+class _OptionCardMetrics {
+  /// Card padding.
+  final double pad;
+
+  /// Height of the image slot — 0 when the row has no artwork at all.
+  final double image;
+
+  /// Image → name gap.
+  final double gap;
+
+  /// Name → price gap.
+  final double priceGap;
+  final double radius;
+  final double innerRadius;
+  final double nameSize;
+  final double priceSize;
+
+  /// Selection dot, drawn over the image (or reserved above the name when the
+  /// card has no image).
+  final double dot;
+  final double idleBorder;
+  final double selectedBorder;
+
+  const _OptionCardMetrics._({
+    required this.pad,
+    required this.image,
+    required this.gap,
+    required this.priceGap,
+    required this.radius,
+    required this.innerRadius,
+    required this.nameSize,
+    required this.priceSize,
+    required this.dot,
+    required this.idleBorder,
+    required this.selectedBorder,
+  });
+
+  factory _OptionCardMetrics.of(double width, {required bool showImage}) {
+    final double w = math.max(1, width);
+    final double pad = (w * 0.07).clamp(6.0, _kOptionCardPad);
+    final double inner = math.max(1, w - pad * 2);
+    return _OptionCardMetrics._(
+      pad: pad,
+      // Figma option cards are nearly square: the image is the hero, the
+      // label sits underneath, and a selected add-on tucks a qty stepper
+      // into the same box rather than a short landscape strip.
+      image: showImage ? (inner * 0.72).clamp(36.0, _kOptionImage) : 0,
+      gap: (w * 0.045).clamp(4.0, _kOptionGap),
+      priceGap: (w * 0.025).clamp(2.0, 6.0),
+      radius: (w * 0.085).clamp(8.0, _kOptionRadius),
+      innerRadius: (w * 0.055).clamp(5.0, _kOptionInnerRadius),
+      nameSize: (w * 0.095).clamp(11.0, _kOptionNameSize),
+      priceSize: (w * 0.07).clamp(9.0, _kOptionPriceSize),
+      dot: (w * 0.12).clamp(16.0, 28.0),
+      idleBorder: 1.0,
+      selectedBorder: (w * 0.014).clamp(2.0, 3.0),
+    );
+  }
+}
 
 const Color _kScrollThumb = Color(0xFF000000);
 const Color _kScrollTrack = _kPanelBorder;
@@ -81,12 +166,25 @@ const Color _kScrollTrack = _kPanelBorder;
 final RegExp _kCupCanPattern =
     RegExp(r'\b(cups?|cans?)\b', caseSensitive: false);
 
-/// Card outline + selected ink for the option cards — the design's own border
-/// token, so an unselected card reads as part of the panel rather than a box
-/// drawn on top of it.
-const Color _kCardBorder = _kPanelBorder;
+/// Card outline + selected ink for the option cards.
 const Color _kCardBorderSelected = Color(0xFF1E1E1E);
 const Color _kInkText = Color(0xFF2B2B2B);
+
+/// Figma add-on price: "€ +1.50" when the currency sits on the left, otherwise
+/// "+ 1.50 €". [PriceConverterHelper.convertPrice] already includes the symbol.
+String _addonPriceLabel(double price) {
+  if (price <= 0) return '';
+  final String converted = PriceConverterHelper.convertPrice(price);
+  final Match? leading = RegExp(r'^([^\d\s]+)\s*(.*)').firstMatch(converted);
+  if (leading != null) {
+    final String symbol = leading.group(1)!.trim();
+    final String amount = leading.group(2)!.trim();
+    if (symbol.isNotEmpty && amount.isNotEmpty) {
+      return '$symbol +$amount';
+    }
+  }
+  return '+ $converted';
+}
 
 /// Local artwork for the "Can or cup?" vessels. That group is generated from the
 /// product's Cup/Can switch in the backend and carries no images of its own, so
@@ -265,7 +363,6 @@ class _KioskProductCustomizeScreenState
   /// moved to a single order-level note on the cart — but an existing line's
   /// text is carried through so editing a line cannot silently wipe it.
   String? _instruction;
-  final ScrollController _optionsScrollController = ScrollController();
 
   Product get product => widget.product;
   int? get cartIndex => widget.cartIndex;
@@ -275,12 +372,6 @@ class _KioskProductCustomizeScreenState
     super.initState();
     final String initial = widget.initialInstruction?.trim() ?? '';
     _instruction = initial.isEmpty ? null : initial;
-  }
-
-  @override
-  void dispose() {
-    _optionsScrollController.dispose();
-    super.dispose();
   }
 
   /// Same validation rules as the web app, run before adding to the cart.
@@ -379,16 +470,6 @@ class _KioskProductCustomizeScreenState
       body: SafeArea(
         child: Consumer<ProductProvider>(
           builder: (context, productProvider, _) {
-            if (Responsive.isWide(context)) {
-              return _WideCustomizeLayout(
-                product: product,
-                productProvider: productProvider,
-                sizeVariations: sizeVariations,
-                dietaryVariations: dietaryVariations,
-                cupCanVariations: cupCanVariations,
-                onAddToCart: () => _addToCart(context, productProvider),
-              );
-            }
             return LayoutBuilder(
               builder: (context, constraints) {
                 final double s = KioskResponsive.scale(constraints.maxWidth);
@@ -574,9 +655,11 @@ class _Header extends StatelessWidget {
 
 /// Header for short / medium viewports (landscape tablets, resized windows).
 ///
-/// The photo shrinks to a small square and the name, description and stepper
-/// sit beside it, so the variations and add-ons below get most of the height
-/// instead of a hero image that pushes them off-screen.
+/// Same shape as the full hero — photo on top, then the name, description and
+/// stepper, all centred on the screen — only smaller: the photo is capped
+/// against the viewport so the identity block never takes the height the
+/// options need. The back button stays pinned in the corner rather than pushing
+/// the block off-centre.
 class _CompactHeader extends StatelessWidget {
   final double s;
   final double viewportHeight;
@@ -598,56 +681,72 @@ class _CompactHeader extends StatelessWidget {
     );
     final String description =
         (product.description ?? '').replaceAll(RegExp(r'<[^>]*>'), '').trim();
-    // Never let the photo eat more than a quarter of the viewport.
-    final double imageSize = math.min(460 * s, viewportHeight * 0.25);
+    // A badge, not a hero: never more than a seventh of the viewport, so the
+    // centred block stays short enough to leave the options their room.
+    final double imageSize = math.min(340 * s, viewportHeight * 0.15);
+    // Keeps the centred text clear of the back button in the corner.
+    final double gutter = (170 * s).clamp(52.0, 170.0);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Stack(
+      alignment: Alignment.topCenter,
       children: [
-        KioskBackButton.scaled(
-          s: s,
-          size: 110,
-          border: 2,
-          icon: 46,
-          fallback: RouterHelper.getKioskMenuRoute,
-        ),
-        SizedBox(width: 28 * s),
         SizedBox(
-          width: imageSize,
-          height: imageSize,
-          child: CustomImageWidget(
-            key: ValueKey(heroImage),
-            placeholder: Images.placeholderImage,
-            image: heroImage,
-            fit: BoxFit.contain,
-          ),
-        ),
-        SizedBox(width: 36 * s),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                product.name ?? '',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: loewExtraBold.copyWith(
-                    fontSize: 56 * s, color: Colors.black),
-              ),
-              if (description.isNotEmpty) ...[
-                SizedBox(height: 10 * s),
+          width: double.infinity,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: gutter),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: imageSize,
+                  height: imageSize,
+                  child: CustomImageWidget(
+                    key: ValueKey(heroImage),
+                    placeholder: Images.placeholderImage,
+                    image: heroImage,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                SizedBox(height: (18 * s).clamp(8.0, 24.0)),
                 Text(
-                  description,
+                  product.name ?? '',
+                  textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: scotchDisplayLight.copyWith(
-                      fontSize: 30 * s, height: 1.2, color: Colors.black87),
+                  style: loewExtraBold.copyWith(
+                      fontSize: (56 * s).clamp(18.0, 56.0),
+                      height: 1.05,
+                      color: Colors.black),
                 ),
+                if (description.isNotEmpty) ...[
+                  SizedBox(height: (10 * s).clamp(4.0, 12.0)),
+                  Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: scotchDisplayLight.copyWith(
+                        fontSize: (30 * s).clamp(12.0, 30.0),
+                        height: 1.2,
+                        color: Colors.black87),
+                  ),
+                ],
+                SizedBox(height: (20 * s).clamp(10.0, 24.0)),
+                _QuantityStepper(s: s, productProvider: productProvider),
               ],
-              SizedBox(height: 18 * s),
-              _QuantityStepper(s: s, productProvider: productProvider),
-            ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          top: 0,
+          child: KioskBackButton.scaled(
+            s: s,
+            size: 110,
+            border: 2,
+            icon: 46,
+            fallback: RouterHelper.getKioskMenuRoute,
           ),
         ),
       ],
@@ -663,24 +762,27 @@ class _QuantityStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int qty = productProvider.quantity ?? 1;
+    final double button = (96 * s).clamp(40.0, 96.0);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
         _StepperButton(
-          s: s,
+          width: button,
+          height: button,
           label: '−',
           filled: false,
           onTap: () => qty > 1 ? productProvider.setQuantity(false) : null,
         ),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 50 * s),
+          padding: EdgeInsets.symmetric(horizontal: (36 * s).clamp(14.0, 36.0)),
           child: Text('$qty',
               style: loewExtraBold.copyWith(
-                  fontSize: 80 * s, color: Colors.black)),
+                  fontSize: (64 * s).clamp(22.0, 64.0), color: Colors.black)),
         ),
         _StepperButton(
-          s: s,
+          width: button,
+          height: button,
           label: '+',
           filled: true,
           onTap: () => productProvider.setQuantity(true),
@@ -691,39 +793,42 @@ class _QuantityStepper extends StatelessWidget {
 }
 
 class _StepperButton extends StatelessWidget {
-  final double s;
+  final double width;
+  final double height;
   final String label;
   final bool filled;
-  final VoidCallback onTap;
-  const _StepperButton(
-      {required this.s,
-      required this.label,
-      required this.filled,
-      required this.onTap});
+  final VoidCallback? onTap;
+  const _StepperButton({
+    required this.width,
+    required this.height,
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Figma: square-ish buttons, grey minus / black plus, tight radius — not
+    // the outlined white pill the rest of the kiosk uses for qty.
+    final double radius = (height * 0.22).clamp(6.0, 12.0);
+    final double fontSize = (height * 0.48).clamp(14.0, 36.0);
+
     return Material(
-      color: filled ? _kDarkButton : Colors.white,
-      borderRadius: BorderRadius.circular(36 * s),
+      color: filled ? _kDarkButton : _kStepperMinus,
+      borderRadius: BorderRadius.circular(radius),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: onTap,
         child: Container(
-          width: 150 * s,
-          height: 114 * s,
+          width: width,
+          height: height,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(36 * s),
-            border: filled
-                ? null
-                : Border.all(
-                    color: Colors.black, width: (4 * s).clamp(2.0, 6.0)),
-          ),
           child: Text(
             label,
             style: loewExtraBold.copyWith(
-                fontSize: 70 * s, color: filled ? _kCreamText : Colors.black),
+                fontSize: fontSize,
+                height: 1.0,
+                color: filled ? _kCreamText : Colors.black),
           ),
         ),
       ),
@@ -731,61 +836,51 @@ class _StepperButton extends StatelessWidget {
   }
 }
 
-/// Scrollable options area (variations / add-ons) with a kiosk-sized scrollbar
-/// that is visible from the first frame — the guest should see that the list
-/// scrolls without having to drag it first.
-///
-/// The thumb is only painted when the content is actually taller than the
-/// viewport, so a product whose options all fit shows no indicator at all.
-class _OptionsScrollArea extends StatefulWidget {
-  final ScrollController controller;
-  final EdgeInsets padding;
-  final Widget child;
-
-  const _OptionsScrollArea({
-    required this.controller,
-    required this.padding,
-    required this.child,
+/// Compact − / qty / + used inside a selected add-on card.
+class _CardQtyStepper extends StatelessWidget {
+  final int quantity;
+  final double size;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
+  const _CardQtyStepper({
+    required this.quantity,
+    required this.size,
+    required this.onIncrement,
+    required this.onDecrement,
   });
 
   @override
-  State<_OptionsScrollArea> createState() => _OptionsScrollAreaState();
-}
-
-class _OptionsScrollAreaState extends State<_OptionsScrollArea> {
-  // The scrollbar-reveal workaround that used to live here went with the
-  // scrollbar itself — there is no outer indicator to coax into view any more.
-
-  @override
   Widget build(BuildContext context) {
-    return ScrollConfiguration(
-      // No scrollbar on the outer options list at all — the panels already
-      // carry their own indicators where scrolling actually happens (the
-      // add-ons), and a second tan bar down the whole page just added noise.
-      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // When the options are shorter than the area, centre them instead
-          // of pinning them to the top — otherwise short products leave a
-          // large empty band above the Instructions panel.
-          final double minHeight = math.max(
-            0,
-            constraints.maxHeight - widget.padding.vertical,
-          );
-          return SingleChildScrollView(
-            controller: widget.controller,
-            padding: widget.padding,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: minHeight),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [widget.child],
-              ),
+    final double button = size.clamp(22.0, 36.0);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _StepperButton(
+          width: button,
+          height: button,
+          label: '−',
+          filled: false,
+          onTap: onDecrement,
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: button * 0.35),
+          child: Text(
+            '$quantity',
+            style: loewExtraBold.copyWith(
+              fontSize: button * 0.72,
+              height: 1.0,
+              color: Colors.black,
             ),
-          );
-        },
-      ),
+          ),
+        ),
+        _StepperButton(
+          width: button,
+          height: button,
+          label: '+',
+          filled: true,
+          onTap: onIncrement,
+        ),
+      ],
     );
   }
 }
@@ -819,7 +914,7 @@ class _HorizontalOptionRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (int i = 0; i < children.length; i++) ...[
-                  if (i > 0) SizedBox(width: _kOptionCardSpacing * s),
+                  if (i > 0) SizedBox(width: _optionGap(s)),
                   children[i],
                 ],
               ],
@@ -929,27 +1024,36 @@ class _SectionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Panel chrome is floored too: at the smallest scale 38*s is a 9px inset
+    // around cards that have their own padding, which reads as no panel at all.
     return Container(
       width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 18 * s),
-      padding: EdgeInsets.all(38 * s),
+      margin: EdgeInsets.symmetric(vertical: (14 * s).clamp(6.0, 14.0)),
+      padding: EdgeInsets.all((32 * s).clamp(12.0, 32.0)),
       decoration: BoxDecoration(
         color: _kPanelBg,
-        // Same corner as the option cards, so tuning _kOptionRadius moves the
-        // whole screen's rounding together.
-        borderRadius: BorderRadius.circular(_kOptionRadius * s),
+        borderRadius: BorderRadius.circular(
+            (_kOptionRadius * s).clamp(10.0, _kOptionRadius)),
         border: Border.all(
-          color: _kPanelBorder,
-          width: (4 * s).clamp(1.0, 4.0),
+          color: _kCardIdleBorder,
+          width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: (20 * s).clamp(8.0, 20.0),
+            offset: Offset(0, (4 * s).clamp(2.0, 4.0)),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: loewBold.copyWith(fontSize: 54 * s, color: Colors.black)),
-          SizedBox(height: 30 * s),
+              style: loewBold.copyWith(
+                  fontSize: (54 * s).clamp(16.0, 54.0), color: Colors.black)),
+          SizedBox(height: (30 * s).clamp(10.0, 30.0)),
           if (fill)
             Expanded(child: child)
           else
@@ -986,36 +1090,61 @@ class _SizeOptionsPanel extends StatelessWidget {
       // always one line that scrolls sideways, never wrapping onto a second.
       child: _HorizontalOptionRow(
         s: s,
-        builder: (cardWidth) => [
-          for (final entry in entries)
-            for (int i = 0; i < (entry.value.variationValues?.length ?? 0); i++)
-              _AddOnCard(
+        builder: (cardWidth) {
+          // Flatten the groups first so the row can be asked ONE question:
+          // does anything here have artwork? Size options rarely do, and a row
+          // of reserved-but-empty image slots is what made Small / Medium /
+          // Large read as tall blank boxes.
+          final options = [
+            for (final entry in entries)
+              for (int i = 0;
+                  i < (entry.value.variationValues?.length ?? 0);
+                  i++)
+                (
+                  index: entry.key,
+                  valueIndex: i,
+                  variation: entry.value,
+                  value: entry.value.variationValues![i],
+                  image: KioskProductImageHelper.optionCardImageUrl(
+                    value: entry.value.variationValues![i],
+                    productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                  ),
+                ),
+          ];
+          final bool showImage =
+              options.any((option) => _hasOptionArt(option.image));
+          return [
+            for (final option in options)
+              _DietaryCard(
                 width: cardWidth,
                 s: s,
-                name: (entry.value.variationValues![i].level ??
-                        entry.value.name ??
-                        '')
-                    .trim(),
-                priceDelta: entry.value.variationValues![i].optionPrice ?? 0,
-                image: KioskProductImageHelper.optionCardImageUrl(
-                  value: entry.value.variationValues![i],
-                  productImageBaseUrl: splash.baseUrls?.productImageUrl,
-                ),
-                selected:
-                    productProvider.selectedVariations[entry.key][i] ?? false,
+                name:
+                    (option.value.level ?? option.variation.name ?? '').trim(),
+                priceDelta: option.value.optionPrice ?? 0,
+                image: option.image,
+                showImage: showImage,
+                selected: productProvider.selectedVariations[option.index]
+                        [option.valueIndex] ??
+                    false,
                 onTap: () {
                   productProvider.setCartVariationIndex(
-                      entry.key, i, product, entry.value.isMultiSelect!);
+                    option.index,
+                    option.valueIndex,
+                    product,
+                    option.variation.isMultiSelect!,
+                  );
                   productProvider.checkIsRequiredSelected(
-                    index: entry.key,
-                    isMultiSelect: entry.value.isMultiSelect!,
-                    variations: productProvider.selectedVariations[entry.key],
-                    min: entry.value.min,
-                    max: entry.value.max,
+                    index: option.index,
+                    isMultiSelect: option.variation.isMultiSelect!,
+                    variations:
+                        productProvider.selectedVariations[option.index],
+                    min: option.variation.min,
+                    max: option.variation.max,
                   );
                 },
               ),
-        ],
+          ];
+        },
       ),
     );
   }
@@ -1052,32 +1181,43 @@ class _VariationSection extends StatelessWidget {
       // add-ons off screen — it just scrolls.
       child: _HorizontalOptionRow(
         s: s,
-        builder: (cardWidth) => List.generate(values.length, (i) {
-          final bool selected =
-              productProvider.selectedVariations[variationIndex][i] ?? false;
-          return _DietaryCard(
-            s: s,
-            width: cardWidth,
-            name: values[i].level?.trim() ?? '',
-            priceDelta: values[i].optionPrice ?? 0,
-            image: KioskProductImageHelper.optionCardImageUrl(
-              value: values[i],
-              productImageBaseUrl: splash.baseUrls?.productImageUrl,
-            ),
-            selected: selected,
-            onTap: () {
-              productProvider.setCartVariationIndex(
-                  variationIndex, i, product, variation.isMultiSelect!);
-              productProvider.checkIsRequiredSelected(
-                index: variationIndex,
-                isMultiSelect: variation.isMultiSelect!,
-                variations: productProvider.selectedVariations[variationIndex],
-                min: variation.min,
-                max: variation.max,
-              );
-            },
-          );
-        }),
+        builder: (cardWidth) {
+          final List<String> images = [
+            for (final value in values)
+              KioskProductImageHelper.optionCardImageUrl(
+                value: value,
+                productImageBaseUrl: splash.baseUrls?.productImageUrl,
+              ),
+          ];
+          // One decision for the whole row: illustrated groups keep the slot,
+          // text-only groups (most milks) collapse to short cards.
+          final bool showImage = images.any(_hasOptionArt);
+          return List.generate(values.length, (i) {
+            final bool selected =
+                productProvider.selectedVariations[variationIndex][i] ?? false;
+            return _DietaryCard(
+              s: s,
+              width: cardWidth,
+              name: values[i].level?.trim() ?? '',
+              priceDelta: values[i].optionPrice ?? 0,
+              image: images[i],
+              showImage: showImage,
+              selected: selected,
+              onTap: () {
+                productProvider.setCartVariationIndex(
+                    variationIndex, i, product, variation.isMultiSelect!);
+                productProvider.checkIsRequiredSelected(
+                  index: variationIndex,
+                  isMultiSelect: variation.isMultiSelect!,
+                  variations:
+                      productProvider.selectedVariations[variationIndex],
+                  min: variation.min,
+                  max: variation.max,
+                );
+              },
+            );
+          });
+        },
       ),
     );
   }
@@ -1092,6 +1232,11 @@ class _DietaryCard extends StatelessWidget {
   final String name;
   final double priceDelta;
   final String image;
+
+  /// Whether this ROW reserves an image slot. Decided per group, not per card,
+  /// so every card in a row is the same height — a group where no option has
+  /// artwork drops the slot entirely and collapses to a compact text card.
+  final bool showImage;
   final bool selected;
   final VoidCallback onTap;
   const _DietaryCard({
@@ -1100,65 +1245,72 @@ class _DietaryCard extends StatelessWidget {
     required this.name,
     required this.priceDelta,
     required this.image,
+    required this.showImage,
     required this.selected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final double cardWidth = width ?? _kDietaryCardWidth * s;
+    final _OptionCardMetrics m =
+        _OptionCardMetrics.of(cardWidth, showImage: showImage);
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(_kOptionRadius * s),
+      borderRadius: BorderRadius.circular(m.radius),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: onTap,
-        child: Container(
-          width: width ?? _kDietaryCardWidth * s,
-          padding: EdgeInsets.all(_kOptionCardPad * s),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: cardWidth,
+          padding: EdgeInsets.all(m.pad),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(_kOptionRadius * s),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(m.radius),
             border: Border.all(
-              color: selected ? Colors.black : _kPanelBorder,
-              width:
-                  selected ? (6 * s).clamp(2.0, 8.0) : (2 * s).clamp(1.0, 3.0),
+              color: selected ? _kCardBorderSelected : _kCardIdleBorder,
+              width: selected ? m.selectedBorder : m.idleBorder,
             ),
           ),
-          child: Column(
+          child: Stack(
             children: [
-              Align(
-                alignment: Alignment.topRight,
-                child: _RadioDot(s: s, selected: selected),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (m.image > 0) ...[
+                    SizedBox(
+                      height: m.image,
+                      child:
+                          _OptionImageSlot(image: image, fit: BoxFit.contain),
+                    ),
+                    SizedBox(height: m.gap),
+                  ] else
+                    SizedBox(height: m.dot + m.priceGap),
+                  Text(
+                    name.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: loewBold.copyWith(
+                        fontSize: m.nameSize, height: 1.1, color: Colors.black),
+                  ),
+                  if (priceDelta > 0) ...[
+                    SizedBox(height: m.priceGap),
+                    Text(
+                      _addonPriceLabel(priceDelta),
+                      textAlign: TextAlign.center,
+                      style: swiss721Light.copyWith(
+                          fontSize: m.priceSize, color: Colors.black54),
+                    ),
+                  ],
+                ],
               ),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(_kOptionInnerRadius * s),
-                child: SizedBox(
-                  width: _kOptionImage * s,
-                  height: _kOptionImage * s,
-                  child: _OptionImageSlot(image: image, fit: BoxFit.cover),
-                ),
-              ),
-              SizedBox(height: _kOptionGap * s),
-              Text(
-                name.toUpperCase(),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: loewBold.copyWith(
-                    fontSize: _kOptionNameSize * s,
-                    height: 1.1,
-                    color: Colors.black),
-              ),
-              // Always reserve this row's height, even with no price delta
-              // (e.g. the base "Small" option) -- cards sit in a Wrap, which
-              // doesn't stretch siblings to a common height, so omitting this
-              // line entirely made that card shorter than its neighbors.
-              SizedBox(height: 6 * s),
-              Text(
-                priceDelta > 0
-                    ? '+${PriceConverterHelper.convertPrice(priceDelta)}'
-                    : '',
-                style: swiss721Light.copyWith(
-                    fontSize: _kOptionPriceSize * s, color: Colors.black54),
+              Positioned(
+                top: 0,
+                right: 0,
+                child: _RadioDot(size: m.dot, selected: selected),
               ),
             ],
           ),
@@ -1169,23 +1321,33 @@ class _DietaryCard extends StatelessWidget {
 }
 
 class _RadioDot extends StatelessWidget {
-  final double s;
+  /// Sized by the card it sits on, so it shrinks with the card instead of
+  /// holding an artboard size the shrunken card can no longer carry.
+  final double size;
   final bool selected;
-  const _RadioDot({required this.s, required this.selected});
+  const _RadioDot({required this.size, required this.selected});
 
   @override
   Widget build(BuildContext context) {
-    final double d = 40 * s;
     return Container(
-      width: d,
-      height: d,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? Colors.black : Colors.transparent,
-        border: Border.all(color: Colors.black, width: (3 * s).clamp(1.5, 4.0)),
+        color: Colors.transparent,
+        border: Border.all(
+            color: Colors.black, width: (size * 0.08).clamp(1.5, 2.5)),
       ),
+      alignment: Alignment.center,
       child: selected
-          ? Icon(Icons.check, size: 26 * s, color: Colors.white)
+          ? Container(
+              width: size * 0.52,
+              height: size * 0.52,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black,
+              ),
+            )
           : null,
     );
   }
@@ -1224,13 +1386,14 @@ class _AddOnsSection extends StatelessWidget {
           children: [
             for (int i = 0; i < groups.length; i++) ...[
               if (!single) ...[
-                if (i > 0) SizedBox(height: 32 * s),
+                if (i > 0) SizedBox(height: (32 * s).clamp(12.0, 32.0)),
                 Padding(
-                  padding: EdgeInsets.only(bottom: 20 * s),
+                  padding: EdgeInsets.only(bottom: (20 * s).clamp(8.0, 20.0)),
                   child: Text(
                     _addonGroupTitle(context, groups[i]),
                     style: loewBold.copyWith(
-                        fontSize: 40 * s, color: Colors.black87),
+                        fontSize: (40 * s).clamp(13.0, 40.0),
+                        color: Colors.black87),
                   ),
                 ),
               ],
@@ -1274,31 +1437,61 @@ class _GroupedAddOnCards extends StatelessWidget {
       // Cards fill the row they are given: fewer, still-legible cards on a
       // narrow window instead of the same count squeezed into slivers.
       final double cardWidth = _optionCardWidth(constraints.maxWidth, s);
+      // Group-wide, so the grid stays a grid: one add-on with a photo keeps the
+      // slot for its neighbours, a group with none loses it entirely.
+      final bool showImage = group.addons.any((addon) => addon.hasImage);
       return Wrap(
         alignment: WrapAlignment.start,
-        spacing: _kOptionCardSpacing * s,
-        runSpacing: _kOptionCardSpacing * s,
+        spacing: _optionGap(s),
+        runSpacing: _optionGap(s),
         children: [
           for (final addon in group.addons)
             if (product.indexOfAddOn(addon.id) != null)
-              _AddOnCard(
-                s: s,
-                width: cardWidth,
-                name: addon.name ?? '',
-                priceDelta: addon.price ?? 0,
-                image: _addonImageUrl(context, addon),
-                selected: product.indexOfAddOn(addon.id)! <
-                        productProvider.addOnActiveList.length &&
-                    productProvider
-                        .addOnActiveList[product.indexOfAddOn(addon.id)!],
-                onTap: () => productProvider.toggleAddOnInGroup(
-                  index: product.indexOfAddOn(addon.id)!,
-                  isSingle: group.isSingle,
-                  groupIndexes: groupIndexes,
-                  isRequired: group.isRequired,
-                  maxSelect: group.max,
-                ),
-              ),
+              Builder(builder: (context) {
+                final int index = product.indexOfAddOn(addon.id)!;
+                final bool selected =
+                    index < productProvider.addOnActiveList.length &&
+                        productProvider.addOnActiveList[index];
+                final int quantity = index < productProvider.addOnQtyList.length
+                    ? (productProvider.addOnQtyList[index] ?? 1)
+                    : 1;
+                return _AddOnCard(
+                  s: s,
+                  width: cardWidth,
+                  name: addon.name ?? '',
+                  priceDelta: addon.price ?? 0,
+                  image: _addonImageUrl(context, addon),
+                  showImage: showImage,
+                  selected: selected,
+                  quantity: quantity,
+                  showQuantity: selected && !group.isSingle,
+                  onIncrement: () =>
+                      productProvider.setAddOnQuantity(true, index),
+                  onDecrement: () {
+                    if (quantity > 1) {
+                      productProvider.setAddOnQuantity(false, index);
+                    } else {
+                      productProvider.toggleAddOnInGroup(
+                        index: index,
+                        isSingle: group.isSingle,
+                        groupIndexes: groupIndexes,
+                        isRequired: group.isRequired,
+                        maxSelect: group.max,
+                      );
+                    }
+                  },
+                  onTap: () {
+                    if (selected && !group.isSingle) return;
+                    productProvider.toggleAddOnInGroup(
+                      index: index,
+                      isSingle: group.isSingle,
+                      groupIndexes: groupIndexes,
+                      isRequired: group.isRequired,
+                      maxSelect: group.max,
+                    );
+                  },
+                );
+              }),
         ],
       );
     });
@@ -1314,64 +1507,119 @@ class _AddOnCard extends StatelessWidget {
   final String name;
   final double priceDelta;
   final String image;
+
+  /// Whether this ROW reserves an image slot — see [_DietaryCard.showImage].
+  final bool showImage;
   final bool selected;
+  final int quantity;
+
+  /// Multi-select add-ons show − / qty / + once chosen. Single-choice groups
+  /// stay binary (Figma: whipped cream) and never grow a stepper.
+  final bool showQuantity;
   final VoidCallback onTap;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
   const _AddOnCard({
     required this.s,
     this.width,
     required this.name,
     required this.priceDelta,
     required this.image,
+    required this.showImage,
     required this.selected,
+    this.quantity = 1,
+    this.showQuantity = false,
     required this.onTap,
+    this.onIncrement,
+    this.onDecrement,
   });
 
   @override
   Widget build(BuildContext context) {
+    final double cardWidth = width ?? _kAddOnCardWidth * s;
+    final _OptionCardMetrics m =
+        _OptionCardMetrics.of(cardWidth, showImage: showImage);
+    final String priceLabel = _addonPriceLabel(priceDelta);
+    final bool priceOnTop = selected && priceLabel.isNotEmpty;
+
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(_kOptionRadius * s),
+      borderRadius: BorderRadius.circular(m.radius),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: onTap,
-        child: Container(
-          width: width ?? _kAddOnCardWidth * s,
-          padding: EdgeInsets.all(_kOptionCardPad * s),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: cardWidth,
+          padding: EdgeInsets.fromLTRB(
+            m.pad,
+            priceOnTop ? m.pad + m.priceSize * 0.15 : m.pad,
+            m.pad,
+            m.pad,
+          ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(_kOptionRadius * s),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(m.radius),
             border: Border.all(
-              color: selected ? Colors.black : _kPanelBorder,
-              width:
-                  selected ? (6 * s).clamp(2.0, 8.0) : (2 * s).clamp(1.0, 3.0),
+              color: selected ? _kCardBorderSelected : _kCardIdleBorder,
+              width: selected ? m.selectedBorder : m.idleBorder,
             ),
           ),
-          child: Column(
+          child: Stack(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(_kOptionInnerRadius * s),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: _kOptionImage * s,
-                  child: _OptionImageSlot(image: image, fit: BoxFit.cover),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (m.image > 0) ...[
+                    SizedBox(
+                      height: m.image,
+                      child:
+                          _OptionImageSlot(image: image, fit: BoxFit.contain),
+                    ),
+                    SizedBox(height: m.gap),
+                  ],
+                  Text(
+                    name.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: loewBold.copyWith(
+                        fontSize: m.nameSize, height: 1.1, color: Colors.black),
+                  ),
+                  if (!priceOnTop && priceLabel.isNotEmpty) ...[
+                    SizedBox(height: m.priceGap),
+                    Text(
+                      priceLabel,
+                      textAlign: TextAlign.center,
+                      style: swiss721Light.copyWith(
+                          fontSize: m.priceSize, color: Colors.black54),
+                    ),
+                  ],
+                  if (showQuantity) ...[
+                    SizedBox(height: m.gap),
+                    _CardQtyStepper(
+                      quantity: quantity,
+                      size: m.dot,
+                      onIncrement: onIncrement,
+                      onDecrement: onDecrement,
+                    ),
+                  ],
+                ],
+              ),
+              if (priceOnTop)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Text(
+                    priceLabel,
+                    style: swiss721Light.copyWith(
+                      fontSize: m.priceSize,
+                      height: 1.0,
+                      color: Colors.black54,
+                    ),
+                  ),
                 ),
-              ),
-              SizedBox(height: _kOptionGap * s),
-              Text(
-                name.toUpperCase(),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: loewBold.copyWith(
-                    fontSize: _kOptionNameSize * s,
-                    height: 1.1,
-                    color: Colors.black),
-              ),
-              SizedBox(height: 6 * s),
-              Text(
-                '+${PriceConverterHelper.convertPrice(priceDelta)}',
-                style: swiss721Light.copyWith(
-                    fontSize: _kOptionPriceSize * s, color: Colors.black54),
-              ),
             ],
           ),
         ),
@@ -1409,25 +1657,30 @@ class _CupCanSection extends StatelessWidget {
     // moment any option actually carries a surcharge.
     final bool anyPriced = values.any((value) => (value.optionPrice ?? 0) > 0);
 
+    // The vessel row is the last small decision before adding, not a hero. It
+    // used to take 620*s (or 22% of the viewport) and stretch edge to edge,
+    // which drew two half-empty white slabs around a small cup. Now the card is
+    // short AND capped in width, so the artwork sits in a card its own size.
+    final double viewportHeight = MediaQuery.sizeOf(context).height;
+    final double cardHeight =
+        math.min(520 * s, viewportHeight * 0.22).clamp(120.0, 520.0);
+    final double gap = (20 * s).clamp(8.0, 20.0);
+
     return _SectionPanel(
       s: s,
       title: title,
-      // No CrossAxisAlignment.stretch here: _SectionPanel puts this child in an
-      // Align inside a scrollable column, so the Row's incoming maxHeight is
-      // unbounded and stretch would hand each card a tight infinite height —
-      // which fails layout for the whole options list. The cards carry an
-      // explicit height, so they are equal-height without it.
       child: Row(
         children: List.generate(values.length, (i) {
-          final bool selected =
-              productProvider.selectedVariations[variationIndex][i] ?? false;
+          final List<bool?> selections =
+              productProvider.selectedVariations[variationIndex];
+          final bool selected = selections[i] ?? false;
           final String label = values[i].level?.trim() ?? '';
           return Expanded(
             child: Padding(
-              padding:
-                  EdgeInsets.only(right: i < values.length - 1 ? 28 * s : 0),
+              padding: EdgeInsets.only(right: i < values.length - 1 ? gap : 0),
               child: _CupCanCard(
                 s: s,
+                height: cardHeight,
                 name: label,
                 priceDelta: values[i].optionPrice ?? 0,
                 showPrice: anyPriced,
@@ -1443,8 +1696,7 @@ class _CupCanSection extends StatelessWidget {
                   productProvider.checkIsRequiredSelected(
                     index: variationIndex,
                     isMultiSelect: variation.isMultiSelect!,
-                    variations:
-                        productProvider.selectedVariations[variationIndex],
+                    variations: selections,
                     min: variation.min,
                     max: variation.max,
                   );
@@ -1460,6 +1712,10 @@ class _CupCanSection extends StatelessWidget {
 
 class _CupCanCard extends StatelessWidget {
   final double s;
+
+  /// Fixed by the section, from the artboard AND the viewport, so both cards
+  /// match and neither steals the add-on list's height.
+  final double height;
   final String name;
   final double priceDelta;
 
@@ -1475,6 +1731,7 @@ class _CupCanCard extends StatelessWidget {
   final VoidCallback onTap;
   const _CupCanCard({
     required this.s,
+    required this.height,
     required this.name,
     required this.priceDelta,
     required this.showPrice,
@@ -1486,108 +1743,63 @@ class _CupCanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double radius = 40 * s;
-    // Hairline at rest, a deliberate 3px ink edge once chosen. The old 6*s
-    // selected border grew to 8px on a big kiosk and read as a bug.
-    final double borderWidth =
-        selected ? (4 * s).clamp(2.0, 3.0) : (2 * s).clamp(1.0, 1.5);
+    // Everything here is a fraction of the card's own height, so the vessel,
+    // its label and the chrome around them shrink together instead of the
+    // artwork holding an artboard size inside a card that no longer fits it.
+    final double radius = (height * 0.06).clamp(10.0, 16.0);
+    final double pad = (height * 0.08).clamp(8.0, 28.0);
+    final double labelSize = (height * 0.12).clamp(12.0, 28.0);
+    final double labelGap = (height * 0.045).clamp(4.0, 16.0);
+    final double borderWidth = selected ? 2.5 : 1.0;
 
     return KioskTap(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOut,
-        // Capped against the viewport as well as the artboard: on a short
-        // window the vessel cards would otherwise take the height the add-on
-        // list needs.
-        height: math.min(620 * s, MediaQuery.sizeOf(context).height * 0.22),
-        padding: EdgeInsets.fromLTRB(34 * s, 34 * s, 34 * s, 30 * s),
+        height: height,
+        padding: EdgeInsets.fromLTRB(pad, pad, pad, pad * 0.85),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(
-            color: selected ? _kCardBorderSelected : _kCardBorder,
+            color: selected ? _kCardBorderSelected : _kCardIdleBorder,
             width: borderWidth,
           ),
-          // A single soft shadow that deepens on selection — enough to lift the
-          // card off the cream panel without the "floating chip" look that two
-          // stacked shadows give.
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: selected ? 0.10 : 0.04),
-              blurRadius: selected ? 28 * s : 16 * s,
-              offset: Offset(0, selected ? 10 * s : 6 * s),
-            ),
-          ],
         ),
         child: Column(
           children: [
             Expanded(
-              child: Stack(
-                children: [
-                  // Warm pedestal so a transparent PNG has something to sit on
-                  // instead of hovering in the middle of a white rectangle.
-                  Positioned.fill(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: FractionallySizedBox(
-                        widthFactor: 0.78,
-                        heightFactor: 0.5,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: RadialGradient(
-                              center: Alignment.bottomCenter,
-                              radius: 0.9,
-                              colors: [
-                                _kPanelBg,
-                                _kPanelBg.withValues(alpha: 0),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 10 * s),
-                      child: _VesselImage(
-                        assetImage: assetImage,
-                        image: image,
-                      ),
-                    ),
-                  ),
-                  // Selection tick, top-right — the same affordance the dietary
-                  // row uses, so one glance reads both sections the same way.
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: _CupCanTick(s: s, selected: selected),
-                  ),
-                ],
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: height * 0.04,
+                  vertical: height * 0.02,
+                ),
+                child: _VesselImage(
+                  assetImage: assetImage,
+                  image: image,
+                ),
               ),
             ),
-            SizedBox(height: 22 * s),
+            SizedBox(height: labelGap),
             Text(
               name.toUpperCase(),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: loewBold.copyWith(
-                fontSize: 34 * s,
-                letterSpacing: 3 * s,
+                fontSize: labelSize,
+                letterSpacing: (2 * s).clamp(0.4, 2.0),
                 height: 1.0,
                 color: _kInkText,
               ),
             ),
             if (showPrice) ...[
-              SizedBox(height: 10 * s),
+              SizedBox(height: labelGap * 0.5),
               Text(
-                priceDelta > 0
-                    ? '+${PriceConverterHelper.convertPrice(priceDelta)}'
-                    : '',
+                priceDelta > 0 ? _addonPriceLabel(priceDelta) : '',
                 style: swiss721Light.copyWith(
-                    fontSize: 26 * s, color: Colors.black54),
+                    fontSize: labelSize * 0.76, color: Colors.black54),
               ),
             ],
           ],
@@ -1617,36 +1829,6 @@ class _VesselImage extends StatelessWidget {
       );
     }
     return _OptionImageSlot(image: image, fit: BoxFit.contain);
-  }
-}
-
-/// Filled tick when chosen, an empty ring when not — so an untouched required
-/// group visibly reads as "nothing picked yet".
-class _CupCanTick extends StatelessWidget {
-  final double s;
-  final bool selected;
-  const _CupCanTick({required this.s, required this.selected});
-
-  @override
-  Widget build(BuildContext context) {
-    final double size = (44 * s).clamp(20.0, 40.0);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOut,
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected ? _kCardBorderSelected : Colors.transparent,
-        border: Border.all(
-          color: selected ? _kCardBorderSelected : _kCardBorder,
-          width: (3 * s).clamp(1.5, 2.5),
-        ),
-      ),
-      child: selected
-          ? Icon(Icons.check_rounded, size: size * 0.62, color: Colors.white)
-          : null,
-    );
   }
 }
 
@@ -1718,523 +1900,6 @@ class _ActionBar extends StatelessWidget {
   }
 }
 
-/// Two-column product detail for wide screens (image left 480px, options right).
-class _WideCustomizeLayout extends StatefulWidget {
-  final Product product;
-  final ProductProvider productProvider;
-  final List<MapEntry<int, Variation>> sizeVariations;
-  final List<MapEntry<int, Variation>> dietaryVariations;
-  final List<MapEntry<int, Variation>> cupCanVariations;
-  final VoidCallback onAddToCart;
-
-  const _WideCustomizeLayout({
-    required this.product,
-    required this.productProvider,
-    required this.sizeVariations,
-    required this.dietaryVariations,
-    required this.cupCanVariations,
-    required this.onAddToCart,
-  });
-
-  @override
-  State<_WideCustomizeLayout> createState() => _WideCustomizeLayoutState();
-}
-
-class _WideCustomizeLayoutState extends State<_WideCustomizeLayout> {
-  final ScrollController _optionsScrollController = ScrollController();
-
-  Product get product => widget.product;
-  ProductProvider get productProvider => widget.productProvider;
-  List<MapEntry<int, Variation>> get sizeVariations => widget.sizeVariations;
-  List<MapEntry<int, Variation>> get dietaryVariations =>
-      widget.dietaryVariations;
-  List<MapEntry<int, Variation>> get cupCanVariations =>
-      widget.cupCanVariations;
-  VoidCallback get onAddToCart => widget.onAddToCart;
-
-  @override
-  void dispose() {
-    _optionsScrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final String image = KioskProductImageHelper.heroImageUrl(
-      product: product,
-      productImageBaseUrl: splash.baseUrls?.productImageUrl,
-    );
-    final String description =
-        (product.description ?? '').replaceAll(RegExp(r'<[^>]*>'), '').trim();
-
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 480,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: KioskBackButton(
-                    fallback: RouterHelper.getKioskMenuRoute,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                AspectRatio(
-                  aspectRatio: 1,
-                  child: CustomImageWidget(
-                    key: ValueKey(image),
-                    placeholder: Images.placeholderImage,
-                    image: image,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 32),
-          Expanded(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Name, description and the quantity stepper stay put — only
-                  // the variations / add-ons below them scroll.
-                  Padding(
-                    padding: const EdgeInsets.only(right: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          product.name ?? '',
-                          style: loewExtraBold.copyWith(
-                            fontSize: KioskUI.heading,
-                            color: Colors.black,
-                          ),
-                        ),
-                        if (description.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            description,
-                            style: scotchDisplayLight.copyWith(
-                              fontSize: KioskUI.body,
-                              height: 1.3,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        Center(
-                          child: KioskQtyStepper(
-                            quantity: productProvider.quantity ?? 1,
-                            onDecrement: () {
-                              if ((productProvider.quantity ?? 1) > 1) {
-                                productProvider.setQuantity(false);
-                              }
-                            },
-                            onIncrement: () =>
-                                productProvider.setQuantity(true),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                    ),
-                  ),
-                  // Same rule as the narrow layout: variations are pinned and
-                  // only ever move sideways; the add-ons are the one vertical
-                  // scroller.
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (sizeVariations.isNotEmpty)
-                        _WideSizeOptionsSection(
-                          entries: sizeVariations,
-                          product: product,
-                          productProvider: productProvider,
-                        ),
-                      for (final entry in dietaryVariations)
-                        _WideVariationSection(
-                          variation: entry.value,
-                          variationIndex: entry.key,
-                          product: product,
-                          productProvider: productProvider,
-                        ),
-                    ],
-                  ),
-                  Expanded(
-                    child: _OptionsScrollArea(
-                      controller: _optionsScrollController,
-                      padding: const EdgeInsets.only(right: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (product.effectiveAddOnGroups.isNotEmpty)
-                            _WideAddOnsSection(
-                              product: product,
-                              productProvider: productProvider,
-                            ),
-                          for (final entry in cupCanVariations)
-                            _WideVariationSection(
-                              variation: entry.value,
-                              variationIndex: entry.key,
-                              product: product,
-                              productProvider: productProvider,
-                              useVesselArt: true,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Cancel / add to cart stay pinned; only the variations and
-                  // add-ons above them scroll. Same pair as the narrow layout.
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: KioskButton(
-                            label: getTranslated('cancel_item', context)
-                                    ?.toUpperCase() ??
-                                'CANCEL ITEM',
-                            filled: false,
-                            height: KioskUI.primaryButtonHeight,
-                            onTap: () => KioskNavigationHelper.popOrNavigate(
-                              context,
-                              fallback: RouterHelper.getKioskMenuRoute,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: KioskButton(
-                            label:
-                                '${getTranslated('add_to_cart', context)?.toUpperCase() ?? 'ADD TO CART'}'
-                                '  ${PriceConverterHelper.convertPrice(kioskLineTotal(buildKioskCartModel(context, product)))}',
-                            height: KioskUI.primaryButtonHeight,
-                            onTap: onAddToCart,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WideSizeOptionsSection extends StatelessWidget {
-  final List<MapEntry<int, Variation>> entries;
-  final Product product;
-  final ProductProvider productProvider;
-
-  const _WideSizeOptionsSection({
-    required this.entries,
-    required this.product,
-    required this.productProvider,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(getTranslated('size', context) ?? 'Size',
-              style: loewBold.copyWith(
-                  fontSize: KioskUI.section, color: Colors.black)),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.start,
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (final entry in entries)
-                for (int i = 0;
-                    i < (entry.value.variationValues?.length ?? 0);
-                    i++)
-                  _WideOptionCard(
-                    name: (entry.value.variationValues![i].level ??
-                            entry.value.name ??
-                            '')
-                        .trim(),
-                    priceDelta:
-                        entry.value.variationValues![i].optionPrice ?? 0,
-                    image: KioskProductImageHelper.optionCardImageUrl(
-                      value: entry.value.variationValues![i],
-                      productImageBaseUrl: splash.baseUrls?.productImageUrl,
-                    ),
-                    selected: productProvider.selectedVariations[entry.key]
-                            [i] ??
-                        false,
-                    onTap: () {
-                      productProvider.setCartVariationIndex(
-                          entry.key, i, product, entry.value.isMultiSelect!);
-                      productProvider.checkIsRequiredSelected(
-                        index: entry.key,
-                        isMultiSelect: entry.value.isMultiSelect!,
-                        variations:
-                            productProvider.selectedVariations[entry.key],
-                        min: entry.value.min,
-                        max: entry.value.max,
-                      );
-                    },
-                  ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WideVariationSection extends StatelessWidget {
-  final Variation variation;
-  final int variationIndex;
-  final Product product;
-  final ProductProvider productProvider;
-
-  /// Only the cup/can group opts into bundled artwork. Matching every group by
-  /// name would misfire on ordinary options that merely contain "can" or "cup"
-  /// (a "Pecan" syrup, say).
-  final bool useVesselArt;
-
-  const _WideVariationSection({
-    required this.variation,
-    required this.variationIndex,
-    required this.product,
-    required this.productProvider,
-    this.useVesselArt = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final values = variation.variationValues ?? [];
-    final title = variation.name?.isNotEmpty == true
-        ? variation.name!
-        : (getTranslated('choose_an_option', context) ?? 'Choose an option');
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title,
-              style: loewBold.copyWith(
-                  fontSize: KioskUI.section, color: Colors.black)),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.start,
-            spacing: 12,
-            runSpacing: 12,
-            children: List.generate(values.length, (i) {
-              final bool selected =
-                  productProvider.selectedVariations[variationIndex][i] ??
-                      false;
-              final String label = values[i].level?.trim() ?? '';
-              return _WideOptionCard(
-                name: label,
-                priceDelta: values[i].optionPrice ?? 0,
-                assetImage: useVesselArt ? _localVesselAsset(label) : null,
-                image: KioskProductImageHelper.optionCardImageUrl(
-                  value: values[i],
-                  productImageBaseUrl: splash.baseUrls?.productImageUrl,
-                ),
-                selected: selected,
-                onTap: () {
-                  productProvider.setCartVariationIndex(
-                      variationIndex, i, product, variation.isMultiSelect!);
-                  productProvider.checkIsRequiredSelected(
-                    index: variationIndex,
-                    isMultiSelect: variation.isMultiSelect!,
-                    variations:
-                        productProvider.selectedVariations[variationIndex],
-                    min: variation.min,
-                    max: variation.max,
-                  );
-                },
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WideAddOnsSection extends StatelessWidget {
-  final Product product;
-  final ProductProvider productProvider;
-
-  const _WideAddOnsSection(
-      {required this.product, required this.productProvider});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final group in product.effectiveAddOnGroups)
-          _WideGroupedAddOns(
-            product: product,
-            productProvider: productProvider,
-            group: group,
-          ),
-      ],
-    );
-  }
-}
-
-class _WideGroupedAddOns extends StatelessWidget {
-  final Product product;
-  final ProductProvider productProvider;
-  final AddOnGroup group;
-
-  const _WideGroupedAddOns({
-    required this.product,
-    required this.productProvider,
-    required this.group,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final List<int> groupIndexes = [
-      for (final addon in group.addons)
-        if (product.indexOfAddOn(addon.id) != null)
-          product.indexOfAddOn(addon.id)!,
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(_addonGroupTitle(context, group),
-              style: loewBold.copyWith(
-                  fontSize: KioskUI.section, color: Colors.black)),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.start,
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (final addon in group.addons)
-                if (product.indexOfAddOn(addon.id) != null)
-                  _WideOptionCard(
-                    name: addon.name ?? '',
-                    priceDelta: addon.price ?? 0,
-                    image: _addonImageUrl(context, addon),
-                    selected: product.indexOfAddOn(addon.id)! <
-                            productProvider.addOnActiveList.length &&
-                        productProvider
-                            .addOnActiveList[product.indexOfAddOn(addon.id)!],
-                    onTap: () => productProvider.toggleAddOnInGroup(
-                      index: product.indexOfAddOn(addon.id)!,
-                      isSingle: group.isSingle,
-                      groupIndexes: groupIndexes,
-                      isRequired: group.isRequired,
-                      maxSelect: group.max,
-                    ),
-                  ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WideOptionCard extends StatelessWidget {
-  final String name;
-  final double priceDelta;
-  final String image;
-
-  /// Bundled vessel artwork, set only for the cup/can group. Drawn with
-  /// `contain` rather than `cover` so a transparent PNG is not cropped.
-  final String? assetImage;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _WideOptionCard({
-    required this.name,
-    required this.priceDelta,
-    required this.image,
-    this.assetImage,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        onTap: onTap,
-        child: Container(
-          width: 150,
-          height: 150,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected ? Colors.black : _kPanelBorder,
-              width: selected ? 2 : 1,
-            ),
-          ),
-          child: Stack(
-            children: [
-              Column(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: assetImage != null
-                          ? _VesselImage(assetImage: assetImage, image: image)
-                          : _OptionImageSlot(image: image, fit: BoxFit.cover),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    name.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: loewBold.copyWith(
-                      fontSize: KioskUI.caption,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-              Positioned(
-                top: 0,
-                right: 0,
-                child: _WideRadioDot(selected: selected),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Reserved image slot for variation / add-on cards. When the option has no
 /// image of its own, the slot stays empty (no product photo, no placeholder)
 /// so card size is unchanged.
@@ -2252,27 +1917,6 @@ class _OptionImageSlot extends StatelessWidget {
       placeholder: Images.placeholderImage,
       image: image,
       fit: fit,
-    );
-  }
-}
-
-class _WideRadioDot extends StatelessWidget {
-  final bool selected;
-  const _WideRadioDot({required this.selected});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected ? Colors.black : Colors.transparent,
-        border: Border.all(color: Colors.black, width: 1.5),
-      ),
-      child: selected
-          ? const Icon(Icons.check, size: 13, color: Colors.white)
-          : null,
     );
   }
 }

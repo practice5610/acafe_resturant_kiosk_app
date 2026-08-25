@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 ///   * the artboard sets the density above that, so a big kiosk gets big cards;
 ///   * the row always divides exactly, so nothing is clipped at the right edge.
 void main() {
-  const double artboardCard = 424; // _kAddOnCardWidth
+  const double artboardCard = 360; // _kAddOnCardWidth
   const double artboard = 2572;
 
   /// Panel inner width for a screen width, matching the screen's own 86px
@@ -14,8 +14,10 @@ void main() {
   ({double inner, double gap, double card}) layout(double screenWidth) {
     final double s = (screenWidth / artboard).clamp(0.24, 1.0);
     return (
-      inner: screenWidth - 2 * 86 * s - 2 * 38 * s,
-      gap: 20 * s,
+      inner: screenWidth - 2 * 86 * s - 2 * 32 * s,
+      // Mirrors _optionGap: floored so cards stay visibly separate on a small
+      // screen, where the artboard gutter collapses to ~5px.
+      gap: (16 * s).clamp(6.0, 16.0),
       card: artboardCard * s,
     );
   }
@@ -47,8 +49,8 @@ void main() {
 
   group('artboard density above the minimum', () {
     test('the 4K kiosk gets the design density, not a tiny-card grid', () {
-      expect(columnsAt(2572), 5);
-      expect(cardAt(2572), greaterThan(400),
+      expect(columnsAt(2572), 6);
+      expect(cardAt(2572), greaterThan(330),
           reason: 'a 2324px panel should render design-sized cards');
     });
 
@@ -68,8 +70,7 @@ void main() {
     });
 
     test('an ultra-wide panel is capped, not split into slivers', () {
-      final int c = kioskOptionColumns(
-          width: 12000, cardWidth: 300, gap: 20);
+      final int c = kioskOptionColumns(width: 12000, cardWidth: 300, gap: 20);
       expect(c, lessThanOrEqualTo(kOptionMaxColumns));
     });
   });

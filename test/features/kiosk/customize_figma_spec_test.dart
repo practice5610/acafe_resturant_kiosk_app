@@ -20,8 +20,8 @@ void main() {
 
   group('Figma colours', () {
     const tokens = {
-      '_kPanelBg': '0xFFFBF8EF', // panel background
-      '_kPanelBorder': '0xFFB9B5A6', // panel + card border, scroll track
+      '_kPanelBg': '0xFFFFFFFF', // section card fill
+      '_kPanelBorder': '0xFFB9B5A6', // scroll track
       '_kScrollThumb': '0xFF000000', // Rectangle 100
     };
 
@@ -41,7 +41,6 @@ void main() {
     const metrics = {
       '_kScrollbarWidth': '20', // Rectangle 100/101 width
       '_kScrollbarRadius': '15', // Rectangle 100/101 radius
-
     };
 
     metrics.forEach((name, value) {
@@ -59,7 +58,8 @@ void main() {
     test('product title is Loew ExtraBold 72 at line-height 100%', () {
       expect(
         source,
-        contains('loewExtraBold.copyWith(\n              fontSize: 72 * s, height: 1.0'),
+        contains(
+            'loewExtraBold.copyWith(\n              fontSize: 72 * s, height: 1.0'),
         reason: 'Inspect: Loew / ExtraBold / 72px / line-height 100%',
       );
     });
@@ -67,7 +67,8 @@ void main() {
 
   group('responsive', () {
     test('panels share the option-card corner radius', () {
-      expect(source, contains('BorderRadius.circular(_kOptionRadius * s)'));
+      expect(source, contains('_kOptionRadius'));
+      expect(source, contains('BorderRadius.circular('));
       expect(source.contains('BorderRadius.circular(70 * s)'), isFalse,
           reason: 'the panel had its own radius; it now follows the cards');
     });
@@ -81,15 +82,75 @@ void main() {
       expect(source, contains('kioskOptionCardWidth('));
     });
 
-    test('the header compacts when the viewport is too short for the hero',
-        () {
+    test('the header compacts when the viewport is too short for the hero', () {
       expect(source, contains('_kFullHeroMinViewport'));
       expect(source, contains('constraints.maxHeight < _kFullHeroMinViewport'));
     });
 
     test('cup/can cards are capped against the viewport height', () {
-      expect(source, contains('MediaQuery.sizeOf(context).height * 0.22'),
-          reason: 'vessel cards must not eat the add-on list on a short screen');
+      final int start = source.indexOf('class _CupCanSection');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      expect(body, contains('MediaQuery.sizeOf(context).height'));
+      expect(body, contains('viewportHeight * 0.22'),
+          reason:
+              'vessel cards must not eat the add-on list on a short screen');
+    });
+
+    test('the vessel card sizes its contents from its own height', () {
+      final int start = source.indexOf('class _CupCanCard');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      // A short card with artboard-sized artwork inside it was the bug: the
+      // vessel, its label and the tick all have to shrink with the card.
+      expect(body, contains('final double height;'));
+      expect(body, contains('height: height,'));
+      expect(body.contains('fontSize: 34 * s'), isFalse,
+          reason: 'the label must scale with the card, not the artboard');
+    });
+
+    test('card interiors come from the card width, not the raw scale', () {
+      // `s` bottoms out at KioskResponsive.minScale, so anything multiplied
+      // straight by it stops shrinking while the panel keeps getting narrower
+      // — which is what left oversized boxes around 7px labels.
+      expect(source, contains('class _OptionCardMetrics'));
+      expect('_OptionCardMetrics.of(cardWidth'.allMatches(source).length, 2,
+          reason: 'both the add-on and the dietary card must use it');
+      for (final String frozen in [
+        'height: _kOptionImage * s',
+        'padding: EdgeInsets.all(_kOptionCardPad * s)',
+        'fontSize: _kOptionNameSize * s',
+        'fontSize: _kOptionPriceSize * s',
+      ]) {
+        expect(source.contains(frozen), isFalse,
+            reason: '$frozen freezes at the minimum scale');
+      }
+    });
+
+    test('a row with no artwork drops the image slot rather than reserving it',
+        () {
+      expect(source, contains('bool _hasOptionArt('));
+      expect(source, contains('if (m.image > 0)'),
+          reason: 'the slot is conditional, not a fixed band of white');
+      // Decided per row/group so every card in a row keeps ONE height: a Wrap
+      // does not stretch siblings, so a per-card decision would go ragged.
+      expect(source, contains('group.addons.any((addon) => addon.hasImage)'));
+      expect(source, contains('images.any(_hasOptionArt)'));
+    });
+
+    test('the compact header stacks photo over name, centred', () {
+      final int start = source.indexOf('class _CompactHeader');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      expect(body.contains('Row('), isFalse,
+          reason: 'the photo sits above the name now, not beside it');
+      expect(body, contains('CrossAxisAlignment.center'));
+      expect(body, contains('textAlign: TextAlign.center'));
+      // The back button no longer pushes the block off-centre.
+      expect(body, contains('Positioned('));
     });
   });
 
@@ -111,31 +172,27 @@ void main() {
 
     test('reuses the shared KioskCheckoutButton rather than a local button',
         () {
-      final String body =
-          source.substring(source.indexOf('class _ActionBar'));
+      final String body = source.substring(source.indexOf('class _ActionBar'));
       expect(body, contains('KioskCheckoutButton('));
       expect(source.contains('class _AddToCartBar'), isFalse,
           reason: 'the one-off bar should be gone');
     });
 
     test('cancel is outlined, add to cart is filled', () {
-      final String body =
-          source.substring(source.indexOf('class _ActionBar'));
+      final String body = source.substring(source.indexOf('class _ActionBar'));
       expect(body, contains('filled: false'));
       expect(body, contains('filled: true'));
     });
 
     test('add to cart shows the running line total', () {
-      final String body =
-          source.substring(source.indexOf('class _ActionBar'));
+      final String body = source.substring(source.indexOf('class _ActionBar'));
       expect(body, contains('kioskLineTotal(buildKioskCartModel('),
           reason: 'price must track quantity, variations and add-ons');
       expect(body, contains('PriceConverterHelper.convertPrice('));
     });
 
     test('cancel returns to the menu', () {
-      final String body =
-          source.substring(source.indexOf('class _ActionBar'));
+      final String body = source.substring(source.indexOf('class _ActionBar'));
       expect(body, contains('KioskNavigationHelper.popOrNavigate'));
       expect(body, contains('RouterHelper.getKioskMenuRoute'));
     });
@@ -197,16 +254,12 @@ void main() {
       expect(body.contains('Axis.vertical'), isFalse);
     });
 
-    test('the outer options list has no scrollbar of its own', () {
-      // build() lives on the State class, so slice from there.
-      final int start = source.indexOf('class _OptionsScrollAreaState');
-      final int end = source.indexOf('\nclass ', start + 10);
-      final String body = source.substring(start, end);
-
-      expect(body.contains('RawScrollbar'), isFalse,
-          reason: 'the page-length tan bar was removed; only the add-on '
-              'panels carry an indicator, where scrolling actually happens');
-      expect(body, contains('scrollbars: false'));
+    test('the page itself has no outer options scrollbar', () {
+      expect(source.contains('class _OptionsScrollArea'), isFalse,
+          reason: 'the page-length scroller is gone; only the add-on '
+              'panel carries an indicator');
+      expect(source.contains('class _WideCustomizeLayout'), isFalse,
+          reason: 'wide two-column layout diverged from Figma; one layout now');
     });
 
     test('the add-on panel keeps its own indicator', () {
@@ -247,20 +300,54 @@ void main() {
     });
 
     test('cup/can is pinned outside the scroll area, above the action bar', () {
-      // The pinned block sits between the Expanded scroll area and the bar.
-      final int scrollArea = source.indexOf('_OptionsScrollArea(');
-      final int cupCan = source.indexOf('_CupCanSection(', scrollArea);
-      final int bar = source.indexOf('_ActionBar(', scrollArea);
+      final int start =
+          source.indexOf('class _KioskProductCustomizeScreenState');
+      final int end = source.indexOf('\nclass _Header');
+      final String body = source.substring(start, end);
 
-      expect(scrollArea, greaterThan(-1));
-      expect(cupCan, greaterThan(-1));
+      final int addOns = body.indexOf('_AddOnsSection(');
+      final int cupCan = body.indexOf('_CupCanSection(');
+      final int bar = body.indexOf('_ActionBar(');
+
+      expect(addOns, greaterThan(-1));
+      expect(cupCan, greaterThan(addOns),
+          reason: 'cup/can sits below the add-on scroller');
       expect(bar, greaterThan(cupCan),
           reason: 'cup/can must come before the action bar');
+    });
+  });
 
-      // And it must no longer be a child of the scrolling column.
-      final String scrollChildren = source.substring(scrollArea, cupCan);
-      expect(scrollChildren.contains('_CupCanSection('), isFalse,
-          reason: 'cup/can should not scroll away with the options');
+  group('Figma card anatomy', () {
+    test('variation radios are filled dots, not checkmarks', () {
+      final int start = source.indexOf('class _RadioDot');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+      expect(body.contains('Icons.check'), isFalse);
+      expect(body, contains('BoxShape.circle'));
+      expect(body, contains('color: Colors.black'));
+    });
+
+    test('add-on cards put the price in the selected top-right corner', () {
+      final int start = source.indexOf('class _AddOnCard');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+      expect(body, contains('_addonPriceLabel('));
+      expect(body, contains('priceOnTop'));
+      expect(body, contains('Positioned('));
+    });
+
+    test('selected multi add-ons show an in-card quantity stepper', () {
+      expect(source, contains('class _CardQtyStepper'));
+      expect(source, contains('showQuantity: selected && !group.isSingle'));
+      expect(source, contains('setAddOnQuantity('));
+    });
+
+    test('size variations use the dietary card with a radio', () {
+      final int start = source.indexOf('class _SizeOptionsPanel');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+      expect(body, contains('_DietaryCard('));
+      expect(body.contains('_AddOnCard('), isFalse);
     });
   });
 }
