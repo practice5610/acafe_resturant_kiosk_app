@@ -24,6 +24,8 @@ import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_analytics.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_added_to_cart_screen.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_ordering_experience.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -432,6 +434,16 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
   /// this instead of the provider.
   KioskOrderingExperience _lastExperience = KioskOrderingExperience.fallback;
 
+  /// Decode the success animation ahead of time. Called when a customization
+  /// screen opens: the customer is seconds away from possibly adding to cart,
+  /// and a cold 744KB gif would otherwise pop in a frame late.
+  void precacheSuccessAnimation(BuildContext context) {
+    precacheImage(const AssetImage(Images.confirmedDeliveryAnimation), context)
+        .catchError((_) {
+      // A failed precache just means it decodes on first paint instead.
+    });
+  }
+
   /// Emit one customization event with this screen's identifying fields.
   void track(BuildContext context, String event,
       {String? step, int? addOnId, String? value}) {
@@ -564,7 +576,22 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
         index >= 0) {
       cartProvider.removeOtherLinesForProduct(product.id!, index);
     }
-    Navigator.of(context).pop();
+
+    // Confirmation beat, then back to the menu. pushReplacement swaps THIS
+    // screen for the confirmation, so the stack stays [menu] -> [confirmation]
+    // and dismissing lands on the menu exactly as the old straight pop did.
+    // Read after the write, so the total shown includes the line just added.
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    Navigator.of(context).pushReplacement(
+      KioskAddedToCartScreen.route(
+        heroImage: KioskProductImageHelper.heroImageUrl(
+          product: product,
+          productImageBaseUrl: splash.baseUrls?.productImageUrl,
+        ),
+        totalLabel: PriceConverterHelper.convertPrice(
+            kioskGrandTotal(cartProvider.cartList)),
+      ),
+    );
   }
 }
 
@@ -614,7 +641,9 @@ class _KioskProductCustomizeScreenState
     // After the first frame: `track` reads providers, which is not allowed
     // while the widget is still being mounted.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) track(context, KioskCustomizeEvent.customizationStarted);
+      if (!mounted) return;
+      track(context, KioskCustomizeEvent.customizationStarted);
+      precacheSuccessAnimation(context);
     });
   }
 

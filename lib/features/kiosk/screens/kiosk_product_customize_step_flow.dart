@@ -27,11 +27,11 @@ enum _CustomizeStep {
   /// translation, matching how the rest of the kiosk handles missing keys.
   String label(BuildContext context) => switch (this) {
         _CustomizeStep.milks =>
-          getTranslated('milks', context)?.toUpperCase() ?? 'MILKS',
+          kioskTranslate(context, 'milks', 'Milks').toUpperCase(),
         _CustomizeStep.addOns =>
-          getTranslated('add_ons', context)?.toUpperCase() ?? 'ADD-ONS',
+          kioskTranslate(context, 'add_ons', 'Add-ons').toUpperCase(),
         _CustomizeStep.cupOrCan =>
-          getTranslated('cup_or_can', context)?.toUpperCase() ?? 'CUP OR CAN',
+          kioskTranslate(context, 'cup_or_can', 'Cup or Can').toUpperCase(),
       };
 
   /// Stable wire name for analytics — never the translated label, so the
@@ -119,6 +119,7 @@ class _KioskProductCustomizeStepScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       track(context, KioskCustomizeEvent.customizationStarted);
+      precacheSuccessAnimation(context);
       track(context, KioskCustomizeEvent.stepViewed,
           step: _steps.first.analyticsName);
     });
