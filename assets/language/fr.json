@@ -860,5 +860,21 @@
   "add_an_order_note": "Ajouter une note",
   "anything_we_should_know": "Quelque chose à signaler ?",
   "space": "Espace",
-  "clear": "Effacer"
+  "clear": "Effacer",
+  "select_language": "Choisir la langue",
+  "choose_your_preferred_language": "Choisissez votre langue préférée",
+  "kiosk_device_login": "Connexion de l'appareil",
+  "kiosk_login_hint": "Connectez-vous une fois pour associer cette borne à son établissement.",
+  "kiosk_notification_hint": "Activez les notifications pour que cette borne reçoive les alertes de commande.",
+  "kiosk_location_hint": "Autorisez la localisation pour associer cette borne au bon établissement.",
+  "enable": "Activer",
+  "username": "Nom d'utilisateur",
+  "enter_username": "Saisissez le nom d'utilisateur",
+  "username_required": "Le nom d'utilisateur est requis",
+  "password_required": "Le mot de passe est requis",
+  "scan_to_install_offer": "Scannez pour installer l'app A/CAFÉ et cumuler vos points",
+  "your_order_will_be_waiting": "Votre commande vous attend dans l'app — utilisable dans tous les établissements.",
+  "or_enter_code_in_app": "Ou saisissez ce code dans l'app",
+  "instructions": "Instructions",
+  "instructions_hint": "INSTRUCTIONS SPÉCIALES (facultatif)"
 }

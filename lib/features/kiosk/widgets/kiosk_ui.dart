@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
@@ -7,7 +8,6 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
-import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -754,7 +754,7 @@ class KioskLanguageFlagButton extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: KioskTap(
-          onTap: () => RouterHelper.getLanguageRoute(true),
+          onTap: () => openKioskLanguageSheet(context),
           child: Image.asset(
             language.imageUrl!,
             width: size,

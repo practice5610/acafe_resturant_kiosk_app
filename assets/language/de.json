@@ -860,5 +860,21 @@
   "add_an_order_note": "Bestellnotiz hinzufügen",
   "anything_we_should_know": "Sollen wir etwas wissen?",
   "space": "Leertaste",
-  "clear": "Löschen"
+  "clear": "Löschen",
+  "select_language": "Sprache wählen",
+  "choose_your_preferred_language": "Wählen Sie Ihre bevorzugte Sprache",
+  "kiosk_device_login": "Geräte-Anmeldung",
+  "kiosk_login_hint": "Einmal anmelden, um dieses Terminal seiner Filiale zuzuordnen.",
+  "kiosk_notification_hint": "Benachrichtigungen aktivieren, damit dieses Terminal Bestellhinweise erhält.",
+  "kiosk_location_hint": "Standort erlauben, damit dieses Terminal der richtigen Filiale zugeordnet wird.",
+  "enable": "Aktivieren",
+  "username": "Benutzername",
+  "enter_username": "Benutzernamen eingeben",
+  "username_required": "Benutzername ist erforderlich",
+  "password_required": "Passwort ist erforderlich",
+  "scan_to_install_offer": "Scannen, um die A/CAFÉ-App zu installieren und Punkte zu sammeln",
+  "your_order_will_be_waiting": "Ihre Bestellung wartet in der App — in jeder Filiale nutzbar.",
+  "or_enter_code_in_app": "Oder geben Sie diesen Code in der App ein",
+  "instructions": "Anweisungen",
+  "instructions_hint": "BESONDERE WÜNSCHE (optional)"
 }

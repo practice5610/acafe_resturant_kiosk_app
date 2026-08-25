@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/breakpoints.dart';
@@ -367,7 +368,7 @@ class _LanguageFlagButton extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         elevation: 0,
         child: KioskTap(
-          onTap: () => RouterHelper.getLanguageRoute(true),
+          onTap: () => openKioskLanguageSheet(context),
           child: Image.asset(
             language.imageUrl!,
             width: d,
@@ -1412,7 +1413,7 @@ class _WideFlag extends StatelessWidget {
             const CircleBorder(side: BorderSide(color: Colors.black, width: 2)),
         clipBehavior: Clip.antiAlias,
         child: KioskTap(
-          onTap: () => RouterHelper.getLanguageRoute(true),
+          onTap: () => openKioskLanguageSheet(context),
           child: Image.asset(language.imageUrl!,
               width: 44, height: 44, fit: BoxFit.cover),
         ),

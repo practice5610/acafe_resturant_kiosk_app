@@ -137,6 +137,16 @@ class AppConstants {
   static const String token = 'token';
   static const String languageCode = 'language_code';
   static const String countryCode = 'country_code';
+
+  /// Locale a kiosk starts in when nobody has picked one yet.
+  ///
+  /// Deliberately NOT `languages[0]` — that list is ordered for the language
+  /// picker (German first), and seeding from it made a fresh kiosk come up in
+  /// German. Both the persisted seed (SplashRepo.initSharedData) and the
+  /// in-memory default (LocalizationProvider) read these, so the two can never
+  /// disagree and flip the language on the next reload.
+  static const String defaultLanguageCode = 'en';
+  static const String defaultCountryCode = 'US';
   static const String cartList = 'cart_list';
   static const String userPassword = 'user_password';
   static const String userAddress = 'user_address';
@@ -162,12 +172,18 @@ class AppConstants {
   static const String lastOrderPaymentMethod = 'last_order_payment_method';
   static const String appleLoginEmail = 'apple_login_email';
 
+  /// Languages the kiosk offers, in the order the picker shows them.
+  ///
+  /// Deliberately short: the kiosk is a café terminal, not the consumer app, so
+  /// it ships only the four locales the venue actually serves. Adding one here
+  /// also requires `assets/language/<code>.json` — [kiosk_languages_test]
+  /// enforces that pairing.
   static List<LanguageModel> languages = [
     LanguageModel(
-        imageUrl: Images.germany,
-        languageName: 'German',
-        countryCode: 'DE',
-        languageCode: 'de'),
+        imageUrl: Images.netherlands,
+        languageName: 'Dutch',
+        countryCode: 'NL',
+        languageCode: 'nl'),
     LanguageModel(
         imageUrl: Images.unitedKingdom,
         languageName: 'English',
@@ -175,34 +191,14 @@ class AppConstants {
         languageCode: 'en'),
     LanguageModel(
         imageUrl: Images.france,
-        languageName: 'French',
+        languageName: 'Français',
         countryCode: 'FR',
         languageCode: 'fr'),
     LanguageModel(
-        imageUrl: Images.italy,
-        languageName: 'Italian',
-        countryCode: 'IT',
-        languageCode: 'it'),
-    LanguageModel(
-        imageUrl: Images.netherlands,
-        languageName: 'Dutch',
-        countryCode: 'NL',
-        languageCode: 'nl'),
-    LanguageModel(
-        imageUrl: Images.arabic,
-        languageName: 'Arabic',
-        countryCode: 'SA',
-        languageCode: 'ar'),
-    LanguageModel(
-        imageUrl: Images.japan,
-        languageName: 'Japanese',
-        countryCode: 'JP',
-        languageCode: 'ja'),
-    LanguageModel(
-        imageUrl: Images.china,
-        languageName: 'Chinese',
-        countryCode: 'CN',
-        languageCode: 'zh'),
+        imageUrl: Images.germany,
+        languageName: 'Deutsch',
+        countryCode: 'DE',
+        languageCode: 'de'),
   ];
 
   static const int balanceInputLen = 10;

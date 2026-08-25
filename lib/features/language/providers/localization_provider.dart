@@ -47,8 +47,11 @@ class LocalizationProvider extends ChangeNotifier {
   _loadCurrentLanguage() async {
     // Default to English on a fresh kiosk (no saved selection) regardless of
     // the order languages are listed in AppConstants.languages.
-    _locale = Locale(sharedPreferences!.getString(AppConstants.languageCode) ?? 'en',
-        sharedPreferences!.getString(AppConstants.countryCode) ?? 'US');
+    _locale = Locale(
+        sharedPreferences!.getString(AppConstants.languageCode) ??
+            AppConstants.defaultLanguageCode,
+        sharedPreferences!.getString(AppConstants.countryCode) ??
+            AppConstants.defaultCountryCode);
     _isLtr = _locale.languageCode != 'ar';
     notifyListeners();
   }

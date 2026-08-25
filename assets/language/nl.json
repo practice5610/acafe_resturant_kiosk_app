@@ -860,5 +860,21 @@
   "add_an_order_note": "Voeg een bestelnotitie toe",
   "anything_we_should_know": "Iets wat we moeten weten?",
   "space": "Spatie",
-  "clear": "Wissen"
+  "clear": "Wissen",
+  "select_language": "Selecteer taal",
+  "choose_your_preferred_language": "Kies je voorkeurstaal",
+  "kiosk_device_login": "Apparaat-login",
+  "kiosk_login_hint": "Log één keer in om deze kiosk aan zijn vestiging te koppelen.",
+  "kiosk_notification_hint": "Schakel meldingen in zodat deze kiosk bestelmeldingen kan ontvangen.",
+  "kiosk_location_hint": "Sta locatie toe zodat deze kiosk aan de juiste vestiging wordt gekoppeld.",
+  "enable": "Inschakelen",
+  "username": "Gebruikersnaam",
+  "enter_username": "Voer gebruikersnaam in",
+  "username_required": "Gebruikersnaam is verplicht",
+  "password_required": "Wachtwoord is verplicht",
+  "scan_to_install_offer": "Scan om de A/CAFÉ-app te installeren en punten te sparen",
+  "your_order_will_be_waiting": "Je bestelling staat klaar in de app — te gebruiken bij elke vestiging.",
+  "or_enter_code_in_app": "Of voer deze code in de app in",
+  "instructions": "Instructies",
+  "instructions_hint": "SPECIALE INSTRUCTIES (optioneel)"
 }

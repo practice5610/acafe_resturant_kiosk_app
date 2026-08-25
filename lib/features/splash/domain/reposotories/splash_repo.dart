@@ -19,10 +19,10 @@ class SplashRepo extends DataSyncRepo {
       return sharedPreferences!.setBool(AppConstants.theme, false);
     }
     if(!sharedPreferences!.containsKey(AppConstants.countryCode)) {
-      return sharedPreferences!.setString(AppConstants.countryCode, AppConstants.languages[0].countryCode!);
+      return sharedPreferences!.setString(AppConstants.countryCode, AppConstants.defaultCountryCode);
     }
     if(!sharedPreferences!.containsKey(AppConstants.languageCode)) {
-      return sharedPreferences!.setString(AppConstants.languageCode, AppConstants.languages[0].languageCode!);
+      return sharedPreferences!.setString(AppConstants.languageCode, AppConstants.defaultLanguageCode);
     }
     if(!sharedPreferences!.containsKey(AppConstants.onBoardingSkip)) {
       return sharedPreferences!.setBool(AppConstants.onBoardingSkip, true);
