@@ -14,9 +14,19 @@
   <style>
     html, body {
       margin: 0;
-      min-height: 100%;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      overscroll-behavior-x: none;
       background-color: #E8E6DF;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    /* Flutter html-renderer hosts. Chrome's swipe-to-navigate targets the
+       nearest scroll root, which is often one of these rather than <body>. */
+    flt-glass-pane, flt-scene-host, flutter-view, canvas {
+      overscroll-behavior: none;
+      overscroll-behavior-x: none;
     }
     flutter-loader, .flutter-loader, #flutter-loading, .loading-progress, progress {
       display: none !important;
@@ -35,6 +45,22 @@
   if (typeof(Storage) !== "undefined") {
     localStorage.removeItem("flutter.theme");
   }
+
+  // Block macOS Chrome/Safari two-finger swipe Back/Forward. Must be
+  // non-passive so preventDefault is honoured. Do not stopPropagation —
+  // Flutter still needs the wheel event for in-app horizontal lists.
+  (function () {
+    if (window.__kioskSwipeNavGuard) return;
+    window.__kioskSwipeNavGuard = true;
+    function blockHistorySwipe(e) {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+      }
+    }
+    var opts = { passive: false, capture: true };
+    window.addEventListener('wheel', blockHistorySwipe, opts);
+    window.addEventListener('mousewheel', blockHistorySwipe, opts);
+  })();
 </script>
 
 <script defer>

@@ -10,6 +10,7 @@ import 'package:acafe_customer/common/enums/data_source_enum.dart';
 import 'package:acafe_customer/data/datasource/local/cache_response.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/common/responsive/breakpoints.dart';
+import 'package:acafe_customer/helper/kiosk_browser_gestures.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
@@ -48,6 +49,7 @@ Future<void> main() async {
     HttpOverrides.global = MyHttpOverrides();
   }
   setPathUrlStrategy();
+  disableKioskBrowserHistorySwipe();
   final WidgetsBinding widgetsBinding =
       WidgetsFlutterBinding.ensureInitialized();
   if (!kIsWeb) {
@@ -128,7 +130,11 @@ class _MyAppState extends State<MyApp> {
     super.initState();
 
     if (kIsWeb) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _onRemoveLoader());
+      disableKioskBrowserHistorySwipe();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        disableKioskBrowserHistorySwipe();
+        _onRemoveLoader();
+      });
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         FlutterNativeSplash.remove();
