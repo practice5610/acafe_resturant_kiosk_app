@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_ordering_experience.dart';
 import 'package:acafe_customer/helper/api_checker_helper.dart';
 
 /// Manages the persistent kiosk device session: one-time login, boot-time
@@ -24,6 +25,12 @@ class KioskAuthProvider extends ChangeNotifier {
   String get deviceName => kioskAuthRepo.getDeviceName();
   int? get deviceId => kioskAuthRepo.getDeviceId();
   int? get branchId => kioskAuthRepo.getBranchId();
+
+  /// Which customization flow this device renders, chosen by admin on the
+  /// Device Update screen. Always resolves to a flow the app can render, even
+  /// for a session persisted before the setting existed.
+  KioskOrderingExperience get orderingExperience =>
+      KioskOrderingExperience.fromApi(kioskAuthRepo.getOrderingExperience());
 
   /// 'kiosk' or 'pos' -- gates whether the manager icon is shown.
   String get category => kioskAuthRepo.getDeviceCategory();
@@ -60,6 +67,7 @@ class KioskAuthProvider extends ChangeNotifier {
             ? device['id']
             : int.tryParse('${device['id']}'),
         category: device['category']?.toString(),
+        orderingExperience: device['ordering_experience']?.toString(),
       );
       responseModel = ResponseModel(true, 'logged_in');
     } else {
@@ -100,6 +108,7 @@ class KioskAuthProvider extends ChangeNotifier {
               ? device['id']
               : int.tryParse('${device['id']}'),
           category: device['category']?.toString(),
+          orderingExperience: device['ordering_experience']?.toString(),
         );
       }
       // ProductRealtimeScope watches this provider, so the restored session has

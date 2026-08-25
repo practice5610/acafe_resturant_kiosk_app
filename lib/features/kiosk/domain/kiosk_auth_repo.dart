@@ -50,6 +50,7 @@ class KioskAuthRepo {
     String? username,
     int? deviceId,
     String? category,
+    String? orderingExperience,
   }) async {
     await sharedPreferences.setString(AppConstants.token, token);
     await sharedPreferences.setInt(AppConstants.branch, branchId);
@@ -70,6 +71,10 @@ class KioskAuthRepo {
     if (category != null) {
       await sharedPreferences.setString(
           AppConstants.kioskDeviceCategory, category);
+    }
+    if (orderingExperience != null) {
+      await sharedPreferences.setString(
+          AppConstants.kioskOrderingExperience, orderingExperience);
     }
     // Refresh dio headers so the new token + branch take effect immediately.
     await dioClient.updateHeader(getToken: token);
@@ -99,6 +104,13 @@ class KioskAuthRepo {
   String getDeviceCategory() =>
       sharedPreferences.getString(AppConstants.kioskDeviceCategory) ?? 'kiosk';
 
+  /// Raw `ordering_experience` as last sent by the server, or null if this
+  /// device has never seen the field (session persisted before it existed).
+  /// Callers go through [KioskOrderingExperience.fromApi] rather than reading
+  /// this string directly, so an unknown value always lands on Version A.
+  String? getOrderingExperience() =>
+      sharedPreferences.getString(AppConstants.kioskOrderingExperience);
+
   /// Wipe the device session (revoked/inactive/logout).
   Future<void> clearSession() async {
     await sharedPreferences.remove(AppConstants.token);
@@ -107,6 +119,7 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskUsername);
     await sharedPreferences.remove(AppConstants.kioskDeviceId);
     await sharedPreferences.remove(AppConstants.kioskDeviceCategory);
+    await sharedPreferences.remove(AppConstants.kioskOrderingExperience);
     await sharedPreferences.remove(AppConstants.cartList);
     await dioClient.updateHeader(getToken: null);
   }

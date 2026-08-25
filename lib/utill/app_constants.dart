@@ -34,6 +34,9 @@ class AppConstants {
   // Kiosk device auth + branch-scoped catalog (branch derived server-side from token)
   static const String kioskDeviceLoginUri = '/api/v1/kiosk/device/login';
   static const String kioskDeviceMeUri = '/api/v1/kiosk/device/me';
+  // Customization A/B telemetry (batched, fire-and-forget).
+  static const String kioskCustomizeEventsUri =
+      '/api/v1/kiosk/customize-events';
   static const String kioskProductsUri = '/api/v1/kiosk/products';
   static const String trackUri = '/api/v1/customer/order/track?order_id=';
   static const String messageUri = '/api/v1/customer/message/get';
@@ -166,6 +169,7 @@ class AppConstants {
   static const String kioskUsername = 'kiosk_username';
   static const String kioskDeviceId = 'kiosk_device_id';
   static const String kioskDeviceCategory = 'kiosk_device_category';
+  static const String kioskOrderingExperience = 'kiosk_ordering_experience';
   static const String kioskMenuCacheKey = 'kiosk_menu_cache_v1';
   static const String kioskManagerStockCacheKey = 'kiosk_manager_stock_cache_v2';
   static const String currentAddress = 'current_address';

@@ -37,6 +37,10 @@ import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
+import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_analytics.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_experiment_session.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'di_container.dart' as di;
 import 'package:universal_html/html.dart' as html;
 
@@ -67,6 +71,12 @@ Future<void> main() async {
     di.init(),
     AppLocalization.preloadDefault(),
   ]);
+
+  // Customization A/B telemetry. Both are inert until something calls them,
+  // and every failure path inside them is swallowed, so this cannot affect
+  // ordering, payment or the menu.
+  KioskExperimentSession.instance.init(di.sl<SharedPreferences>());
+  KioskCustomizeAnalytics.instance.init(di.sl<DioClient>());
 
   GoRouter.optionURLReflectsImperativeAPIs = true;
 

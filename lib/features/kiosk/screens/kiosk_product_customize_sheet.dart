@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -22,7 +23,17 @@ import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_analytics.dart';
+import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_ordering_experience.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:provider/provider.dart';
+
+// Version B (the three-step flow) is a `part` of this library rather than a
+// separate one, so it reuses every private section widget below — the header,
+// the variation panels, the add-on grid, the cup/can cards — instead of
+// re-implementing them. Only the navigation shell differs between versions.
+part 'kiosk_product_customize_step_flow.dart';
 
 // ===========================================================================
 // KIOSK PRODUCT CUSTOMIZE — single full-screen page matching the Figma design
@@ -225,6 +236,47 @@ String _addonGroupTitle(BuildContext context, AddOnGroup group) {
   return group.isRequired ? '$name *' : name;
 }
 
+/// The three logical groups a product's variations fall into, in the order the
+/// customer meets them. Version A stacks all three on one screen; Version B
+/// puts each behind its own step — so the split has to be identical for both,
+/// and lives here rather than inside either screen.
+class _CustomizeSections {
+  /// Small / Medium / Large, rendered as one horizontal card row.
+  final List<MapEntry<int, Variation>> size;
+
+  /// Milk / dietary choices — one panel each.
+  final List<MapEntry<int, Variation>> dietary;
+
+  /// Cup or can, rendered as the big two-card selector.
+  final List<MapEntry<int, Variation>> cupCan;
+
+  const _CustomizeSections({
+    required this.size,
+    required this.dietary,
+    required this.cupCan,
+  });
+
+  factory _CustomizeSections.of(Product product) {
+    final variations = product.variations ?? [];
+    final indexed =
+        List.generate(variations.length, (i) => MapEntry(i, variations[i]));
+    bool isCupCan(MapEntry<int, Variation> e) =>
+        _kCupCanPattern.hasMatch(e.value.name ?? '');
+
+    return _CustomizeSections(
+      cupCan: indexed.where(isCupCan).toList(),
+      size: indexed
+          .where((e) => !isCupCan(e) && _isSizeVariation(e.value))
+          .toList(),
+      dietary: indexed
+          .where((e) => !isCupCan(e) && !_isSizeVariation(e.value))
+          .toList(),
+    );
+  }
+
+  /// Everything Version B's first step ("Milks") covers.
+  bool get hasMilkStep => size.isNotEmpty || dietary.isNotEmpty;
+}
 /// Entry point: tap a product in the kiosk menu -> open the customization screen.
 ///
 /// Reuses the existing [ProductProvider] customization state and the existing
@@ -270,14 +322,31 @@ void openKioskCustomize(BuildContext context, Product product,
   productProvider.initData(product, cart);
   productProvider.initProductVariationStatus(product.variations?.length ?? 0);
 
+  // THE A/B SWITCH. Which customization flow this kiosk renders is a back-office
+  // setting on the device (Device Update -> Ordering Experience), delivered as
+  // `device.ordering_experience` and cached in SharedPreferences. Everything
+  // above this line — the cart lookup, the ProductProvider seeding, the
+  // no-modifiers shortcut — is shared, so the two versions can only ever differ
+  // in presentation. A device that has never been told which flow to run falls
+  // back to Version A (see [KioskOrderingExperience.fallback]).
+  final KioskOrderingExperience experience =
+      Provider.of<KioskAuthProvider>(context, listen: false).orderingExperience;
+
   Navigator.of(context).push(
     MaterialPageRoute(
-      builder: (_) => KioskProductCustomizeScreen(
-        product: product,
-        cartIndex: cartIndex,
-        initialInstruction: cart?.instruction,
-        replaceOtherProductLines: replaceOtherProductLines,
-      ),
+      builder: (_) => experience.isVersionB
+          ? KioskProductCustomizeStepScreen(
+              product: product,
+              cartIndex: cartIndex,
+              initialInstruction: cart?.instruction,
+              replaceOtherProductLines: replaceOtherProductLines,
+            )
+          : KioskProductCustomizeScreen(
+              product: product,
+              cartIndex: cartIndex,
+              initialInstruction: cart?.instruction,
+              replaceOtherProductLines: replaceOtherProductLines,
+            ),
     ),
   );
 }
@@ -336,6 +405,169 @@ CartModel buildKioskCartModel(BuildContext context, Product product,
   );
 }
 
+/// Validation and the cart write, shared by both ordering experiences.
+///
+/// Version A runs [_validate] once when the customer taps Add to Cart;
+/// Version B additionally runs [_validateStep] to decide whether Next is
+/// enabled — but both end at the same [_addToCart], so the two versions can
+/// never disagree about what a valid line is or how it reaches the cart.
+mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
+  Product get product;
+  int? get cartIndex;
+  String? get instruction;
+  bool get replaceOtherProductLines;
+
+  /// The ordering experience an ADMIN chose for this device. Both versions read
+  /// it from the same place, so an event's `variant` always describes what was
+  /// genuinely on screen.
+  KioskOrderingExperience experienceOf(BuildContext context) =>
+      Provider.of<KioskAuthProvider>(context, listen: false).orderingExperience;
+
+  /// True once the line has reached the cart, so leaving the screen afterwards
+  /// is a completion rather than an abandonment.
+  bool _completed = false;
+
+  /// Last experience seen during build. [dispose] runs after the element is
+  /// detached, where Provider.of would throw, so the abandonment event reads
+  /// this instead of the provider.
+  KioskOrderingExperience _lastExperience = KioskOrderingExperience.fallback;
+
+  /// Emit one customization event with this screen's identifying fields.
+  void track(BuildContext context, String event,
+      {String? step, int? addOnId, String? value}) {
+    final auth = Provider.of<KioskAuthProvider>(context, listen: false);
+    String? guestId;
+    try {
+      guestId = Provider.of<AuthProvider>(context, listen: false).getGuestId();
+    } catch (_) {
+      // Guest id is a nice-to-have for the conversion join, never a requirement.
+      guestId = null;
+    }
+
+    KioskCustomizeAnalytics.instance.track(
+      event,
+      experience: auth.orderingExperience,
+      productId: product.id,
+      branchId: auth.branchId,
+      deviceId: auth.deviceId,
+      guestId: guestId,
+      step: step,
+      addOnId: addOnId,
+      value: value,
+    );
+  }
+  /// Variation rules (same as the web app) for a subset of variation indexes.
+  ///
+  /// Version A passes every index at once; Version B passes only the indexes
+  /// belonging to the step being left, so Next can gate on that step alone
+  /// without complaining about a question the customer has not reached yet.
+  ///
+  /// [silent] suppresses the snackbar — used to compute whether Next should be
+  /// enabled, where nagging on every rebuild would be wrong.
+  bool _validateVariations(
+    BuildContext context,
+    ProductProvider productProvider,
+    Iterable<int> indexes, {
+    bool silent = false,
+  }) {
+    final variations = product.variations ?? [];
+    for (final int index in indexes) {
+      if (index < 0 || index >= variations.length) continue;
+      final v = variations[index];
+      if (!v.isMultiSelect! &&
+          v.isRequired! &&
+          !productProvider.selectedVariations[index].contains(true)) {
+        if (!silent) {
+          showCustomSnackBarHelper(
+            '${getTranslated('choose_a_variation_from', context)} ${v.name}',
+            isError: true,
+          );
+        }
+        return false;
+      }
+      if (v.isMultiSelect! &&
+          (v.isRequired! ||
+              productProvider.selectedVariations[index].contains(true)) &&
+          v.min! >
+              productProvider.selectedVariationLength(
+                  productProvider.selectedVariations, index)) {
+        if (!silent) {
+          showCustomSnackBarHelper(
+            '${getTranslated('you_need_to_select_minimum', context)} ${v.min}',
+            isError: true,
+          );
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Add-on group minimums. Unchanged from the original single-screen rules.
+  bool _validateAddOnGroups(
+    BuildContext context,
+    ProductProvider productProvider, {
+    bool silent = false,
+  }) {
+    for (final group in product.effectiveAddOnGroups) {
+      final List<int> indexes = [];
+      for (final addon in group.addons) {
+        final int? i = product.indexOfAddOn(addon.id);
+        if (i != null) {
+          indexes.add(i);
+        }
+      }
+      int selected = 0;
+      for (final int i in indexes) {
+        if (i < productProvider.addOnActiveList.length &&
+            productProvider.addOnActiveList[i]) {
+          selected++;
+        }
+      }
+      final bool required = group.isRequired || group.min > 0;
+      final int min = group.isSingle ? (required ? 1 : 0) : group.min;
+      if (required && selected < min) {
+        if (!silent) {
+          showCustomSnackBarHelper(
+            '${getTranslated('choose_a_variation_from', context)} ${group.name ?? ''}',
+            isError: true,
+          );
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Full check, run before the cart write in BOTH versions.
+  bool _validate(BuildContext context, ProductProvider productProvider) {
+    final variations = product.variations ?? [];
+    return _validateVariations(
+          context,
+          productProvider,
+          List.generate(variations.length, (i) => i),
+        ) &&
+        _validateAddOnGroups(context, productProvider);
+  }
+
+  void _addToCart(BuildContext context, ProductProvider productProvider) {
+    if (!_validate(context, productProvider)) return;
+    track(context, KioskCustomizeEvent.addToCartClicked);
+    _completed = true;
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final int? index = cartIndex ?? productProvider.cartIndex;
+    cartProvider.addToCart(
+        buildKioskCartModel(context, product, instruction: instruction), index);
+    if (replaceOtherProductLines &&
+        product.id != null &&
+        index != null &&
+        index >= 0) {
+      cartProvider.removeOtherLinesForProduct(product.id!, index);
+    }
+    Navigator.of(context).pop();
+  }
+}
+
 class KioskProductCustomizeScreen extends StatefulWidget {
   final Product product;
   final int? cartIndex;
@@ -358,112 +590,60 @@ class KioskProductCustomizeScreen extends StatefulWidget {
 }
 
 class _KioskProductCustomizeScreenState
-    extends State<KioskProductCustomizeScreen> {
+    extends State<KioskProductCustomizeScreen>
+    with _KioskCustomizeActions<KioskProductCustomizeScreen> {
   /// Per-line note. There is no longer a field for it on this screen — the note
   /// moved to a single order-level note on the cart — but an existing line's
   /// text is carried through so editing a line cannot silently wipe it.
   String? _instruction;
 
+  @override
   Product get product => widget.product;
+  @override
   int? get cartIndex => widget.cartIndex;
+  @override
+  String? get instruction => _instruction;
+  @override
+  bool get replaceOtherProductLines => widget.replaceOtherProductLines;
 
   @override
   void initState() {
     super.initState();
     final String initial = widget.initialInstruction?.trim() ?? '';
     _instruction = initial.isEmpty ? null : initial;
+    // After the first frame: `track` reads providers, which is not allowed
+    // while the widget is still being mounted.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) track(context, KioskCustomizeEvent.customizationStarted);
+    });
   }
 
-  /// Same validation rules as the web app, run before adding to the cart.
-  bool _validate(BuildContext context, ProductProvider productProvider) {
-    final variations = product.variations ?? [];
-    for (int index = 0; index < variations.length; index++) {
-      final v = variations[index];
-      if (!v.isMultiSelect! &&
-          v.isRequired! &&
-          !productProvider.selectedVariations[index].contains(true)) {
-        showCustomSnackBarHelper(
-          '${getTranslated('choose_a_variation_from', context)} ${v.name}',
-          isError: true,
-        );
-        return false;
-      }
-      if (v.isMultiSelect! &&
-          (v.isRequired! ||
-              productProvider.selectedVariations[index].contains(true)) &&
-          v.min! >
-              productProvider.selectedVariationLength(
-                  productProvider.selectedVariations, index)) {
-        showCustomSnackBarHelper(
-          '${getTranslated('you_need_to_select_minimum', context)} ${v.min}',
-          isError: true,
-        );
-        return false;
-      }
+  @override
+  void dispose() {
+    // Left the screen without the line reaching the cart.
+    if (!_completed) {
+      KioskCustomizeAnalytics.instance.track(
+        KioskCustomizeEvent.customizationAbandoned,
+        experience: _lastExperience,
+        productId: product.id,
+      );
     }
-    for (final group in product.effectiveAddOnGroups) {
-      final List<int> indexes = [];
-      for (final addon in group.addons) {
-        final int? i = product.indexOfAddOn(addon.id);
-        if (i != null) {
-          indexes.add(i);
-        }
-      }
-      int selected = 0;
-      for (final int i in indexes) {
-        if (i < productProvider.addOnActiveList.length &&
-            productProvider.addOnActiveList[i]) {
-          selected++;
-        }
-      }
-      final bool required = group.isRequired || group.min > 0;
-      final int min = group.isSingle ? (required ? 1 : 0) : group.min;
-      if (required && selected < min) {
-        showCustomSnackBarHelper(
-          '${getTranslated('choose_a_variation_from', context)} ${group.name ?? ''}',
-          isError: true,
-        );
-        return false;
-      }
-    }
-    return true;
-  }
-
-  void _addToCart(BuildContext context, ProductProvider productProvider) {
-    if (!_validate(context, productProvider)) return;
-    final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    final int? index = cartIndex ?? productProvider.cartIndex;
-    cartProvider.addToCart(
-        buildKioskCartModel(context, product, instruction: _instruction),
-        index);
-    if (widget.replaceOtherProductLines &&
-        product.id != null &&
-        index != null &&
-        index >= 0) {
-      cartProvider.removeOtherLinesForProduct(product.id!, index);
-    }
-    Navigator.of(context).pop();
+    // Nothing else will run before the tab/route is gone, so push what is queued.
+    unawaited(KioskCustomizeAnalytics.instance.flush());
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final variations = product.variations ?? [];
-    // Split out the cup/can group(s) so they render with the big two-card style.
-    final List<MapEntry<int, Variation>> indexedVariations =
-        List.generate(variations.length, (i) => MapEntry(i, variations[i]));
-    final cupCanVariations = indexedVariations
-        .where((e) => _kCupCanPattern.hasMatch(e.value.name ?? ''))
-        .toList();
-    final sizeVariations = indexedVariations
-        .where((e) =>
-            !_kCupCanPattern.hasMatch(e.value.name ?? '') &&
-            _isSizeVariation(e.value))
-        .toList();
-    final dietaryVariations = indexedVariations
-        .where((e) =>
-            !_kCupCanPattern.hasMatch(e.value.name ?? '') &&
-            !_isSizeVariation(e.value))
-        .toList();
+    // Captured for [dispose], which runs after the element is unmounted and can
+    // no longer reach a provider.
+    _lastExperience = experienceOf(context);
+    // Cup/can splits out so it renders with the big two-card style; the same
+    // split drives Version B's steps (see [_CustomizeSections]).
+    final sections = _CustomizeSections.of(product);
+    final cupCanVariations = sections.cupCan;
+    final sizeVariations = sections.size;
+    final dietaryVariations = sections.dietary;
 
     return Scaffold(
       backgroundColor: KioskUI.pageBg,
@@ -584,8 +764,15 @@ class _Header extends StatelessWidget {
   final double s;
   final Product product;
   final ProductProvider productProvider;
+
+  /// Version B draws its own back button beside the progress bar, so it asks
+  /// the header to skip the one in the corner rather than showing two.
+  final bool showBackButton;
   const _Header(
-      {required this.s, required this.product, required this.productProvider});
+      {required this.s,
+      required this.product,
+      required this.productProvider,
+      this.showBackButton = true});
 
   @override
   Widget build(BuildContext context) {
@@ -601,16 +788,17 @@ class _Header extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Back button (top-left).
-        Align(
-          alignment: Alignment.centerLeft,
-          child: KioskBackButton.scaled(
-            s: s,
-            size: 120,
-            border: 2,
-            icon: 50,
-            fallback: RouterHelper.getKioskMenuRoute,
+        if (showBackButton)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: KioskBackButton.scaled(
+              s: s,
+              size: 120,
+              border: 2,
+              icon: 50,
+              fallback: RouterHelper.getKioskMenuRoute,
+            ),
           ),
-        ),
         // Figma hero: 453 x 731 on the 2572 artboard, centred — a portrait
         // box, so a landscape photo letterboxes inside it instead of stretching
         // to the full panel width the way it used to.
@@ -665,11 +853,15 @@ class _CompactHeader extends StatelessWidget {
   final double viewportHeight;
   final Product product;
   final ProductProvider productProvider;
+
+  /// See [_Header.showBackButton].
+  final bool showBackButton;
   const _CompactHeader({
     required this.s,
     required this.viewportHeight,
     required this.product,
     required this.productProvider,
+    this.showBackButton = true,
   });
 
   @override
@@ -738,17 +930,18 @@ class _CompactHeader extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
-          left: 0,
-          top: 0,
-          child: KioskBackButton.scaled(
-            s: s,
-            size: 110,
-            border: 2,
-            icon: 46,
-            fallback: RouterHelper.getKioskMenuRoute,
+        if (showBackButton)
+          Positioned(
+            left: 0,
+            top: 0,
+            child: KioskBackButton.scaled(
+              s: s,
+              size: 110,
+              border: 2,
+              icon: 46,
+              fallback: RouterHelper.getKioskMenuRoute,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -1423,6 +1616,23 @@ class _GroupedAddOnCards extends StatelessWidget {
     required this.group,
   });
 
+  /// Report an add-on toggle. Rendered identically by both versions, so this is
+  /// the one place either flow records a `addon_selected`/`addon_deselected`.
+  void _trackAddOn(BuildContext context, bool nowSelected, AddOns addon) {
+    final auth = Provider.of<KioskAuthProvider>(context, listen: false);
+    KioskCustomizeAnalytics.instance.track(
+      nowSelected
+          ? KioskCustomizeEvent.addOnSelected
+          : KioskCustomizeEvent.addOnDeselected,
+      experience: auth.orderingExperience,
+      productId: product.id,
+      branchId: auth.branchId,
+      deviceId: auth.deviceId,
+      addOnId: addon.id,
+      value: addon.name,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<int> groupIndexes = [
@@ -1471,6 +1681,7 @@ class _GroupedAddOnCards extends StatelessWidget {
                     if (quantity > 1) {
                       productProvider.setAddOnQuantity(false, index);
                     } else {
+                      _trackAddOn(context, false, addon);
                       productProvider.toggleAddOnInGroup(
                         index: index,
                         isSingle: group.isSingle,
@@ -1482,6 +1693,7 @@ class _GroupedAddOnCards extends StatelessWidget {
                   },
                   onTap: () {
                     if (selected && !group.isSingle) return;
+                    _trackAddOn(context, !selected, addon);
                     productProvider.toggleAddOnInGroup(
                       index: index,
                       isSingle: group.isSingle,
@@ -1691,6 +1903,16 @@ class _CupCanSection extends StatelessWidget {
                 ),
                 selected: selected,
                 onTap: () {
+                  final auth = Provider.of<KioskAuthProvider>(context,
+                      listen: false);
+                  KioskCustomizeAnalytics.instance.track(
+                    KioskCustomizeEvent.cupOrCanSelected,
+                    experience: auth.orderingExperience,
+                    productId: product.id,
+                    branchId: auth.branchId,
+                    deviceId: auth.deviceId,
+                    value: label,
+                  );
                   productProvider.setCartVariationIndex(
                       variationIndex, i, product, variation.isMultiSelect!);
                   productProvider.checkIsRequiredSelected(
