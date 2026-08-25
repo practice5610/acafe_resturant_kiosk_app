@@ -1,7 +1,7 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart'
@@ -132,15 +132,11 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Dimmed, blurred scrim -- tap outside the card to dismiss.
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _close,
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child:
-                      Container(color: _kManagerText.withValues(alpha: 0.55)),
-                ),
+              // Shared frosted scrim -- tap outside the card to dismiss.
+              KioskScrim(
+                animation: ModalRoute.of(context)?.animation ??
+                    kAlwaysCompleteAnimation,
+                onDismiss: _close,
               ),
               Center(
                 child: GestureDetector(

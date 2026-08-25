@@ -22,6 +22,7 @@ import 'package:acafe_customer/features/language/providers/localization_provider
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/theme/brand_colors.dart';
@@ -1020,7 +1021,7 @@ class _EmptyCartBar extends StatelessWidget {
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.1),
       child: KioskTap(
-        onTap: () => RouterHelper.getKioskCartRoute(),
+        onTap: () => openKioskCart(context),
         child: Container(
           height: 200 * s,
           padding: EdgeInsets.symmetric(horizontal: 100 * s),
@@ -1101,7 +1102,7 @@ class _ViewCartButton extends StatelessWidget {
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.1),
       child: KioskTap(
-        onTap: () => RouterHelper.getKioskCartRoute(),
+        onTap: () => openKioskCart(context),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
@@ -1216,7 +1217,7 @@ class _LatestItemCard extends StatelessWidget {
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.1),
       child: KioskTap(
-        onTap: () => RouterHelper.getKioskCartRoute(),
+        onTap: () => openKioskCart(context),
         child: Stack(
           children: [
             Padding(
@@ -1640,7 +1641,7 @@ class _WideCartBar extends StatelessWidget {
                     .toUpperCase(),
                 maxWidth: 280,
                 badgeCount: count > 0 ? count : null,
-                onTap: () => RouterHelper.getKioskCartRoute(),
+                onTap: () => openKioskCart(context),
               ),
               const SizedBox(width: 16),
               KioskButton(
@@ -1648,9 +1649,7 @@ class _WideCartBar extends StatelessWidget {
                     .toUpperCase(),
                 height: KioskUI.secondaryButtonHeight,
                 maxWidth: 280,
-                onTap: count > 0
-                    ? () => RouterHelper.getKioskCheckoutRoute()
-                    : null,
+                onTap: count > 0 ? () => openKioskCheckout(context) : null,
               ),
             ],
           ),

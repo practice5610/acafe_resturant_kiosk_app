@@ -170,6 +170,15 @@ class Product {
   String? get taxType => _taxType;
   int? get setMenu => _setMenu;
   String? productType;
+
+  /// Kitchen station this product is made at: `bar` (drinks), `kitchen`
+  /// (food) or `merchandise`. Set server-side and used by the kiosk to tell
+  /// food from drink — see [KioskCourse].
+  String? area;
+
+  /// How often this product has been ordered. Drives the order of the kiosk's
+  /// upsell suggestions, so the kiosk offers what people actually buy.
+  int? popularityCount;
   BranchProduct? get branchProduct => _branchProduct;
   bool? get isChanged => _isChanged;
   String? get changeReason => _changeReason;
@@ -213,6 +222,10 @@ class Product {
     _tax = json['tax'].toDouble();
     _tax = json['tax'].toDouble();
     _status = json['status'] ?? 0;
+    area = json['area']?.toString();
+    popularityCount = json['popularity_count'] is int
+        ? json['popularity_count'] as int
+        : int.tryParse('${json['popularity_count']}');
     _createdAt = json['created_at'];
     _updatedAt = json['updated_at'];
     _attributes = json['attributes'].cast<String>();
@@ -273,6 +286,8 @@ class Product {
     }
     data['tax'] = _tax;
     data['status'] = _status;
+    data['area'] = area;
+    data['popularity_count'] = popularityCount;
     data['created_at'] = _createdAt;
     data['updated_at'] = _updatedAt;
     data['attributes'] = _attributes;

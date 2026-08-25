@@ -11,6 +11,7 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_order_line_card.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -399,7 +400,7 @@ class _WideSummaryCard extends StatelessWidget {
                 .toUpperCase(),
             height: KioskUI.primaryButtonHeight,
             maxWidth: double.infinity,
-            onTap: enabled ? () => RouterHelper.getKioskCheckoutRoute() : null,
+            onTap: enabled ? () => openKioskCheckout(context) : null,
           ),
         ],
       ),
@@ -705,7 +706,7 @@ class _Footer extends StatelessWidget {
                       .toUpperCase(),
                   filled: true,
                   onTap: enabled
-                      ? () => RouterHelper.getKioskCheckoutRoute()
+                      ? () => openKioskCheckout(context)
                       : null,
                 ),
               ],

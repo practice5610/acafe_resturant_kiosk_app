@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import 'package:acafe_customer/common/models/language_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
@@ -9,6 +8,7 @@ import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:provider/provider.dart';
 
 // ===========================================================================
@@ -141,13 +141,12 @@ class _KioskLanguageSheetState extends State<KioskLanguageSheet> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _saving ? null : () => Navigator.of(context).pop(),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-              child: Container(color: _kSheetInk.withValues(alpha: 0.45)),
-            ),
+          KioskScrim(
+            animation: ModalRoute.of(context)?.animation ??
+                kAlwaysCompleteAnimation,
+            // Inert mid-save: dismissing while the choice is being written
+            // would leave the kiosk on a language it never finished applying.
+            onDismiss: _saving ? null : () => Navigator.of(context).pop(),
           ),
           SafeArea(
             child: LayoutBuilder(

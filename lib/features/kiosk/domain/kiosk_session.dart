@@ -1,4 +1,5 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
 
 /// Lightweight in-memory holder for the current kiosk checkout session.
 ///
@@ -19,6 +20,9 @@ class KioskSession {
     customerEmail = '';
     lastOrderNumber = null;
     lastOrderId = null;
+    // "We already asked this customer about a drink" must not carry over to
+    // the next person to walk up to the kiosk.
+    resetKioskUpsellMemory();
   }
 }
 

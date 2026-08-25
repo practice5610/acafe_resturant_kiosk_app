@@ -1,10 +1,10 @@
-import 'dart:ui';
 
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -166,13 +166,10 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _cancel,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-              child: Container(color: _kNoteInk.withValues(alpha: 0.45)),
-            ),
+          KioskScrim(
+            animation: ModalRoute.of(context)?.animation ??
+                kAlwaysCompleteAnimation,
+            onDismiss: _cancel,
           ),
           SafeArea(
             child: LayoutBuilder(
