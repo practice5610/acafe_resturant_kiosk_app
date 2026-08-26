@@ -890,5 +890,13 @@
   "back": "Retour",
   "enter_your_code": "Saisissez votre code",
   "scan_your_code": "Scannez votre code",
-  "use_the_scanner_below_you": "Utilisez le scanner en dessous de vous"
+  "use_the_scanner_below_you": "Utilisez le scanner en dessous de vous",
+  "coupon_applied": "Coupon appliqué !",
+  "your_discount_has_been_applied_to_your_order": "Votre réduction a été appliquée à votre commande.",
+  "your_reward_has_been_added_to_your_order": "Votre récompense a été ajoutée à votre commande.",
+  "coupon_free_reward": "Offert",
+  "you_save": "Vous économisez",
+  "minimum_purchase_amount_is": "Le montant minimum d’achat est de",
+  "coupon_not_found": "Coupon introuvable",
+  "coupon_limit_over": "Ce coupon a déjà été utilisé"
 }

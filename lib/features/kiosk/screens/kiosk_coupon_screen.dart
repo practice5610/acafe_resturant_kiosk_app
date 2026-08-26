@@ -7,10 +7,13 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/coupon/domain/models/coupon_apply_result.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_applied_screen.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_keyboard.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -24,9 +27,13 @@ import 'package:acafe_customer/utill/styles.dart';
 ///
 /// Replaces the old bottom-sheet coupon picker with the designed full screen:
 /// brand mark, prompt, a large code field, the on-screen keyboard, the
-/// "SCAN YOUR CODE" panel and the BACK / CONTINUE pair. The business logic is
-/// unchanged — it still drives [CouponProvider.applyCoupon] /
-/// [CouponProvider.removeCouponData] and reports through the shared snackbar.
+/// "SCAN YOUR CODE" panel and the BACK / CONTINUE pair.
+///
+/// CONTINUE (and Enter, which is how a barcode scanner finishes a code) hands
+/// the code to [CouponProvider.applyCouponDetailed]. A code that grants
+/// something opens [KioskCouponAppliedScreen] — the confirmation beat that
+/// shows the benefit — and the screen then closes back to the cart; a code that
+/// does not is reported in place, saying *why*, so the customer can act on it.
 ///
 /// ## Sizing
 /// The artboard is 2572 x 4530 (a portrait kiosk). Rather than hard-coding
@@ -129,9 +136,29 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
         fallback: RouterHelper.getKioskCartRoute,
       );
 
+  /// The backend answers with `translate(...)` output, so a key the kiosk's own
+  /// language files do not carry arrives as the raw identifier
+  /// ("coupon_not_found"). Run it back through the kiosk lookup and prettify
+  /// whatever is still snake_case, so the customer never reads an identifier.
+  String _failureMessage(String? raw) {
+    final String message = raw?.trim() ?? '';
+    if (message.isEmpty) {
+      return kioskTranslate(context, 'invalid_code_or', 'Invalid code');
+    }
+    if (!RegExp(r'^[a-z0-9_]+$').hasMatch(message)) return message;
+
+    final String prettified = message.replaceAll('_', ' ');
+    return kioskTranslate(
+      context,
+      message,
+      prettified[0].toUpperCase() + prettified.substring(1),
+    );
+  }
+
   /// CONTINUE. An empty field clears an applied coupon (the Clear key + CONTINUE
-  /// is the redesign's "remove"); otherwise the code is applied exactly as the
-  /// old sheet did.
+  /// is the redesign's "remove"); otherwise the code is validated, and a code
+  /// that grants something opens the confirmation beat
+  /// ([KioskCouponAppliedScreen]) before the screen closes back to the cart.
   Future<void> _submit() async {
     final coupon = Provider.of<CouponProvider>(context, listen: false);
     if (coupon.isLoading) return;
@@ -155,23 +182,40 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
       return;
     }
 
-    final double? discount = await coupon.applyCoupon(code, _orderAmount);
+    final double amount = _orderAmount;
+    final CouponApplyResult result =
+        await coupon.applyCouponDetailed(code, amount);
     if (!mounted) return;
 
-    if ((discount ?? 0) > 0) {
-      showCustomSnackBarHelper(
-        '${kioskTranslate(context, 'you_got', 'You got')} '
-        '${PriceConverterHelper.convertPrice(discount)} '
-        '${kioskTranslate(context, 'discount', 'discount')}',
-        isError: false,
+    if (result.status == CouponApplyStatus.applied) {
+      // What the customer just earned, in their own terms — a rate, a sum, or
+      // the free item the coupon names.
+      final KioskCouponReward reward = KioskCouponReward.resolve(
+        coupon: result.coupon,
+        discount: result.discount,
+        orderAmount: amount,
+        formatPrice: (value) => PriceConverterHelper.convertPrice(value),
+        translate: (key, fallback) => kioskTranslate(context, key, fallback),
       );
+      // The confirmation beat pops itself after its hold (or on a tap), and
+      // this screen then closes back to the cart exactly as it always did.
+      await Navigator.of(context).push(KioskCouponAppliedScreen.route(reward));
+      if (!mounted) return;
       _close();
-    } else {
-      showCustomSnackBarHelper(
-        kioskTranslate(context, 'invalid_code_or', 'Invalid code'),
-        isError: true,
-      );
+      return;
     }
+
+    if (result.status == CouponApplyStatus.belowMinPurchase) {
+      // The code is real; the basket is just too small. Saying "invalid" here
+      // sent customers off to find another code that would fail the same way.
+      showCustomSnackBarHelper(
+        '${kioskTranslate(context, 'minimum_purchase_amount_is', 'Minimum purchase amount is')} '
+        '${PriceConverterHelper.convertPrice(result.minPurchase)}',
+      );
+      return;
+    }
+
+    showCustomSnackBarHelper(_failureMessage(result.errorMessage), isError: true);
   }
 
   @override
@@ -206,6 +250,7 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
                       m: m,
                       controller: _controller,
                       focusNode: _focusNode,
+                      onSubmit: _submit,
                     ),
                     SizedBox(height: m.gap(_kFieldToKeyboard)),
                     KioskKeyboard(
@@ -470,10 +515,16 @@ class _CodeField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
 
+  /// Same action as CONTINUE. The "SCAN YOUR CODE" panel means a barcode
+  /// scanner types the code in and finishes with Enter, so the field has to
+  /// submit on its own — otherwise a scanned coupon just sat there.
+  final Future<void> Function() onSubmit;
+
   const _CodeField({
     required this.m,
     required this.controller,
     required this.focusNode,
+    required this.onSubmit,
   });
 
   @override
@@ -502,6 +553,8 @@ class _CodeField extends StatelessWidget {
         textAlignVertical: TextAlignVertical.center,
         maxLines: 1,
         textCapitalization: TextCapitalization.characters,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => onSubmit(),
         // A tap on the kiosk's own keyboard is a tap "outside" this field. Left
         // to the framework that blurs it, and re-focusing then selects the whole
         // value (`selectAllOnFocus` defaults to true on web and desktop) — so

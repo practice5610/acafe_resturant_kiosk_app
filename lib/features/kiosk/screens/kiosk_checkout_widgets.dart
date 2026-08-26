@@ -569,6 +569,12 @@ class KioskCheckoutButton extends StatelessWidget {
   final String label;
   final bool filled;
   final double fontSize;
+
+  /// Skip the shared wide-screen button and always render the scaled artboard
+  /// one. The customize screen's bar is part of its Figma frame — it scales
+  /// with the page, so snapping it to a fixed 60px control at the 1100px seam
+  /// would break the design it sits in.
+  final bool forceScaled;
   final VoidCallback? onTap;
   const KioskCheckoutButton({
     super.key,
@@ -577,11 +583,12 @@ class KioskCheckoutButton extends StatelessWidget {
     required this.filled,
     required this.onTap,
     this.fontSize = 72,
+    this.forceScaled = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (Responsive.isWide(context)) {
+    if (!forceScaled && Responsive.isWide(context)) {
       final bool disabled = onTap == null;
       return Opacity(
         opacity: disabled ? 0.5 : 1,
@@ -616,8 +623,11 @@ class KioskCheckoutButton extends StatelessWidget {
             child: Text(
               label,
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: (filled ? loewExtraBold : loewBold).copyWith(
                 fontSize: fontSize * s,
+                height: 1.0,
                 color: filled ? kCheckoutButtonText : Colors.black,
               ),
             ),

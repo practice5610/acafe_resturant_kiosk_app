@@ -1,27 +1,39 @@
 import 'dart:io';
 
+import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Pins the values read off Figma `02a – Menu Browse (Full Page)`
-/// (node 1385:13510, 2572×5400 artboard) into the customize screen's source.
+/// (node 1385:13510, 2572x5400 artboard) into the customize screen.
 ///
-/// These are design tokens with no runtime behaviour to assert against, so the
-/// guard is a source check: if someone edits a constant away from the design,
-/// this fails and names the value. It is deliberately narrow — only the
-/// numbers the design actually specifies.
+/// Two kinds of guard live here. The measurements are real code now — they sit
+/// in [KioskCustomizeSpec] — so those are asserted as values. The colours and
+/// the layout RULES have no runtime handle, so they stay source checks: if
+/// someone edits a token away from the design, this fails and names it.
 void main() {
   late String source;
+  late String stepSource;
 
   setUpAll(() {
     source = File(
       'lib/features/kiosk/screens/kiosk_product_customize_sheet.dart',
     ).readAsStringSync();
+    stepSource = File(
+      'lib/features/kiosk/screens/kiosk_product_customize_step_flow.dart',
+    ).readAsStringSync();
   });
 
   group('Figma colours', () {
     const tokens = {
-      '_kPanelBg': '0xFFFFFFFF', // section card fill
-      '_kPanelBorder': '0xFFB9B5A6', // scroll track
+      // `Rectangle 62` — the section panels AND the option cards share one fill.
+      '_kPanelBg': '0xFFFBF8EF',
+      // `Rectangle 62` stroke, the idle card outline and the scroll track.
+      '_kPanelBorder': '0xFFB9B5A6',
+      // `can` (unselected vessel) carries a lighter outline than the cards.
+      '_kVesselIdleBorder': '0xFFE2D9C8',
+      '_kCardBorderSelected': '0xFF000000',
+      '_kInkText': '0xFF0D0D0D',
+      '_kCreamText': '0xFFF3F3DD',
       '_kScrollThumb': '0xFF000000', // Rectangle 100
     };
 
@@ -32,125 +44,158 @@ void main() {
       });
     });
 
-    test('the scroll track reuses the border token', () {
+    test('the idle card outline and scroll track reuse the border token', () {
+      expect(source, contains('_kCardIdleBorder = _kPanelBorder'));
       expect(source, contains('_kScrollTrack = _kPanelBorder'));
+    });
+
+    test('the panel is a flat cream card, not a white one with a shadow', () {
+      final int start = source.indexOf('class _SectionPanel');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      expect(body, contains('color: _kPanelBg'));
+      expect(body.contains('boxShadow'), isFalse,
+          reason: 'Figma draws a 1px border, no drop shadow');
     });
   });
 
   group('Figma metrics', () {
-    const metrics = {
-      '_kScrollbarWidth': '20', // Rectangle 100/101 width
-      '_kScrollbarRadius': '15', // Rectangle 100/101 radius
-    };
-
-    metrics.forEach((name, value) {
-      test('$name is $value', () {
-        expect(source, contains('$name = $value'),
-            reason: '$name must stay the Figma value $value');
-      });
+    test('the artboard is the 2572x5400 portrait frame', () {
+      expect(KioskCustomizeSpec.artboardWidth, 2572);
+      expect(KioskCustomizeSpec.artboardHeight, 5400);
     });
 
-    test('hero image is the design\'s 453x731 portrait box, centred', () {
-      expect(source, contains('width: 453 * s'));
-      expect(source, contains('height: 731 * s'));
+    test('hero image is the design\'s 453x731 portrait box', () {
+      expect(KioskCustomizeSpec.heroWidth, 453);
+      expect(KioskCustomizeSpec.heroHeight, 731);
+      expect(source, contains('fit: BoxFit.contain'),
+          reason: 'a landscape photo letterboxes, it never stretches');
     });
 
-    test('product title is Loew ExtraBold 72 at line-height 100%', () {
-      expect(
-        source,
-        contains(
-            'loewExtraBold.copyWith(\n              fontSize: 72 * s, height: 1.0'),
-        reason: 'Inspect: Loew / ExtraBold / 72px / line-height 100%',
-      );
+    test('type follows the inspected Figma styles', () {
+      // Loew ExtraBold 72 / Swiss 721 Light 48 / Loew ExtraBold 96.
+      expect(KioskCustomizeSpec.titleSize, 72);
+      expect(KioskCustomizeSpec.descriptionSize, 48);
+      expect(KioskCustomizeSpec.stepperGlyphSize, 96);
+      expect(KioskCustomizeSpec.panelTitleSize, 72);
+      // Loew Medium 45.36 / 45 on the cards, Swiss 721 Light 36 for prices.
+      expect(KioskCustomizeSpec.optionLabelSize, closeTo(45.36, 0.001));
+      expect(KioskCustomizeSpec.addOnNameSize, 45);
+      expect(KioskCustomizeSpec.addOnPriceSize, 36);
+      // `cup-text` / `can-text`: Loew Bold 28 with 3.36 tracking.
+      expect(KioskCustomizeSpec.vesselLabelSize, 28);
+      expect(KioskCustomizeSpec.vesselLabelTracking, closeTo(3.36, 0.001));
+      expect(KioskCustomizeSpec.actionLabelSize, 72);
+    });
+
+    test('card labels use Loew Medium, as inspected', () {
+      expect(source, contains('loewMedium.copyWith('),
+          reason: 'Figma card labels are Loew Medium, not Bold');
+    });
+
+    test('the description is Swiss 721 Light', () {
+      final int start = source.indexOf('class _Header');
+      final int end = source.indexOf('\nclass ', start + 10);
+      expect(source.substring(start, end), contains('swiss721Light.copyWith('));
+    });
+
+    test('boxes match the artboard', () {
+      // `Group 97` back button, `Group 95` stepper, `Group 167` action bar.
+      expect(KioskCustomizeSpec.backButton, 141);
+      expect(KioskCustomizeSpec.stepperButtonWidth, 150);
+      expect(KioskCustomizeSpec.stepperButtonHeight, 114);
+      expect(KioskCustomizeSpec.actionHeight, 252);
+      // `Group 98` dietary card and `card-shot-espresso` add-on card.
+      expect(KioskCustomizeSpec.optionCardWidth, closeTo(407.823, 0.001));
+      expect(KioskCustomizeSpec.optionCardHeight, closeTo(449.4, 0.001));
+      expect(KioskCustomizeSpec.addOnCardWidth, 539);
+      expect(KioskCustomizeSpec.addOnCardHeight, 535);
+      // `cup` / `can`.
+      expect(KioskCustomizeSpec.vesselCardWidth, 1099);
+      expect(KioskCustomizeSpec.vesselCardHeight, 790);
+      // `Rectangle 100`/`101`.
+      expect(KioskCustomizeSpec.scrollbarWidth, 20);
+      expect(KioskCustomizeSpec.scrollbarRadius, 15);
+    });
+
+    test('radii and gaps match the artboard', () {
+      expect(KioskCustomizeSpec.panelRadius, 30);
+      expect(KioskCustomizeSpec.optionCardRadius, 31.5);
+      expect(KioskCustomizeSpec.addOnCardRadius, 31.5);
+      expect(KioskCustomizeSpec.vesselCardRadius, 28);
+      expect(KioskCustomizeSpec.actionRadius, 30);
+      expect(KioskCustomizeSpec.optionCardGap, 45);
+      expect(KioskCustomizeSpec.addOnCardGap, 20);
+      expect(KioskCustomizeSpec.vesselCardGap, 35);
+      expect(KioskCustomizeSpec.actionGap, 22);
     });
   });
 
-  group('responsive', () {
-    test('panels share the option-card corner radius', () {
-      expect(source, contains('_kOptionRadius'));
-      expect(source, contains('BorderRadius.circular('));
-      expect(source.contains('BorderRadius.circular(70 * s)'), isFalse,
-          reason: 'the panel had its own radius; it now follows the cards');
+  group('one scale, no per-element floors', () {
+    test('the screen carries no clamp of its own', () {
+      // Per-element floors are what pulled the old screen out of proportion: a
+      // 16px minimum heading inside a panel that kept shrinking. Every bound
+      // now lives on the scale, so the screen itself must have none.
+      expect(source.contains('.clamp('), isFalse,
+          reason: 'bound the scale, not individual elements');
+      expect(stepSource.contains('* s).clamp('), isFalse,
+          reason: 'Version B\'s chrome follows the same rule');
+    });
+
+    test('borders are the one exception, and only ever a floor', () {
+      expect(
+          source, contains('double _border(double artboardWidth, double s)'));
+      expect(source, contains('math.max(KioskCustomizeSpec.borderFloor'));
+      expect(KioskCustomizeSpec.borderFloor, 1.0);
+    });
+
+    test('the compact second header is gone', () {
+      // It existed only because the old scale ignored height and left no room
+      // for the real header. It carried its own photo size, type sizes and
+      // spacing — a second design competing with Figma's.
+      expect(source.contains('class _CompactHeader'), isFalse);
+      expect(source.contains('_kFullHeroMinViewport'), isFalse);
+      expect(stepSource.contains('_CompactHeader'), isFalse);
+    });
+
+    test('card interiors come from the card width, not the raw scale', () {
+      // A card sizes its own interior from the width it was given, so it is the
+      // same SHAPE on a phone-width window and a 4K kiosk.
+      for (final String card in ['_DietaryCard', '_AddOnCard']) {
+        final int start = source.indexOf('class $card');
+        final int end = source.indexOf('\nclass ', start + 10);
+        final String body = source.substring(start, end);
+        expect(body, contains('final double k = width /'),
+            reason: '$card must derive its interior from its own width');
+      }
     });
 
     test('cards are sized from available width, not a fixed artboard value',
         () {
-      expect(source, contains('_optionCardWidth('));
+      expect(source, contains('_cardWidthFor('));
       expect(source, contains('width: cardWidth'),
           reason: 'both card types must take the computed width');
       // The rule itself lives in a testable helper.
       expect(source, contains('kioskOptionCardWidth('));
     });
 
-    test('the header compacts when the viewport is too short for the hero', () {
-      expect(source, contains('_kFullHeroMinViewport'));
-      expect(source, contains('constraints.maxHeight < _kFullHeroMinViewport'));
-    });
-
-    test('cup/can cards are capped against the viewport height', () {
-      final int start = source.indexOf('class _CupCanSection');
-      final int end = source.indexOf('\nclass ', start + 10);
-      final String body = source.substring(start, end);
-
-      expect(body, contains('MediaQuery.sizeOf(context).height'));
-      expect(body, contains('viewportHeight * 0.22'),
-          reason:
-              'vessel cards must not eat the add-on list on a short screen');
-    });
-
-    test('the vessel card sizes its contents from its own height', () {
-      final int start = source.indexOf('class _CupCanCard');
-      final int end = source.indexOf('\nclass ', start + 10);
-      final String body = source.substring(start, end);
-
-      // A short card with artboard-sized artwork inside it was the bug: the
-      // vessel, its label and the tick all have to shrink with the card.
-      expect(body, contains('final double height;'));
-      expect(body, contains('height: height,'));
-      expect(body.contains('fontSize: 34 * s'), isFalse,
-          reason: 'the label must scale with the card, not the artboard');
-    });
-
-    test('card interiors come from the card width, not the raw scale', () {
-      // `s` bottoms out at KioskResponsive.minScale, so anything multiplied
-      // straight by it stops shrinking while the panel keeps getting narrower
-      // — which is what left oversized boxes around 7px labels.
-      expect(source, contains('class _OptionCardMetrics'));
-      expect('_OptionCardMetrics.of(cardWidth'.allMatches(source).length, 2,
-          reason: 'both the add-on and the dietary card must use it');
-      for (final String frozen in [
-        'height: _kOptionImage * s',
-        'padding: EdgeInsets.all(_kOptionCardPad * s)',
-        'fontSize: _kOptionNameSize * s',
-        'fontSize: _kOptionPriceSize * s',
-      ]) {
-        expect(source.contains(frozen), isFalse,
-            reason: '$frozen freezes at the minimum scale');
-      }
+    test('a row keeps ONE height, so cards never go ragged', () {
+      // A Row/Wrap lets each child size itself, which is how the old grid ended
+      // up with a short card beside a tall empty one.
+      expect(source, contains('double _optionCardHeight('));
+      expect(source, contains('double _addOnCardHeight('));
+      expect(source, contains('height: cardHeight'));
     });
 
     test('a row with no artwork drops the image slot rather than reserving it',
         () {
       expect(source, contains('bool _hasOptionArt('));
-      expect(source, contains('if (m.image > 0)'),
+      expect(source, contains('if (showImage)'),
           reason: 'the slot is conditional, not a fixed band of white');
-      // Decided per row/group so every card in a row keeps ONE height: a Wrap
-      // does not stretch siblings, so a per-card decision would go ragged.
+      // Decided per row/group so every card in a row keeps ONE height.
       expect(source, contains('group.addons.any((addon) => addon.hasImage)'));
       expect(source, contains('images.any(_hasOptionArt)'));
-    });
-
-    test('the compact header stacks photo over name, centred', () {
-      final int start = source.indexOf('class _CompactHeader');
-      final int end = source.indexOf('\nclass ', start + 10);
-      final String body = source.substring(start, end);
-
-      expect(body.contains('Row('), isFalse,
-          reason: 'the photo sits above the name now, not beside it');
-      expect(body, contains('CrossAxisAlignment.center'));
-      expect(body, contains('textAlign: TextAlign.center'));
-      // The back button no longer pushes the block off-centre.
-      expect(body, contains('Positioned('));
     });
   });
 
@@ -178,10 +223,11 @@ void main() {
           reason: 'the one-off bar should be gone');
     });
 
-    test('cancel is outlined, add to cart is filled', () {
+    test('the bar scales with the page instead of snapping at the 1100px seam',
+        () {
       final String body = source.substring(source.indexOf('class _ActionBar'));
-      expect(body, contains('filled: false'));
-      expect(body, contains('filled: true'));
+      expect(body, contains('forceScaled: true'),
+          reason: 'a fixed 60px button would break the artboard it sits in');
     });
 
     test('add to cart shows the running line total', () {
@@ -223,7 +269,7 @@ void main() {
       // horizontal was not enough — the panels also have to sit OUTSIDE the
       // vertical scroll area, or the whole row scrolls up and down with the
       // page.
-      final int scrollArea = source.indexOf('child: _AddOnScrollBox(');
+      final int scrollArea = source.indexOf('_AddOnScrollBox(s: s');
       final int sizePanel = source.indexOf('_SizeOptionsPanel(');
       final int dietary = source.indexOf('_VariationSection(');
 
@@ -272,15 +318,10 @@ void main() {
       expect(body, contains('trackColor: _kScrollTrack'));
     });
 
-    test('add-ons are the only vertical scroller', () {
-      expect(source, contains('_AddOnScrollBox'));
-      expect(source.contains('_kAddOnViewport'), isFalse,
-          reason: 'the fixed viewport cap is gone with the pinned layout');
-
-      // Exactly one instance: several stacked scrollers is what made the page
-      // and the group both scroll at once.
-      expect('_AddOnScrollBox('.allMatches(source).length, 2,
-          reason: 'one constructor declaration + one usage');
+    test('there is exactly one add-on scroller', () {
+      // Several stacked scrollers is what made the page and the group both
+      // scroll at once. One declaration + one usage.
+      expect('_AddOnScrollBox('.allMatches(source).length, 2);
     });
 
     test('the scroll indicator lives INSIDE the add-ons panel', () {
@@ -295,14 +336,14 @@ void main() {
       expect(panel, greaterThan(-1));
       expect(scroller, greaterThan(panel),
           reason: 'the scroller must be a child of the panel, not its sibling');
-      expect(body, contains('fill: true'),
+      expect(body, contains('fill: scrollable'),
           reason: 'the panel has to give the scroller its remaining height');
     });
 
     test('cup/can is pinned outside the scroll area, above the action bar', () {
       final int start =
           source.indexOf('class _KioskProductCustomizeScreenState');
-      final int end = source.indexOf('\nclass _Header');
+      final int end = source.indexOf('\nString kioskProductDescription');
       final String body = source.substring(start, end);
 
       final int addOns = body.indexOf('_AddOnsSection(');
@@ -314,6 +355,18 @@ void main() {
           reason: 'cup/can sits below the add-on scroller');
       expect(bar, greaterThan(cupCan),
           reason: 'cup/can must come before the action bar');
+    });
+
+    test('the action bar is a sibling of the scroll area, never over it', () {
+      // Requirement: the bottom buttons must not overlap the customization
+      // content. A pinned Column child cannot, a Stack/Positioned bar could.
+      final int start =
+          source.indexOf('class _KioskProductCustomizeScreenState');
+      final int end = source.indexOf('\nString kioskProductDescription');
+      final String body = source.substring(start, end);
+      expect(body.contains('Positioned('), isFalse);
+      expect(body, contains('Expanded('),
+          reason: 'the scrolling region takes the height the bar leaves');
     });
   });
 
@@ -327,13 +380,17 @@ void main() {
       expect(body, contains('color: Colors.black'));
     });
 
-    test('add-on cards put the price in the selected top-right corner', () {
+    test('a chosen add-on with no stepper moves its price to the top-right',
+        () {
+      // `card-whipped-cream/Selected` puts the price above the artwork;
+      // `card-vanilla-syrup/Selected`, which has a stepper, keeps it inline.
       final int start = source.indexOf('class _AddOnCard');
       final int end = source.indexOf('\nclass ', start + 10);
       final String body = source.substring(start, end);
       expect(body, contains('_addonPriceLabel('));
-      expect(body, contains('priceOnTop'));
-      expect(body, contains('Positioned('));
+      expect(
+          body, contains('selected && !showQuantity && priceLabel.isNotEmpty'));
+      expect(body, contains('textAlign: TextAlign.right'));
     });
 
     test('selected multi add-ons show an in-card quantity stepper', () {
@@ -348,6 +405,16 @@ void main() {
       final String body = source.substring(start, end);
       expect(body, contains('_DietaryCard('));
       expect(body.contains('_AddOnCard('), isFalse);
+    });
+
+    test('the vessel card sizes its contents from its own width', () {
+      final int start = source.indexOf('class _CupCanCard');
+      final int end = source.indexOf('\nclass ', start + 10);
+      final String body = source.substring(start, end);
+
+      expect(body, contains('final double k = width /'));
+      expect(body, contains('height: height,'),
+          reason: 'both vessels are given the same height by the section');
     });
   });
 }

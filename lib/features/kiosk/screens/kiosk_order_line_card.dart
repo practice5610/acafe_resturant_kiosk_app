@@ -6,6 +6,7 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
@@ -17,6 +18,10 @@ const Color kOrderCardBg = Color(0xFFFBF8EF);
 const Color kOrderCardBorder = Color(0xFFB9B5A6);
 const Color kOrderPriceColor = Color(0xFF231F20);
 const Color kOrderPlusText = Color(0xFFF3F3DD);
+
+/// The list price a discount struck out (Figma POS node 1385:15938, the
+/// "price-row" group).
+const Color kOrderWasPriceColor = Color(0xFF888480);
 
 /// One cart line: product image, name, price, modifier lines and a qty stepper.
 /// Tapping the card opens the edit sheet; the stepper updates the cart live.
@@ -103,12 +108,10 @@ class _CompactLineCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      PriceConverterHelper.convertPrice(kioskLineTotal(cart)),
-                      style: swiss721Light.copyWith(
-                        fontSize: KioskUI.body,
-                        color: kOrderPriceColor,
-                      ),
+                    KioskLinePriceRow(
+                      cart: cart,
+                      fontSize: KioskUI.body,
+                      gap: 8,
                     ),
                     if (modifiers.isNotEmpty)
                       Text(
@@ -207,10 +210,10 @@ class _ScaledLineCard extends StatelessWidget {
                           fontSize: 72 * s, height: 1.05, color: Colors.black),
                     ),
                     SizedBox(height: 16 * s),
-                    Text(
-                      PriceConverterHelper.convertPrice(kioskLineTotal(cart)),
-                      style: swiss721Light.copyWith(
-                          fontSize: 90 * s, height: 1, color: kOrderPriceColor),
+                    KioskLinePriceRow(
+                      cart: cart,
+                      fontSize: 90 * s,
+                      gap: 24 * s,
                     ),
                     SizedBox(height: 24 * s),
                     for (final line in modifiers)
@@ -250,6 +253,79 @@ class _ScaledLineCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A cart line's price: what it used to cost, struck through, beside what the
+/// customer actually pays — Figma POS node 1385:15938 ("price-row").
+///
+/// Renders a single price when the line is not discounted, and the word FREE in
+/// place of "€0.00" when a discount clears the line completely, which is how the
+/// design shows a coupon's free product.
+///
+/// The struck price is the product's own list price ([kioskLineOriginalTotal]);
+/// a cart-level coupon is not spread across the lines, because nothing in the
+/// order links a coupon to a particular product — it gets its own labelled row
+/// in the summary instead.
+class KioskLinePriceRow extends StatelessWidget {
+  final CartModel cart;
+  final double fontSize;
+
+  /// Space between the struck price and the payable one (24 design px).
+  final double gap;
+
+  const KioskLinePriceRow({
+    super.key,
+    required this.cart,
+    required this.fontSize,
+    required this.gap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double payable = kioskLineTotal(cart);
+    final double original = kioskLineOriginalTotal(cart);
+    // Currency rounding: a difference smaller than half a cent is not a
+    // discount, it is float noise, and striking a price to show the same
+    // number twice would just look broken.
+    final bool discounted = original - payable > 0.005;
+
+    final TextStyle base = swiss721Light.copyWith(
+      fontSize: fontSize,
+      height: 1,
+      color: kOrderPriceColor,
+    );
+
+    final Widget payableText = payable <= 0.005
+        ? Text(
+            kioskTranslate(context, 'coupon_free_reward', 'Free').toUpperCase(),
+            style: base.copyWith(color: Colors.black),
+          )
+        : Text(PriceConverterHelper.convertPrice(payable), style: base);
+
+    if (!discounted) return payableText;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Flexible(
+          child: Text(
+            PriceConverterHelper.convertPrice(original),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: base.copyWith(
+              color: kOrderWasPriceColor,
+              decoration: TextDecoration.lineThrough,
+              decorationColor: kOrderWasPriceColor,
+              decorationThickness: 2,
+            ),
+          ),
+        ),
+        SizedBox(width: gap),
+        Flexible(child: payableText),
+      ],
     );
   }
 }

@@ -3,16 +3,18 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/coupon/domain/models/coupon_model.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_order_line_card.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
-import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
@@ -45,8 +47,8 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
       setState(() => _placing = false);
       showCustomSnackBarHelper(
         result.message ??
-            (getTranslated('order_failed', context) ??
-                'Order could not be placed'),
+            kioskTranslate(
+                context, 'order_failed', 'Order could not be placed'),
         isError: true,
       );
       return;
@@ -92,8 +94,8 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
                                   77 * s, 40 * s, 115 * s, 40 * s),
                               children: [
                                 Text(
-                                  getTranslated('order_summary', context) ??
-                                      'Order summary',
+                                  kioskTranslate(context, 'order_summary',
+                                      'Order summary'),
                                   textAlign: TextAlign.center,
                                   style: loewExtraBold.copyWith(
                                       fontSize: 128 * s,
@@ -115,6 +117,7 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
                               s: s,
                               cartList: cartList,
                               couponDiscount: couponDiscount,
+                              coupon: couponProvider.coupon,
                               onComplete: () => _complete(total)),
                         ],
                       ),
@@ -176,8 +179,8 @@ class _WideConfirmScreen extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(vertical: 24),
                             children: [
                               Text(
-                                getTranslated('order_summary', context) ??
-                                    'Order summary',
+                                kioskTranslate(context, 'order_summary',
+                                    'Order summary'),
                                 textAlign: TextAlign.center,
                                 style: loewExtraBold.copyWith(
                                   fontSize: KioskUI.heading,
@@ -201,6 +204,7 @@ class _WideConfirmScreen extends StatelessWidget {
                         _WideSummaryFooter(
                           cartList: cartList,
                           couponDiscount: couponDiscount,
+                          coupon: couponProvider.coupon,
                           onComplete: () => onComplete(total),
                         ),
                       ],
@@ -221,11 +225,15 @@ class _WideConfirmScreen extends StatelessWidget {
 class _WideSummaryFooter extends StatelessWidget {
   final List<CartModel?> cartList;
   final double couponDiscount;
+
+  /// The applied coupon, so its row can name the offer. Null when none is on.
+  final CouponModel? coupon;
   final VoidCallback onComplete;
 
   const _WideSummaryFooter({
     required this.cartList,
     required this.couponDiscount,
+    required this.coupon,
     required this.onComplete,
   });
 
@@ -243,29 +251,37 @@ class _WideSummaryFooter extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _WideBreakdownRow(
-            label: getTranslated('items_total', context) ?? 'ITEMS TOTAL',
+            label: kioskTranslate(context, 'items_total', 'Items total')
+                .toUpperCase(),
             value: PriceConverterHelper.convertPrice(items),
           ),
           if (discount > 0) ...[
             const SizedBox(height: 8),
             _WideBreakdownRow(
-              label: getTranslated('discount', context) ?? 'DISCOUNT',
+              label: kioskTranslate(context, 'discount', 'Discount')
+                  .toUpperCase(),
               value: '- ${PriceConverterHelper.convertPrice(discount)}',
+            ),
+          ],
+          // The artboard puts the discount between ITEMS TOTAL and TAX, so the
+          // coupon's own row sits with the other money coming off.
+          if (couponDiscount > 0) ...[
+            const SizedBox(height: 8),
+            _WideBreakdownRow(
+              label: kioskCouponRowLabel(
+                discountLabel:
+                    kioskTranslate(context, 'discount', 'Discount'),
+                title: coupon?.title,
+                code: coupon?.code,
+              ),
+              value: '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
             ),
           ],
           const SizedBox(height: 8),
           _WideBreakdownRow(
-            label: getTranslated('tax', context) ?? 'TAX',
+            label: kioskTranslate(context, 'tax', 'Tax').toUpperCase(),
             value: PriceConverterHelper.convertPrice(tax),
           ),
-          if (couponDiscount > 0) ...[
-            const SizedBox(height: 8),
-            _WideBreakdownRow(
-              label: getTranslated('coupon_discount', context) ??
-                  'COUPON DISCOUNT',
-              value: '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
-            ),
-          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -289,9 +305,9 @@ class _WideSummaryFooter extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           KioskButton(
-            label: getTranslated('complete_order_and_pay', context)
-                    ?.toUpperCase() ??
-                'COMPLETE ORDER & PAY',
+            label: kioskTranslate(context, 'complete_order_and_pay',
+                    'Complete order & pay')
+                .toUpperCase(),
             height: KioskUI.primaryButtonHeight,
             maxWidth: KioskUI.checkoutColumnMaxWidth,
             onTap: enabled ? onComplete : null,
@@ -312,9 +328,14 @@ class _WideBreakdownRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: loewExtraBold.copyWith(
-                fontSize: KioskUI.body, color: Colors.black)),
+        Flexible(
+          child: Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: loewExtraBold.copyWith(
+                  fontSize: KioskUI.body, color: Colors.black)),
+        ),
+        const SizedBox(width: 12),
         Text(value,
             style: loewRegular.copyWith(
                 fontSize: KioskUI.body, color: Colors.black)),
@@ -350,8 +371,8 @@ class _WideConfirmedOverlay extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              getTranslated('order_confirmed', context)?.toUpperCase() ??
-                  'ORDER CONFIRMED!',
+              kioskTranslate(context, 'order_confirmed', 'Order confirmed!')
+                  .toUpperCase(),
               textAlign: TextAlign.center,
               style: loewExtraBold.copyWith(
                 fontSize: KioskUI.pageTitle,
@@ -393,8 +414,8 @@ class _ConfirmedOverlay extends StatelessWidget {
             ),
             SizedBox(height: 120 * s),
             Text(
-              getTranslated('order_confirmed', context)?.toUpperCase() ??
-                  'ORDER CONFIRMED!',
+              kioskTranslate(context, 'order_confirmed', 'Order confirmed!')
+                  .toUpperCase(),
               textAlign: TextAlign.center,
               style: loewExtraBold.copyWith(
                   fontSize: 182 * s, height: 1, color: Colors.white),
@@ -411,11 +432,15 @@ class _SummaryFooter extends StatelessWidget {
   final double s;
   final List<CartModel?> cartList;
   final double couponDiscount;
+
+  /// The applied coupon, so its row can name the offer. Null when none is on.
+  final CouponModel? coupon;
   final VoidCallback onComplete;
   const _SummaryFooter({
     required this.s,
     required this.cartList,
     required this.couponDiscount,
+    required this.coupon,
     required this.onComplete,
   });
 
@@ -444,32 +469,40 @@ class _SummaryFooter extends StatelessWidget {
         children: [
           _BreakdownRow(
             s: s,
-            label: getTranslated('items_total', context) ?? 'ITEMS TOTAL',
+            label: kioskTranslate(context, 'items_total', 'Items total')
+                .toUpperCase(),
             value: PriceConverterHelper.convertPrice(items),
           ),
           if (discount > 0) ...[
             SizedBox(height: 18 * s),
             _BreakdownRow(
               s: s,
-              label: getTranslated('discount', context) ?? 'DISCOUNT',
+              label: kioskTranslate(context, 'discount', 'Discount')
+                  .toUpperCase(),
               value: '- ${PriceConverterHelper.convertPrice(discount)}',
+            ),
+          ],
+          // The artboard puts the discount between ITEMS TOTAL and TAX, so the
+          // coupon's own row sits with the other money coming off.
+          if (couponDiscount > 0) ...[
+            SizedBox(height: 18 * s),
+            _BreakdownRow(
+              s: s,
+              label: kioskCouponRowLabel(
+                discountLabel:
+                    kioskTranslate(context, 'discount', 'Discount'),
+                title: coupon?.title,
+                code: coupon?.code,
+              ),
+              value: '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
             ),
           ],
           SizedBox(height: 18 * s),
           _BreakdownRow(
             s: s,
-            label: getTranslated('tax', context) ?? 'TAX',
+            label: kioskTranslate(context, 'tax', 'Tax').toUpperCase(),
             value: PriceConverterHelper.convertPrice(tax),
           ),
-          if (couponDiscount > 0) ...[
-            SizedBox(height: 18 * s),
-            _BreakdownRow(
-              s: s,
-              label: getTranslated('coupon_discount', context) ??
-                  'COUPON DISCOUNT',
-              value: '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
-            ),
-          ],
           SizedBox(height: 50 * s),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -488,9 +521,9 @@ class _SummaryFooter extends StatelessWidget {
           SizedBox(height: 50 * s),
           KioskCheckoutButton(
             s: s,
-            label: getTranslated('complete_order_and_pay', context)
-                    ?.toUpperCase() ??
-                'COMPLETE ORDER & PAY',
+            label: kioskTranslate(context, 'complete_order_and_pay',
+                    'Complete order & pay')
+                .toUpperCase(),
             filled: true,
             onTap: enabled ? onComplete : null,
           ),
@@ -513,9 +546,19 @@ class _BreakdownRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(label,
-            style:
-                loewExtraBold.copyWith(fontSize: 64 * s, color: Colors.black)),
+        // A coupon row carries the offer's name, which can be long; it shrinks
+        // to fit rather than pushing the amount off the panel.
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(label,
+                maxLines: 1,
+                style: loewExtraBold.copyWith(
+                    fontSize: 64 * s, color: Colors.black)),
+          ),
+        ),
+        SizedBox(width: 24 * s),
         Text(value,
             textAlign: TextAlign.right,
             style: loewRegular.copyWith(

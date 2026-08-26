@@ -17,6 +17,14 @@ part of 'kiosk_product_customize_sheet.dart';
 /// Colour of a step circle / connector that the customer has not reached.
 const Color _kStepUpcoming = Color(0xFFB9B5A6);
 
+/// Artboard height of Version B's own chrome: the top inset plus the progress
+/// bar (a 110px circle over a 30px label, whichever is taller than the 120px
+/// back button beside it). Version A has no equivalent, so it is added to the
+/// shared page height before the scale is chosen — otherwise the bar would eat
+/// the room the header was measured for.
+const double _kStepProgressArtboardHeight =
+    KioskCustomizeSpec.backButtonTop + 156;
+
 /// The three questions Version B asks, in order.
 enum _CustomizeStep {
   milks,
@@ -134,7 +142,8 @@ class _KioskProductCustomizeStepScreenState
         KioskCustomizeEvent.customizationAbandoned,
         experience: _lastExperience,
         productId: product.id,
-        step: _steps[_stepIndex.value.clamp(0, _steps.length - 1)].analyticsName,
+        step:
+            _steps[_stepIndex.value.clamp(0, _steps.length - 1)].analyticsName,
       );
     }
     unawaited(KioskCustomizeAnalytics.instance.flush());
@@ -235,23 +244,41 @@ class _KioskProductCustomizeStepScreenState
           builder: (context, productProvider, _) {
             return LayoutBuilder(
               builder: (context, constraints) {
-                final double s = KioskResponsive.scale(constraints.maxWidth);
                 // See [_KioskCustomizeActions._lastExperience].
                 _lastExperience = experienceOf(context);
-                // Same rule as Version A, minus the progress bar's own height:
-                // the bar costs vertical room the hero would otherwise use, so
-                // the compact header kicks in slightly sooner here.
-                final bool compactHeader =
-                    constraints.maxHeight < constraints.maxWidth * 1.45 ||
-                        constraints.maxHeight < _kFullHeroMinViewport;
+                // Same scale rule as Version A, plus the progress bar's own
+                // height: the bar costs vertical room the hero would otherwise
+                // use, so the page has to be measured with it included.
+                final Size viewport =
+                    Size(constraints.maxWidth, constraints.maxHeight);
+                final double artboard = kioskCustomizeArtboardHeight(
+                      hasDescription:
+                          kioskProductDescription(product).isNotEmpty,
+                      // Version B shows ONE step at a time, so only the tallest
+                      // of the three has to fit — the milk step, which carries
+                      // the size row and every dietary group.
+                      variationPanels: (_sections.size.isEmpty ? 0 : 1) +
+                          _sections.dietary.length,
+                      hasAddOns: false,
+                      hasVessel: false,
+                    ) +
+                    _kStepProgressArtboardHeight;
+                final double s = kioskCustomizeScale(
+                    viewport: viewport, artboardHeight: artboard);
 
                 return KioskCenteredContent(
+                  // See Version A: the page is the artboard at scale `s`.
+                  maxWidth: KioskCustomizeSpec.artboardWidth * s,
                   child: Column(
                     children: [
                       // Progress bar + back button. Rebuilt on step change,
                       // which is exactly what it displays.
                       Padding(
-                        padding: EdgeInsets.fromLTRB(86 * s, 30 * s, 86 * s, 0),
+                        padding: EdgeInsets.fromLTRB(
+                            KioskCustomizeSpec.gutter * s,
+                            KioskCustomizeSpec.backButtonTop * s,
+                            KioskCustomizeSpec.gutter * s,
+                            0),
                         child: ValueListenableBuilder<int>(
                           valueListenable: _stepIndex,
                           builder: (context, current, _) =>
@@ -276,31 +303,26 @@ class _KioskProductCustomizeStepScreenState
                       // OUTSIDE the step listeners and is never rebuilt by a
                       // step change or an add-on tap.
                       Padding(
-                        padding: EdgeInsets.fromLTRB(86 * s, 12 * s, 86 * s, 0),
-                        child: compactHeader
-                            ? _CompactHeader(
-                                s: s,
-                                viewportHeight: constraints.maxHeight,
-                                product: product,
-                                productProvider: productProvider,
-                                showBackButton: false,
-                              )
-                            : _Header(
-                                s: s,
-                                product: product,
-                                productProvider: productProvider,
-                                showBackButton: false,
-                              ),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: KioskCustomizeSpec.gutter * s),
+                        child: _Header(
+                          s: s,
+                          product: product,
+                          productProvider: productProvider,
+                          showBackButton: false,
+                        ),
                       ),
+                      SizedBox(height: KioskCustomizeSpec.headerToPanels * s),
                       // The step body takes the remaining height. Only this and
                       // the action bar below react to a step change.
                       Expanded(
                         child: ValueListenableBuilder<int>(
                           valueListenable: _stepIndex,
                           builder: (context, current, _) => Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 86 * s),
-                            child: _stepBody(
-                                s, _steps[current], productProvider),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: KioskCustomizeSpec.gutter * s),
+                            child:
+                                _stepBody(s, _steps[current], productProvider),
                           ),
                         ),
                       ),
@@ -334,25 +356,31 @@ class _KioskProductCustomizeStepScreenState
       double s, _CustomizeStep step, ProductProvider productProvider) {
     switch (step) {
       case _CustomizeStep.milks:
+        final List<Widget> panels = [
+          if (_sections.size.isNotEmpty)
+            _SizeOptionsPanel(
+              s: s,
+              entries: _sections.size,
+              product: product,
+              productProvider: productProvider,
+            ),
+          for (final entry in _sections.dietary)
+            _VariationSection(
+              s: s,
+              variation: entry.value,
+              variationIndex: entry.key,
+              product: product,
+              productProvider: productProvider,
+            ),
+        ];
         return SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_sections.size.isNotEmpty)
-                _SizeOptionsPanel(
-                  s: s,
-                  entries: _sections.size,
-                  product: product,
-                  productProvider: productProvider,
-                ),
-              for (final entry in _sections.dietary)
-                _VariationSection(
-                  s: s,
-                  variation: entry.value,
-                  variationIndex: entry.key,
-                  product: product,
-                  productProvider: productProvider,
-                ),
+              for (int i = 0; i < panels.length; i++) ...[
+                if (i > 0) SizedBox(height: KioskCustomizeSpec.panelGap * s),
+                panels[i],
+              ],
             ],
           ),
         );
@@ -367,14 +395,16 @@ class _KioskProductCustomizeStepScreenState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            for (final entry in _sections.cupCan)
+            for (int i = 0; i < _sections.cupCan.length; i++) ...[
+              if (i > 0) SizedBox(height: KioskCustomizeSpec.panelGap * s),
               _CupCanSection(
                 s: s,
-                variation: entry.value,
-                variationIndex: entry.key,
+                variation: _sections.cupCan[i].value,
+                variationIndex: _sections.cupCan[i].key,
                 product: product,
                 productProvider: productProvider,
               ),
+            ],
           ],
         );
     }
@@ -430,20 +460,20 @@ class _StepProgressBar extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        KioskBackButton.scaled(
-          s: s,
-          size: 120,
-          border: 2,
-          icon: 50,
+        KioskBackButton(
+          size: KioskCustomizeSpec.backButton * s,
+          borderWidth: _border(KioskCustomizeSpec.backButtonBorder, s),
+          iconSize: KioskCustomizeSpec.backButtonIcon * s,
           onTap: onBack,
           fallback: RouterHelper.getKioskMenuRoute,
         ),
         SizedBox(width: 48 * s),
         Expanded(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: row),
+          child:
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: row),
         ),
         // Balances the back button so the bar stays optically centred.
-        SizedBox(width: 120 * s),
+        SizedBox(width: KioskCustomizeSpec.backButton * s),
       ],
     );
   }
@@ -466,7 +496,7 @@ class _StepCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool filled = isCurrent || isCompleted;
-    final double d = (110 * s).clamp(38.0, 110.0);
+    final double d = 110 * s;
     final Color line = filled ? _kDarkButton : _kStepUpcoming;
 
     final Widget circle = Container(
@@ -476,7 +506,7 @@ class _StepCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: filled ? _kDarkButton : Colors.transparent,
-        border: Border.all(color: line, width: (4 * s).clamp(1.5, 4.0)),
+        border: Border.all(color: line, width: _border(4, s)),
       ),
       child: Icon(
         step.icon,
@@ -498,11 +528,11 @@ class _StepCircle extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: KioskTap(onTap: onTap, child: circle),
               ),
-        SizedBox(height: (16 * s).clamp(6.0, 16.0)),
+        SizedBox(height: 16 * s),
         Text(
           step.label(context),
           style: loewExtraBold.copyWith(
-            fontSize: (30 * s).clamp(10.0, 30.0),
+            fontSize: 30 * s,
             height: 1.0,
             // An unreached step's label sits back with its circle.
             color: filled ? Colors.black : _kStepUpcoming,
@@ -520,16 +550,16 @@ class _StepConnector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double d = (110 * s).clamp(38.0, 110.0);
+    final double d = 110 * s;
     return Padding(
       // Sit on the circle's vertical centre.
       padding: EdgeInsets.only(
         top: d / 2,
-        left: (20 * s).clamp(8.0, 20.0),
-        right: (20 * s).clamp(8.0, 20.0),
+        left: 20 * s,
+        right: 20 * s,
       ),
       child: Container(
-        height: (4 * s).clamp(1.5, 4.0),
+        height: _border(4, s),
         color: filled ? _kDarkButton : _kStepUpcoming,
       ),
     );
@@ -567,14 +597,20 @@ class _StepActionBar extends StatelessWidget {
         getTranslated('next', context)?.toUpperCase() ?? 'NEXT';
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(86 * s, 16 * s, 86 * s, 24 * s),
+      padding: EdgeInsets.fromLTRB(
+        KioskCustomizeSpec.gutter * s,
+        KioskCustomizeSpec.actionBarTopGap * s,
+        KioskCustomizeSpec.gutter * s,
+        KioskCustomizeSpec.actionBarBottomGap * s,
+      ),
       child: Row(
         children: [
           Expanded(
             child: KioskCheckoutButton(
               s: s,
               filled: false,
-              fontSize: 54,
+              forceScaled: true,
+              fontSize: KioskCustomizeSpec.actionLabelSize,
               label: getTranslated('cancel_item', context)?.toUpperCase() ??
                   'CANCEL ITEM',
               onTap: () => KioskNavigationHelper.popOrNavigate(
@@ -583,19 +619,18 @@ class _StepActionBar extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(width: 28 * s),
+          SizedBox(width: KioskCustomizeSpec.actionGap * s),
           Expanded(
             child: KioskCheckoutButton(
               s: s,
               filled: true,
-              fontSize: 54,
+              forceScaled: true,
+              fontSize: KioskCustomizeSpec.actionLabelSize,
               label: isLastStep ? addLabel : nextLabel,
               // A null onTap is what KioskCheckoutButton dims for its disabled
               // state, so an unanswered required step reads as blocked before
               // the customer even taps.
-              onTap: isLastStep
-                  ? onAddToCart
-                  : (canAdvance ? onNext : null),
+              onTap: isLastStep ? onAddToCart : (canAdvance ? onNext : null),
             ),
           ),
         ],

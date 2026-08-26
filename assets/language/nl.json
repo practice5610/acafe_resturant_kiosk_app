@@ -890,5 +890,13 @@
   "back": "Terug",
   "enter_your_code": "Voer je code in",
   "scan_your_code": "Scan je code",
-  "use_the_scanner_below_you": "Gebruik de scanner onder u"
+  "use_the_scanner_below_you": "Gebruik de scanner onder u",
+  "coupon_applied": "Kortingscode toegepast!",
+  "your_discount_has_been_applied_to_your_order": "Je korting is toegepast op je bestelling.",
+  "your_reward_has_been_added_to_your_order": "Je beloning is toegevoegd aan je bestelling.",
+  "coupon_free_reward": "Gratis",
+  "you_save": "Je bespaart",
+  "minimum_purchase_amount_is": "Minimale besteding is",
+  "coupon_not_found": "Kortingscode niet gevonden",
+  "coupon_limit_over": "Deze kortingscode is al gebruikt"
 }

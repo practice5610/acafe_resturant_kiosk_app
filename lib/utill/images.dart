@@ -246,6 +246,11 @@ class Images {
   static const String kioskKeyBackspaceSvg = 'assets/svg/kiosk_key_backspace.svg';
   static const String kioskCouponQrSvg = 'assets/svg/kiosk_coupon_qr.svg';
 
+  /// Tick inside the green success badge on the coupon-applied confirmation
+  /// (Figma POS nodes 1385:15875 / 1385:15897). Exported from Figma, so it is
+  /// wider than it is tall (60.495 x 50) — size it on that ratio.
+  static const String kioskCheckSvg = 'assets/svg/kiosk_check.svg';
+
 
   static const String halalIconSvg = 'assets/svg/halal_icon.svg';
   static const String congratulationIconSvg = 'assets/svg/congratulation_icon.svg';

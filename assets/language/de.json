@@ -890,5 +890,13 @@
   "back": "Zurück",
   "enter_your_code": "Code eingeben",
   "scan_your_code": "Code scannen",
-  "use_the_scanner_below_you": "Nutzen Sie den Scanner unter Ihnen"
+  "use_the_scanner_below_you": "Nutzen Sie den Scanner unter Ihnen",
+  "coupon_applied": "Gutschein eingelöst!",
+  "your_discount_has_been_applied_to_your_order": "Ihr Rabatt wurde auf Ihre Bestellung angewendet.",
+  "your_reward_has_been_added_to_your_order": "Ihre Prämie wurde Ihrer Bestellung hinzugefügt.",
+  "coupon_free_reward": "Gratis",
+  "you_save": "Sie sparen",
+  "minimum_purchase_amount_is": "Mindestbestellwert beträgt",
+  "coupon_not_found": "Gutschein nicht gefunden",
+  "coupon_limit_over": "Dieser Gutschein wurde bereits verwendet"
 }

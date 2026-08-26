@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
+import 'package:acafe_customer/features/coupon/domain/models/coupon_apply_result.dart';
 import 'package:acafe_customer/features/coupon/domain/models/coupon_model.dart';
 import 'package:acafe_customer/features/coupon/domain/reposotories/coupon_repo.dart';
 import 'package:acafe_customer/helper/api_checker_helper.dart';
@@ -54,6 +55,17 @@ class CouponProvider extends ChangeNotifier {
   }
 
   Future<double?> applyCoupon(String coupon, double amountWithoutVat, {int? selectedIndex}) async {
+    await applyCouponDetailed(coupon, amountWithoutVat, selectedIndex: selectedIndex);
+    return _discount;
+  }
+
+  /// Validates [coupon] against the backend and reports *why* it ended the way
+  /// it did — see [CouponApplyResult].
+  ///
+  /// A valid code below its `min_purchase` used to stay attached with a zero
+  /// discount; it is dropped instead, because a coupon that takes nothing off
+  /// should not travel with the order.
+  Future<CouponApplyResult> applyCouponDetailed(String coupon, double amountWithoutVat, {int? selectedIndex}) async {
     if(selectedIndex !=null){
       _selectedCouponIndex = selectedIndex;
     }else{
@@ -61,27 +73,26 @@ class CouponProvider extends ChangeNotifier {
     }
     notifyListeners();
     ApiResponseModel apiResponse = await couponRepo!.applyCoupon(coupon, guestId: Provider.of<AuthProvider>(Get.context!, listen: false).getGuestId(),);
+
+    late final CouponApplyResult result;
     if (apiResponse.response != null && apiResponse.response!.statusCode == 200) {
       _coupon = CouponModel.fromJson(apiResponse.response!.data);
       _code = _coupon!.code;
-      if (_coupon!.minPurchase != null && _coupon!.minPurchase! <= amountWithoutVat) {
-        if(_coupon!.discountType == 'percent') {
-          if(_coupon!.maxDiscount != null && _coupon!.maxDiscount != 0) {
-            _discount = (_coupon!.discount! * amountWithoutVat / 100) < _coupon!.maxDiscount! ? (_coupon!.discount! * amountWithoutVat / 100) : _coupon!.maxDiscount;
-          }else {
-            _discount = _coupon!.discount! * amountWithoutVat / 100;
-          }
-        }else {
-          if(_coupon!.maxDiscount != null){
-            _discount = _coupon!.discount;
-          }
-          _discount = _coupon!.discount;
-        }
+      final double minPurchase = _coupon!.minPurchase ?? 0;
+      if (minPurchase <= amountWithoutVat) {
+        _discount = _discountOf(_coupon!, amountWithoutVat);
+        result = CouponApplyResult.applied(coupon: _coupon, discount: _discount ?? 0);
       } else {
+        result = CouponApplyResult.belowMinPurchase(coupon: _coupon, minPurchase: minPurchase);
+        _coupon = null;
+        _code = '';
         _discount = 0.0;
       }
     } else {
+      _coupon = null;
+      _code = '';
       _discount = 0.0;
+      result = CouponApplyResult.failed(message: couponErrorMessage(apiResponse));
     }
     if(selectedIndex != null){
       _selectedCouponIndex = null;
@@ -89,7 +100,40 @@ class CouponProvider extends ChangeNotifier {
       _isLoading = false;
     }
     notifyListeners();
-    return _discount;
+    return result;
+  }
+
+  /// Money off for a coupon that has already passed its min-purchase check.
+  /// Percentage coupons are capped by `max_discount` when one is set.
+  static double _discountOf(CouponModel coupon, double amountWithoutVat) {
+    if (coupon.discountType == 'percent') {
+      final double raw = (coupon.discount ?? 0) * amountWithoutVat / 100;
+      final double? cap = coupon.maxDiscount;
+      if (cap != null && cap != 0) {
+        return raw < cap ? raw : cap;
+      }
+      return raw;
+    }
+    return coupon.discount ?? 0;
+  }
+
+  /// Pulls the backend's rejection message out of a failed response.
+  ///
+  /// `ApiErrorHandler` hands back `ErrorResponseModel.toJson()` for a 4xx, so
+  /// the message sits at `error['errors'][0]['message']`; a transport failure
+  /// arrives as a plain string instead.
+  @visibleForTesting
+  static String? couponErrorMessage(ApiResponseModel apiResponse) {
+    final dynamic error = apiResponse.error;
+    if (error is Map) {
+      final dynamic errors = error['errors'];
+      if (errors is List && errors.isNotEmpty && errors.first is Map) {
+        final String message = '${(errors.first as Map)['message'] ?? ''}'.trim();
+        if (message.isNotEmpty) return message;
+      }
+    }
+    if (error is String && error.trim().isNotEmpty) return error.trim();
+    return null;
   }
 
   void removeCouponData(bool notify) {

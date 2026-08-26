@@ -217,6 +217,18 @@ void main() {
     }
   });
 
+  testWidgets('the field submits on Enter, the way a scanner finishes a code',
+      (tester) async {
+    // The "SCAN YOUR CODE" panel means a barcode scanner types into this field
+    // and ends with Enter. Without an action wired here the scanned code just
+    // sat in the box until someone tapped CONTINUE.
+    await render(tester, const Size(1080, 1920));
+
+    final TextField field = fieldOf(tester);
+    expect(field.onSubmitted, isNotNull);
+    expect(field.textInputAction, TextInputAction.done);
+  });
+
   testWidgets('shift flips the caps the board shows and the case it types',
       (tester) async {
     await render(tester, const Size(1080, 1920));

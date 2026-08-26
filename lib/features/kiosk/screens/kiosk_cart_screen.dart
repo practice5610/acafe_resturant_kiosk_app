@@ -5,6 +5,7 @@ import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_order_note_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
@@ -106,6 +107,7 @@ class KioskCartScreen extends StatelessWidget {
                         total: total,
                         couponDiscount: couponDiscount,
                         couponCode: couponProvider.coupon?.code,
+                        couponTitle: couponProvider.coupon?.title,
                         enabled: cartList.isNotEmpty,
                       ),
                     ],
@@ -212,6 +214,7 @@ class _WideKioskCartScreen extends StatelessWidget {
                             total: total,
                             couponDiscount: couponDiscount,
                             couponCode: couponProvider.coupon?.code,
+                            couponTitle: couponProvider.coupon?.title,
                             enabled: enabled,
                           ),
                         ),
@@ -283,6 +286,9 @@ class _WideSummaryCard extends StatelessWidget {
   final double total;
   final double couponDiscount;
   final String? couponCode;
+
+  /// The applied coupon's offer name, so its row can say what was applied.
+  final String? couponTitle;
   final bool enabled;
 
   const _WideSummaryCard({
@@ -290,6 +296,7 @@ class _WideSummaryCard extends StatelessWidget {
     required this.total,
     required this.couponDiscount,
     required this.couponCode,
+    required this.couponTitle,
     required this.enabled,
   });
 
@@ -329,11 +336,6 @@ class _WideSummaryCard extends StatelessWidget {
                 .toUpperCase(),
             value: PriceConverterHelper.convertPrice(items),
           ),
-          const SizedBox(height: 10),
-          _WideBreakdownRow(
-            label: (getTranslated('tax', context) ?? 'TAX').toUpperCase(),
-            value: PriceConverterHelper.convertPrice(tax),
-          ),
           if (discount > 0) ...[
             const SizedBox(height: 10),
             _WideBreakdownRow(
@@ -342,15 +344,24 @@ class _WideSummaryCard extends StatelessWidget {
               value: '- ${PriceConverterHelper.convertPrice(discount)}',
             ),
           ],
+          // Money coming off sits together, above TAX, as the order summary
+          // draws it (Figma POS node 1385:15938).
           if (couponDiscount > 0) ...[
             const SizedBox(height: 10),
             _WideBreakdownRow(
-              label: (getTranslated('coupon_discount', context) ??
-                      'COUPON DISCOUNT')
-                  .toUpperCase(),
+              label: kioskCouponRowLabel(
+                discountLabel: getTranslated('discount', context) ?? 'DISCOUNT',
+                title: couponTitle,
+                code: couponCode,
+              ),
               value: '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
             ),
           ],
+          const SizedBox(height: 10),
+          _WideBreakdownRow(
+            label: (getTranslated('tax', context) ?? 'TAX').toUpperCase(),
+            value: PriceConverterHelper.convertPrice(tax),
+          ),
           const SizedBox(height: 14),
           Container(height: 1.5, color: Colors.black38),
           const SizedBox(height: 14),
@@ -472,6 +483,8 @@ class _WideBreakdownRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: loewBold.copyWith(
               fontSize: KioskUI.caption,
               color: Colors.black54,
@@ -564,6 +577,9 @@ class _Footer extends StatelessWidget {
   final double total;
   final double couponDiscount;
   final String? couponCode;
+
+  /// The applied coupon's offer name, so its row can say what was applied.
+  final String? couponTitle;
   final bool enabled;
   const _Footer({
     required this.s,
@@ -571,6 +587,7 @@ class _Footer extends StatelessWidget {
     required this.total,
     required this.couponDiscount,
     required this.couponCode,
+    required this.couponTitle,
     required this.enabled,
   });
 
@@ -631,9 +648,12 @@ class _Footer extends StatelessWidget {
                       if (couponDiscount > 0)
                         _BreakdownRow(
                           s: s,
-                          label: (getTranslated('coupon_discount', context) ??
-                                  'COUPON DISCOUNT')
-                              .toUpperCase(),
+                          label: kioskCouponRowLabel(
+                            discountLabel:
+                                getTranslated('discount', context) ?? 'DISCOUNT',
+                            title: couponTitle,
+                            code: couponCode,
+                          ),
                           value:
                               '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
                         ),
@@ -736,13 +756,20 @@ class _BreakdownRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // A coupon row carries the offer's name, which can be long; it shrinks
+        // to fit rather than wrapping out of the footer's fixed-height block.
         Expanded(
-          child: Text(
-            label,
-            style: loewExtraBold.copyWith(
-              fontSize: emphasized ? 70 * s : 44 * s,
-              height: 1,
-              color: Colors.black,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: loewExtraBold.copyWith(
+                fontSize: emphasized ? 70 * s : 44 * s,
+                height: 1,
+                color: Colors.black,
+              ),
             ),
           ),
         ),

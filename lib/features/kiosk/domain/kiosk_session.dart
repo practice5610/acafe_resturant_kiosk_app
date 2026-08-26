@@ -27,18 +27,19 @@ class KioskSession {
 }
 
 /// Line total for a cart item = discounted unit price × qty + active add-ons.
-double kioskLineTotal(CartModel cart) {
-  double total = (cart.discountedPrice ?? 0) * (cart.quantity ?? 1);
-  for (final addOn in cart.addOnIds ?? []) {
-    final id = addOn.id;
-    final qty = addOn.quantity ?? 1;
-    final match = (cart.product?.addOns ?? []).where((a) => a.id == id);
-    if (match.isNotEmpty) {
-      total += (match.first.price ?? 0) * qty;
-    }
-  }
-  return total;
-}
+double kioskLineTotal(CartModel cart) =>
+    (cart.discountedPrice ?? 0) * (cart.quantity ?? 1) +
+    _kioskLineAddOnsTotal(cart);
+
+/// Line total BEFORE the product's own discount = list unit price x qty +
+/// add-ons.
+///
+/// The order summary (Figma POS node 1385:15938) prints this struck through
+/// beside [kioskLineTotal], so the customer can see what the discount took off
+/// this line. Equal to [kioskLineTotal] when the product is not discounted —
+/// callers compare the two rather than asking whether a discount exists.
+double kioskLineOriginalTotal(CartModel cart) =>
+    (cart.price ?? 0) * (cart.quantity ?? 1) + _kioskLineAddOnsTotal(cart);
 
 /// Grand total across all cart lines.
 double kioskCartTotal(List<CartModel?> cartList) {

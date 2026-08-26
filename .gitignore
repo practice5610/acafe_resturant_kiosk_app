@@ -51,3 +51,5 @@ app.*.map.json
 .qodo
 android/app/.cxx
 .dart_tool
+# Golden-test diff output (regenerated on every failing run)
+test/**/failures/

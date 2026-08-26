@@ -18,13 +18,18 @@ const int kOptionMaxColumns = 8;
 /// gets the density the artboard intends. The result is then floored at
 /// [kOptionMinColumns] — that floor is what keeps four across on a narrow
 /// window instead of two.
+///
+/// Rounded, not floored: the Figma dietary row fits five 407.8px cards into a
+/// 2213px panel, which is 8px tighter than five cards plus their gutters. A
+/// floor drops that fifth card and leaves the row a column short of the design
+/// everywhere; rounding keeps it and lets the cards give up those few pixels.
 int kioskOptionColumns({
   required double width,
   required double cardWidth,
   required double gap,
 }) {
   if (width <= 0 || cardWidth <= 0) return kOptionMinColumns;
-  final int byArtboard = ((width + gap) / (cardWidth + gap)).floor();
+  final int byArtboard = ((width + gap) / (cardWidth + gap)).round();
   return math
       .max(kOptionMinColumns, byArtboard)
       .clamp(kOptionMinColumns, kOptionMaxColumns);
