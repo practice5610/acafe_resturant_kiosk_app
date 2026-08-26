@@ -388,7 +388,7 @@ class _WideSummaryCard extends StatelessWidget {
                 .toUpperCase(),
             maxWidth: double.infinity,
             onTap: enabled
-                ? () => openKioskCouponSheet(
+                ? () => openKioskCouponScreen(
                       context,
                       orderAmount: kioskOrderAmountBeforeCoupon(cartList),
                     )
@@ -692,7 +692,7 @@ class _Footer extends StatelessWidget {
                       .toUpperCase(),
                   filled: false,
                   onTap: enabled
-                      ? () => openKioskCouponSheet(
+                      ? () => openKioskCouponScreen(
                             context,
                             orderAmount: kioskOrderAmountBeforeCoupon(cartList),
                           )

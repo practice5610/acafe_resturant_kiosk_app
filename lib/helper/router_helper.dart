@@ -9,6 +9,7 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_bootstrap_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_menu_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_cart_screen.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_name_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_email_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_confirm_screen.dart';
@@ -44,6 +45,7 @@ class RouterHelper {
   static const String kioskWelcomeScreen = '/welcome-kiosk';
   static const String kioskMenuScreen = '/menu-kiosk';
   static const String kioskCartScreen = '/cart-kiosk';
+  static const String kioskCouponScreen = '/coupon-kiosk';
   static const String kioskCheckoutScreen = '/checkout-kiosk';
   static const String kioskCheckoutEmailScreen = '/checkout-email-kiosk';
   static const String kioskConfirmScreen = '/confirm-kiosk';
@@ -74,6 +76,8 @@ class RouterHelper {
   static String getKioskWelcomeRoute({RouteAction? action}) => _navigateRoute(kioskWelcomeScreen, route: action);
   static String getKioskMenuRoute({RouteAction? action}) => _navigateRoute(kioskMenuScreen, route: action);
   static String getKioskCartRoute({RouteAction? action}) => _navigateRoute(kioskCartScreen, route: action);
+  static String getKioskCouponRoute({double? orderAmount, RouteAction? action}) =>
+      _navigateRoute('$kioskCouponScreen?amount=${orderAmount ?? 0}', route: action);
   static String getKioskCheckoutRoute({RouteAction? action}) => _navigateRoute(kioskCheckoutScreen, route: action);
   static String getKioskCheckoutEmailRoute({RouteAction? action}) => _navigateRoute(kioskCheckoutEmailScreen, route: action);
   static String getKioskConfirmRoute({RouteAction? action}) => _navigateRoute(kioskConfirmScreen, route: action);
@@ -175,6 +179,7 @@ class RouterHelper {
       GoRoute(path: kioskWelcomeScreen, builder: (context, state) => const KioskWelcomeScreen()),
       GoRoute(path: kioskMenuScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskMenuScreen())),
       GoRoute(path: kioskCartScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskCartScreen())),
+      GoRoute(path: kioskCouponScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), KioskCouponScreen(orderAmount: double.tryParse(state.uri.queryParameters['amount'] ?? '') ?? 0))),
       GoRoute(path: kioskCheckoutScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskCheckoutNameScreen())),
       GoRoute(path: kioskCheckoutEmailScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskCheckoutEmailScreen())),
       GoRoute(path: kioskConfirmScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskConfirmScreen())),

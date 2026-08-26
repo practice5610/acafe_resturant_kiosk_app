@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_bottom_sheet.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_coupon_sheet.dart';
+import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:provider/provider.dart';
 
 /// Ensures a guest account exists so coupon API calls can attach guest_id.
@@ -12,19 +11,17 @@ Future<void> ensureKioskGuestForCoupon(BuildContext context) async {
   }
 }
 
-/// Opens the kiosk-styled coupon sheet (responsive narrow + wide layouts).
-Future<void> openKioskCouponSheet(
+/// Opens the kiosk coupon entry screen (Figma POS node 1385:15500).
+///
+/// This used to raise a bottom sheet over the cart; the redesign is a full
+/// screen with its own on-screen keyboard, so it is pushed as a route and the
+/// cart is restored when the customer taps BACK or CONTINUE.
+Future<void> openKioskCouponScreen(
   BuildContext context, {
   required double orderAmount,
 }) async {
   await ensureKioskGuestForCoupon(context);
   if (!context.mounted) return;
 
-  return showKioskBottomSheet<void>(
-    context,
-    maxWidth: KioskCouponSheet.maxSheetWidth,
-    heightFactor: 0.55,
-    expandToHeightFactor: false,
-    child: KioskCouponSheet(orderAmount: orderAmount),
-  );
+  RouterHelper.getKioskCouponRoute(orderAmount: orderAmount);
 }

@@ -241,6 +241,11 @@ class Images {
   static const String forgetPasswordBackgroundSvg = 'assets/svg/forget_password_background.svg';
   static const String createNewPasswordBackgroundSvg = 'assets/svg/create_new_password_background.svg';
 
+  // Kiosk coupon screen artwork (Figma POS node 1385:15500).
+  static const String kioskKeyShiftSvg = 'assets/svg/kiosk_key_shift.svg';
+  static const String kioskKeyBackspaceSvg = 'assets/svg/kiosk_key_backspace.svg';
+  static const String kioskCouponQrSvg = 'assets/svg/kiosk_coupon_qr.svg';
+
 
   static const String halalIconSvg = 'assets/svg/halal_icon.svg';
   static const String congratulationIconSvg = 'assets/svg/congratulation_icon.svg';

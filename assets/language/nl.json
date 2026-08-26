@@ -886,5 +886,9 @@
   "would_you_like_to_add_a_drink": "Wil je er iets bij drinken?",
   "would_you_like_something_to_eat": "Wil je er iets bij eten?",
   "no_thank_you": "Nee, bedankt!",
-  "nothing_else_to_add": "Niets meer toe te voegen"
+  "nothing_else_to_add": "Niets meer toe te voegen",
+  "back": "Terug",
+  "enter_your_code": "Voer je code in",
+  "scan_your_code": "Scan je code",
+  "use_the_scanner_below_you": "Gebruik de scanner onder u"
 }

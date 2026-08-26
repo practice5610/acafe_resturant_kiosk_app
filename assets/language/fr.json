@@ -886,5 +886,9 @@
   "would_you_like_to_add_a_drink": "Souhaitez-vous ajouter une boisson ?",
   "would_you_like_something_to_eat": "Souhaitez-vous manger quelque chose ?",
   "no_thank_you": "Non, merci !",
-  "nothing_else_to_add": "Rien d’autre à ajouter"
+  "nothing_else_to_add": "Rien d’autre à ajouter",
+  "back": "Retour",
+  "enter_your_code": "Saisissez votre code",
+  "scan_your_code": "Scannez votre code",
+  "use_the_scanner_below_you": "Utilisez le scanner en dessous de vous"
 }
