@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_tip.dart';
 import 'package:acafe_customer/features/order/providers/order_provider.dart';
@@ -163,7 +164,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
         ((branches != null && branches.isNotEmpty) ? branches.first?.id : null);
 
     final couponProvider = Provider.of<CouponProvider>(context, listen: false);
-    final String? couponCode = couponProvider.coupon?.code;
+    final String? couponCode = kioskOrderCouponCode(couponProvider);
     final name = KioskSession.instance.customerName;
     final placeOrderBody = PlaceOrderBody(
       cart: carts,
@@ -199,13 +200,15 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
 
     orderProvider.placeOrder(placeOrderBody,
         (bool success, String? message, String orderId) {
-      if (!mounted) return;
       if (success) {
-        cartProvider.clearCartList();
-        couponProvider.removeCouponData(false);
-        KioskSession.instance.reset();
+        endKioskCustomerSession(
+          mounted ? context : null,
+          cart: cartProvider,
+          coupon: couponProvider,
+        );
+        if (!mounted) return;
         RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
-      } else {
+      } else if (mounted) {
         // Payment succeeded but the order didn't post — let Retry re-submit the
         // order (not re-charge), since the customer has already paid.
         _failedAtSubmit = true;

@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/features/cart/domain/cart_line_matcher.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
+import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/main.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -88,6 +89,7 @@ class CartProvider extends ChangeNotifier {
     _amount = _amount - (_cartList[index]!.discountedPrice! * _cartList[index]!.quantity!);
     _cartList.removeAt(index);
     cartRepo!.addToCartList(_cartList);
+    if (_cartList.isEmpty) _dropAttachedCoupon();
     notifyListeners();
   }
 
@@ -109,6 +111,7 @@ class CartProvider extends ChangeNotifier {
     }
     _cartList = remaining;
     cartRepo!.addToCartList(_cartList);
+    if (_cartList.isEmpty) _dropAttachedCoupon();
     notifyListeners();
   }
 
@@ -126,6 +129,7 @@ class CartProvider extends ChangeNotifier {
     }
     _cartList = remaining;
     cartRepo!.addToCartList(_cartList);
+    if (_cartList.isEmpty) _dropAttachedCoupon();
     notifyListeners();
   }
 
@@ -139,8 +143,24 @@ class CartProvider extends ChangeNotifier {
     _cartList = [];
     _amount = 0;
     _orderNote = '';
-    cartRepo!.addToCartList(_cartList);
+    cartRepo?.addToCartList(_cartList);
+    _dropAttachedCoupon();
     notifyListeners();
+  }
+
+  /// A coupon lives on [CouponProvider], not on the cart — but it is only
+  /// meaningful for the current basket. An empty cart (order placed, last
+  /// item removed, kiosk reset) must drop it, or the next customer inherits
+  /// the previous code.
+  void _dropAttachedCoupon() {
+    final BuildContext? ctx = Get.context;
+    if (ctx == null) return;
+    try {
+      Provider.of<CouponProvider>(ctx, listen: false).removeCouponData(false);
+    } on ProviderNotFoundException {
+      // Widget tests (and a kiosk that has not mounted the tree yet) have no
+      // CouponProvider. The explicit session-end path still clears it.
+    }
   }
 
   int isExistInCart(int? productID, int? cartIndex) {

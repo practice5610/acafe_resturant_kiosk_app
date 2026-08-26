@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/coupon/domain/models/coupon_model.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_screen.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -268,4 +269,78 @@ void main() {
       }
     }
   });
+
+  testWidgets(
+      'does not prefill a leftover code from the previous order',
+      (tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CouponProvider>(
+            create: (_) => _LeftoverCouponProvider(
+              applied: CouponModel(code: 'SAVE10'),
+              amountOff: 0,
+              typed: 'SAVE10',
+            ),
+          ),
+          ChangeNotifierProvider(create: (_) => CartProvider(cartRepo: null)),
+        ],
+        child: const MaterialApp(home: KioskCouponScreen(orderAmount: 25)),
+      ),
+    );
+    await settle(tester);
+
+    expect(fieldOf(tester).controller!.text, isEmpty);
+  });
+
+  testWidgets('prefills only a coupon that is still taking money off',
+      (tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CouponProvider>(
+            create: (_) => _LeftoverCouponProvider(
+              applied: CouponModel(code: 'SAVE10'),
+              amountOff: 2,
+              typed: 'SAVE10',
+            ),
+          ),
+          ChangeNotifierProvider(create: (_) => CartProvider(cartRepo: null)),
+        ],
+        child: const MaterialApp(home: KioskCouponScreen(orderAmount: 25)),
+      ),
+    );
+    await settle(tester);
+
+    expect(fieldOf(tester).controller!.text, 'SAVE10');
+  });
+}
+
+class _LeftoverCouponProvider extends CouponProvider {
+  _LeftoverCouponProvider({
+    this.applied,
+    this.amountOff = 0,
+    this.typed = '',
+  }) : super(couponRepo: null);
+
+  final CouponModel? applied;
+  final double amountOff;
+  final String typed;
+
+  @override
+  CouponModel? get coupon => applied;
+
+  @override
+  double? get discount => amountOff;
+
+  @override
+  String? get code => typed;
 }

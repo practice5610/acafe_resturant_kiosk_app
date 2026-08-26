@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/domain/models/coupon_apply_result.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
@@ -67,8 +68,8 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
   void initState() {
     super.initState();
     _controller = TextEditingController(
-      text: Provider.of<CouponProvider>(context, listen: false).coupon?.code ??
-          '',
+      text: kioskActiveCouponCode(
+          Provider.of<CouponProvider>(context, listen: false)),
     );
   }
 

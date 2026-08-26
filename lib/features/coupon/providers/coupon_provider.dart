@@ -141,6 +141,7 @@ class CouponProvider extends ChangeNotifier {
     _isLoading = false;
     _discount = 0.0;
     _code = '';
+    _selectedCouponIndex = null;
     if(notify) {
       notifyListeners();
     }

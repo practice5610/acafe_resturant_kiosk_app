@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/domain/models/coupon_model.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
@@ -68,7 +69,21 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
         KioskSession.instance.tipPercentOrZero,
       );
       final result = await placeKioskOrder(context, amount: amount);
-      if (!mounted) return;
+      if (result.success) {
+        // Drop the coupon immediately so it cannot ride into the next basket
+        // if this widget unmounts during the confirmation animation.
+        couponProvider.removeCouponData(true);
+      }
+      if (!mounted) {
+        if (result.success) {
+          endKioskCustomerSession(
+            null,
+            cart: cartProvider,
+            coupon: couponProvider,
+          );
+        }
+        return;
+      }
 
       if (!result.success) {
         setState(() => _placing = false);
@@ -101,11 +116,14 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
           'Order confirmed!',
         ).toUpperCase(),
       ));
-      if (!mounted) return;
 
-      cartProvider.clearCartList();
-      couponProvider.removeCouponData(false);
-      KioskSession.instance.reset();
+      // Providers are app-scoped — always clear, even if confirm unmounted.
+      endKioskCustomerSession(
+        mounted ? context : null,
+        cart: cartProvider,
+        coupon: couponProvider,
+      );
+      if (!mounted) return;
       RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
     } finally {
       if (mounted) {

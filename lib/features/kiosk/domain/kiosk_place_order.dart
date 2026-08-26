@@ -6,6 +6,7 @@ import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_tip.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -116,7 +117,7 @@ Future<KioskPlaceResult> placeKioskOrder(
       ((branches != null && branches.isNotEmpty) ? branches.first?.id : null);
 
   final name = KioskSession.instance.customerName;
-  final String? couponCode = couponProvider.coupon?.code;
+  final String? couponCode = kioskOrderCouponCode(couponProvider);
   final int tipPercent = KioskSession.instance.tipPercentOrZero;
   final double payable =
       kioskPayableTotal(cartProvider.cartList, couponProvider.discount ?? 0);
