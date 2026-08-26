@@ -101,6 +101,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(_loadFonts);
+  setUp(KioskSession.instance.reset);
 
   // €19.50 latte discounted to €17.50, plus a matcha the till gives away.
   final lines = <CartModel?>[

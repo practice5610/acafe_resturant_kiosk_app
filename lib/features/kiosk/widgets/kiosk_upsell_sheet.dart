@@ -333,6 +333,23 @@ Future<void> openKioskCheckout(BuildContext context) async {
   await _offerThenGo(context, RouterHelper.getKioskCheckoutRoute);
 }
 
+/// Last-chance upsell after the customer has chosen a tip (or declined one)
+/// and before the order is placed. Skipped when the cart already has both
+/// courses. Failures never block payment.
+Future<void> offerKioskPayUpsell(BuildContext context) async {
+  try {
+    final composition = KioskOrderComposition.of(
+      Provider.of<CartProvider>(context, listen: false).cartList,
+    );
+    final KioskCourse? course = composition.courseToOffer;
+    if (course == null) return;
+    _KioskUpsellMemory.remember(course);
+    await openKioskUpsellSheet(context, course: course);
+  } catch (_) {
+    // The customer is paying; a missing catalog must not stop the order.
+  }
+}
+
 /// Ask once per visit to the cart, then continue regardless of the answer.
 ///
 /// The customer is on their way somewhere; the upsell must never block that.

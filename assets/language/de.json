@@ -898,5 +898,11 @@
   "you_save": "Sie sparen",
   "minimum_purchase_amount_is": "Mindestbestellwert beträgt",
   "coupon_not_found": "Gutschein nicht gefunden",
-  "coupon_limit_over": "Dieser Gutschein wurde bereits verwendet"
+  "coupon_limit_over": "Dieser Gutschein wurde bereits verwendet",
+  "enjoying_your_visit_tip_the_team": "Genießt ihr euren Besuch? Gebt dem Team ein Trinkgeld",
+  "your_tip_goes_directly_to_the_team": "Euer Trinkgeld geht direkt an das Team",
+  "no_tip": "Kein Trinkgeld",
+  "tip": "Trinkgeld",
+  "thank_you_name": "Danke, {name}!",
+  "grab_it_at_the_counter": "Holt es an der Theke ab, wenn euer Name erscheint. Enjoy!"
 }

@@ -898,5 +898,11 @@
   "you_save": "Je bespaart",
   "minimum_purchase_amount_is": "Minimale besteding is",
   "coupon_not_found": "Kortingscode niet gevonden",
-  "coupon_limit_over": "Deze kortingscode is al gebruikt"
+  "coupon_limit_over": "Deze kortingscode is al gebruikt",
+  "enjoying_your_visit_tip_the_team": "Geniet je van je bezoek? Fooi voor het team",
+  "your_tip_goes_directly_to_the_team": "Jouw fooi gaat rechtstreeks naar het team",
+  "no_tip": "Geen fooi",
+  "tip": "Fooi",
+  "thank_you_name": "Dank je, {name}!",
+  "grab_it_at_the_counter": "Haal het op bij de toonbank wanneer je naam verschijnt. Enjoy!"
 }

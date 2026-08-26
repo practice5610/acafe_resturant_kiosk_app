@@ -11,6 +11,7 @@ import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_tip.dart';
 import 'package:acafe_customer/features/order/providers/order_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
@@ -58,7 +59,10 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
           Provider.of<CartProvider>(context, listen: false).cartList;
       final couponDiscount =
           Provider.of<CouponProvider>(context, listen: false).discount ?? 0;
-      _amount = kioskPayableTotal(cartList, couponDiscount);
+      _amount = kioskTotalWithTip(
+        kioskPayableTotal(cartList, couponDiscount),
+        KioskSession.instance.tipPercentOrZero,
+      );
       _startPayment();
     });
   }
@@ -174,7 +178,18 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       branchId: branchId,
       deliveryTime: 'now',
       deliveryDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-      orderNote: kioskOrderNote(name: name, note: cartProvider.orderNote),
+      orderNote: kioskOrderNote(
+        name: name,
+        note: cartProvider.orderNote,
+        tipPercent: KioskSession.instance.tipPercentOrZero,
+        tipAmount: kioskTipAmount(
+          kioskPayableTotal(
+            cartProvider.cartList,
+            couponProvider.discount ?? 0,
+          ),
+          KioskSession.instance.tipPercentOrZero,
+        ),
+      ),
       distance: 0,
       isPartial: '0',
       isCutleryRequired: '0',

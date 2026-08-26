@@ -15,14 +15,31 @@ class KioskSession {
   String? lastOrderNumber;
   String? lastOrderId;
 
+  /// Tip percent locked in for this checkout. `null` until the customer
+  /// either picks a percentage or taps "No, thank you!". A value of `0`
+  /// means they declined. Only a value `> 0` skips the tip screen on a
+  /// later Pay tap in the same flow.
+  int? tipPercent;
+
   void reset() {
     customerName = '';
     customerEmail = '';
     lastOrderNumber = null;
     lastOrderId = null;
+    tipPercent = null;
     // "We already asked this customer about a drink" must not carry over to
     // the next person to walk up to the kiosk.
     resetKioskUpsellMemory();
+  }
+
+  /// True only after the customer picked a real tip (5 / 10 / 15%). Declining
+  /// or dismissing does not lock the screen out — Pay shows it again.
+  bool get hasLockedInTip => (tipPercent ?? 0) > 0;
+
+  int get tipPercentOrZero => tipPercent ?? 0;
+
+  void applyTip(int percent) {
+    tipPercent = percent;
   }
 }
 

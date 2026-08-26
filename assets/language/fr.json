@@ -898,5 +898,11 @@
   "you_save": "Vous économisez",
   "minimum_purchase_amount_is": "Le montant minimum d’achat est de",
   "coupon_not_found": "Coupon introuvable",
-  "coupon_limit_over": "Ce coupon a déjà été utilisé"
+  "coupon_limit_over": "Ce coupon a déjà été utilisé",
+  "enjoying_your_visit_tip_the_team": "Vous aimez votre visite ? Un pourboire pour l'équipe",
+  "your_tip_goes_directly_to_the_team": "Votre pourboire va directement à l'équipe",
+  "no_tip": "Pas de pourboire",
+  "tip": "Pourboire",
+  "thank_you_name": "Merci, {name} !",
+  "grab_it_at_the_counter": "Récupérez-le au comptoir lorsque votre nom s'affiche. Enjoy !"
 }

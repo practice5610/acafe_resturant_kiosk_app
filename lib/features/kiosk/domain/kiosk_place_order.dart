@@ -7,6 +7,7 @@ import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_tip.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/order/providers/order_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -23,10 +24,20 @@ class KioskPlaceResult {
 /// `order_note` sent with a kiosk order: the existing "Kiosk order — <name>"
 /// identifier, plus the customer's own note from the cart screen when they
 /// wrote one. Kept in one place so both checkout paths format it identically.
-String kioskOrderNote({required String name, required String note}) {
+String kioskOrderNote({
+  required String name,
+  required String note,
+  int tipPercent = 0,
+  double tipAmount = 0,
+}) {
   final String base = name.isNotEmpty ? 'Kiosk order — $name' : 'Kiosk order';
+  final buffer = StringBuffer(base);
+  if (tipPercent > 0 && tipAmount > 0) {
+    buffer.write('\nTip: $tipPercent% (${tipAmount.toStringAsFixed(2)})');
+  }
   final String trimmed = note.trim();
-  return trimmed.isEmpty ? base : '$base\n$trimmed';
+  if (trimmed.isNotEmpty) buffer.write('\n$trimmed');
+  return buffer.toString();
 }
 
 /// Places the current cart as a guest kiosk order via the SAME path as the user
@@ -106,6 +117,10 @@ Future<KioskPlaceResult> placeKioskOrder(
 
   final name = KioskSession.instance.customerName;
   final String? couponCode = couponProvider.coupon?.code;
+  final int tipPercent = KioskSession.instance.tipPercentOrZero;
+  final double payable =
+      kioskPayableTotal(cartProvider.cartList, couponProvider.discount ?? 0);
+  final double tipAmount = kioskTipAmount(payable, tipPercent);
   final placeOrderBody = PlaceOrderBody(
     cart: carts,
     couponDiscountAmount: couponProvider.discount ?? 0,
@@ -120,7 +135,12 @@ Future<KioskPlaceResult> placeKioskOrder(
     deviceId: kioskAuthProvider.deviceId,
     deliveryTime: 'now',
     deliveryDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-    orderNote: kioskOrderNote(name: name, note: cartProvider.orderNote),
+    orderNote: kioskOrderNote(
+      name: name,
+      note: cartProvider.orderNote,
+      tipPercent: tipPercent,
+      tipAmount: tipAmount,
+    ),
     distance: 0,
     isPartial: '0',
     isCutleryRequired: '0',

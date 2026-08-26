@@ -898,5 +898,11 @@
   "you_save": "You save",
   "minimum_purchase_amount_is": "Minimum purchase amount is",
   "coupon_not_found": "Coupon not found",
-  "coupon_limit_over": "This coupon has already been used"
+  "coupon_limit_over": "This coupon has already been used",
+  "enjoying_your_visit_tip_the_team": "Enjoying your visit? Tip the team",
+  "your_tip_goes_directly_to_the_team": "Your tip goes directly to the team",
+  "no_tip": "No tip",
+  "tip": "Tip",
+  "thank_you_name": "Thank you, {name}!",
+  "grab_it_at_the_counter": "Grab it at the counter when your name shows up enjoy!"
 }
