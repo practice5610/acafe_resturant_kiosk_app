@@ -60,6 +60,70 @@ class KioskResponsive {
     if (width < 1600) return KioskBreakpoint.large;
     return KioskBreakpoint.xlarge;
   }
+
+  /// Category rail on the 2572px artboard. 524px made the rail as wide as a
+  /// product card once the artboard was scaled onto a tablet; 390px still
+  /// fits labels like MERCHANDISE after scaling.
+  static const double categoryRailDesignWidth = 390;
+
+  /// Gap between the category rail and the product grid (Figma was 104px).
+  static const double categoryRailDesignGap = 56;
+
+  /// Rail must not take more than this share of the inner menu row.
+  static const double categoryRailMaxFraction = 0.24;
+}
+
+/// Width + gap for the kiosk category rail on the narrow (< 1100px) menu.
+///
+/// Scales with [scale] like the rest of the Figma layout, then caps so the
+/// product grid always keeps the majority of the row on small tablets.
+KioskCategoryRailLayout kioskCategoryRailLayout({
+  required double scale,
+  required double innerWidth,
+}) {
+  if (innerWidth <= 0) {
+    return const KioskCategoryRailLayout(width: 80, gap: 8);
+  }
+  final double preferredWidth = KioskResponsive.categoryRailDesignWidth * scale;
+  final double maxWidth = innerWidth * KioskResponsive.categoryRailMaxFraction;
+  final double preferredGap = KioskResponsive.categoryRailDesignGap * scale;
+  final double maxGap = innerWidth * 0.045;
+  return KioskCategoryRailLayout(
+    width: _bounded(preferredWidth, min: 80, max: maxWidth),
+    gap: _bounded(preferredGap, min: 8, max: maxGap),
+  );
+}
+
+/// [clamp] throws when min > max (tiny inner rows). Prefer the cap.
+double _bounded(double value, {required double min, required double max}) {
+  if (max <= min) return max;
+  return value.clamp(min, max);
+}
+
+/// Category-rail type size. Must not call `clamp(11, 40 * s)` — on a small
+/// window `40 * s` is below 11 and Flutter paints a red "Invalid argument: 11"
+/// box instead of the rail.
+double kioskCategoryRailFontSize({
+  required double railWidth,
+  required double scale,
+}) {
+  final double maxSize = 40 * scale;
+  final double preferred = railWidth * 0.12;
+  return _bounded(preferred, min: 8, max: maxSize);
+}
+
+class KioskCategoryRailLayout {
+  final double width;
+  final double gap;
+  const KioskCategoryRailLayout({required this.width, required this.gap});
+}
+
+/// Width of the category rail on the wide (>= 1100px) menu. Shrinks a little
+/// on the lower end of that band so the product grid gets more room.
+double kioskWideCategoryRailWidth(double screenWidth) {
+  if (screenWidth < 1280) return 120;
+  if (screenWidth < 1600) return 140;
+  return 156;
 }
 
 enum KioskBreakpoint { small, medium, large, xlarge }

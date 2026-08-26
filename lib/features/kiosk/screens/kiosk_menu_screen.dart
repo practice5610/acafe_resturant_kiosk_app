@@ -231,30 +231,41 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: sideMargin),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Rail card column = 524px wide in the design.
-                        _CategoryRail(s: s, onSelect: _onSelectCategory),
-                        SizedBox(width: 104 * s), // gap rail → products.
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _FilterPillsRow(
-                                pillHeight: 90 * s,
-                                fontSize: 43.2 * s,
-                                borderWidth: 3.6 * s,
-                                hPadding: 42 * s,
-                                hGap: 19.8 * s,
-                                vGap: 28 * s,
+                    child: LayoutBuilder(
+                      builder: (context, row) {
+                        final rail = kioskCategoryRailLayout(
+                          scale: s,
+                          innerWidth: row.maxWidth,
+                        );
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _CategoryRail(
+                              s: s,
+                              width: rail.width,
+                              onSelect: _onSelectCategory,
+                            ),
+                            SizedBox(width: rail.gap),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _FilterPillsRow(
+                                    pillHeight: 90 * s,
+                                    fontSize: 43.2 * s,
+                                    borderWidth: 3.6 * s,
+                                    hPadding: 42 * s,
+                                    hGap: 19.8 * s,
+                                    vGap: 28 * s,
+                                  ),
+                                  SizedBox(height: 61 * s),
+                                  Expanded(child: _ProductArea(s: s)),
+                                ],
                               ),
-                              SizedBox(height: 61 * s),
-                              Expanded(child: _ProductArea(s: s)),
-                            ],
-                          ),
-                        ),
-                      ],
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -490,26 +501,31 @@ class _FilterPill extends StatelessWidget {
 }
 
 /// Left rail of category names: plain text on the page background with a
-/// divider below each item (no card, no image); selected fills yellow with
-/// white text. 524px wide in the Figma artboard, scaled by `s`.
+/// divider below each item (no card, no image); selected fills black with
+/// white text. Width comes from [kioskCategoryRailLayout] so it shrinks on
+/// small screens instead of staying a 524px Figma column.
 class _CategoryRail extends StatelessWidget {
   final double s;
+  final double width;
   final void Function(int id) onSelect;
-  const _CategoryRail({required this.s, required this.onSelect});
+  const _CategoryRail({
+    required this.s,
+    required this.width,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final double railWidth = 524 * s;
     return Consumer<CategoryProvider>(
       builder: (context, category, _) {
         final categories = category.categoryList;
         if (categories == null) {
           return SizedBox(
-              width: railWidth,
+              width: width,
               child: const Center(child: CircularProgressIndicator()));
         }
         return SizedBox(
-          width: railWidth,
+          width: width,
           child: ListView.separated(
             padding: EdgeInsets.zero,
             itemCount: categories.length,
@@ -519,6 +535,7 @@ class _CategoryRail extends StatelessWidget {
               final bool selected = '${c.id}' == category.selectedSubCategoryId;
               return _RailCard(
                 s: s,
+                railWidth: width,
                 name: c.name ?? '',
                 selected: selected,
                 onTap: () => onSelect(c.id!),
@@ -533,11 +550,13 @@ class _CategoryRail extends StatelessWidget {
 
 class _RailCard extends StatelessWidget {
   final double s;
+  final double railWidth;
   final String name;
   final bool selected;
   final VoidCallback onTap;
   const _RailCard({
     required this.s,
+    required this.railWidth,
     required this.name,
     required this.selected,
     required this.onTap,
@@ -551,20 +570,27 @@ class _RailCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: 130 * s,
-          padding: EdgeInsets.symmetric(horizontal: 8 * s),
+          padding: EdgeInsets.symmetric(horizontal: 6 * s),
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
             border:
                 Border(bottom: BorderSide(color: Colors.black, width: 2 * s)),
           ),
-          child: Text(
-            name.toUpperCase(),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: loewBold.copyWith(
-              fontSize: 40 * s,
-              height: 1.1,
-              color: selected ? Colors.white : Colors.black,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              name.toUpperCase(),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: loewBold.copyWith(
+                fontSize: kioskCategoryRailFontSize(
+                  railWidth: railWidth,
+                  scale: s,
+                ),
+                height: 1.1,
+                color: selected ? Colors.white : Colors.black,
+              ),
             ),
           ),
         ),
@@ -1319,10 +1345,11 @@ class _KioskWideMenu extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      width: 160,
+                      width: kioskWideCategoryRailWidth(
+                          MediaQuery.sizeOf(context).width),
                       child: _WideCategoryRail(onSelect: onSelectCategory),
                     ),
-                    const SizedBox(width: 24),
+                    const SizedBox(width: 16),
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
