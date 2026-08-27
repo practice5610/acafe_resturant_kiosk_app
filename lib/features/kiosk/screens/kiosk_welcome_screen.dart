@@ -1,6 +1,6 @@
-import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
@@ -101,19 +101,15 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Size size = MediaQuery.of(context).size;
-    // Sizes taken from the Figma artboard (2572px wide) as fractions of the
-    // screen, clamped so the intro looks right on phones, tablets and the 4K
-    // kiosk alike.
-    final double logoWidth = Responsive.isWide(context)
-        ? 360.0
-        : (size.width * 0.26).clamp(150.0, 720.0);
-    final double instructionFont = Responsive.isWide(context)
-        ? 28.0
-        : (size.width * 0.054).clamp(20.0, 150.0);
-    final double arrowSize = Responsive.isWide(context)
-        ? 140.0
-        : (size.height * 0.19).clamp(90.0, 440.0);
+    final Size size =
+        KioskMetrics.maybeOf(context)?.window ?? MediaQuery.sizeOf(context);
+    // Fluid fractions of the viewport, clamped so the attract loop is
+    // readable from across the room on a 4K panel and still fits a phone.
+    // No width seam — this is the one full-bleed screen, and a 28px prompt
+    // on a 3840px display is the thing a kiosk must never ship.
+    final double logoWidth = (size.width * 0.26).clamp(150.0, 980.0);
+    final double instructionFont = (size.width * 0.054).clamp(20.0, 220.0);
+    final double arrowSize = (size.height * 0.19).clamp(90.0, 520.0);
 
     return Scaffold(
       backgroundColor: Colors.black,

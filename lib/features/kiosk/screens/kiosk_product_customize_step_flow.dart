@@ -251,6 +251,7 @@ class _KioskProductCustomizeStepScreenState
                 // use, so the page has to be measured with it included.
                 final Size viewport =
                     Size(constraints.maxWidth, constraints.maxHeight);
+                final bool landscape = viewport.width > viewport.height;
                 final double artboard = kioskCustomizeArtboardHeight(
                       hasDescription:
                           kioskProductDescription(product).isNotEmpty,
@@ -261,6 +262,7 @@ class _KioskProductCustomizeStepScreenState
                           _sections.dietary.length,
                       hasAddOns: false,
                       hasVessel: false,
+                      landscape: landscape,
                     ) +
                     _kStepProgressArtboardHeight;
                 final double s = kioskCustomizeScale(
@@ -268,7 +270,9 @@ class _KioskProductCustomizeStepScreenState
 
                 return KioskCenteredContent(
                   // See Version A: the page is the artboard at scale `s`.
-                  maxWidth: KioskCustomizeSpec.artboardWidth * s,
+                  maxWidth: landscape
+                      ? constraints.maxWidth
+                      : KioskCustomizeSpec.artboardWidth * s,
                   child: Column(
                     children: [
                       // Progress bar + back button. Rebuilt on step change,
@@ -299,6 +303,46 @@ class _KioskProductCustomizeStepScreenState
                           ),
                         ),
                       ),
+                      if (landscape)
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 5,
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                      KioskCustomizeSpec.gutter * s,
+                                      0,
+                                      KioskCustomizeSpec.gutter * s / 2,
+                                      0),
+                                  child: _Header(
+                                    s: s,
+                                    product: product,
+                                    productProvider: productProvider,
+                                    showBackButton: false,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 7,
+                                child: ValueListenableBuilder<int>(
+                                  valueListenable: _stepIndex,
+                                  builder: (context, current, _) => Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                        KioskCustomizeSpec.gutter * s / 2,
+                                        0,
+                                        KioskCustomizeSpec.gutter * s,
+                                        0),
+                                    child: _stepBody(s, _steps[current],
+                                        productProvider),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else ...[
                       // Identity block — identical on every step, so it sits
                       // OUTSIDE the step listeners and is never rebuilt by a
                       // step change or an add-on tap.
@@ -326,6 +370,7 @@ class _KioskProductCustomizeStepScreenState
                           ),
                         ),
                       ),
+                      ],
                       ValueListenableBuilder<int>(
                         valueListenable: _stepIndex,
                         builder: (context, current, _) => _StepActionBar(

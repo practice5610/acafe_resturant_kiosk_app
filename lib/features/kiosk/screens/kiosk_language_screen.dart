@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -74,16 +75,13 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final double formWidth =
-                constraints.maxWidth < kKioskFormDesignWidth
-                    ? constraints.maxWidth
-                    : kKioskFormDesignWidth;
-            final double s = kioskFormScale(formWidth);
+                KioskResponsive.formContentWidth(constraints.maxWidth);
+            final double s = kioskFormScale(constraints.maxWidth);
             final double side = 40 * s;
 
             return Center(
               child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: kKioskFormDesignWidth),
+                constraints: BoxConstraints(maxWidth: formWidth),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

@@ -25,13 +25,13 @@ class ForceUpdateScreen extends StatelessWidget {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
 
             Image.asset(Images.update,
-              width: MediaQuery.of(context).size.height * 0.4,
-              height: MediaQuery.of(context).size.height * 0.4,
+              width: (MediaQuery.of(context).size.height * 0.4).clamp(120.0, 480.0),
+              height: (MediaQuery.of(context).size.height * 0.4).clamp(120.0, 480.0),
             ),
             SizedBox(height: MediaQuery.of(context).size.height*0.01),
 
             Text(getTranslated('your_app_is_deprecated', context)!,
-              style: rubikRegular.copyWith(fontSize: MediaQuery.of(context).size.height * 0.0175, color: Theme.of(context).disabledColor),
+              style: rubikRegular.copyWith(fontSize: (MediaQuery.of(context).size.height * 0.0175).clamp(14.0, 28.0), color: Theme.of(context).disabledColor),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: MediaQuery.of(context).size.height*0.04),

@@ -226,5 +226,43 @@ void main() {
         }
       }
     });
+
+    test('a landscape two-column artboard is roughly half the stacked height',
+        () {
+      final double stacked = kioskCustomizeArtboardHeight(
+        hasDescription: true,
+        variationPanels: 1,
+        hasAddOns: true,
+        hasVessel: true,
+      );
+      final double landscape = kioskCustomizeArtboardHeight(
+        hasDescription: true,
+        variationPanels: 1,
+        hasAddOns: true,
+        hasVessel: true,
+        landscape: true,
+      );
+      expect(landscape, closeTo(stacked * 0.52, 0.001));
+      expect(landscape, lessThan(stacked * 0.6));
+    });
+
+    test('landscape scale at 2560×1440 is no longer stuck at the height-pull floor',
+        () {
+      final double artboard = kioskCustomizeArtboardHeight(
+        hasDescription: true,
+        variationPanels: 1,
+        hasAddOns: true,
+        hasVessel: true,
+        landscape: true,
+      );
+      const Size viewport = Size(2560, 1440);
+      final double s = kioskCustomizeScale(
+          viewport: viewport, artboardHeight: artboard);
+      // Without the landscape branch, scale landed at byWidth × 0.55 = 0.308
+      // on every landscape size from 1366 to 2560.
+      expect(s, greaterThan(0.45),
+          reason: 'portrait-in-landscape used to freeze at byWidth×0.55≈0.308');
+      expect(KioskCustomizeSpec.artboardWidth * s / 2560, greaterThan(0.45));
+    });
   });
 }

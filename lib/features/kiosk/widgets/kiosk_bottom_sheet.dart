@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:acafe_customer/common/responsive/responsive.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 
 /// Bottom-anchored modal sheet wrapper for kiosk (coupon, filter, etc.).
 ///
@@ -27,10 +27,15 @@ class KioskBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double viewportHeight = MediaQuery.sizeOf(context).height;
-    final double maxHeight = viewportHeight * heightFactor;
-    final bool wide = Responsive.isWide(context);
-    final double widthCap = maxWidth ?? (wide ? 640.0 : double.infinity);
+    final Size viewport = KioskMetrics.maybeOf(context)?.viewport ??
+        MediaQuery.sizeOf(context);
+    final double maxHeight =
+        (viewport.height * heightFactor).clamp(240.0, viewport.height * 0.9);
+    final bool landscape = viewport.width >= viewport.height;
+    final double widthCap = maxWidth ??
+        (landscape
+            ? (viewport.width * 0.55).clamp(640.0, 1400.0)
+            : double.infinity);
 
     final BoxConstraints childConstraints = expandToHeightFactor
         ? BoxConstraints(

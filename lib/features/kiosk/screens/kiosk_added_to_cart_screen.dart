@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -164,13 +165,15 @@ class _KioskAddedToCartScreenState extends State<KioskAddedToCartScreen>
           child: LayoutBuilder(
             builder: (context, constraints) {
               final double s = KioskResponsive.scale(constraints.maxWidth);
-              // The artboard is a tall portrait kiosk. On a short viewport
-              // (landscape tablet, resized browser) the hero has to give way
-              // first, or the total gets pushed off the bottom.
-              final double heroWidth =
-                  _fit(453 * s, constraints.maxHeight * 0.30);
-              final double heroHeight =
-                  _fit(731 * s, constraints.maxHeight * 0.34);
+              // One scale for the hero box so the 453×731 artboard aspect is
+              // preserved. Independent clamps on width and height used to
+              // squash the photo on short viewports (0.62 design → 0.88 clamp).
+              final double heroFit = math.min(
+                _fit(453 * s, constraints.maxHeight * 0.30) / (453 * s),
+                _fit(731 * s, constraints.maxHeight * 0.34) / (731 * s),
+              );
+              final double heroWidth = 453 * s * heroFit;
+              final double heroHeight = 731 * s * heroFit;
               // The tick occupies 32.2% of the gif's 500x500 canvas (the rest is
               // the confetti burst, which reaches ~83% at its peak). The design
               // wants a tick about a quarter of the photo's width, so the BOX is

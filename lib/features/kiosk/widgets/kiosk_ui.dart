@@ -1,6 +1,5 @@
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
-import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
@@ -15,12 +14,10 @@ import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// Fixed design tokens for the kiosk's *wide* (>= 1100px) layouts.
+/// Shared visual tokens for kiosk chrome that is *not* Figma-scaled.
 ///
-/// Unlike the narrow screens — which scale every value by `s = width/2572` —
-/// these are HARD pixel values that never grow with the screen. Large displays
-/// fit more content per row; they do not enlarge type or controls. This is the
-/// deliberate fix for the "everything gets huge on big screens" problem.
+/// Palette and control caps live here. Screen layout uses [KioskResponsive.scale]
+/// / [KioskMetrics] — these numbers are not a second "wide" type system.
 class KioskUI {
   KioskUI._();
 
@@ -55,15 +52,6 @@ class KioskUI {
   static const double filterSheetMaxWidth = 640;
   static const double qtyButtonSize = 48;
   static const double checkoutStepCircle = 48;
-
-  /// Product grid columns per breakpoint (wide layouts only).
-  static int productGridColumns(BuildContext context) => Responsive.value(
-        context,
-        phone: 2,
-        tablet: 3,
-        desktop: 3,
-        large: 4,
-      );
 }
 
 /// Fixed −/qty/+ stepper used on cart, product detail, and wide layouts.

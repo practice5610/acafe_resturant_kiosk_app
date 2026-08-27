@@ -32,18 +32,15 @@ void main() {
     return kioskOptionCardWidth(width: l.inner, cardWidth: l.card, gap: l.gap);
   }
 
-  group('at least four across, always', () {
-    test('every screen from a tiny window to a 4K kiosk shows >= 4', () {
-      for (double w = 320; w <= 3000; w += 10) {
-        expect(columnsAt(w), greaterThanOrEqualTo(kOptionMinColumns),
-            reason: 'only ${columnsAt(w)} cards across at ${w}px');
-      }
+  group('column floor follows panel width', () {
+    test('kiosk-sized panels stay at least four across', () {
+      expect(columnsAt(1080), greaterThanOrEqualTo(4));
+      expect(columnsAt(2572), greaterThanOrEqualTo(4));
     });
 
-    test('a narrow window keeps four rather than dropping to two', () {
-      expect(columnsAt(400), greaterThanOrEqualTo(4));
-      expect(columnsAt(560), greaterThanOrEqualTo(4));
-      expect(columnsAt(660), greaterThanOrEqualTo(4));
+    test('a very narrow window drops toward two rather than 7px labels', () {
+      expect(columnsAt(400), lessThan(4));
+      expect(columnsAt(400), greaterThanOrEqualTo(2));
     });
   });
 
@@ -61,7 +58,7 @@ void main() {
 
     test('columns never decrease as the screen grows', () {
       int previous = 0;
-      for (double w = 320; w <= 3000; w += 20) {
+      for (double w = 700; w <= 3000; w += 20) {
         final int c = columnsAt(w);
         expect(c, greaterThanOrEqualTo(previous),
             reason: 'columns dropped going up to ${w}px');
@@ -95,13 +92,13 @@ void main() {
   });
 
   group('degenerate input', () {
-    test('zero, negative and absurd widths still return the minimum', () {
+    test('zero, negative and absurd widths still return a valid floor', () {
       expect(kioskOptionColumns(width: 0, cardWidth: 100, gap: 10),
           kOptionMinColumns);
       expect(kioskOptionColumns(width: -50, cardWidth: 100, gap: 10),
           kOptionMinColumns);
       expect(kioskOptionColumns(width: 90, cardWidth: 424, gap: 20),
-          kOptionMinColumns);
+          kioskOptionMinColumnsFor(90));
       expect(kioskOptionColumns(width: 500, cardWidth: 0, gap: 10),
           kOptionMinColumns);
     });

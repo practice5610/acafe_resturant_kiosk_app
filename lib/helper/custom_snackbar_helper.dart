@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
-import 'package:acafe_customer/common/responsive/responsive.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/main.dart';
@@ -14,9 +12,8 @@ enum SnackBarStatus {error, success, alert, info}
 /// Bottom inset so floating snackbars sit above the kiosk menu cart bar.
 double kioskMenuSnackBarBottomMargin(BuildContext context) {
   final media = MediaQuery.of(context);
-  final double cartBarHeight = Responsive.isWide(context)
-      ? KioskUI.cartBarHeight + 20 // bar + vertical margins
-      : 340 * KioskResponsive.scale(media.size.width); // filled cart bar + padding
+  final double cartBarHeight =
+      340 * KioskResponsive.scale(media.size.width); // filled cart bar + padding
   return cartBarHeight + media.padding.bottom + Dimensions.paddingSizeSmall;
 }
 

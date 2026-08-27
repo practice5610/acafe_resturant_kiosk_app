@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -26,7 +27,10 @@ const Color _kManagerKeyPressed = Color(0xFFEFE7D8);
 /// A centered, blurred-scrim dialog (not a bottom sheet) so the card floats
 /// as one cohesive unit with rounded corners on every side.
 Future<void> openKioskManagerAccess(BuildContext context) async {
-  final double s = kioskFormScale(MediaQuery.sizeOf(context).width);
+  final double s = kioskFormScale(
+    KioskMetrics.maybeOf(context)?.contentWidth ??
+        MediaQuery.sizeOf(context).width,
+  );
   final unlocked = await showGeneralDialog<bool>(
     context: context,
     barrierDismissible: true,

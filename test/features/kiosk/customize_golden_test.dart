@@ -199,6 +199,8 @@ void main() {
     'kiosk_1080x1920': Size(1080, 1920),
     'tablet_768x1280': Size(768, 1280),
     'small_408x826': Size(408, 826),
+    'landscape_1920x1080': Size(1920, 1080),
+    'landscape_2560x1440': Size(2560, 1440),
   };
 
   shots.forEach((name, viewport) {

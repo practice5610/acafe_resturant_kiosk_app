@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
-import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -21,6 +20,14 @@ const Color kCheckoutFieldBg = Color(0xFFFBF8EF);
 const Color kCheckoutErrorRed = Color(0xFFEF4444);
 const Color kCheckoutHintColor = Color(0xFFB9B5A6);
 const Color kCheckoutButtonText = Color(0xFFFAF9F5);
+
+bool _goRouterCanPop(BuildContext context) {
+  try {
+    return GoRouter.of(context).canPop();
+  } catch (_) {
+    return false;
+  }
+}
 
 double checkoutScale(double w) => KioskResponsive.scale(w);
 
@@ -185,7 +192,7 @@ class KioskCheckoutScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: Navigator.of(context).canPop() || GoRouter.of(context).canPop(),
+      canPop: Navigator.of(context).canPop() || _goRouterCanPop(context),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           KioskNavigationHelper.popOrNavigate(
@@ -199,17 +206,14 @@ class KioskCheckoutScaffold extends StatelessWidget {
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              if (Responsive.isWide(context)) {
-                return _WideCheckoutBody(
-                  activeStep: activeStep,
-                  title: title,
-                  subtitle: subtitle,
-                  fieldBuilder: fieldBuilder,
-                  bottomBuilder: bottomBuilder,
-                );
-              }
               final double s = checkoutScale(constraints.maxWidth);
+              final bool landscape =
+                  constraints.maxWidth > constraints.maxHeight;
+              final double columnMax = landscape
+                  ? (constraints.maxWidth * 0.62).clamp(720.0, 1600.0)
+                  : KioskResponsive.designWidth;
               return KioskCenteredContent(
+                maxWidth: columnMax,
                 child: Column(
                   children: [
                     KioskCheckoutHeader(s: s, activeStep: activeStep),
@@ -219,7 +223,7 @@ class KioskCheckoutScaffold extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            SizedBox(height: 150 * s),
+                            SizedBox(height: landscape ? 48 * s : 150 * s),
                             Text(
                               title,
                               textAlign: TextAlign.center,
@@ -240,7 +244,7 @@ class KioskCheckoutScaffold extends StatelessWidget {
                                     color: Colors.black),
                               ),
                             ),
-                            SizedBox(height: 380 * s),
+                            SizedBox(height: landscape ? 80 * s : 380 * s),
                             fieldBuilder(s),
                             SizedBox(height: 100 * s),
                           ],
@@ -253,91 +257,6 @@ class KioskCheckoutScaffold extends StatelessWidget {
               );
             },
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Wide checkout: 720px centered column, fixed type/button sizes, vertically centered.
-class _WideCheckoutBody extends StatelessWidget {
-  final int activeStep;
-  final String title;
-  final String subtitle;
-  final Widget Function(double s) fieldBuilder;
-  final Widget Function(double s) bottomBuilder;
-
-  const _WideCheckoutBody({
-    required this.activeStep,
-    required this.title,
-    required this.subtitle,
-    required this.fieldBuilder,
-    required this.bottomBuilder,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints:
-            const BoxConstraints(maxWidth: KioskUI.checkoutColumnMaxWidth),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(0, 24, 0, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const KioskBackButton(
-                    fallback: RouterHelper.getKioskCartRoute,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: KioskCheckoutStepper(activeStep: activeStep),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 32),
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: loewExtraBold.copyWith(
-                        fontSize: KioskUI.heading,
-                        height: 1.1,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Opacity(
-                      opacity: 0.75,
-                      child: Text(
-                        subtitle,
-                        textAlign: TextAlign.center,
-                        style: loewMedium.copyWith(
-                          fontSize: KioskUI.body,
-                          height: 1.3,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    fieldBuilder(1),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: bottomBuilder(1),
-            ),
-          ],
         ),
       ),
     );
@@ -495,20 +414,6 @@ class KioskCheckoutField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (Responsive.isWide(context)) {
-      return _WideCheckoutField(
-        label: label,
-        hint: hint,
-        controller: controller,
-        focusNode: focusNode,
-        hasError: hasError,
-        errorText: errorText,
-        keyboardType: keyboardType,
-        textCapitalization: textCapitalization,
-        onChanged: onChanged,
-        onSubmitted: onSubmitted,
-      );
-    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -588,19 +493,6 @@ class KioskCheckoutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!forceScaled && Responsive.isWide(context)) {
-      final bool disabled = onTap == null;
-      return Opacity(
-        opacity: disabled ? 0.5 : 1,
-        child: KioskButton(
-          label: label,
-          filled: filled,
-          height: KioskUI.primaryButtonHeight,
-          maxWidth: KioskUI.checkoutColumnMaxWidth,
-          onTap: onTap,
-        ),
-      );
-    }
     final bool disabled = onTap == null;
     return Opacity(
       opacity: disabled ? 0.5 : 1,
@@ -638,92 +530,3 @@ class KioskCheckoutButton extends StatelessWidget {
   }
 }
 
-/// Fixed-size checkout input for wide layouts (720px column, 64px field height).
-class _WideCheckoutField extends StatelessWidget {
-  final String label;
-  final String hint;
-  final TextEditingController controller;
-  final FocusNode? focusNode;
-  final bool hasError;
-  final String? errorText;
-  final TextInputType keyboardType;
-  final TextCapitalization textCapitalization;
-  final ValueChanged<String>? onChanged;
-  final ValueChanged<String>? onSubmitted;
-
-  const _WideCheckoutField({
-    required this.label,
-    required this.hint,
-    required this.controller,
-    this.focusNode,
-    this.hasError = false,
-    this.errorText,
-    this.keyboardType = TextInputType.text,
-    this.textCapitalization = TextCapitalization.none,
-    this.onChanged,
-    this.onSubmitted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: loewExtraBold.copyWith(
-            fontSize: KioskUI.body,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          height: 64,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          decoration: BoxDecoration(
-            color: kCheckoutFieldBg,
-            borderRadius: BorderRadius.circular(KioskUI.radius),
-            border: Border.all(
-              color: hasError ? kCheckoutErrorRed : kCheckoutHintColor,
-              width: hasError ? 2 : 1.5,
-            ),
-          ),
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            keyboardType: keyboardType,
-            textCapitalization: textCapitalization,
-            textAlign: TextAlign.center,
-            cursorColor: Colors.black,
-            style: loewRegular.copyWith(fontSize: 18, color: Colors.black),
-            decoration: InputDecoration(
-              isCollapsed: true,
-              border: InputBorder.none,
-              hintText: hint,
-              hintStyle: loewRegular.copyWith(
-                fontSize: 18,
-                color: kCheckoutHintColor,
-              ),
-            ),
-            onChanged: onChanged,
-            onSubmitted: onSubmitted,
-          ),
-        ),
-        if (hasError && errorText != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            errorText!,
-            textAlign: TextAlign.center,
-            style: loewMedium.copyWith(
-              fontSize: KioskUI.caption,
-              height: 1.1,
-              color: kCheckoutErrorRed,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}

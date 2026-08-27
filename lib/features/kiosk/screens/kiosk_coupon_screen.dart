@@ -235,41 +235,83 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
               final m = _KioskCouponMetrics.resolve(
                 constraints.maxWidth,
                 constraints.maxHeight,
+                landscape: constraints.maxWidth > constraints.maxHeight,
+              );
+
+              final Widget keyboard = KioskKeyboard(
+                s: m.s,
+                shift: _shift,
+                onKey: _insert,
+                onShift: () => setState(() => _shift = !_shift),
+                onBackspace: _backspace,
+                onSpace: () => _insert(' '),
+                onClear: _clear,
+              );
+
+              final Widget portraitColumn = Column(
+                children: [
+                  SizedBox(height: m.gap(_kTopGap)),
+                  _Logo(m: m, onBack: _close),
+                  SizedBox(height: m.gap(_kLogoToTitle)),
+                  _Title(m: m),
+                  SizedBox(height: m.gap(_kTitleToField)),
+                  _CodeField(
+                    m: m,
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    onSubmit: _submit,
+                  ),
+                  SizedBox(height: m.gap(_kFieldToKeyboard)),
+                  keyboard,
+                  SizedBox(height: m.gap(_kKeyboardToScan)),
+                  _ScanPanel(m: m),
+                  SizedBox(height: m.gap(_kScanToButtons)),
+                  _ActionBar(m: m, onBack: _close, onContinue: _submit),
+                  SizedBox(height: m.gap(_kBottomGap)),
+                ],
+              );
+
+              final Widget landscapeRow = Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      children: [
+                        SizedBox(height: m.gap(_kTopGap)),
+                        _Logo(m: m, onBack: _close),
+                        SizedBox(height: m.gap(_kLogoToTitle)),
+                        _Title(m: m),
+                        SizedBox(height: m.gap(_kTitleToField)),
+                        _CodeField(
+                          m: m,
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          onSubmit: _submit,
+                        ),
+                        const Spacer(),
+                        _ScanPanel(m: m),
+                        SizedBox(height: m.gap(_kScanToButtons)),
+                        _ActionBar(m: m, onBack: _close, onContinue: _submit),
+                        SizedBox(height: m.gap(_kBottomGap)),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: m.px(48)),
+                  Expanded(
+                    flex: 6,
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: keyboard,
+                    ),
+                  ),
+                ],
               );
 
               final Widget content = SizedBox(
                 width: m.contentWidth,
                 height: m.contentHeight,
-                child: Column(
-                  children: [
-                    SizedBox(height: m.gap(_kTopGap)),
-                    _Logo(m: m, onBack: _close),
-                    SizedBox(height: m.gap(_kLogoToTitle)),
-                    _Title(m: m),
-                    SizedBox(height: m.gap(_kTitleToField)),
-                    _CodeField(
-                      m: m,
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      onSubmit: _submit,
-                    ),
-                    SizedBox(height: m.gap(_kFieldToKeyboard)),
-                    KioskKeyboard(
-                      s: m.s,
-                      shift: _shift,
-                      onKey: _insert,
-                      onShift: () => setState(() => _shift = !_shift),
-                      onBackspace: _backspace,
-                      onSpace: () => _insert(' '),
-                      onClear: _clear,
-                    ),
-                    SizedBox(height: m.gap(_kKeyboardToScan)),
-                    _ScanPanel(m: m),
-                    SizedBox(height: m.gap(_kScanToButtons)),
-                    _ActionBar(m: m, onBack: _close, onContinue: _submit),
-                    SizedBox(height: m.gap(_kBottomGap)),
-                  ],
-                ),
+                child: m.landscape ? landscapeRow : portraitColumn,
               );
 
               // Only reachable once the scale has bottomed out on a very small
@@ -392,22 +434,35 @@ class _KioskCouponMetrics {
   final double contentWidth;
   final double contentHeight;
 
+  /// True when the keyboard sits beside the field rather than beneath it.
+  final bool landscape;
+
   const _KioskCouponMetrics._({
     required this.s,
     required this.gapFactor,
     required this.contentWidth,
     required this.contentHeight,
+    this.landscape = false,
   });
 
-  factory _KioskCouponMetrics.resolve(double width, double height) {
+  factory _KioskCouponMetrics.resolve(double width, double height,
+      {bool landscape = false}) {
     // The shortest height the design can occupy is its fixed elements plus
     // half its whitespace; sizing against that (rather than the full 4530)
     // lets landscape displays keep usable key/button sizes.
-    const double minDesignHeight =
-        _kFixedTotal + _kGapTotal * _kMinGapFactor; // 3549.725
+    // In landscape the keyboard is beside the field, so it drops out of the
+    // vertical stack and byHeight stops dominating the scale.
+    final double minDesignHeight = landscape
+        ? math.max(_kFixedTotal - KioskKeyboard.designHeight,
+                KioskKeyboard.designHeight) +
+            _kGapTotal * _kMinGapFactor * 0.4
+        : _kFixedTotal + _kGapTotal * _kMinGapFactor; // 3549.725
 
     final double s = math
-        .min(width / _kDesignWidth, height / minDesignHeight)
+        .min(
+          landscape ? (width * 0.48) / _kDesignWidth : width / _kDesignWidth,
+          height / minDesignHeight,
+        )
         .clamp(0.16, 1.0);
 
     final double fixed = _kFixedTotal * s;
@@ -419,8 +474,11 @@ class _KioskCouponMetrics {
     return _KioskCouponMetrics._(
       s: s,
       gapFactor: gapFactor,
-      contentWidth: _kDesignWidth * s,
-      contentHeight: fixed + _kGapTotal * s * gapFactor,
+      contentWidth: landscape ? width : _kDesignWidth * s,
+      contentHeight: landscape
+          ? height
+          : fixed + _kGapTotal * s * gapFactor,
+      landscape: landscape,
     );
   }
 

@@ -9,7 +9,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:acafe_customer/common/enums/data_source_enum.dart';
 import 'package:acafe_customer/data/datasource/local/cache_response.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
-import 'package:acafe_customer/common/responsive/breakpoints.dart';
+import 'package:acafe_customer/common/responsive/kiosk_shell.dart';
 import 'package:acafe_customer/helper/kiosk_browser_gestures.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
@@ -17,7 +17,6 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_scope.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
@@ -239,32 +238,19 @@ class _MyAppState extends State<MyApp> {
         PointerDeviceKind.unknown
       }),
       builder: (context, child) {
-        Widget content = child ?? const KioskLoginScreen();
-        // Large-screen cap: center the app content at
-        // kKioskContentMaxWidth (1600) so wide/full-screen kiosk
-        // displays don't sprawl. The beige page colour fills the
-        // screen edge-to-edge *behind* the cap. Below 1600px the cap
-        // never binds, so small/medium screens are unaffected. The
-        // full-screen welcome video opts out to stay full-bleed.
-        final String path =
-            RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
-        if (path != RouterHelper.kioskWelcomeScreen) {
-          content = ColoredBox(
-            color: KioskUI.pageBg,
-            child: Center(
-              child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: kKioskContentMaxWidth),
-                child: content,
-              ),
-            ),
-          );
-        }
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.linear(
-                  MediaQuery.sizeOf(context).width < 380 ? 0.9 : 1)),
-          child: content,
+        // Listen so the welcome-screen full-bleed exemption cannot go stale
+        // across GoRouter navigations (the WidgetsApp builder does not
+        // otherwise rebuild on route changes).
+        return ListenableBuilder(
+          listenable: RouterHelper.goRoutes.routeInformationProvider,
+          builder: (context, _) {
+            final String path =
+                RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
+            return KioskShell(
+              fullBleed: path == RouterHelper.kioskWelcomeScreen,
+              child: child ?? const KioskLoginScreen(),
+            );
+          },
         );
       },
     ),

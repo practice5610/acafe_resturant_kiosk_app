@@ -697,16 +697,19 @@ class _KioskProductCustomizeScreenState
               builder: (context, constraints) {
                 final Size viewport =
                     Size(constraints.maxWidth, constraints.maxHeight);
+                final bool landscape = viewport.width > viewport.height;
                 // How tall THIS product's page is on the artboard. The design is
                 // 5400px because it draws three rows of add-ons; a product with
                 // no add-ons and no cup/can question needs far less, and must
-                // not be shrunk as though it needed the lot.
+                // not be shrunk as though it needed the lot. Landscape reports
+                // roughly half so byHeight does not dominate the scale.
                 final double artboard = kioskCustomizeArtboardHeight(
                   hasDescription: kioskProductDescription(product).isNotEmpty,
                   variationPanels: (sizeVariations.isEmpty ? 0 : 1) +
                       dietaryVariations.length,
                   hasAddOns: hasAddOns,
                   hasVessel: cupCanVariations.isNotEmpty,
+                  landscape: landscape,
                 );
                 // ONE scale for the whole screen, bounded by the viewport's
                 // width AND its height — see [kioskCustomizeScale].
@@ -751,7 +754,7 @@ class _KioskProductCustomizeScreenState
                         // the design's indicator. Scrolling layout: it sizes to
                         // its content and rides the page scroller instead, so
                         // there are never two scrollers nested.
-                        scrollable: pinned,
+                        scrollable: pinned && !landscape,
                       )
                     : null;
                 final List<Widget> vesselPanels = [
@@ -777,10 +780,56 @@ class _KioskProductCustomizeScreenState
                   // keeps the grid the design's grid — five milks across, four
                   // add-ons across — instead of a panel that widens on its own
                   // and fills the extra room with more, smaller cards.
-                  maxWidth: KioskCustomizeSpec.artboardWidth * s,
+                  maxWidth: landscape
+                      ? constraints.maxWidth
+                      : KioskCustomizeSpec.artboardWidth * s,
                   child: Column(
                     children: [
-                      if (pinned) ...[
+                      if (landscape)
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 5,
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                      gutter, 0, gutter / 2, 0),
+                                  child: header,
+                                ),
+                              ),
+                              Expanded(
+                                flex: 7,
+                                child: SingleChildScrollView(
+                                  padding: EdgeInsets.fromLTRB(
+                                      gutter / 2, 0, gutter, 0),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      for (int i = 0;
+                                          i < variationPanels.length;
+                                          i++) ...[
+                                        if (i > 0) SizedBox(height: panelGap),
+                                        variationPanels[i],
+                                      ],
+                                      if (addOns != null) ...[
+                                        if (variationPanels.isNotEmpty)
+                                          SizedBox(height: panelGap),
+                                        addOns,
+                                      ],
+                                      for (final panel in vesselPanels) ...[
+                                        SizedBox(height: panelGap),
+                                        panel,
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (pinned) ...[
                         // Product image, name, description and the quantity
                         // stepper stay put — only the add-ons below them scroll.
                         Padding(

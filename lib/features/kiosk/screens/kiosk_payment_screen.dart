@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -18,7 +19,6 @@ import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
-import 'package:acafe_customer/utill/dimensions.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -259,113 +259,151 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
     return Scaffold(
       backgroundColor: KioskUI.pageBg,
       body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-                child: _phase == _Phase.failed
-                    ? const SizedBox()
-                    : _processingView()),
-            if (_phase == _Phase.failed)
-              _FailureModal(
-                  countdown: _stopCountdown,
-                  message: _errorMessage,
-                  onRetry: _retry,
-                  onStop: _stop),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final double s = KioskResponsive.scale(constraints.maxWidth);
+            return Stack(
+              children: [
+                Center(
+                  child: _phase == _Phase.failed
+                      ? const SizedBox()
+                      : _processingView(s),
+                ),
+                if (_phase == _Phase.failed)
+                  _FailureModal(
+                    s: s,
+                    maxWidth: constraints.maxWidth,
+                    countdown: _stopCountdown,
+                    message: _errorMessage,
+                    onRetry: _retry,
+                    onStop: _stop,
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _processingView() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox(
-            width: 64,
-            height: 64,
-            child: CircularProgressIndicator(strokeWidth: 5)),
-        const SizedBox(height: Dimensions.paddingSizeExtraLarge),
-        Text(
-          _phase == _Phase.submitting
-              ? (getTranslated('placing_your_order', context) ??
-                  'Placing your order…')
-              : (getTranslated('follow_instructions_on_reader', context) ??
-                  'Follow the instructions on the card reader'),
-          textAlign: TextAlign.center,
-          style: rubikSemiBold.copyWith(
-              fontSize: Dimensions.fontSizeLarge,
-              color: Theme.of(context).textTheme.bodyLarge!.color),
-        ),
-        const SizedBox(height: Dimensions.paddingSizeDefault),
-        Text(PriceConverterHelper.convertPrice(_amount),
-            style: rubikBold.copyWith(
-                fontSize: 28, color: Theme.of(context).primaryColor)),
-      ],
+  Widget _processingView(double s) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 86 * s),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 140 * s,
+            height: 140 * s,
+            child: CircularProgressIndicator(
+              strokeWidth: (8 * s).clamp(4.0, 8.0),
+              color: KioskUI.dark,
+            ),
+          ),
+          SizedBox(height: 48 * s),
+          Text(
+            _phase == _Phase.submitting
+                ? (getTranslated('placing_your_order', context) ??
+                    'Placing your order…')
+                : (getTranslated('follow_instructions_on_reader', context) ??
+                    'Follow the instructions on the card reader'),
+            textAlign: TextAlign.center,
+            style: loewExtraBold.copyWith(
+              fontSize: 64 * s,
+              height: 1.15,
+              color: KioskUI.dark,
+            ),
+          ),
+          SizedBox(height: 28 * s),
+          Text(
+            PriceConverterHelper.convertPrice(_amount),
+            style: loewExtraBold.copyWith(
+              fontSize: 96 * s,
+              color: KioskUI.dark,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _FailureModal extends StatelessWidget {
+  final double s;
+  final double maxWidth;
   final int countdown;
   final String? message;
   final VoidCallback onRetry;
   final VoidCallback onStop;
-  const _FailureModal(
-      {required this.countdown,
-      this.message,
-      required this.onRetry,
-      required this.onStop});
+  const _FailureModal({
+    required this.s,
+    required this.maxWidth,
+    required this.countdown,
+    this.message,
+    required this.onRetry,
+    required this.onStop,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final double cardWidth =
+        (1640 * s).clamp(320.0, maxWidth * 0.86);
     return Container(
-      color: Colors.black26,
+      color: const Color(0xFF1E1E1E).withValues(alpha: 0.45),
       alignment: Alignment.center,
       child: Container(
-        width: 360,
-        margin: const EdgeInsets.all(Dimensions.paddingSizeLarge),
-        padding: const EdgeInsets.all(Dimensions.paddingSizeExtraLarge),
+        width: cardWidth,
+        margin: EdgeInsets.all(48 * s),
+        padding: EdgeInsets.all(88 * s),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+          color: KioskUI.pageBg,
+          borderRadius: BorderRadius.circular(48 * s),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 36,
-              backgroundColor:
-                  Theme.of(context).primaryColor.withValues(alpha: 0.1),
-              child: Icon(Icons.error_outline,
-                  size: 40, color: Theme.of(context).primaryColor),
+            Icon(Icons.error_outline, size: 96 * s, color: KioskUI.dark),
+            SizedBox(height: 32 * s),
+            Text(
+              getTranslated('payment_failed', context) ?? 'Payment failed…',
+              textAlign: TextAlign.center,
+              style: loewExtraBold.copyWith(
+                fontSize: 56 * s,
+                color: KioskUI.dark,
+              ),
             ),
-            const SizedBox(height: Dimensions.paddingSizeDefault),
-            Text(getTranslated('payment_failed', context) ?? 'Payment failed…',
-                style: rubikSemiBold.copyWith(
-                    fontSize: Dimensions.fontSizeLarge,
-                    color: Theme.of(context).primaryColor)),
             if (message != null && message!.isNotEmpty) ...[
-              const SizedBox(height: Dimensions.paddingSizeSmall),
-              Text(message!,
-                  textAlign: TextAlign.center,
-                  style: rubikRegular.copyWith(
-                      fontSize: Dimensions.fontSizeSmall,
-                      color: Theme.of(context).hintColor)),
+              SizedBox(height: 16 * s),
+              Text(
+                message!,
+                textAlign: TextAlign.center,
+                style: loewMedium.copyWith(
+                  fontSize: 32 * s,
+                  color: KioskUI.text,
+                ),
+              ),
             ],
-            const SizedBox(height: Dimensions.paddingSizeExtraLarge),
+            SizedBox(height: 48 * s),
             Row(
               children: [
                 Expanded(
-                    child: _Btn(
-                        label: getTranslated('retry', context) ?? 'Retry',
-                        onTap: onRetry)),
-                const SizedBox(width: Dimensions.paddingSizeDefault),
+                  child: _Btn(
+                    s: s,
+                    label: getTranslated('retry', context) ?? 'Retry',
+                    filled: true,
+                    onTap: onRetry,
+                  ),
+                ),
+                SizedBox(width: 24 * s),
                 Expanded(
-                    child: _Btn(
-                        label:
-                            '${getTranslated('stop', context) ?? 'Stop'} ($countdown)',
-                        onTap: onStop)),
+                  child: _Btn(
+                    s: s,
+                    label:
+                        '${getTranslated('stop', context) ?? 'Stop'} ($countdown)',
+                    filled: false,
+                    onTap: onStop,
+                  ),
+                ),
               ],
             ),
           ],
@@ -376,23 +414,42 @@ class _FailureModal extends StatelessWidget {
 }
 
 class _Btn extends StatelessWidget {
+  final double s;
   final String label;
+  final bool filled;
   final VoidCallback onTap;
-  const _Btn({required this.label, required this.onTap});
+  const _Btn({
+    required this.s,
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Theme.of(context).primaryColor,
-      borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-      clipBehavior: Clip.hardEdge,
+      color: filled ? KioskUI.dark : Colors.transparent,
+      borderRadius: BorderRadius.circular(30 * s),
+      clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: onTap,
         child: Container(
-            height: 50,
-            alignment: Alignment.center,
-            child: Text(label,
-                style: rubikSemiBold.copyWith(color: Colors.white))),
+          height: 140 * s,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30 * s),
+            border: filled
+                ? null
+                : Border.all(color: KioskUI.dark, width: (4 * s).clamp(1.5, 4.0)),
+          ),
+          child: Text(
+            label,
+            style: loewExtraBold.copyWith(
+              fontSize: 40 * s,
+              color: filled ? const Color(0xFFF3F3DD) : KioskUI.dark,
+            ),
+          ),
+        ),
       ),
     );
   }

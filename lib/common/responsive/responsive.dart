@@ -1,32 +1,35 @@
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:flutter/widgets.dart';
 
-/// Breakpoint buckets for the kiosk. The app uses a *hybrid* responsive model:
+/// Breakpoint buckets for the kiosk.
 ///
-///  - Below [DeviceSize.desktop] (< 1100px) every kiosk screen keeps its
-///    original proportional Figma-pixel layout, untouched — small portrait
-///    tablets and phones render exactly as before.
-///  - At >= 1100px ([isWide]) screens switch to a fixed-pixel, redesigned
-///    layout (two-column arrangements, fixed type scale, capped buttons) so
-///    large landscape/full-screen kiosk displays look like a proper POS instead
-///    of a stretched phone UI.
-///
-/// This is the single source of truth for that 1100px seam.
+/// Composition is chosen by **orientation**, not by a width seam. The old
+/// 1100px `isWide` switch sat 20px above the production 1080×1920 kiosk and
+/// swapped the Figma layout for a set of frozen pixel constants. [isWide] now
+/// means landscape — the axis that actually needs a different composition.
 enum DeviceSize { phone, tablet, desktop, large }
 
 class Responsive {
   Responsive._();
 
   static DeviceSize of(BuildContext context) {
-    final w = MediaQuery.of(context).size.width;
-    if (w < 700) return DeviceSize.phone; // phones, small portrait kiosks
-    if (w < 1100) return DeviceSize.tablet; // tablets, standard portrait kiosks
-    if (w < 1500) return DeviceSize.desktop; // landscape kiosks
-    return DeviceSize.large; // large / full-screen displays
+    final double w =
+        KioskMetrics.maybeOf(context)?.contentWidth ??
+            MediaQuery.sizeOf(context).width;
+    if (w < KioskResponsive.compactMax) return DeviceSize.phone;
+    if (w < 1500) return DeviceSize.tablet;
+    if (w < KioskResponsive.largeMin) return DeviceSize.desktop;
+    return DeviceSize.large;
   }
 
-  /// True at/above the 1100px seam — screens use their redesigned wide layout.
-  static bool isWide(BuildContext context) =>
-      MediaQuery.of(context).size.width >= 1100;
+  /// True in landscape. Portrait compositions (including the 1080×1920
+  /// production kiosk) always return false, regardless of width.
+  static bool isWide(BuildContext context) {
+    final KioskMetrics? metrics = KioskMetrics.maybeOf(context);
+    if (metrics != null) return metrics.isLandscape;
+    final Size size = MediaQuery.sizeOf(context);
+    return size.width >= size.height;
+  }
 
   /// Pick a value per breakpoint, falling back to the next-smaller one.
   static T value<T>(

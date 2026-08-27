@@ -4,35 +4,49 @@ import 'dart:math' as math;
 ///
 /// Extracted from the customize screen so the rule is unit-testable.
 
-/// Never fewer than four cards across. The design never shows fewer, and a
-/// smaller device is no reason to drop below it — the cards get narrower, the
-/// row does not get shorter.
+/// Never fewer than this many cards across on a kiosk-sized panel. Narrow
+/// windows drop toward 2 so a 400px card does not render a 7px label.
 const int kOptionMinColumns = 4;
 
 /// Upper bound so an ultra-wide panel cannot produce a grid of tiny cards.
 const int kOptionMaxColumns = 8;
 
+/// Floor on column count for a panel of [width] logical pixels.
+int kioskOptionMinColumnsFor(double width) {
+  if (width < 420) return 2;
+  if (width < 650) return 3;
+  return kOptionMinColumns;
+}
+
+/// Cards narrower than this (logical px) drop a column on a small panel.
+const double kOptionMinReadableCard = 110;
+
 /// How many option cards fit across a panel [width] px wide.
 ///
 /// [cardWidth] is the design's card at the current scale, so a large screen
 /// gets the density the artboard intends. The result is then floored at
-/// [kOptionMinColumns] — that floor is what keeps four across on a narrow
-/// window instead of two.
-///
-/// Rounded, not floored: the Figma dietary row fits five 407.8px cards into a
-/// 2213px panel, which is 8px tighter than five cards plus their gutters. A
-/// floor drops that fifth card and leaves the row a column short of the design
-/// everywhere; rounding keeps it and lets the cards give up those few pixels.
+/// [kioskOptionMinColumnsFor] — four across on a kiosk panel, fewer only
+/// when the panel is too narrow for a readable 4-up.
 int kioskOptionColumns({
   required double width,
   required double cardWidth,
   required double gap,
 }) {
   if (width <= 0 || cardWidth <= 0) return kOptionMinColumns;
+  final int minCols = kioskOptionMinColumnsFor(width);
   final int byArtboard = ((width + gap) / (cardWidth + gap)).round();
-  return math
-      .max(kOptionMinColumns, byArtboard)
-      .clamp(kOptionMinColumns, kOptionMaxColumns);
+  int columns = math.max(minCols, byArtboard).clamp(minCols, kOptionMaxColumns);
+  final double implied =
+      columns <= 0 ? width : (width - gap * (columns - 1)) / columns;
+  if (implied < kOptionMinReadableCard &&
+      columns > minCols &&
+      minCols < kOptionMinColumns) {
+    columns = math.max(
+      minCols,
+      ((width + gap) / (kOptionMinReadableCard + gap)).floor(),
+    );
+  }
+  return columns.clamp(minCols, kOptionMaxColumns);
 }
 
 /// Width for one option card inside a panel [width] px wide.

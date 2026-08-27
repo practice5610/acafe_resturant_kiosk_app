@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
-import 'package:acafe_customer/common/responsive/responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_tip.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
@@ -436,35 +435,6 @@ class _TipMetrics {
   });
 
   factory _TipMetrics.of(BuildContext context, BoxConstraints constraints) {
-    if (Responsive.isWide(context)) {
-      final double width = constraints.maxWidth.clamp(0, 480);
-      final double gap = 12;
-      final double inner = width - 64;
-      final double tile = ((inner - gap) / 2).clamp(96.0, 196.0);
-      return _TipMetrics(
-        cardWidth: width,
-        pad: 32,
-        outerPad: 24,
-        titleSize: 22,
-        subtitleSize: 14,
-        titleGap: 8,
-        headerGap: 24,
-        gridGap: gap,
-        buttonGap: 20,
-        tileSize: tile,
-        percentSize: 32,
-        captionSize: 14,
-        optionRadius: 12,
-        modalRadius: 20,
-        buttonHeight: 56,
-        buttonRadius: 16,
-        buttonSize: 15,
-        buttonBorder: 1.5,
-        shadowBlur: 32,
-        shadowY: 12,
-      );
-    }
-
     final double s = KioskResponsive.scale(constraints.maxWidth);
     final double width =
         (1640 * s).clamp(320.0, constraints.maxWidth * 0.86);

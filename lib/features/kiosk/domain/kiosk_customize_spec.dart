@@ -203,6 +203,7 @@ double kioskCustomizeArtboardHeight({
   required int variationPanels,
   required bool hasAddOns,
   required bool hasVessel,
+  bool landscape = false,
 }) {
   const spec = KioskCustomizeSpec.panelChrome;
   double height =
@@ -223,7 +224,12 @@ double kioskCustomizeArtboardHeight({
     }
     height += spec + KioskCustomizeSpec.vesselCardHeight;
   }
-  return height + KioskCustomizeSpec.actionBarBlock;
+  final double stacked = height + KioskCustomizeSpec.actionBarBlock;
+  // Two-column landscape reports roughly half the stacked height so
+  // [kioskCustomizeScale] is no longer dominated by byHeight. Guards on the
+  // scale function itself are load-bearing and must not change.
+  if (landscape) return stacked * 0.52;
+  return stacked;
 }
 
 /// Lower bound on how far the height rule may pull the scale below the width

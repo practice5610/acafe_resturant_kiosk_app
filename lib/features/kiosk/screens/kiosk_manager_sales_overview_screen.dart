@@ -600,7 +600,7 @@ class _CloseDaySection extends StatelessWidget {
       ),
       SizedBox(height: 36 * s),
       KioskPrimaryButton(
-        s: kioskFormScale(MediaQuery.sizeOf(context).width),
+        s: s,
         label: 'CLOSE DAY',
         icon: Icons.lock_outline,
         loading: loading,

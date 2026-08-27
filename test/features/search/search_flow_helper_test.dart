@@ -38,7 +38,6 @@ void main() {
         SearchFlowHelper.hasActiveFilters(
           selectedSortByIndex: null,
           selectedPriceIndex: null,
-          selectedRatingIndex: null,
           halalTagStatus: false,
           selectedCategoryIds: [],
         ),
@@ -51,7 +50,6 @@ void main() {
         SearchFlowHelper.hasActiveFilters(
           selectedSortByIndex: 0,
           selectedPriceIndex: null,
-          selectedRatingIndex: null,
           halalTagStatus: false,
           selectedCategoryIds: [],
         ),
@@ -62,7 +60,6 @@ void main() {
         SearchFlowHelper.hasActiveFilters(
           selectedSortByIndex: null,
           selectedPriceIndex: null,
-          selectedRatingIndex: null,
           halalTagStatus: false,
           selectedCategoryIds: [1],
         ),

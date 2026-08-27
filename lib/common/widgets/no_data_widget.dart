@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_button_widget.dart';
-import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/dimensions.dart';
@@ -35,7 +34,7 @@ class NoDataWidget extends StatelessWidget {
 
         ConstrainedBox(
           constraints: BoxConstraints(
-            minHeight: !ResponsiveHelper.isDesktop(context) && height < 600 ? height : height - 450,
+            minHeight: height < 450 ? height : height - 450,
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
 

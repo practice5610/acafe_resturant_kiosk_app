@@ -287,7 +287,7 @@ class _StockToolbar extends StatelessWidget {
       builder: (context, constraints) {
         // Only reachable once the scale clamp kicks in (< ~620px wide), where
         // the two controls no longer fit side by side.
-        final bool stacked = constraints.maxWidth < 1700 * s;
+        final bool stacked = constraints.maxWidth < 620;
 
         final Widget search = _SearchField(
           s: s,

@@ -28,12 +28,6 @@ void main() {
     expect(rail.width + rail.gap, lessThan(200));
   });
 
-  test('the wide rail shrinks below 1280px', () {
-    expect(kioskWideCategoryRailWidth(1100), 120);
-    expect(kioskWideCategoryRailWidth(1400), 140);
-    expect(kioskWideCategoryRailWidth(1920), 156);
-  });
-
   test('rail font size does not throw when 40×scale is below 11', () {
     expect(
       () => kioskCategoryRailFontSize(railWidth: 90, scale: 0.24),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -79,18 +80,15 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
             // Form width is capped, so sizes stay comfortable on large screens
             // and shrink only when the screen is narrower than the cap.
             final double formWidth =
-                constraints.maxWidth < kKioskFormDesignWidth
-                    ? constraints.maxWidth
-                    : kKioskFormDesignWidth;
-            final double s = kioskFormScale(formWidth);
+                KioskResponsive.formContentWidth(constraints.maxWidth);
+            final double s = kioskFormScale(constraints.maxWidth);
 
             return Consumer<KioskAuthProvider>(
               builder: (context, provider, _) {
                 return SingleChildScrollView(
                   child: Center(
                     child: ConstrainedBox(
-                      constraints:
-                          const BoxConstraints(maxWidth: kKioskFormDesignWidth),
+                      constraints: BoxConstraints(maxWidth: formWidth),
                       child: Padding(
                         padding:
                             EdgeInsets.fromLTRB(40 * s, 64 * s, 40 * s, 56 * s),

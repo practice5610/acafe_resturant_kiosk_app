@@ -491,32 +491,35 @@ class _SuccessMetrics {
   });
 
   factory _SuccessMetrics.resolve(double width, double height) {
-    final double s = KioskResponsive.scale(width);
-    final double logoWidth = math.min(681 * s, width * 0.42);
+    // One bounded scale for the whole composition. Per-element ceilings used
+    // to bottom out on different clamps and pull the layout out of proportion.
+    final double s = math
+        .min(KioskResponsive.scale(width), height / 1920)
+        .clamp(KioskResponsive.minScale, 1.0);
+    final double logoWidth = 681 * s;
     final double logoHeight = logoWidth * (179 / 681);
-    final double checkWidth = math.min(420 * s, width * 0.28);
-    // ViewBox 60.495 × 50.
+    final double checkWidth = 420 * s;
     final double checkHeight = checkWidth * (50 / 60.495);
 
     return _SuccessMetrics(
       s: s,
-      logoTop: math.max(12.0, math.min(200 * s, height * 0.08)),
+      logoTop: 200 * s,
       logoWidth: logoWidth,
       logoHeight: logoHeight,
       checkWidth: checkWidth,
       checkHeight: checkHeight,
-      checkGap: (48 * s).clamp(16.0, 48.0),
-      confirmedSize: (120 * s).clamp(26.0, 120.0),
-      sidePad: (86 * s).clamp(24.0, 86.0),
-      numberCardWidth: math.min(1400 * s, width - 48),
-      numberPadH: (80 * s).clamp(24.0, 80.0),
-      numberPadV: (56 * s).clamp(18.0, 56.0),
-      numberRadius: (24 * s).clamp(10.0, 24.0),
-      numberSize: (180 * s).clamp(36.0, 180.0),
-      thanksGap: (40 * s).clamp(14.0, 40.0),
-      thanksSize: (72 * s).clamp(20.0, 72.0),
-      pickupGap: (20 * s).clamp(8.0, 20.0),
-      pickupSize: (36 * s).clamp(14.0, 36.0),
+      checkGap: 48 * s,
+      confirmedSize: 120 * s,
+      sidePad: 86 * s,
+      numberCardWidth: math.min(1400 * s, math.max(0, width - 48)),
+      numberPadH: 80 * s,
+      numberPadV: 56 * s,
+      numberRadius: 24 * s,
+      numberSize: 180 * s,
+      thanksGap: 40 * s,
+      thanksSize: 72 * s,
+      pickupGap: 20 * s,
+      pickupSize: 36 * s,
     );
   }
 }

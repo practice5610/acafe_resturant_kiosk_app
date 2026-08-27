@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/widgets/custom_text_field_widget.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
@@ -67,7 +68,10 @@ class _SearchScreenState extends State<SearchScreen> {
       backgroundColor: KioskSearchTheme.pageBg,
       // Kiosk always uses the kiosk search header, even on large screens.
       appBar: AppBar(
-        toolbarHeight: 88,
+        toolbarHeight: (88 *
+                KioskResponsive.scale(MediaQuery.sizeOf(context).width) /
+                KioskResponsive.scale(1080))
+            .clamp(72.0, 160.0),
         leadingWidth: 0,
         backgroundColor: KioskSearchTheme.pageBg,
         surfaceTintColor: Colors.transparent,

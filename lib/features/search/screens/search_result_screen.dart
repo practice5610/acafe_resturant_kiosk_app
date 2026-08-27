@@ -10,7 +10,7 @@ import 'package:acafe_customer/features/category/providers/category_provider.dar
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
-import 'package:acafe_customer/common/responsive/responsive.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_bottom_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -229,25 +229,6 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
 
                   searchProvider.searchProductModel == null ? LayoutBuilder(
                     builder: (context, constraints) {
-                      if (Responsive.isWide(context)) {
-                        return GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: KioskUI.productCardMaxWidth,
-                            childAspectRatio: 0.72,
-                            crossAxisSpacing: 24,
-                            mainAxisSpacing: 24,
-                          ),
-                          itemCount: 6,
-                          itemBuilder: (_, __) => SizedBox(
-                            height: 200,
-                            child: CustomImageWidget.shimmerBox(),
-                          ),
-                          padding: EdgeInsets.zero,
-                        );
-                      }
                       final geo = _KioskResultGrid.geometryFor(constraints.maxWidth);
                       return GridView.builder(
                         shrinkWrap: true,
@@ -275,26 +256,6 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
                       offset: searchProvider.searchProductModel?.offset,
                       builder: (_)=> LayoutBuilder(
                         builder: (context, constraints) {
-                          if (Responsive.isWide(context)) {
-                            return GridView.builder(
-                              padding: EdgeInsets.zero,
-                              gridDelegate:
-                                  const SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: KioskUI.productCardMaxWidth,
-                                childAspectRatio: 0.72,
-                                crossAxisSpacing: 24,
-                                mainAxisSpacing: 24,
-                              ),
-                              itemCount: searchProvider
-                                  .searchProductModel?.products?.length,
-                              physics: const NeverScrollableScrollPhysics(),
-                              shrinkWrap: true,
-                              itemBuilder: (context, index) => KioskProductCard(
-                                product: searchProvider
-                                    .searchProductModel!.products![index],
-                              ),
-                            );
-                          }
                           final geo = _KioskResultGrid.geometryFor(constraints.maxWidth);
                           return GridView.builder(
                             padding: EdgeInsets.zero,
@@ -351,20 +312,16 @@ class _KioskResultGrid {
   const _KioskResultGrid(this.columns, this.gap, this.tileWidth, this.tileHeight);
 
   static _KioskResultGrid geometryFor(double width) {
-    int columns;
-    if (width < 900) {
-      columns = 3;
-    } else if (width < 1400) {
-      columns = 4;
-    } else if (width < 1900) {
-      columns = 5;
-    } else {
-      columns = 6;
-    }
-    const double gap = Dimensions.paddingSizeDefault;
-    final double tileWidth = (width - gap * (columns - 1)) / columns;
-    final double tileHeight = tileWidth / 0.72 + tileWidth * 0.34;
-    return _KioskResultGrid(columns, gap, tileWidth, tileHeight);
+    final resolved = KioskProductGridGeometry.resolve(
+      areaWidth: width,
+      gap: Dimensions.paddingSizeDefault,
+    );
+    return _KioskResultGrid(
+      resolved.columns,
+      resolved.gap,
+      resolved.tileWidth,
+      resolved.tileHeight,
+    );
   }
 }
 
