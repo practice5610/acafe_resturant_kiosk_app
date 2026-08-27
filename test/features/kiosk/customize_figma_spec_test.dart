@@ -194,11 +194,10 @@ void main() {
         () {
       expect(source, contains('_choiceTileWidth('));
       expect(source, contains('KioskResponsive.compactMax'));
-      expect(source, contains('choiceTypeScale'));
+      expect(source, contains('_choiceLabelSize('));
       expect(KioskCustomizeSpec.choiceCardWidth, 320);
       expect(KioskCustomizeSpec.choiceCardHeight, 340);
       expect(KioskCustomizeSpec.choiceCardMaxEdgeCompact, 96);
-      expect(KioskCustomizeSpec.choiceTypeScale, 0.72);
       expect(KioskCustomizeSpec.choiceCardMaxEdgeCompact,
           lessThan(KioskCustomizeSpec.choiceCardWidth));
       expect(KioskCustomizeSpec.choiceCardWidth,

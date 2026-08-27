@@ -157,6 +157,29 @@ String _choiceImageUrl({
   );
 }
 
+/// Same type token as a kiosk menu product name (`45px` on a `564px` tile).
+/// Sized from THIS choice card so SMALL / ADDON1 decrease with the tile,
+/// and never larger than Espresso on the same window.
+double _choiceLabelSize(BuildContext context, double cardWidth) {
+  final double menu = _menuProductNameSize(context);
+  final double fromCard = 45 * (cardWidth / 564.0);
+  return math.min(menu, math.max(11, fromCard));
+}
+
+/// Pixel size of a product name on the kiosk menu grid (`45 * tile/564`).
+double _menuProductNameSize(BuildContext context) {
+  final Size size = MediaQuery.sizeOf(context);
+  final double s = KioskResponsive.scale(size.width, size.height);
+  final rail = kioskCategoryRailLayout(scale: s, innerWidth: size.width);
+  final double areaWidth = math.max(1, size.width - rail.width - rail.gap);
+  final geo = KioskProductGridGeometry.resolve(
+    areaWidth: areaWidth,
+    gap: 41 * s,
+    landscape: size.width > size.height,
+  );
+  return 45 * (geo.tileWidth / 564.0);
+}
+
 /// Two lines of label is what a real product name needs — Figma's own
 /// "SUGAR FREE CARAMEL SYRUP" already wraps — and a little more than the exact
 /// line box, so a font that rounds up a fraction of a pixel cannot overflow a
@@ -1608,15 +1631,14 @@ class _DietaryCard extends StatelessWidget {
         // Nothing to tuck the radio over, so the label starts below it.
         : KioskCustomizeSpec.optionRadioInset * 2 +
             KioskCustomizeSpec.optionRadio;
+    final double nameSize = _choiceLabelSize(context, width);
     final Widget label = Text(
       name.toUpperCase(),
       textAlign: TextAlign.center,
       maxLines: _kCardLabelLines,
       overflow: TextOverflow.ellipsis,
       style: loewMedium.copyWith(
-        fontSize: KioskCustomizeSpec.optionLabelSize *
-            k *
-            KioskCustomizeSpec.choiceTypeScale,
+        fontSize: nameSize,
         height: 1.15,
         color: Colors.black,
       ),
@@ -1627,9 +1649,7 @@ class _DietaryCard extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: swiss721Light.copyWith(
-        fontSize: KioskCustomizeSpec.optionPriceSize *
-            k *
-            KioskCustomizeSpec.choiceTypeScale,
+        fontSize: nameSize * (42 / 45),
         height: 1.0,
         color: Colors.black,
       ),
@@ -2026,10 +2046,9 @@ class _AddOnCard extends StatelessWidget {
     // inline above it (`card-vanilla-syrup/Selected`).
     final bool priceOnTop = selected && !showQuantity && priceLabel.isNotEmpty;
 
+    final double nameSize = _choiceLabelSize(context, width);
     final TextStyle priceStyle = swiss721Light.copyWith(
-      fontSize: KioskCustomizeSpec.addOnPriceSize *
-          k *
-          KioskCustomizeSpec.choiceTypeScale,
+      fontSize: nameSize * (42 / 45),
       height: 1.2,
       color: Colors.black,
     );
@@ -2039,9 +2058,7 @@ class _AddOnCard extends StatelessWidget {
       maxLines: _kCardLabelLines,
       overflow: TextOverflow.ellipsis,
       style: loewMedium.copyWith(
-        fontSize: KioskCustomizeSpec.addOnNameSize *
-            k *
-            KioskCustomizeSpec.choiceTypeScale,
+        fontSize: nameSize,
         height: 1.2,
         color: Colors.black,
       ),
