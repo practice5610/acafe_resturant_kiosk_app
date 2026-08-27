@@ -29,7 +29,7 @@ bool _goRouterCanPop(BuildContext context) {
   }
 }
 
-double checkoutScale(double w) => KioskResponsive.scale(w);
+double checkoutScale(double w, [double? h]) => KioskResponsive.scale(w, h);
 
 /// Form screens (login, language picker) cap content at [kKioskFormDesignWidth].
 double kioskFormScale(double screenWidth) =>
@@ -206,7 +206,8 @@ class KioskCheckoutScaffold extends StatelessWidget {
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final double s = checkoutScale(constraints.maxWidth);
+              final double s = KioskMetrics.maybeOf(context)?.scale ??
+                  checkoutScale(constraints.maxWidth, constraints.maxHeight);
               final bool landscape =
                   constraints.maxWidth > constraints.maxHeight;
               final double columnMax = landscape

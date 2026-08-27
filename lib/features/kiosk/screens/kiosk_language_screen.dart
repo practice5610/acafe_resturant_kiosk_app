@@ -74,6 +74,8 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final bool landscape =
+                constraints.maxWidth > constraints.maxHeight;
             final double formWidth =
                 KioskResponsive.formContentWidth(constraints.maxWidth);
             final double s = kioskFormScale(constraints.maxWidth);
@@ -131,7 +133,32 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                     ),
                     SizedBox(height: 32 * s),
                     Expanded(
-                      child: ListView.separated(
+                      child: landscape
+                          ? GridView.builder(
+                              padding:
+                                  EdgeInsets.fromLTRB(side, 0, side, 24 * s),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 16 * s,
+                                mainAxisSpacing: 16 * s,
+                                mainAxisExtent: 108 * s,
+                              ),
+                              itemCount: AppConstants.languages.length,
+                              itemBuilder: (context, index) {
+                                final language =
+                                    AppConstants.languages[index];
+                                return KioskSelectableRow(
+                                  s: s,
+                                  label: language.languageName ?? '',
+                                  leadingAsset: language.imageUrl,
+                                  selected: _selectedIndex == index,
+                                  onTap: () =>
+                                      setState(() => _selectedIndex = index),
+                                );
+                              },
+                            )
+                          : ListView.separated(
                         padding: EdgeInsets.fromLTRB(side, 0, side, 24 * s),
                         itemCount: AppConstants.languages.length,
                         separatorBuilder: (_, __) => SizedBox(height: 16 * s),

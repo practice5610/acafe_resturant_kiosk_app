@@ -141,7 +141,8 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double s = checkoutScale(constraints.maxWidth);
+            final double s = KioskMetrics.maybeOf(context)?.scale ??
+                checkoutScale(constraints.maxWidth, constraints.maxHeight);
             final bool landscape =
                 constraints.maxWidth > constraints.maxHeight;
             return Consumer2<CartProvider, CouponProvider>(

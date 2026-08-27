@@ -56,10 +56,25 @@ class KioskResponsive {
   static const int minProductColumns = 3;
   static const int maxProductColumns = 6;
 
+  /// Figma artboard height of a 16:9 landscape panel at `s = 1.0` (3840×2160
+  /// with the 2572 cap). Portrait ignores this and stays width-only so the
+  /// 1080×1920 kiosk is unchanged.
+  static const double landscapeDesignHeight = 2160;
+
   /// Figma artboard px → logical px for a screen/area of the given [width]
   /// (clamped). This is the one true scale function for the kiosk flow.
-  static double scale(double width) =>
-      (width / designWidth).clamp(minScale, maxScale);
+  ///
+  /// In portrait, only [width] matters — matching `s = width / 2572`.
+  /// In landscape, [height] also participates: a 14" MacBook is wide enough
+  /// that width-only scale inflates the header and cart bar until the product
+  /// grid is clipped. Fit is `min(width/2572, height/2160)`.
+  static double scale(double width, [double? height]) {
+    final double byWidth = (width / designWidth).clamp(minScale, maxScale);
+    if (height == null || height >= width) return byWidth;
+    final double byHeight =
+        (height / landscapeDesignHeight).clamp(minScale, maxScale);
+    return math.min(byWidth, byHeight);
+  }
 
   /// Width of the form column for a window of [width]. Unchanged at/below
   /// [formGrowFrom] (so the 1080 production kiosk stays a 1000px column at
@@ -138,7 +153,7 @@ class KioskMetrics {
       band = KioskBand.large;
     }
     return KioskMetrics(
-      scale: KioskResponsive.scale(contentWidth),
+      scale: KioskResponsive.scale(contentWidth, window.height),
       orientation: orientation,
       band: band,
       contentWidth: contentWidth,
@@ -236,6 +251,7 @@ class KioskProductGridGeometry {
   factory KioskProductGridGeometry.resolve({
     required double areaWidth,
     required double gap,
+    bool landscape = false,
     double minCard = KioskResponsive.minProductCard,
     int minColumns = KioskResponsive.minProductColumns,
     int maxColumns = KioskResponsive.maxProductColumns,
@@ -249,8 +265,10 @@ class KioskProductGridGeometry {
     );
     final double tileWidth =
         columns <= 0 ? areaWidth : (areaWidth - gap * (columns - 1)) / columns;
-    final double imageHeight = tileWidth / 0.72;
-    final double textBlockHeight = tileWidth * 0.34;
+    // Portrait Figma: image is taller than wide (width/height = 0.72).
+    // Landscape: square image so a row of cards fits a 16:9 window.
+    final double imageHeight = landscape ? tileWidth : tileWidth / 0.72;
+    final double textBlockHeight = landscape ? tileWidth * 0.28 : tileWidth * 0.34;
     return KioskProductGridGeometry(
       columns: columns,
       gap: gap,

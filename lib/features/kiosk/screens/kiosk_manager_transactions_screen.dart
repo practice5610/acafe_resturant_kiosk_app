@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -56,7 +57,7 @@ class _KioskManagerTransactionsScreenState
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double s = KioskResponsive.scale(constraints.maxWidth);
+            final double s = KioskLayout.scaleOf(context, constraints);
             return KioskCenteredContent(
               child: Column(
                 children: [

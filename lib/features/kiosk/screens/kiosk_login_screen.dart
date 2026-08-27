@@ -85,98 +85,144 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
 
             return Consumer<KioskAuthProvider>(
               builder: (context, provider, _) {
+                final bool landscape =
+                    constraints.maxWidth > constraints.maxHeight;
+                final Widget brand = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'A/CAFÉ',
+                      textAlign: TextAlign.center,
+                      style: loewExtraBold.copyWith(
+                          fontSize: 64 * s,
+                          letterSpacing: 3 * s,
+                          color: Colors.black),
+                    ),
+                    SizedBox(height: 14 * s),
+                    Text(
+                      'Device login',
+                      textAlign: TextAlign.center,
+                      style: loewMedium.copyWith(
+                          fontSize: 26 * s, color: Colors.black),
+                    ),
+                    SizedBox(height: 8 * s),
+                    Opacity(
+                      opacity: 0.6,
+                      child: Text(
+                        'Sign in once to bind this kiosk to its branch.',
+                        textAlign: TextAlign.center,
+                        style: loewRegular.copyWith(
+                            fontSize: 18 * s,
+                            height: 1.3,
+                            color: Colors.black),
+                      ),
+                    ),
+                  ],
+                );
+                final Widget fields = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _LoginField(
+                      s: s,
+                      label: 'USERNAME',
+                      hint: 'Enter username',
+                      icon: Icons.person_outline,
+                      controller: _usernameController,
+                      focusNode: _usernameFocus,
+                      errorText: _usernameError,
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) {
+                        if (_usernameError != null) {
+                          setState(() => _usernameError = null);
+                        }
+                      },
+                      onSubmitted: (_) => _passwordFocus.requestFocus(),
+                    ),
+                    SizedBox(height: 26 * s),
+                    _LoginField(
+                      s: s,
+                      label: 'PASSWORD',
+                      hint: '••••••••',
+                      icon: Icons.lock_outline,
+                      controller: _passwordController,
+                      focusNode: _passwordFocus,
+                      errorText: _passwordError,
+                      obscureText: _obscure,
+                      textInputAction: TextInputAction.done,
+                      suffix: IconButton(
+                        icon: Icon(
+                          _obscure
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.black54,
+                          size: 26 * s,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscure = !_obscure),
+                      ),
+                      onChanged: (_) {
+                        if (_passwordError != null) {
+                          setState(() => _passwordError = null);
+                        }
+                      },
+                      onSubmitted: (_) => _submit(),
+                    ),
+                    if (provider.loginError.isNotEmpty) ...[
+                      SizedBox(height: 24 * s),
+                      _ErrorBanner(s: s, message: provider.loginError),
+                    ],
+                    SizedBox(height: 40 * s),
+                    KioskPrimaryButton(
+                      s: s,
+                      label: 'LOGIN',
+                      loading: provider.isLoading,
+                      onTap: _submit,
+                    ),
+                  ],
+                );
+
+                if (landscape) {
+                  return Padding(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 40 * s, vertical: 24 * s),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: (formWidth * 1.85)
+                              .clamp(formWidth, constraints.maxWidth * 0.94),
+                          minHeight: constraints.maxHeight - 48 * s,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(flex: 4, child: brand),
+                            SizedBox(width: 48 * s),
+                            Expanded(
+                              flex: 5,
+                              child: SingleChildScrollView(child: fields),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
                 return SingleChildScrollView(
                   child: Center(
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: formWidth),
                       child: Padding(
-                        padding:
-                            EdgeInsets.fromLTRB(40 * s, 64 * s, 40 * s, 56 * s),
+                        padding: EdgeInsets.fromLTRB(
+                            40 * s, 64 * s, 40 * s, 56 * s),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              'A/CAFÉ',
-                              textAlign: TextAlign.center,
-                              style: loewExtraBold.copyWith(
-                                  fontSize: 64 * s,
-                                  letterSpacing: 3 * s,
-                                  color: Colors.black),
-                            ),
-                            SizedBox(height: 14 * s),
-                            Text(
-                              'Device login',
-                              textAlign: TextAlign.center,
-                              style: loewMedium.copyWith(
-                                  fontSize: 26 * s, color: Colors.black),
-                            ),
-                            SizedBox(height: 8 * s),
-                            Opacity(
-                              opacity: 0.6,
-                              child: Text(
-                                'Sign in once to bind this kiosk to its branch.',
-                                textAlign: TextAlign.center,
-                                style: loewRegular.copyWith(
-                                    fontSize: 18 * s,
-                                    height: 1.3,
-                                    color: Colors.black),
-                              ),
-                            ),
+                            brand,
                             SizedBox(height: 56 * s),
-                            _LoginField(
-                              s: s,
-                              label: 'USERNAME',
-                              hint: 'Enter username',
-                              icon: Icons.person_outline,
-                              controller: _usernameController,
-                              focusNode: _usernameFocus,
-                              errorText: _usernameError,
-                              textInputAction: TextInputAction.next,
-                              onChanged: (_) {
-                                if (_usernameError != null)
-                                  setState(() => _usernameError = null);
-                              },
-                              onSubmitted: (_) => _passwordFocus.requestFocus(),
-                            ),
-                            SizedBox(height: 26 * s),
-                            _LoginField(
-                              s: s,
-                              label: 'PASSWORD',
-                              hint: '••••••••',
-                              icon: Icons.lock_outline,
-                              controller: _passwordController,
-                              focusNode: _passwordFocus,
-                              errorText: _passwordError,
-                              obscureText: _obscure,
-                              textInputAction: TextInputAction.done,
-                              suffix: IconButton(
-                                icon: Icon(
-                                  _obscure
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                  color: Colors.black54,
-                                  size: 26 * s,
-                                ),
-                                onPressed: () =>
-                                    setState(() => _obscure = !_obscure),
-                              ),
-                              onChanged: (_) {
-                                if (_passwordError != null)
-                                  setState(() => _passwordError = null);
-                              },
-                              onSubmitted: (_) => _submit(),
-                            ),
-                            if (provider.loginError.isNotEmpty) ...[
-                              SizedBox(height: 24 * s),
-                              _ErrorBanner(s: s, message: provider.loginError),
-                            ],
-                            SizedBox(height: 40 * s),
-                            KioskPrimaryButton(
-                              s: s,
-                              label: 'LOGIN',
-                              loading: provider.isLoading,
-                              onTap: _submit,
-                            ),
+                            fields,
                           ],
                         ),
                       ),

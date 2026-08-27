@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -115,7 +116,7 @@ class _KioskManagerStockScreenState extends State<KioskManagerStockScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double s = KioskResponsive.scale(constraints.maxWidth);
+            final double s = KioskLayout.scaleOf(context, constraints);
             final double contentWidth =
                 constraints.maxWidth.clamp(0.0, KioskResponsive.designWidth);
             final int columns = (contentWidth - 264 * s) > 900 * s ? 2 : 1;

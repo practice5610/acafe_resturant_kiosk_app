@@ -1,3 +1,4 @@
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/responsive/kiosk_shell.dart';
 import 'package:acafe_customer/common/responsive/responsive.dart';
@@ -65,6 +66,15 @@ void main() {
       expect(m.contentWidth, 3840);
       expect(m.fullBleed, isTrue);
     });
+
+    test('a landscape laptop is height-limited so chrome is not zoomed', () {
+      // 14" MacBook-class window: wide enough that width-only scale (1440/2572)
+      // inflates the header and cart bar until the product grid is clipped.
+      final m = KioskMetrics.resolve(const Size(1440, 900));
+      expect(m.isLandscape, isTrue);
+      expect(m.scale, closeTo(900 / KioskResponsive.landscapeDesignHeight, 0.0001));
+      expect(m.scale, lessThan(1440 / KioskResponsive.designWidth));
+    });
   });
 
   group('scale at 1080 is unchanged', () {
@@ -122,6 +132,21 @@ void main() {
         expect(used, closeTo(area, 0.5), reason: 'row does not fill at $screen');
       }
     });
+
+    test('landscape cards use a square image so a 16:9 row still fits', () {
+      const area = 900.0;
+      const gap = 16.0;
+      final portrait =
+          KioskProductGridGeometry.resolve(areaWidth: area, gap: gap);
+      final landscape = KioskProductGridGeometry.resolve(
+        areaWidth: area,
+        gap: gap,
+        landscape: true,
+      );
+      expect(landscape.tileHeight, lessThan(portrait.tileHeight));
+      expect(landscape.imageHeight, closeTo(landscape.tileWidth, 0.01));
+      expect(portrait.imageHeight, closeTo(portrait.tileWidth / 0.72, 0.01));
+    });
   });
 
   group('orientation, not a 1100px seam', () {
@@ -155,6 +180,46 @@ void main() {
         ),
       );
       expect(wide, isTrue);
+    });
+  });
+
+  group('KioskLayout reads metrics from the shell', () {
+    testWidgets('portrait 1080 matches the artboard scale', (tester) async {
+      late double scale;
+      late bool landscape;
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(size: Size(1080, 1920)),
+          child: KioskShell(
+            child: Builder(builder: (context) {
+              scale = KioskLayout.scaleOf(context);
+              landscape = KioskLayout.isLandscape(context);
+              return const SizedBox();
+            }),
+          ),
+        ),
+      );
+      expect(scale, closeTo(1080 / 2572, 0.0001));
+      expect(landscape, isFalse);
+    });
+
+    testWidgets('landscape 1920×1080 is height-limited', (tester) async {
+      late double scale;
+      late bool landscape;
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(size: Size(1920, 1080)),
+          child: KioskShell(
+            child: Builder(builder: (context) {
+              scale = KioskLayout.scaleOf(context);
+              landscape = KioskLayout.isLandscape(context);
+              return const SizedBox();
+            }),
+          ),
+        ),
+      );
+      expect(landscape, isTrue);
+      expect(scale, closeTo(1080 / KioskResponsive.landscapeDesignHeight, 0.0001));
     });
   });
 

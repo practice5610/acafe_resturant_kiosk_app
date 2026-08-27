@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
@@ -164,7 +165,7 @@ class _KioskAddedToCartScreenState extends State<KioskAddedToCartScreen>
           onTap: _leave,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final double s = KioskResponsive.scale(constraints.maxWidth);
+              final double s = KioskLayout.scaleOf(context, constraints);
               // One scale for the hero box so the 453×731 artboard aspect is
               // preserved. Independent clamps on width and height used to
               // squash the photo on short viewports (0.62 design → 0.88 clamp).

@@ -33,7 +33,9 @@ class KioskCartScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double s = KioskResponsive.scale(constraints.maxWidth);
+            final double s = KioskMetrics.maybeOf(context)?.scale ??
+                KioskResponsive.scale(
+                    constraints.maxWidth, constraints.maxHeight);
             final bool landscape =
                 constraints.maxWidth > constraints.maxHeight;
             return Consumer2<CartProvider, CouponProvider>(

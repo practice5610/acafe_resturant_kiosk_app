@@ -174,43 +174,66 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // Every measurement below is derived from the space actually
-                // available, so the keyboard fits exactly on a portrait kiosk,
-                // a tablet and a resized browser window alike.
+                final bool landscape =
+                    constraints.maxWidth > constraints.maxHeight;
                 final double width = constraints.maxWidth;
                 final double gutter = (width * 0.035).clamp(10.0, 28.0);
-                final double cardWidth =
-                    (width - gutter * 2).clamp(280.0, 900.0);
+                final double cardWidth = landscape
+                    ? (width * 0.42).clamp(280.0, 720.0)
+                    : (width - gutter * 2).clamp(280.0, 900.0);
+
+                final Widget noteCard = Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: gutter, vertical: gutter),
+                    child: GestureDetector(
+                      onTap: () {}, // absorb taps inside the card
+                      child: _NoteCard(
+                        width: cardWidth,
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        onBack: _cancel,
+                      ),
+                    ),
+                  ),
+                );
+
+                final Widget keyboard = _KeyboardPanel(
+                  width: landscape ? width * 0.52 : width,
+                  shift: _shift,
+                  onLetter: _onLetter,
+                  onShift: () => setState(() => _shift = !_shift),
+                  onBackspace: _onBackspace,
+                  onSpace: () => _insert(' '),
+                  onClear: _onClear,
+                  onContinue: _save,
+                );
+
+                if (landscape) {
+                  return Padding(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: gutter, vertical: gutter),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(flex: 5, child: noteCard),
+                        SizedBox(width: gutter),
+                        Expanded(
+                          flex: 6,
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            child: SingleChildScrollView(child: keyboard),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
                 return Column(
                   children: [
-                    Expanded(
-                      child: Center(
-                        child: SingleChildScrollView(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: gutter, vertical: gutter),
-                          child: GestureDetector(
-                            onTap: () {}, // absorb taps inside the card
-                            child: _NoteCard(
-                              width: cardWidth,
-                              controller: _controller,
-                              focusNode: _focusNode,
-                              onBack: _cancel,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    _KeyboardPanel(
-                      width: width,
-                      shift: _shift,
-                      onLetter: _onLetter,
-                      onShift: () => setState(() => _shift = !_shift),
-                      onBackspace: _onBackspace,
-                      onSpace: () => _insert(' '),
-                      onClear: _onClear,
-                      onContinue: _save,
-                    ),
+                    Expanded(child: noteCard),
+                    keyboard,
                   ],
                 );
               },

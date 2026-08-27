@@ -243,10 +243,11 @@ void _sheetSizeTests() {
     expect(g.visibleCount(2), 2);
   });
 
-  test('cards stayed at the Figma proportion after the sheet shrank', () {
-    for (final w in [581.0, 768.0, 1080.0, 1920.0]) {
-      final g = m(w);
-      expect(g.tile / g.sheetWidth, closeTo(0.267, 0.012), reason: 'viewport ${w}px');
-    }
+  test('landscape wide sheets use four columns and still fit', () {
+    final m = KioskUpsellGridMetrics.forWidth(1920, viewportHeight: 1080);
+    expect(m.columns, 4);
+    expect(m.fits, isTrue);
+    expect(m.visibleCount(6), 4);
+    expect(m.visibleCount(8), 8);
   });
 }

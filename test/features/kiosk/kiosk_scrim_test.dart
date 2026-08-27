@@ -37,7 +37,7 @@ void main() {
         animation: kAlwaysCompleteAnimation);
     final small = sigmaOf(tester);
 
-    await pumpAt(tester, const Size(2572, 1920),
+    await pumpAt(tester, const Size(2572, 3840),
         animation: kAlwaysCompleteAnimation);
     final full = sigmaOf(tester);
 
@@ -56,7 +56,7 @@ void main() {
     );
     addTearDown(controller.dispose);
 
-    await pumpAt(tester, const Size(2572, 1920), animation: controller);
+    await pumpAt(tester, const Size(2572, 3840), animation: controller);
     final atStart = sigmaOf(tester);
 
     controller.value = 1.0;

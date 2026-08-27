@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/common/widgets/custom_text_field_widget.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -64,14 +65,17 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final double s = KioskLayout.scaleOf(context);
+    final bool landscape = KioskLayout.isLandscape(context);
+    final double toolbar = ((landscape ? 72 : 88) *
+            s /
+            KioskResponsive.scale(1080))
+        .clamp(landscape ? 56.0 : 72.0, landscape ? 96.0 : 160.0);
     return Scaffold(
       backgroundColor: KioskSearchTheme.pageBg,
       // Kiosk always uses the kiosk search header, even on large screens.
       appBar: AppBar(
-        toolbarHeight: (88 *
-                KioskResponsive.scale(MediaQuery.sizeOf(context).width) /
-                KioskResponsive.scale(1080))
-            .clamp(72.0, 160.0),
+        toolbarHeight: toolbar,
         leadingWidth: 0,
         backgroundColor: KioskSearchTheme.pageBg,
         surfaceTintColor: Colors.transparent,
@@ -129,12 +133,19 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
 
-      body: SafeArea(child: SizedBox(
-        width: Dimensions.webScreenWidth,
-        child: _searchController.text.isNotEmpty
-            ? SearchSuggestionWidget(searchedText: _searchController.text)
-            :  const SearchRecommendedWidget(),
-      )),
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: KioskResponsive.designWidth,
+            ),
+            child: _searchController.text.isNotEmpty
+                ? SearchSuggestionWidget(searchedText: _searchController.text)
+                : const SearchRecommendedWidget(),
+          ),
+        ),
+      ),
     );
   }
 }

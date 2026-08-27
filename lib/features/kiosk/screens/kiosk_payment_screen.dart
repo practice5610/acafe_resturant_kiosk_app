@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -261,7 +261,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double s = KioskResponsive.scale(constraints.maxWidth);
+            final double s = KioskLayout.scaleOf(context, constraints);
             return Stack(
               children: [
                 Center(

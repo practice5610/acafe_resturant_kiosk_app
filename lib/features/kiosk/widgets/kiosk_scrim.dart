@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 
 /// The frosted scrim behind every kiosk modal.
 ///
@@ -49,8 +49,7 @@ class KioskScrim extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double s = KioskMetrics.maybeOf(context)?.scale ??
-        KioskResponsive.scale(MediaQuery.sizeOf(context).width);
+    final double s = KioskLayout.scaleOf(context);
     final double sigma = (_blurDesign * s).clamp(_blurMin, _blurDesign);
 
     return AnimatedBuilder(

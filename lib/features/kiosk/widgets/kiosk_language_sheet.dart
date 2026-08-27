@@ -1,6 +1,6 @@
 
 import 'package:acafe_customer/common/models/language_model.dart';
-import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
@@ -151,24 +151,31 @@ class _KioskLanguageSheetState extends State<KioskLanguageSheet> {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // The kiosk artboard scale every other kiosk screen uses, so
-                // the card holds the design's 81%-of-screen footprint instead
-                // of being sized as an arbitrary fraction of the window.
-                final double s = KioskResponsive.scale(constraints.maxWidth);
+                final double s = KioskLayout.scaleOf(context, constraints);
+                final bool landscape =
+                    KioskLayout.isLandscape(context, constraints);
                 return SingleChildScrollView(
                   child: Padding(
-                    // Top-anchored, per the design.
-                    padding: EdgeInsets.only(top: _kCardTopMargin * s),
+                    padding: EdgeInsets.only(
+                        top: (landscape ? 24 : _kCardTopMargin) * s),
                     child: Align(
-                      alignment: Alignment.topCenter,
+                      alignment: landscape
+                          ? Alignment.center
+                          : Alignment.topCenter,
                       child: GestureDetector(
                         onTap: () {}, // absorb taps inside the card
-                        child: KioskLanguageCard(
-                          s: s,
-                          current: current,
-                          saving: _saving,
-                          onSelect: _select,
-                          onClose: () => Navigator.of(context).pop(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: constraints.maxWidth *
+                                (landscape ? 0.58 : 0.92),
+                          ),
+                          child: KioskLanguageCard(
+                            s: s,
+                            current: current,
+                            saving: _saving,
+                            onSelect: _select,
+                            onClose: () => Navigator.of(context).pop(),
+                          ),
                         ),
                       ),
                     ),
@@ -205,8 +212,13 @@ class KioskLanguageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: _kCardWidth * s,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double maxW = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : _kCardWidth * s;
+        return Container(
+      width: (_kCardWidth * s).clamp(280.0, maxW),
       // Height is content-driven rather than the Figma frame's fixed 1356: that
       // frame reserves scroll room for a longer list, and pinning it here would
       // leave dead space under four rows.
@@ -281,6 +293,8 @@ class KioskLanguageCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+      },
     );
   }
 }

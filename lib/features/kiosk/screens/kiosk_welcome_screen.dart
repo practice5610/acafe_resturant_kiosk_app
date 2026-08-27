@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
@@ -103,13 +105,16 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   Widget build(BuildContext context) {
     final Size size =
         KioskMetrics.maybeOf(context)?.window ?? MediaQuery.sizeOf(context);
-    // Fluid fractions of the viewport, clamped so the attract loop is
-    // readable from across the room on a 4K panel and still fits a phone.
-    // No width seam — this is the one full-bleed screen, and a 28px prompt
-    // on a 3840px display is the thing a kiosk must never ship.
-    final double logoWidth = (size.width * 0.26).clamp(150.0, 980.0);
-    final double instructionFont = (size.width * 0.054).clamp(20.0, 220.0);
-    final double arrowSize = (size.height * 0.19).clamp(90.0, 520.0);
+    final bool landscape = size.width >= size.height;
+    // Landscape type is keyed to the shorter axis so the prompt does not
+    // explode across a wide panel. Portrait still follows width.
+    final double typeRef =
+        landscape ? math.min(size.width * 0.55, size.height) : size.width;
+    final double logoWidth = (typeRef * 0.26).clamp(150.0, 980.0);
+    final double instructionFont = (typeRef * 0.054).clamp(20.0, 220.0);
+    final double arrowSize = landscape
+        ? (size.height * 0.16).clamp(64.0, 280.0)
+        : (size.height * 0.19).clamp(90.0, 520.0);
 
     return Scaffold(
       backgroundColor: Colors.black,

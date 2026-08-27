@@ -1,10 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
-import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/dimensions.dart';
@@ -121,14 +121,26 @@ class _RecommendedCategoryWidget extends StatelessWidget {
       )),
       const SizedBox(height: Dimensions.paddingSizeDefault),
 
-      GridView.builder(
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final double w = constraints.maxWidth;
+          final bool landscape =
+              KioskLayout.isLandscape(context, constraints);
+          final int cols = w < 520
+              ? 3
+              : (landscape && w > 1100)
+                  ? 6
+                  : w > 900
+                      ? 5
+                      : 4;
+          return GridView.builder(
         primary: false,
         shrinkWrap: true,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: ResponsiveHelper.isDesktop(context) ? 5 : 4,
+          crossAxisCount: cols,
           mainAxisSpacing: Dimensions.paddingSizeExtraSmall,
           crossAxisSpacing: Dimensions.paddingSizeExtraSmall,
-          mainAxisExtent: 110,
+          mainAxisExtent: landscape ? 96 : 110,
         ),
         itemCount: searchProvider.searchRecommendModel?.categories.length,
         itemBuilder: (context, index) => KioskTap(
@@ -173,6 +185,8 @@ class _RecommendedCategoryWidget extends StatelessWidget {
             ]),
           ),
         ),
+          );
+        },
       ),
       const SizedBox(height: Dimensions.paddingSizeLarge),
 
@@ -203,12 +217,24 @@ class _RecommendedCategoryShimmerWidget extends StatelessWidget {
         ),
 
         // Shimmer for the grid items
-        GridView.builder(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final double w = constraints.maxWidth;
+            final bool landscape =
+                KioskLayout.isLandscape(context, constraints);
+            final int cols = w < 520
+                ? 3
+                : (landscape && w > 1100)
+                    ? 6
+                    : w > 900
+                        ? 5
+                        : 4;
+            return GridView.builder(
           primary: false,
           shrinkWrap: true,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: ResponsiveHelper.isDesktop(context) ? 5 : 4,
-            mainAxisExtent: 110,
+            crossAxisCount: cols,
+            mainAxisExtent: landscape ? 96 : 110,
             crossAxisSpacing: Dimensions.paddingSizeDefault,
             mainAxisSpacing: Dimensions.paddingSizeDefault,
           ),
@@ -246,6 +272,8 @@ class _RecommendedCategoryShimmerWidget extends StatelessWidget {
               ),
             ),
           ),
+            );
+          },
         ),
       ],
     );

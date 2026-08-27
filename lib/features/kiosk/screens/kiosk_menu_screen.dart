@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
@@ -35,11 +36,9 @@ import 'package:provider/provider.dart';
 //
 // RESPONSIVENESS MODEL: every size below is taken straight from the Figma
 // artboard (KioskResponsive.designWidth px wide) and scaled by
-// `s = KioskResponsive.scale(screenWidth)`. So the layout reproduces the design
-// pixel-for-pixel at the artboard width and scales uniformly (and clamped) for
-// any other screen — phone, tablet, or the real 55" 4K kiosk. Beyond the
-// artboard width the extra space is filled with MORE product columns instead of
-// bigger cards. See lib/common/responsive/kiosk_responsive.dart.
+// `s = KioskResponsive.scale(width, height)`. Portrait is width-only so the
+// 1080×1920 kiosk is a proportional photocopy. Landscape also fits height
+// (2160 artboard) so a laptop window does not inflate the header and cart bar.
 // ===========================================================================
 
 // Static promo/badge colours from the design (page background is KioskUI.pageBg).
@@ -210,17 +209,24 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double s = KioskResponsive.scale(constraints.maxWidth);
+            final double s = KioskLayout.scaleOf(context, constraints);
+            final bool landscape =
+                KioskLayout.isLandscape(context, constraints);
+            // Landscape has far less vertical room — tighten chrome so the
+            // product grid keeps the majority of the window. Portrait 1080
+            // stays on the Figma gaps (chrome = 1).
+            final double chrome = landscape ? 0.48 : 1.0;
             final double sideMargin = 85 * s; // Figma left/right page margin.
             return Column(
               children: [
-                _KioskTopBar(s: s, sideMargin: sideMargin),
-                SizedBox(height: 28 * s),
+                _KioskTopBar(
+                    s: s, sideMargin: sideMargin, landscape: landscape),
+                SizedBox(height: 28 * s * chrome),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: sideMargin),
                   child: Container(height: 3 * s, color: Colors.black),
                 ),
-                SizedBox(height: _kHeaderContentGap * s),
+                SizedBox(height: _kHeaderContentGap * s * chrome),
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: sideMargin),
@@ -250,9 +256,12 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                                     hPadding: 42 * s,
                                     hGap: 19.8 * s,
                                     vGap: 28 * s,
+                                    scrollInsteadOfWrap: landscape,
                                   ),
-                                  SizedBox(height: 61 * s),
-                                  Expanded(child: _ProductArea(s: s)),
+                                  SizedBox(height: 61 * s * chrome),
+                                  Expanded(
+                                      child: _ProductArea(
+                                          s: s, landscape: landscape)),
                                 ],
                               ),
                             ),
@@ -262,7 +271,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                     ),
                   ),
                 ),
-                _CartBar(s: s, sideMargin: sideMargin),
+                _CartBar(
+                    s: s, sideMargin: sideMargin, landscape: landscape),
               ],
             );
           },
@@ -277,12 +287,18 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
 class _KioskTopBar extends StatelessWidget {
   final double s;
   final double sideMargin;
-  const _KioskTopBar({required this.s, required this.sideMargin});
+  final bool landscape;
+  const _KioskTopBar({
+    required this.s,
+    required this.sideMargin,
+    this.landscape = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(sideMargin, 40 * s, sideMargin, 0),
+      padding: EdgeInsets.fromLTRB(
+          sideMargin, (landscape ? 16 : 40) * s, sideMargin, 0),
       child: Row(
         children: [
           // Left-aligned brand title (the A/CAFÉ brand, per the design).
@@ -397,6 +413,10 @@ class _FilterPillsRow extends StatefulWidget {
   final double hPadding;
   final double hGap;
   final double vGap;
+
+  /// Landscape laptops: keep one row and scroll sideways so the second pill
+  /// line does not steal product-grid height.
+  final bool scrollInsteadOfWrap;
   const _FilterPillsRow({
     required this.pillHeight,
     required this.fontSize,
@@ -404,6 +424,7 @@ class _FilterPillsRow extends StatefulWidget {
     required this.hPadding,
     required this.hGap,
     required this.vGap,
+    this.scrollInsteadOfWrap = false,
   });
 
   @override
@@ -415,6 +436,31 @@ class _FilterPillsRowState extends State<_FilterPillsRow> {
 
   @override
   Widget build(BuildContext context) {
+    final pills = <Widget>[
+      for (final label in [..._kFilterPillLabels, _kFilterPillSecondRowLabel])
+        _FilterPill(
+          label: label,
+          selected: _selected == label,
+          height: widget.pillHeight,
+          fontSize: widget.fontSize,
+          borderWidth: widget.borderWidth,
+          hPadding: widget.hPadding,
+          onTap: () => setState(() => _selected = label),
+        ),
+    ];
+
+    if (widget.scrollInsteadOfWrap) {
+      return SizedBox(
+        height: widget.pillHeight,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: pills.length,
+          separatorBuilder: (_, __) => SizedBox(width: widget.hGap),
+          itemBuilder: (_, i) => pills[i],
+        ),
+      );
+    }
+
     // Wrap (not a fixed Row) so pills reflow onto additional lines instead of
     // overflowing when the available width is narrower than the design's
     // 2414px artboard — CEROMONIAL lands on its own line at that width,
@@ -422,18 +468,7 @@ class _FilterPillsRowState extends State<_FilterPillsRow> {
     return Wrap(
       spacing: widget.hGap,
       runSpacing: widget.vGap,
-      children: [
-        for (final label in [..._kFilterPillLabels, _kFilterPillSecondRowLabel])
-          _FilterPill(
-            label: label,
-            selected: _selected == label,
-            height: widget.pillHeight,
-            fontSize: widget.fontSize,
-            borderWidth: widget.borderWidth,
-            hPadding: widget.hPadding,
-            onTap: () => setState(() => _selected = label),
-          ),
-      ],
+      children: pills,
     );
   }
 }
@@ -596,7 +631,8 @@ class _RailCard extends StatelessWidget {
 /// promo banner inserted after the first rows.
 class _ProductArea extends StatelessWidget {
   final double s;
-  const _ProductArea({required this.s});
+  final bool landscape;
+  const _ProductArea({required this.s, this.landscape = false});
 
   @override
   Widget build(BuildContext context) {
@@ -611,7 +647,7 @@ class _ProductArea extends StatelessWidget {
             : (category.categoryProductModel?.products ?? const []);
 
         return category.categoryProductModel == null && !filtersActive
-            ? _ProductGridSkeleton(s: s)
+            ? _ProductGridSkeleton(s: s, landscape: landscape)
             : products.isEmpty
                 ? Center(
                     child: Text(
@@ -620,7 +656,8 @@ class _ProductArea extends StatelessWidget {
                           fontSize: 32 * s, color: Theme.of(context).hintColor),
                     ),
                   )
-                : _ProductGrid(s: s, products: products);
+                : _ProductGrid(
+                    s: s, products: products, landscape: landscape);
       },
     );
   }
@@ -629,17 +666,23 @@ class _ProductArea extends StatelessWidget {
 class _ProductGrid extends StatelessWidget {
   final double s;
   final List<Product> products;
-  const _ProductGrid({required this.s, required this.products});
+  final bool landscape;
+  const _ProductGrid({
+    required this.s,
+    required this.products,
+    this.landscape = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final double colGap = 41 * s;
-        final double rowGap = 55 * s;
+        final double rowGap = (landscape ? 28 : 55) * s;
         final geo = KioskProductGridGeometry.resolve(
           areaWidth: constraints.maxWidth,
           gap: colGap,
+          landscape: landscape,
         );
         final int columns = geo.columns;
         final double tileWidth = geo.tileWidth;
@@ -719,17 +762,19 @@ class _Badge {
 /// skeleton → real products is a seamless in-place swap (no size jump).
 class _ProductGridSkeleton extends StatelessWidget {
   final double s;
-  const _ProductGridSkeleton({required this.s});
+  final bool landscape;
+  const _ProductGridSkeleton({required this.s, this.landscape = false});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final double colGap = 41 * s;
-        final double rowGap = 55 * s;
+        final double rowGap = (landscape ? 28 : 55) * s;
         final geo = KioskProductGridGeometry.resolve(
           areaWidth: constraints.maxWidth,
           gap: colGap,
+          landscape: landscape,
         );
         final int columns = geo.columns;
         final double tileWidth = geo.tileWidth;
@@ -994,7 +1039,12 @@ const Color _kCreamText = Color(0xFFFFFFFF);
 class _CartBar extends StatelessWidget {
   final double s;
   final double sideMargin;
-  const _CartBar({required this.s, required this.sideMargin});
+  final bool landscape;
+  const _CartBar({
+    required this.s,
+    required this.sideMargin,
+    this.landscape = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1005,11 +1055,21 @@ class _CartBar extends StatelessWidget {
         final int count = kioskCartItemCount(cartList);
 
         return Padding(
-          padding: EdgeInsets.fromLTRB(sideMargin, 20 * s, sideMargin, 30 * s),
+          padding: EdgeInsets.fromLTRB(
+            sideMargin,
+            (landscape ? 10 : 20) * s,
+            sideMargin,
+            (landscape ? 16 : 30) * s,
+          ),
           child: count == 0
-              ? _EmptyCartBar(s: s, total: total)
+              ? _EmptyCartBar(s: s, total: total, landscape: landscape)
               : _FilledCartBar(
-                  s: s, total: total, count: count, cartList: cartList),
+                  s: s,
+                  total: total,
+                  count: count,
+                  cartList: cartList,
+                  landscape: landscape,
+                ),
         );
       },
     );
@@ -1019,7 +1079,12 @@ class _CartBar extends StatelessWidget {
 class _EmptyCartBar extends StatelessWidget {
   final double s;
   final double total;
-  const _EmptyCartBar({required this.s, required this.total});
+  final bool landscape;
+  const _EmptyCartBar({
+    required this.s,
+    required this.total,
+    this.landscape = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1032,7 +1097,7 @@ class _EmptyCartBar extends StatelessWidget {
       child: KioskTap(
         onTap: () => openKioskCart(context),
         child: Container(
-          height: 200 * s,
+          height: (landscape ? 140 : 200) * s,
           padding: EdgeInsets.symmetric(horizontal: 100 * s),
           alignment: Alignment.centerLeft,
           child: Text(
@@ -1051,11 +1116,13 @@ class _FilledCartBar extends StatelessWidget {
   final double total;
   final int count;
   final List<CartModel?> cartList;
+  final bool landscape;
   const _FilledCartBar({
     required this.s,
     required this.total,
     required this.count,
     required this.cartList,
+    this.landscape = false,
   });
 
   @override
@@ -1065,7 +1132,7 @@ class _FilledCartBar extends StatelessWidget {
     // Figma gives each stacked button a 252px height; total = 2*252 + the
     // 20px gap between them, so each Expanded below resolves back to 252*s.
     return SizedBox(
-      height: 424 * s,
+      height: (landscape ? 260 : 424) * s,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

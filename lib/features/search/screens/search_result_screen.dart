@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/category/providers/category_provider.dar
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_bottom_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
@@ -105,6 +106,8 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
     // layout — even on large screens.
     const bool isDesktop = false;
 
+    final bool landscape = KioskLayout.isLandscape(context);
+    final double barHeight = landscape ? 88.0 : 100.0;
     double topPadding = MediaQuery.of(context).padding.top;
 
     return PopScope(
@@ -114,11 +117,11 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
       },
       child: Scaffold(
       backgroundColor: KioskSearchTheme.pageBg,
-      appBar: PreferredSize(preferredSize: const Size.fromHeight(100), child:
+      appBar: PreferredSize(preferredSize: Size.fromHeight(barHeight), child:
       Container(
         color: KioskSearchTheme.pageBg,
         padding : EdgeInsets.only(
-          top: topPadding < 20 ? 40  : 0,
+          top: landscape ? 8 : (topPadding < 20 ? 40 : 0),
           bottom: Dimensions.paddingSizeDefault,
           right: Dimensions.paddingSizeLarge,
           left: Dimensions.paddingSizeDefault,
@@ -168,8 +171,8 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
       )),
       body: CustomScrollView(controller: scrollController, slivers: [
 
-        SliverToBoxAdapter(child: Center(child: SizedBox(
-          width: Dimensions.webScreenWidth,
+        SliverToBoxAdapter(child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: KioskResponsive.designWidth),
           child: Consumer<SearchProvider>(
             builder: (context, searchProvider, child) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
@@ -184,7 +187,7 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
 
                   searchProvider.searchProductModel != null ? Center(
                     child: Container(
-                      width: Dimensions.webScreenWidth, padding: const EdgeInsets.only(
+                      padding: const EdgeInsets.only(
                       top: 0,
                       bottom: Dimensions.paddingSizeDefault,
                     ),
@@ -229,7 +232,10 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
 
                   searchProvider.searchProductModel == null ? LayoutBuilder(
                     builder: (context, constraints) {
-                      final geo = _KioskResultGrid.geometryFor(constraints.maxWidth);
+                      final geo = _KioskResultGrid.geometryFor(
+                        constraints.maxWidth,
+                        landscape: KioskLayout.isLandscape(context, constraints),
+                      );
                       return GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -256,7 +262,10 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
                       offset: searchProvider.searchProductModel?.offset,
                       builder: (_)=> LayoutBuilder(
                         builder: (context, constraints) {
-                          final geo = _KioskResultGrid.geometryFor(constraints.maxWidth);
+                          final geo = _KioskResultGrid.geometryFor(
+                        constraints.maxWidth,
+                        landscape: KioskLayout.isLandscape(context, constraints),
+                      );
                           return GridView.builder(
                             padding: EdgeInsets.zero,
                             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -311,10 +320,11 @@ class _KioskResultGrid {
   final double tileHeight;
   const _KioskResultGrid(this.columns, this.gap, this.tileWidth, this.tileHeight);
 
-  static _KioskResultGrid geometryFor(double width) {
+  static _KioskResultGrid geometryFor(double width, {bool landscape = false}) {
     final resolved = KioskProductGridGeometry.resolve(
       areaWidth: width,
       gap: Dimensions.paddingSizeDefault,
+      landscape: landscape,
     );
     return _KioskResultGrid(
       resolved.columns,

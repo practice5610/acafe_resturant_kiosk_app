@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -22,7 +23,9 @@ class KioskManagerDashboardScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double s = KioskResponsive.scale(constraints.maxWidth);
+            final double s = KioskLayout.scaleOf(context, constraints);
+            final bool landscape =
+                KioskLayout.isLandscape(context, constraints);
             return KioskCenteredContent(
               child: Column(
                 children: [
@@ -45,7 +48,8 @@ class KioskManagerDashboardScreen extends StatelessWidget {
                   ),
                   Padding(
                     padding: EdgeInsets.symmetric(
-                        horizontal: 132 * s, vertical: 40 * s),
+                        horizontal: 132 * s,
+                        vertical: (landscape ? 20 : 40) * s),
                     // IntrinsicHeight + stretch makes every tile match the
                     // tallest one's REAL rendered content height -- no
                     // guessed fixed height that can overflow if the copy

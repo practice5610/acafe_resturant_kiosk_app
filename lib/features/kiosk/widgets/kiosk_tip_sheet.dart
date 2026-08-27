@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_tip.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
@@ -197,68 +197,46 @@ class _TipGrid extends StatelessWidget {
     required this.onChoose,
   });
 
+  Widget _tile(int percent) {
+    return _TipTile(
+      percent: percent,
+      payableTotal: payableTotal,
+      selected: selected == percent,
+      size: metrics.tileSize,
+      radius: metrics.optionRadius,
+      percentSize: metrics.percentSize,
+      captionSize: metrics.captionSize,
+      onTap: () => onChoose(percent),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final double tile = metrics.tileSize;
+    if (metrics.landscape) {
+      return Row(
+        children: [
+          for (int i = 0; i < kKioskTipPercents.length; i++) ...[
+            if (i > 0) SizedBox(width: metrics.gridGap),
+            Expanded(child: _tile(kKioskTipPercents[i])),
+          ],
+        ],
+      );
+    }
     return Column(
       children: [
         Row(
           children: [
-            Expanded(
-              child: _TipTile(
-                percent: kKioskTipPercents[0],
-                payableTotal: payableTotal,
-                selected: selected == kKioskTipPercents[0],
-                size: tile,
-                radius: metrics.optionRadius,
-                percentSize: metrics.percentSize,
-                captionSize: metrics.captionSize,
-                onTap: () => onChoose(kKioskTipPercents[0]),
-              ),
-            ),
+            Expanded(child: _tile(kKioskTipPercents[0])),
             SizedBox(width: metrics.gridGap),
-            Expanded(
-              child: _TipTile(
-                percent: kKioskTipPercents[1],
-                payableTotal: payableTotal,
-                selected: selected == kKioskTipPercents[1],
-                size: tile,
-                radius: metrics.optionRadius,
-                percentSize: metrics.percentSize,
-                captionSize: metrics.captionSize,
-                onTap: () => onChoose(kKioskTipPercents[1]),
-              ),
-            ),
+            Expanded(child: _tile(kKioskTipPercents[1])),
           ],
         ),
         SizedBox(height: metrics.gridGap),
         Row(
           children: [
-            Expanded(
-              child: _TipTile(
-                percent: kKioskTipPercents[2],
-                payableTotal: payableTotal,
-                selected: selected == kKioskTipPercents[2],
-                size: tile,
-                radius: metrics.optionRadius,
-                percentSize: metrics.percentSize,
-                captionSize: metrics.captionSize,
-                onTap: () => onChoose(kKioskTipPercents[2]),
-              ),
-            ),
+            Expanded(child: _tile(kKioskTipPercents[2])),
             SizedBox(width: metrics.gridGap),
-            Expanded(
-              child: _TipTile(
-                percent: kKioskTipPercents[3],
-                payableTotal: payableTotal,
-                selected: selected == kKioskTipPercents[3],
-                size: tile,
-                radius: metrics.optionRadius,
-                percentSize: metrics.percentSize,
-                captionSize: metrics.captionSize,
-                onTap: () => onChoose(kKioskTipPercents[3]),
-              ),
-            ),
+            Expanded(child: _tile(kKioskTipPercents[3])),
           ],
         ),
       ],
@@ -410,6 +388,7 @@ class _TipMetrics {
   final double buttonBorder;
   final double shadowBlur;
   final double shadowY;
+  final bool landscape;
 
   const _TipMetrics({
     required this.cardWidth,
@@ -432,16 +411,23 @@ class _TipMetrics {
     required this.buttonBorder,
     required this.shadowBlur,
     required this.shadowY,
+    required this.landscape,
   });
 
   factory _TipMetrics.of(BuildContext context, BoxConstraints constraints) {
-    final double s = KioskResponsive.scale(constraints.maxWidth);
-    final double width =
-        (1640 * s).clamp(320.0, constraints.maxWidth * 0.86);
+    final double s = KioskLayout.scaleOf(context, constraints);
+    final bool landscape = KioskLayout.isLandscape(context, constraints);
+    final double width = landscape
+        ? (2100 * s).clamp(480.0, constraints.maxWidth * 0.88)
+        : (1640 * s).clamp(320.0, constraints.maxWidth * 0.86);
     final double gap = (32 * s).clamp(10.0, 32.0);
-    final double pad = (88 * s).clamp(24.0, 88.0);
+    final double pad = landscape
+        ? (56 * s).clamp(20.0, 56.0)
+        : (88 * s).clamp(24.0, 88.0);
     final double inner = width - pad * 2;
-    final double tile = ((inner - gap) / 2).clamp(88.0, 420.0);
+    final double tile = landscape
+        ? ((inner - gap * 3) / 4).clamp(72.0, 280.0)
+        : ((inner - gap) / 2).clamp(88.0, 420.0);
     return _TipMetrics(
       cardWidth: width,
       pad: pad,
@@ -449,7 +435,7 @@ class _TipMetrics {
       titleSize: (72 * s).clamp(20.0, 72.0),
       subtitleSize: (36 * s).clamp(13.0, 36.0),
       titleGap: (16 * s).clamp(6.0, 16.0),
-      headerGap: (48 * s).clamp(16.0, 48.0),
+      headerGap: landscape ? (28 * s).clamp(12.0, 28.0) : (48 * s).clamp(16.0, 48.0),
       gridGap: gap,
       buttonGap: (40 * s).clamp(14.0, 40.0),
       tileSize: tile,
@@ -457,12 +443,15 @@ class _TipMetrics {
       captionSize: (40 * s).clamp(12.0, 40.0),
       optionRadius: (28 * s).clamp(10.0, 28.0),
       modalRadius: (48 * s).clamp(16.0, 48.0),
-      buttonHeight: (140 * s).clamp(52.0, 140.0),
+      buttonHeight: landscape
+          ? (96 * s).clamp(48.0, 96.0)
+          : (140 * s).clamp(52.0, 140.0),
       buttonRadius: (28 * s).clamp(12.0, 28.0),
       buttonSize: (44 * s).clamp(14.0, 44.0),
       buttonBorder: (4 * s).clamp(1.5, 4.0),
       shadowBlur: (60 * s).clamp(24.0, 60.0),
       shadowY: (18 * s).clamp(8.0, 18.0),
+      landscape: landscape,
     );
   }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
-import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
@@ -120,8 +120,11 @@ class _KioskUpsellSheet extends StatelessWidget {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final double s = KioskResponsive.scale(constraints.maxWidth);
-                final m = KioskUpsellGridMetrics.forWidth(constraints.maxWidth);
+                final double s = KioskLayout.scaleOf(context, constraints);
+                final m = KioskUpsellGridMetrics.forWidth(
+                  constraints.maxWidth,
+                  viewportHeight: constraints.maxHeight,
+                );
                 final all = _suggestions(context);
                 final suggestions =
                     all.take(m.visibleCount(all.length)).toList();
@@ -446,16 +449,22 @@ class KioskUpsellGridMetrics {
   /// like a modal at all.
   static const double _sheetRatio = 0.78;
 
-  factory KioskUpsellGridMetrics.forWidth(double viewportWidth) {
+  factory KioskUpsellGridMetrics.forWidth(
+    double viewportWidth, {
+    double? viewportHeight,
+  }) {
+    final bool landscape =
+        viewportHeight != null && viewportWidth > viewportHeight;
     final double usable =
         (viewportWidth - _scrollbarReserve).clamp(240.0, double.infinity);
-    final double sheetWidth = (usable * _sheetRatio).clamp(300.0, 1400.0);
+    final double sheetWidth = (usable * (landscape ? 0.72 : _sheetRatio))
+        .clamp(300.0, landscape ? 1680.0 : 1400.0);
     final double pad = (sheetWidth * _padRatio).clamp(14.0, 87.0);
     final double gutter = (sheetWidth * _gutterRatio).clamp(10.0, 62.0);
 
-    // Three across is the design. Drop to two, then one, only when three
-    // genuinely cannot hold a legible card — never because of rounding.
-    int columns = 3;
+    // Three across is the portrait design. Landscape uses four when the
+    // sheet is wide enough for a legible card.
+    int columns = landscape && sheetWidth >= 900 ? 4 : 3;
     double tile = _tileFor(sheetWidth, pad, gutter, columns);
     while (columns > 1 && tile < _minTile) {
       columns--;

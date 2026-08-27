@@ -143,27 +143,37 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
                 onDismiss: _close,
               ),
               Center(
-                child: GestureDetector(
-                  onTap:
-                      () {}, // absorb taps so the card itself never closes the modal
-                  child: AnimatedBuilder(
-                    animation: _shakeController,
-                    builder: (context, child) => Transform.translate(
-                      offset: Offset(_shakeOffset(_shakeController.value), 0),
-                      child: child,
-                    ),
-                    child: _ManagerCard(
-                      s: s,
-                      codeLength: _code.length,
-                      error: provider.pinError,
-                      loading: provider.verifyingPin,
-                      onDigit: _onDigit,
-                      onBackspace: _onBackspace,
-                      onClear: _onClear,
-                      onSubmit: _submit,
-                      onClose: _close,
-                    ),
-                  ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final bool landscape =
+                        constraints.maxWidth > constraints.maxHeight;
+                    return FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: GestureDetector(
+                        onTap: () {},
+                        child: AnimatedBuilder(
+                          animation: _shakeController,
+                          builder: (context, child) => Transform.translate(
+                            offset:
+                                Offset(_shakeOffset(_shakeController.value), 0),
+                            child: child,
+                          ),
+                          child: _ManagerCard(
+                            s: s,
+                            landscape: landscape,
+                            codeLength: _code.length,
+                            error: provider.pinError,
+                            loading: provider.verifyingPin,
+                            onDigit: _onDigit,
+                            onBackspace: _onBackspace,
+                            onClear: _onClear,
+                            onSubmit: _submit,
+                            onClose: _close,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -176,6 +186,7 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
 
 class _ManagerCard extends StatelessWidget {
   final double s;
+  final bool landscape;
   final int codeLength;
   final String? error;
   final bool loading;
@@ -187,6 +198,7 @@ class _ManagerCard extends StatelessWidget {
 
   const _ManagerCard({
     required this.s,
+    this.landscape = false,
     required this.codeLength,
     required this.error,
     required this.loading,
@@ -200,9 +212,66 @@ class _ManagerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool hasError = error != null;
+    final Widget header = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            Container(
+              width: 88 * s,
+              height: 88 * s,
+              margin: EdgeInsets.only(top: 4 * s),
+              decoration: BoxDecoration(
+                color: _kManagerAccent.withValues(alpha: 0.35),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: CustomAssetImageWidget(
+                Images.managerAccessSvg,
+                width: 36 * s,
+                height: 36 * s,
+                color: _kManagerText,
+              ),
+            ),
+            Positioned(
+              right: -16 * s,
+              top: -8 * s,
+              child: _CloseButton(s: s, onTap: onClose),
+            ),
+          ],
+        ),
+        SizedBox(height: 22 * s),
+        Text('Manager access',
+            style:
+                loewMedium.copyWith(fontSize: 40 * s, color: _kManagerText)),
+        SizedBox(height: 10 * s),
+        Text(
+          hasError
+              ? 'Wrong code, try again'
+              : 'Enter your 4-digit code to unlock',
+          textAlign: TextAlign.center,
+          style: loewRegular.copyWith(
+            fontSize: 26 * s,
+            color: hasError
+                ? _kManagerDanger
+                : _kManagerText.withValues(alpha: 0.55),
+          ),
+        ),
+        SizedBox(height: 30 * s),
+        _PinDotsRow(s: s, filled: codeLength, hasError: hasError),
+      ],
+    );
+    final Widget keypad = _ManagerKeypad(
+        s: s,
+        onDigit: onDigit,
+        onBackspace: onBackspace,
+        onClear: onClear);
+
     return Container(
-      width: 620 * s,
-      constraints: BoxConstraints(maxWidth: 620 * s),
+      width: (landscape ? 980 : 620) * s,
+      constraints: BoxConstraints(maxWidth: (landscape ? 980 : 620) * s),
       padding: EdgeInsets.fromLTRB(48 * s, 40 * s, 48 * s, 40 * s),
       decoration: BoxDecoration(
         color: _kManagerSurface,
@@ -215,65 +284,34 @@ class _ManagerCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.topCenter,
-            children: [
-              Container(
-                width: 88 * s,
-                height: 88 * s,
-                margin: EdgeInsets.only(top: 4 * s),
-                decoration: BoxDecoration(
-                  color: _kManagerAccent.withValues(alpha: 0.35),
-                  shape: BoxShape.circle,
+      child: landscape
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      header,
+                      SizedBox(height: 24 * s),
+                      _UnlockButton(s: s, loading: loading, onTap: onSubmit),
+                    ],
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: CustomAssetImageWidget(
-                  Images.managerAccessSvg,
-                  width: 36 * s,
-                  height: 36 * s,
-                  color: _kManagerText,
-                ),
-              ),
-              Positioned(
-                right: -16 * s,
-                top: -8 * s,
-                child: _CloseButton(s: s, onTap: onClose),
-              ),
-            ],
-          ),
-          SizedBox(height: 22 * s),
-          Text('Manager access',
-              style:
-                  loewMedium.copyWith(fontSize: 40 * s, color: _kManagerText)),
-          SizedBox(height: 10 * s),
-          Text(
-            hasError
-                ? 'Wrong code, try again'
-                : 'Enter your 4-digit code to unlock',
-            textAlign: TextAlign.center,
-            style: loewRegular.copyWith(
-              fontSize: 26 * s,
-              color: hasError
-                  ? _kManagerDanger
-                  : _kManagerText.withValues(alpha: 0.55),
+                SizedBox(width: 32 * s),
+                Expanded(child: keypad),
+              ],
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                header,
+                SizedBox(height: 34 * s),
+                keypad,
+                SizedBox(height: 30 * s),
+                _UnlockButton(s: s, loading: loading, onTap: onSubmit),
+              ],
             ),
-          ),
-          SizedBox(height: 30 * s),
-          _PinDotsRow(s: s, filled: codeLength, hasError: hasError),
-          SizedBox(height: 34 * s),
-          _ManagerKeypad(
-              s: s,
-              onDigit: onDigit,
-              onBackspace: onBackspace,
-              onClear: onClear),
-          SizedBox(height: 30 * s),
-          _UnlockButton(s: s, loading: loading, onTap: onSubmit),
-        ],
-      ),
     );
   }
 }
