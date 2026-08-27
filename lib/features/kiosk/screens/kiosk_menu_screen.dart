@@ -59,10 +59,6 @@ const double _kTopBarSvgStroke = 6;
 /// Vertical gap between the header row (logo + icons) and the menu row.
 const double _kHeaderContentGap = 72;
 
-/// Type is smaller than the Figma artboard so the menu matches the already
-/// reduced customize / add-on screens. Gaps, cards, and bars stay as designed.
-const double _kMenuType = KioskResponsive.menuTypeScale;
-
 double _topBarActionDiameter(double s) => _kTopBarActionSize * s;
 
 double _topBarActionBorderWidth(double s) =>
@@ -264,7 +260,7 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                                 children: [
                                   _FilterPillsRow(
                                     pillHeight: 90 * s,
-                                    fontSize: 43.2 * s * _kMenuType,
+                                    fontSize: 43.2 * s,
                                     borderWidth: 3.6 * s,
                                     hPadding: 42 * s,
                                     hGap: 19.8 * s,
@@ -326,7 +322,7 @@ class _KioskTopBar extends StatelessWidget {
           Text(
             'A/CAFÉ',
             style: loewExtraBold.copyWith(
-              fontSize: 120 * s * _kMenuType,
+              fontSize: 120 * s,
               height: 1,
               letterSpacing: 2 * s,
               color: Colors.black,
@@ -632,10 +628,9 @@ class _RailCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: loewBold.copyWith(
                 fontSize: kioskCategoryRailFontSize(
-                      railWidth: railWidth,
-                      scale: s,
-                    ) *
-                    _kMenuType,
+                  railWidth: railWidth,
+                  scale: s,
+                ),
                 height: 1.1,
                 color: selected ? Colors.white : Colors.black,
               ),
@@ -727,7 +722,7 @@ class _EmptyProductArea extends StatelessWidget {
                 : (getTranslated('no_items', context) ?? 'No items'),
             textAlign: TextAlign.center,
             style: rubikRegular.copyWith(
-                fontSize: 32 * s * _kMenuType, color: Theme.of(context).hintColor),
+                fontSize: 32 * s, color: Theme.of(context).hintColor),
           ),
           if (byAllergen) ...[
             SizedBox(height: 32 * s),
@@ -741,7 +736,7 @@ class _EmptyProductArea extends StatelessWidget {
                       'Change allergen filters'),
                   textAlign: TextAlign.center,
                   style: rubikRegular.copyWith(
-                    fontSize: 32 * s * _kMenuType,
+                    fontSize: 32 * s,
                     color: Colors.black,
                     decoration: TextDecoration.underline,
                   ),
@@ -1049,7 +1044,7 @@ class _KioskProductCard extends StatelessWidget {
                         child: Text(
                           badge!.label,
                           style: swiss721Light.copyWith(
-                              color: Colors.white, fontSize: 34 * ts * _kMenuType),
+                              color: Colors.white, fontSize: 34 * ts),
                         ),
                       ),
                     ),
@@ -1068,7 +1063,7 @@ class _KioskProductCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     // Figma: Loew ExtraBold (w800) 31.68px, 100% line height, 0 tracking.
                     style: loewExtraBold.copyWith(
-                        fontSize: 45 * ts * _kMenuType,
+                        fontSize: 45 * ts,
                         height: 1.0,
                         letterSpacing: 0,
                         color: Colors.black),
@@ -1083,7 +1078,7 @@ class _KioskProductCard extends StatelessWidget {
                     textAlign: TextAlign.center,
                     // Figma: Swiss 721 Light (w300) 39.6px, 100% line height, 0 tracking.
                     style: swiss721Light.copyWith(
-                        fontSize: 42 * ts * _kMenuType,
+                        fontSize: 42 * ts,
                         height: 1.5,
                         letterSpacing: 1,
                         color: Colors.black),
@@ -1240,7 +1235,7 @@ class _EmptyCartBar extends StatelessWidget {
           child: Text(
             '${(getTranslated('cart', context) ?? 'CART').toUpperCase()} / ${PriceConverterHelper.convertPrice(total)}',
             style:
-                loewExtraBold.copyWith(fontSize: 64 * s * _kMenuType, color: Colors.black),
+                loewExtraBold.copyWith(fontSize: 64 * s, color: Colors.black),
           ),
         ),
       ),
@@ -1328,7 +1323,7 @@ class _ViewCartButton extends StatelessWidget {
               Text(
                 (getTranslated('view_cart', context) ?? 'VIEW CART')
                     .toUpperCase(),
-                style: loewBold.copyWith(fontSize: 50 * s * _kMenuType, color: Colors.black),
+                style: loewBold.copyWith(fontSize: 50 * s, color: Colors.black),
               ),
               SizedBox(width: 24 * s),
               Container(
@@ -1340,7 +1335,7 @@ class _ViewCartButton extends StatelessWidget {
                 child: Text(
                   '$count',
                   style: loewExtraBold.copyWith(
-                      fontSize: 30 * s * _kMenuType, color: _kCreamText),
+                      fontSize: 30 * s, color: _kCreamText),
                 ),
               ),
             ],
@@ -1380,13 +1375,13 @@ class _CheckoutButton extends StatelessWidget {
                   (getTranslated('check_out', context) ?? 'CHECK OUT')
                       .toUpperCase(),
                   style:
-                      loewBold.copyWith(fontSize: 50 * s * _kMenuType, color: _kCreamText),
+                      loewBold.copyWith(fontSize: 50 * s, color: _kCreamText),
                 ),
                 SizedBox(width: 28 * s),
                 Text(
                   PriceConverterHelper.convertPrice(total),
                   style: loewExtraBold.copyWith(
-                      fontSize: 46 * s * _kMenuType, color: _kCreamText),
+                      fontSize: 46 * s, color: _kCreamText),
                 ),
               ],
             ),
@@ -1471,7 +1466,7 @@ class _LatestItemCard extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: loewExtraBold.copyWith(
-                              fontSize: 38 * s * _kMenuType,
+                              fontSize: 38 * s,
                               height: 1.1,
                               color: Colors.black),
                         ),
@@ -1479,7 +1474,7 @@ class _LatestItemCard extends StatelessWidget {
                         Text(
                           PriceConverterHelper.convertPrice(unitPrice),
                           style: swiss721Light.copyWith(
-                              fontSize: 32 * s * _kMenuType, color: Colors.black),
+                              fontSize: 32 * s, color: Colors.black),
                         ),
                       ],
                     ),
