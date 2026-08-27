@@ -85,6 +85,64 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Swap already-customized cart units for a combo line at bundle price.
+  ///
+  /// [consume] is cart-index → units to take. Walked highest index first so
+  /// a `removeAt` never shifts a later index we still need to touch. The
+  /// deal line is merged the same way [addToCart] would (identical combos
+  /// stack) but without the "added to cart" toast — this is a replacement,
+  /// not an add. [_amount] is rebuilt from the resulting list: the usual
+  /// delta arithmetic drifts across a multi-line swap.
+  void applyComboUpgrade({
+    required Map<int, int> consume,
+    required CartModel dealLine,
+  }) {
+    final List<int> indices = consume.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+    for (final int index in indices) {
+      if (index < 0 || index >= _cartList.length) continue;
+      final CartModel? line = _cartList[index];
+      if (line == null) continue;
+      final int take = consume[index] ?? 0;
+      if (take <= 0) continue;
+      final int remaining = (line.quantity ?? 1) - take;
+      if (remaining <= 0) {
+        _cartList.removeAt(index);
+      } else {
+        line.quantity = remaining;
+      }
+    }
+
+    final int matchIndex = findMatchingCartLineIndex(_cartList, dealLine);
+    if (matchIndex >= 0) {
+      final int addQty = dealLine.quantity ?? 1;
+      final CartModel existing = _cartList[matchIndex]!;
+      existing.quantity = (existing.quantity ?? 0) + addQty;
+    } else {
+      _cartList.add(dealLine);
+    }
+
+    _recomputeAmount();
+    cartRepo?.addToCartList(_cartList);
+    notifyListeners();
+  }
+
+  void _recomputeAmount() {
+    _amount = 0;
+    for (final CartModel? cart in _cartList) {
+      if (cart == null) continue;
+      _amount += (cart.discountedPrice ?? 0) * (cart.quantity ?? 1);
+    }
+  }
+
+  /// Seeds the in-memory cart for tests that cannot go through [addToCart]
+  /// (that path needs a navigator and shows a snackbar).
+  @visibleForTesting
+  void replaceCartList(List<CartModel?> items) {
+    _cartList = List<CartModel?>.from(items);
+    _recomputeAmount();
+  }
+
   void removeFromCart(int index) {
     _amount = _amount - (_cartList[index]!.discountedPrice! * _cartList[index]!.quantity!);
     _cartList.removeAt(index);

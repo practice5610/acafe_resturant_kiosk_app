@@ -492,6 +492,41 @@ class KioskProductCard extends StatelessWidget {
   }
 }
 
+/// Circular back control used inside kiosk dialogs (upsell, combo).
+///
+/// Border and icon scale with [size] so the same widget holds its proportions
+/// on a laptop window and a 4K kiosk. Screens that need a navigation fallback
+/// when `canPop` is false should use [KioskBackButton] instead.
+class KioskCircleBack extends StatelessWidget {
+  final double size;
+  final VoidCallback onTap;
+  const KioskCircleBack({super.key, required this.size, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: KioskTap(
+        onTap: onTap,
+        child: Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+                color: Colors.black, width: (size * 0.035).clamp(1.2, 3.0)),
+          ),
+          child: Icon(Icons.arrow_back_ios_new_rounded,
+              size: size * 0.42, color: Colors.black),
+        ),
+      ),
+    );
+  }
+}
+
 /// Black-outlined circular back control — kiosk standard (see language screen).
 ///
 /// Always routes through [KioskNavigationHelper.popOrNavigate] so back never

@@ -5,8 +5,11 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_combo_match.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_combo_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -210,7 +213,7 @@ class _Header extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _CircleBack(size: button, onTap: () => Navigator.of(context).pop(false)),
+        KioskCircleBack(size: button, onTap: () => Navigator.of(context).pop(false)),
         Expanded(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: (12 * s).clamp(6.0, 12.0)),
@@ -228,36 +231,6 @@ class _Header extends StatelessWidget {
         // Balances the back button so the title stays truly centred.
         SizedBox(width: button),
       ],
-    );
-  }
-}
-
-class _CircleBack extends StatelessWidget {
-  final double size;
-  final VoidCallback onTap;
-  const _CircleBack({required this.size, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        onTap: onTap,
-        child: Container(
-          width: size,
-          height: size,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-                color: Colors.black, width: (size * 0.035).clamp(1.2, 3.0)),
-          ),
-          child: Icon(Icons.arrow_back_ios_new_rounded,
-              size: size * 0.42, color: Colors.black),
-        ),
-      ),
     );
   }
 }
@@ -337,17 +310,11 @@ Future<void> openKioskCheckout(BuildContext context) async {
 }
 
 /// Last-chance upsell after the customer has chosen a tip (or declined one)
-/// and before the order is placed. Skipped when the cart already has both
-/// courses. Failures never block payment.
+/// and before the order is placed. Combo-first, then the missing-course grid.
+/// Failures never block payment.
 Future<void> offerKioskPayUpsell(BuildContext context) async {
   try {
-    final composition = KioskOrderComposition.of(
-      Provider.of<CartProvider>(context, listen: false).cartList,
-    );
-    final KioskCourse? course = composition.courseToOffer;
-    if (course == null) return;
-    _KioskUpsellMemory.remember(course);
-    await openKioskUpsellSheet(context, course: course);
+    await _presentUpsell(context);
   } catch (_) {
     // The customer is paying; a missing catalog must not stop the order.
   }
@@ -358,19 +325,34 @@ Future<void> offerKioskPayUpsell(BuildContext context) async {
 /// The customer is on their way somewhere; the upsell must never block that.
 /// If anything about the offer fails, navigation still happens.
 Future<void> _offerThenGo(BuildContext context, VoidCallback go) async {
-  final composition = KioskOrderComposition.of(
-    Provider.of<CartProvider>(context, listen: false).cartList,
-  );
+  try {
+    await _presentUpsell(context);
+  } catch (_) {}
+  if (!context.mounted) return;
+  go();
+}
 
+/// Combo match first (product ids, not `area`), then the food/drink grid.
+///
+/// Combo-first matters: `products.area` has no admin UI and new kitchen
+/// items are often stored as `bar`, so the course rule can be wrong while
+/// a deal match on product ids is still correct.
+Future<void> _presentUpsell(BuildContext context) async {
+  final cart = Provider.of<CartProvider>(context, listen: false);
+  final deals = Provider.of<KioskDealProvider>(context, listen: false).deals;
+  final KioskComboMatch? match = findKioskComboUpgrade(cart.cartList, deals);
+  if (match != null && !_KioskUpsellMemory.alreadyAskedCombo(match.deal.id)) {
+    _KioskUpsellMemory.rememberCombo(match.deal.id);
+    await openKioskComboSheet(context, match: match);
+    return;
+  }
+
+  final composition = KioskOrderComposition.of(cart.cartList);
   final KioskCourse? course = composition.courseToOffer;
   if (course != null && !_KioskUpsellMemory.alreadyAsked(course)) {
     _KioskUpsellMemory.remember(course);
-    // Declining, adding, or dismissing all end the same way: carry on.
     await openKioskUpsellSheet(context, course: course);
-    if (!context.mounted) return;
   }
-
-  go();
 }
 
 /// Remembers which upsells this customer has already seen.
@@ -378,17 +360,27 @@ Future<void> _offerThenGo(BuildContext context, VoidCallback go) async {
 /// Without this, a customer who declines the drink offer gets asked again every
 /// single time they tap the cart — which reads as nagging, not service. Cleared
 /// when the order is placed / the kiosk resets, so the next customer is asked
-/// fresh.
+/// fresh. Combo offers are keyed by deal id so a declined upgrade is not
+/// repeated on every cart tap.
 class _KioskUpsellMemory {
   static final Set<KioskCourse> _asked = {};
+  static final Set<int> _askedCombos = {};
 
   static bool alreadyAsked(KioskCourse course) => _asked.contains(course);
   static void remember(KioskCourse course) => _asked.add(course);
+
+  static bool alreadyAskedCombo(int dealId) => _askedCombos.contains(dealId);
+  static void rememberCombo(int dealId) => _askedCombos.add(dealId);
+
+  static void reset() {
+    _asked.clear();
+    _askedCombos.clear();
+  }
 }
 
 /// Clear the "already asked" memory. Call when a session ends so the next
 /// customer starts clean.
-void resetKioskUpsellMemory() => _KioskUpsellMemory._asked.clear();
+void resetKioskUpsellMemory() => _KioskUpsellMemory.reset();
 
 // ===========================================================================
 // GRID METRICS

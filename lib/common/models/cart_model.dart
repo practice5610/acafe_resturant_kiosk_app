@@ -72,6 +72,40 @@ class CartModel {
   List<CartModel>? get components => _components;
   bool get isDeal => _dealId != null;
 
+  /// Field-by-field clone with a different quantity.
+  ///
+  /// Needed so a qty-2 line can yield a qty-1 combo component without
+  /// mutating the leftover unit that stays in the cart. Do not round-trip
+  /// through JSON: [CartModel.fromJson] calls `.toDouble()` on nullable
+  /// fields and will throw.
+  CartModel copyWithQuantity(int quantity) {
+    return CartModel(
+      _price,
+      _discountedPrice,
+      _variation == null ? <Variation>[] : List<Variation>.from(_variation!),
+      _discountAmount,
+      quantity,
+      _taxAmount,
+      _addOnIds == null
+          ? <AddOn>[]
+          : _addOnIds!
+              .map((a) => AddOn(id: a.id, quantity: a.quantity))
+              .toList(),
+      _product,
+      _variations == null
+          ? <List<bool?>>[]
+          : _variations!.map((row) => List<bool?>.from(row)).toList(),
+      instruction: _instruction,
+      dealId: _dealId,
+      dealTitle: _dealTitle,
+      dealImage: _dealImage,
+      bundlePrice: _bundlePrice,
+      components: _components
+          ?.map((c) => c.copyWithQuantity(c.quantity ?? 1))
+          .toList(),
+    );
+  }
+
   /// One cart line for a configured promotional bundle.
   factory CartModel.deal({
     required int dealId,

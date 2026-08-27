@@ -1362,7 +1362,7 @@ class _CheckoutButton extends StatelessWidget {
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.1),
       child: KioskTap(
-        onTap: () => RouterHelper.getKioskCheckoutRoute(),
+        onTap: () => openKioskCheckout(context),
         child: Container(
           alignment: Alignment.center,
           padding: EdgeInsets.symmetric(horizontal: 30 * s),
