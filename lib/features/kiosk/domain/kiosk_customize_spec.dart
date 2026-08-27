@@ -164,6 +164,10 @@ class KioskCustomizeSpec {
   /// of the panel. Kiosk-sized viewports never use this cap.
   static const double choiceCardMaxEdgeCompact = 96;
 
+  /// Shrinks SMALL / ADDON1 type so the image leads the tile instead of
+  /// the all-caps name filling it. Applied to both variation and add-on cards.
+  static const double choiceTypeScale = 0.72;
+
   // -- cup / can -----------------------------------------------------------
   /// `cup` / `can`: 1099 x 790, 35 apart, 28px radius.
   static const double vesselCardWidth = 1099;
@@ -182,9 +186,15 @@ class KioskCustomizeSpec {
   static const double vesselImageWidth = 290;
   static const double vesselImageGap = 24;
 
-  /// Loew Bold 28 with 3.36 tracking, uppercase.
+  /// Loew Bold 28 with 3.36 tracking, uppercase — Figma `cup-text` / `can-text`.
+  /// The rendered word is sized from the card's width, not the squashed
+  /// height, and never below [vesselLabelMinSize].
   static const double vesselLabelSize = 28;
   static const double vesselLabelTracking = 3.36;
+
+  /// Floor for the CUP/CAN word so a short vessel card cannot crush it.
+  /// Kept below the size/add-on labels so it does not dominate the section.
+  static const double vesselLabelMinSize = 16;
 
   // -- bottom action bar ---------------------------------------------------
   /// `btn-skip` / `btn-next`: 1201 x 252, 22 apart, 30px radius, 8px outline.

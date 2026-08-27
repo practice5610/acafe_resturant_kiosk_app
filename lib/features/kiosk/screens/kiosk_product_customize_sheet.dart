@@ -1614,7 +1614,9 @@ class _DietaryCard extends StatelessWidget {
       maxLines: _kCardLabelLines,
       overflow: TextOverflow.ellipsis,
       style: loewMedium.copyWith(
-        fontSize: KioskCustomizeSpec.optionLabelSize * k,
+        fontSize: KioskCustomizeSpec.optionLabelSize *
+            k *
+            KioskCustomizeSpec.choiceTypeScale,
         height: 1.15,
         color: Colors.black,
       ),
@@ -1625,7 +1627,9 @@ class _DietaryCard extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: swiss721Light.copyWith(
-        fontSize: KioskCustomizeSpec.optionPriceSize * k,
+        fontSize: KioskCustomizeSpec.optionPriceSize *
+            k *
+            KioskCustomizeSpec.choiceTypeScale,
         height: 1.0,
         color: Colors.black,
       ),
@@ -2023,7 +2027,9 @@ class _AddOnCard extends StatelessWidget {
     final bool priceOnTop = selected && !showQuantity && priceLabel.isNotEmpty;
 
     final TextStyle priceStyle = swiss721Light.copyWith(
-      fontSize: KioskCustomizeSpec.addOnPriceSize * k,
+      fontSize: KioskCustomizeSpec.addOnPriceSize *
+          k *
+          KioskCustomizeSpec.choiceTypeScale,
       height: 1.2,
       color: Colors.black,
     );
@@ -2033,7 +2039,9 @@ class _AddOnCard extends StatelessWidget {
       maxLines: _kCardLabelLines,
       overflow: TextOverflow.ellipsis,
       style: loewMedium.copyWith(
-        fontSize: KioskCustomizeSpec.addOnNameSize * k,
+        fontSize: KioskCustomizeSpec.addOnNameSize *
+            k *
+            KioskCustomizeSpec.choiceTypeScale,
         height: 1.2,
         color: Colors.black,
       ),
@@ -2313,25 +2321,37 @@ class _CupCanCard extends StatelessWidget {
                 height: KioskCustomizeSpec.vesselImageHeight * k,
                 child: _VesselImage(assetImage: assetImage, image: image),
               ),
-              SizedBox(height: KioskCustomizeSpec.vesselImageGap * k),
+              SizedBox(height: KioskCustomizeSpec.vesselImageGap * kW),
               Text(
                 name.toUpperCase(),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                // Sized from the card WIDTH, not the shortened height — `k`
+                // follows the 0.58 vessel factor and was crushing this to
+                // ~5px. A width share plus a floor keeps CUP / CAN readable.
                 style: loewBold.copyWith(
-                  fontSize: KioskCustomizeSpec.vesselLabelSize * k,
-                  letterSpacing: KioskCustomizeSpec.vesselLabelTracking * k,
+                  fontSize: math.max(
+                    KioskCustomizeSpec.vesselLabelMinSize,
+                    width * 0.055,
+                  ),
+                  letterSpacing: math.max(
+                    0.8,
+                    KioskCustomizeSpec.vesselLabelTracking * kW,
+                  ),
                   height: 1.0,
                   color: _kInkText,
                 ),
               ),
               if (showPrice) ...[
-                SizedBox(height: KioskCustomizeSpec.vesselImageGap * 0.5 * k),
+                SizedBox(height: KioskCustomizeSpec.vesselImageGap * 0.5 * kW),
                 Text(
                   priceDelta > 0 ? _addonPriceLabel(priceDelta) : '',
                   style: swiss721Light.copyWith(
-                    fontSize: KioskCustomizeSpec.addOnPriceSize * k,
+                    fontSize: math.max(
+                      KioskCustomizeSpec.vesselLabelMinSize * 0.75,
+                      KioskCustomizeSpec.addOnPriceSize * kW,
+                    ),
                     height: 1.0,
                     color: Colors.black,
                   ),

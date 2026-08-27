@@ -86,6 +86,7 @@ void main() {
       // `cup-text` / `can-text`: Loew Bold 28 with 3.36 tracking.
       expect(KioskCustomizeSpec.vesselLabelSize, 28);
       expect(KioskCustomizeSpec.vesselLabelTracking, closeTo(3.36, 0.001));
+      expect(KioskCustomizeSpec.vesselLabelMinSize, 16);
       expect(KioskCustomizeSpec.actionLabelSize, 72);
     });
 
@@ -193,9 +194,11 @@ void main() {
         () {
       expect(source, contains('_choiceTileWidth('));
       expect(source, contains('KioskResponsive.compactMax'));
+      expect(source, contains('choiceTypeScale'));
       expect(KioskCustomizeSpec.choiceCardWidth, 320);
       expect(KioskCustomizeSpec.choiceCardHeight, 340);
       expect(KioskCustomizeSpec.choiceCardMaxEdgeCompact, 96);
+      expect(KioskCustomizeSpec.choiceTypeScale, 0.72);
       expect(KioskCustomizeSpec.choiceCardMaxEdgeCompact,
           lessThan(KioskCustomizeSpec.choiceCardWidth));
       expect(KioskCustomizeSpec.choiceCardWidth,
@@ -431,6 +434,7 @@ void main() {
 
       expect(body, contains('final double kW = width /'));
       expect(body, contains('final double kH = height /'));
+      expect(body, contains('vesselLabelMinSize'));
       expect(body, contains('height: height,'),
           reason: 'both vessels are given the same height by the section');
     });
