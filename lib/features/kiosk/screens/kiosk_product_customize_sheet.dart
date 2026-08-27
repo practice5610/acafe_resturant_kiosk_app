@@ -98,10 +98,11 @@ const Color _kScrollTrack = _kPanelBorder;
 double _border(double artboardWidth, double s) =>
     math.max(KioskCustomizeSpec.borderFloor, artboardWidth * s);
 
-/// Gutter between option cards, at the current scale.
-double _optionGap(double s) => KioskCustomizeSpec.optionCardGap * s;
-
 double _addOnGap(double s) => KioskCustomizeSpec.addOnCardGap * s;
+
+/// Shared gutter for variation and add-on choice cards, so both rows
+/// compute the same tile width.
+double _choiceGap(double s) => KioskCustomizeSpec.choiceCardGap * s;
 
 /// Width for one card inside a row/grid [width] px wide, given the artboard
 /// card it is reproducing — see `kiosk_option_layout.dart` for the rule. Cards
@@ -118,80 +119,82 @@ double _cardWidthFor({
       gap: gap,
     );
 
+/// Variation / add-on tile width. Large kiosks keep the stretched slot;
+/// compact windows cap the box so three sizes cannot eat the whole row.
+double _choiceTileWidth({
+  required double viewportWidth,
+  required double panelWidth,
+  required double s,
+  required double gap,
+}) {
+  final double filled = _cardWidthFor(
+    width: panelWidth,
+    artboardCard: KioskCustomizeSpec.choiceCardWidth,
+    s: s,
+    gap: gap,
+  );
+  if (viewportWidth >= KioskResponsive.compactMax) return filled;
+  return math.min(filled, KioskCustomizeSpec.choiceCardMaxEdgeCompact);
+}
+
 /// True when an option carries artwork of its own — the same test
-/// [_OptionImageSlot] paints by. A row where NOTHING has an image drops the
-/// image slot altogether rather than reserving a band of empty white, which is
-/// what made size cards and image-less add-ons read as big blank boxes.
+/// [_OptionImageSlot] paints by.
 bool _hasOptionArt(String image) =>
     image.isNotEmpty && !CustomImageWidget.isDefaultImage(image);
+
+/// Image for a variation / add-on choice card. Uses the option's own artwork
+/// when present; otherwise the product photo so every card still shows the
+/// same image → name → price stack.
+String _choiceImageUrl({
+  required String image,
+  required Product product,
+  required String? productImageBaseUrl,
+}) {
+  if (_hasOptionArt(image)) return image;
+  return KioskProductImageHelper.heroImageUrl(
+    product: product,
+    productImageBaseUrl: productImageBaseUrl,
+  );
+}
 
 /// Two lines of label is what a real product name needs — Figma's own
 /// "SUGAR FREE CARAMEL SYRUP" already wraps — and a little more than the exact
 /// line box, so a font that rounds up a fraction of a pixel cannot overflow a
 /// card whose height was computed from it.
 const int _kCardLabelLines = 2;
-const double _kCardLineReserve = 1.3;
+
+/// Height of one variation / add-on choice card of [width].
+///
+/// Both rows use this one box so Small/Medium/Large and Addon1/Addon2 are
+/// the same width and height. The image slot flexes around the name and
+/// price rather than growing the card.
+double _choiceCardHeight(double width) {
+  final double k = width / KioskCustomizeSpec.choiceCardWidth;
+  return KioskCustomizeSpec.choiceCardHeight * k;
+}
 
 /// Height of one variation (dietary / size) card of [width].
-///
-/// Fixed per row, so every card in the row is the same height and the image
-/// inside flexes to whatever the label leaves — exactly how Figma keeps a
-/// 535px add-on card whether its name runs to one line or two. A row whose
-/// options have no artwork at all drops the image slot and gets a short card
-/// instead of a tall empty one.
 double _optionCardHeight(
   double width, {
   required bool showImage,
   required bool showPrice,
 }) {
-  final double k = width / KioskCustomizeSpec.optionCardWidth;
-  double h;
-  if (showImage) {
-    // The artboard card, unchanged. A name that wraps is paid for out of the
-    // image slot rather than by growing the card past the design.
-    h = KioskCustomizeSpec.optionCardHeight;
-  } else {
-    h = KioskCustomizeSpec.optionRadioInset * 2 +
-        KioskCustomizeSpec.optionRadio +
-        KioskCustomizeSpec.optionLabelSize *
-            _kCardLabelLines *
-            _kCardLineReserve +
-        KioskCustomizeSpec.optionPadBottom;
-  }
-  if (showPrice) {
-    h += KioskCustomizeSpec.optionImageGap * 0.5 +
-        KioskCustomizeSpec.optionPriceSize * _kCardLineReserve;
-  }
-  return h * k;
+  // Flags are kept so call sites stay explicit; the compact box always
+  // includes image + price, so they do not change the height.
+  assert(showImage && showPrice);
+  return _choiceCardHeight(width);
 }
 
-/// Height of one add-on card of [width]. Same rule as [_optionCardHeight]: the
-/// grid keeps one height so it stays a grid, and the image absorbs the rest.
+/// Height of one add-on card of [width]. Same box as [_optionCardHeight].
 double _addOnCardHeight(
   double width, {
   required bool showImage,
   required bool showPrice,
   required bool reserveQuantity,
 }) {
-  final double k = width / KioskCustomizeSpec.addOnCardWidth;
-  double h;
-  if (showImage) {
-    h = KioskCustomizeSpec.addOnCardHeight;
-  } else {
-    h = KioskCustomizeSpec.addOnPadTop +
-        KioskCustomizeSpec.addOnNameSize *
-            _kCardLabelLines *
-            _kCardLineReserve +
-        KioskCustomizeSpec.addOnPadBottom;
-    if (showPrice) {
-      h += KioskCustomizeSpec.addOnInnerGap +
-          KioskCustomizeSpec.addOnPriceSize * _kCardLineReserve;
-    }
-  }
-  if (reserveQuantity) {
-    h += KioskCustomizeSpec.addOnInnerGap + KioskCustomizeSpec.addOnQtyButton;
-  }
-  return h * k;
+  // Image slot absorbs the stepper, so reserved quantity never grows the box.
+  assert(showImage && showPrice && !reserveQuantity);
+  return _choiceCardHeight(width);
 }
 
 /// Figma add-on price: "€ +1.50" when the currency sits on the left, otherwise
@@ -775,14 +778,13 @@ class _KioskProductCustomizeScreenState
                 );
 
                 return KioskCenteredContent(
-                  // The page is the artboard at scale `s`, never the artboard
-                  // stretched sideways: capping the content at 2572*s is what
-                  // keeps the grid the design's grid — five milks across, four
-                  // add-ons across — instead of a panel that widens on its own
-                  // and fills the extra room with more, smaller cards.
-                  maxWidth: landscape
-                      ? constraints.maxWidth
-                      : KioskCustomizeSpec.artboardWidth * s,
+                  // Fill the shell the same way the menu does. The old
+                  // `2572 * s` cap shrank the column when height pulled scale
+                  // down, leaving beige gutters on both sides. Type and chrome
+                  // still scale with `s`; cards divide whatever width remains
+                  // after the theme gutter (86 artboard px, matching the
+                  // menu's 85). KioskShell already caps at the artboard.
+                  maxWidth: constraints.maxWidth,
                   child: Column(
                     children: [
                       if (landscape)
@@ -1218,16 +1220,11 @@ class _CardQtyStepper extends StatelessWidget {
 /// short card beside a tall empty one.
 class _HorizontalOptionRow extends StatelessWidget {
   final double s;
-
-  /// The artboard card this row reproduces, so the column count follows the
-  /// design's density rather than a single hard-coded width.
-  final double artboardCardWidth;
   final double gap;
   final double Function(double cardWidth) heightOf;
   final List<Widget> Function(double cardWidth, double cardHeight) builder;
   const _HorizontalOptionRow({
     required this.s,
-    required this.artboardCardWidth,
     required this.gap,
     required this.heightOf,
     required this.builder,
@@ -1236,9 +1233,9 @@ class _HorizontalOptionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      final double cardWidth = _cardWidthFor(
-        width: constraints.maxWidth,
-        artboardCard: artboardCardWidth,
+      final double cardWidth = _choiceTileWidth(
+        viewportWidth: MediaQuery.sizeOf(context).width,
+        panelWidth: constraints.maxWidth,
         s: s,
         gap: gap,
       );
@@ -1355,23 +1352,30 @@ class _SectionPanel extends StatelessWidget {
   /// content. Used by the add-ons panel so its scroller — and therefore the
   /// scroll indicator — lives INSIDE the panel box rather than beside it.
   final bool fill;
+
+  /// Tighter title/padding chrome. Used by cup/can so the last section
+  /// shrinks as a whole, not only its inner cards.
+  final bool compact;
   final Widget child;
   const _SectionPanel({
     required this.s,
     required this.title,
     required this.child,
     this.fill = false,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final double padScale = compact ? 0.55 : 1.0;
+    final double bottomScale = compact ? 0.35 : 1.0;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
         KioskCustomizeSpec.panelPadH * s,
-        KioskCustomizeSpec.panelPadTop * s,
+        KioskCustomizeSpec.panelPadTop * padScale * s,
         KioskCustomizeSpec.panelPadH * s,
-        KioskCustomizeSpec.panelPadBottom * s,
+        KioskCustomizeSpec.panelPadBottom * bottomScale * s,
       ),
       decoration: BoxDecoration(
         color: _kPanelBg,
@@ -1392,7 +1396,7 @@ class _SectionPanel extends StatelessWidget {
               color: Colors.black,
             ),
           ),
-          SizedBox(height: KioskCustomizeSpec.panelTitleGap * s),
+          SizedBox(height: KioskCustomizeSpec.panelTitleGap * padScale * s),
           if (fill) Expanded(child: child) else child,
         ],
       ),
@@ -1416,10 +1420,9 @@ class _SizeOptionsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
-    // Flatten the groups first so the row can be asked TWO questions once:
-    // does anything here have artwork, and does anything carry a surcharge?
-    // Size options rarely have either, and a row of reserved-but-empty slots is
-    // what made Small / Medium / Large read as tall blank boxes.
+    // Flatten the groups first. Every size card uses the same compact
+    // image → name → price box as add-ons, falling back to the product
+    // photo when a size option has no artwork of its own.
     final options = [
       for (final entry in entries)
         for (int i = 0; i < (entry.value.variationValues?.length ?? 0); i++)
@@ -1428,15 +1431,18 @@ class _SizeOptionsPanel extends StatelessWidget {
             valueIndex: i,
             variation: entry.value,
             value: entry.value.variationValues![i],
-            image: KioskProductImageHelper.optionCardImageUrl(
-              value: entry.value.variationValues![i],
+            image: _choiceImageUrl(
+              image: KioskProductImageHelper.optionCardImageUrl(
+                value: entry.value.variationValues![i],
+                productImageBaseUrl: splash.baseUrls?.productImageUrl,
+              ),
+              product: product,
               productImageBaseUrl: splash.baseUrls?.productImageUrl,
             ),
           ),
     ];
-    final bool showImage = options.any((option) => _hasOptionArt(option.image));
-    final bool showPrice =
-        options.any((option) => (option.value.optionPrice ?? 0) > 0);
+    const bool showImage = true;
+    const bool showPrice = true;
 
     return _SectionPanel(
       s: s,
@@ -1445,10 +1451,9 @@ class _SizeOptionsPanel extends StatelessWidget {
       // always one line that scrolls sideways, never wrapping onto a second.
       child: _HorizontalOptionRow(
         s: s,
-        artboardCardWidth: KioskCustomizeSpec.optionCardWidth,
-        gap: _optionGap(s),
+        gap: _choiceGap(s),
         heightOf: (width) => _optionCardHeight(width,
-            showImage: showImage, showPrice: showPrice),
+            showImage: true, showPrice: true),
         builder: (cardWidth, cardHeight) => [
           for (final option in options)
             _DietaryCard(
@@ -1509,15 +1514,17 @@ class _VariationSection extends StatelessWidget {
 
     final List<String> images = [
       for (final value in values)
-        KioskProductImageHelper.optionCardImageUrl(
-          value: value,
+        _choiceImageUrl(
+          image: KioskProductImageHelper.optionCardImageUrl(
+            value: value,
+            productImageBaseUrl: splash.baseUrls?.productImageUrl,
+          ),
+          product: product,
           productImageBaseUrl: splash.baseUrls?.productImageUrl,
         ),
     ];
-    // One decision for the whole row: illustrated groups keep the slot,
-    // text-only groups (most milks) collapse to short cards.
-    final bool showImage = images.any(_hasOptionArt);
-    final bool showPrice = values.any((value) => (value.optionPrice ?? 0) > 0);
+    const bool showImage = true;
+    const bool showPrice = true;
 
     return _SectionPanel(
       s: s,
@@ -1527,10 +1534,9 @@ class _VariationSection extends StatelessWidget {
       // add-ons off screen — it just scrolls.
       child: _HorizontalOptionRow(
         s: s,
-        artboardCardWidth: KioskCustomizeSpec.optionCardWidth,
-        gap: _optionGap(s),
+        gap: _choiceGap(s),
         heightOf: (width) => _optionCardHeight(width,
-            showImage: showImage, showPrice: showPrice),
+            showImage: true, showPrice: true),
         builder: (cardWidth, cardHeight) => List.generate(values.length, (i) {
           final bool selected =
               productProvider.selectedVariations[variationIndex][i] ?? false;
@@ -1595,7 +1601,7 @@ class _DietaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double k = width / KioskCustomizeSpec.optionCardWidth;
+    final double k = width / KioskCustomizeSpec.choiceCardWidth;
     final double radius = KioskCustomizeSpec.optionCardRadius * k;
     final double padTop = showImage
         ? KioskCustomizeSpec.optionPadTop
@@ -1870,32 +1876,27 @@ class _GroupedAddOnCards extends StatelessWidget {
     // Cards only — the heading and the panel chrome belong to _AddOnsSection,
     // so every group shares one panel and one scroller.
     return LayoutBuilder(builder: (context, constraints) {
-      final double gap = _addOnGap(s);
-      // Cards divide the row exactly, at the design's density: the artboard
-      // fits four 539px cards across, and a wider or narrower panel keeps that
-      // proportion instead of holding one hard-coded width.
-      final double cardWidth = _cardWidthFor(
-        width: constraints.maxWidth,
-        artboardCard: KioskCustomizeSpec.addOnCardWidth,
+      final double gap = _choiceGap(s);
+      // Same compact tile as the size / dietary row, so Addon1 and Small
+      // are the same width and height. Compact windows cap the box.
+      final double cardWidth = _choiceTileWidth(
+        viewportWidth: MediaQuery.sizeOf(context).width,
+        panelWidth: constraints.maxWidth,
         s: s,
         gap: gap,
       );
-      // Group-wide, so the grid stays a grid: one add-on with a photo keeps the
-      // slot for its neighbours, a group with none loses it entirely.
-      final bool showImage = group.addons.any((addon) => addon.hasImage);
-      final bool showPrice =
-          group.addons.any((addon) => (addon.price ?? 0) > 0);
-      // A card with artwork absorbs the stepper by shrinking its image, exactly
-      // as the design does — the card stays 535 tall either way. A text-only
-      // card has nothing to give, so it reserves the row up front rather than
-      // growing when tapped and going ragged against its neighbours.
-      final bool reserveQuantity = !showImage && !group.isSingle;
+      const bool showImage = true;
+      const bool showPrice = true;
+      // Image is always reserved, so a selected multi add-on absorbs the
+      // stepper by shrinking its photo rather than growing the card.
+      const bool reserveQuantity = false;
       final double cardHeight = _addOnCardHeight(
         cardWidth,
         showImage: showImage,
         showPrice: showPrice,
         reserveQuantity: reserveQuantity,
       );
+      final splash = Provider.of<SplashProvider>(context, listen: false);
 
       return Wrap(
         alignment: WrapAlignment.start,
@@ -1917,7 +1918,11 @@ class _GroupedAddOnCards extends StatelessWidget {
                   height: cardHeight,
                   name: addon.name ?? '',
                   priceDelta: addon.price ?? 0,
-                  image: _addonImageUrl(context, addon),
+                  image: _choiceImageUrl(
+                    image: _addonImageUrl(context, addon),
+                    product: product,
+                    productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                  ),
                   showImage: showImage,
                   showPrice: showPrice,
                   selected: selected,
@@ -2008,7 +2013,7 @@ class _AddOnCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double k = width / KioskCustomizeSpec.addOnCardWidth;
+    final double k = width / KioskCustomizeSpec.choiceCardWidth;
     final double radius = KioskCustomizeSpec.addOnCardRadius * k;
     final double innerGap = KioskCustomizeSpec.addOnInnerGap * k;
     final String priceLabel = _addonPriceLabel(priceDelta);
@@ -2165,6 +2170,7 @@ class _CupCanSection extends StatelessWidget {
 
     return _SectionPanel(
       s: s,
+      compact: true,
       title: title,
       child: LayoutBuilder(builder: (context, constraints) {
         final int count = math.max(1, values.length);
@@ -2175,7 +2181,8 @@ class _CupCanSection extends StatelessWidget {
             math.max(1, (constraints.maxWidth - gap * (count - 1)) / count);
         final double cardHeight = cardWidth *
             (KioskCustomizeSpec.vesselCardHeight /
-                KioskCustomizeSpec.vesselCardWidth);
+                KioskCustomizeSpec.vesselCardWidth) *
+            KioskCustomizeSpec.vesselHeightFactor;
 
         return SizedBox(
           height: cardHeight,
@@ -2264,10 +2271,11 @@ class _CupCanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Everything here is a fraction of the card's own width, so the vessel, its
-    // label and the chrome around them shrink together instead of the artwork
-    // holding an artboard size inside a card that no longer fits it.
-    final double k = width / KioskCustomizeSpec.vesselCardWidth;
+    // Scale interiors from the shorter card so the vessel image shrinks
+    // with the section instead of overflowing a reduced height.
+    final double kW = width / KioskCustomizeSpec.vesselCardWidth;
+    final double kH = height / KioskCustomizeSpec.vesselCardHeight;
+    final double k = math.min(kW, kH);
 
     return KioskTap(
       onTap: onTap,

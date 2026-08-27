@@ -149,10 +149,29 @@ class KioskCustomizeSpec {
   static const double scrollbarWidth = 20;
   static const double scrollbarRadius = 15;
 
+  // -- shared choice cards (variations + add-ons) --------------------------
+  /// Compact box used by size/dietary variation cards AND add-on cards so
+  /// both rows are the same width and height. Smaller than the Figma
+  /// `Group 98` / `card-shot-espresso` measurements above, which still
+  /// drive [kioskCustomizeArtboardHeight] so shrinking the tiles cannot
+  /// inflate the rest of the page.
+  static const double choiceCardWidth = 320;
+  static const double choiceCardHeight = 340;
+  static const double choiceCardGap = 24;
+
+  /// Max width/height edge for those tiles on compact windows (< 900px).
+  /// A 2–3-up on a phone otherwise stretches Small/Addon1 across a third
+  /// of the panel. Kiosk-sized viewports never use this cap.
+  static const double choiceCardMaxEdgeCompact = 96;
+
   // -- cup / can -----------------------------------------------------------
   /// `cup` / `can`: 1099 x 790, 35 apart, 28px radius.
   static const double vesselCardWidth = 1099;
   static const double vesselCardHeight = 790;
+
+  /// Visual height of cup/can cards as a fraction of the 1099×790 Figma
+  /// ratio. Width still fills the panel; only the section shrinks.
+  static const double vesselHeightFactor = 0.58;
   static const double vesselCardGap = 35;
   static const double vesselCardRadius = 28;
   static const double vesselCardBorder = 1.5;

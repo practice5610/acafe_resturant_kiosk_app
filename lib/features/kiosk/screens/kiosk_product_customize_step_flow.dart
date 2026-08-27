@@ -269,10 +269,10 @@ class _KioskProductCustomizeStepScreenState
                     viewport: viewport, artboardHeight: artboard);
 
                 return KioskCenteredContent(
-                  // See Version A: the page is the artboard at scale `s`.
-                  maxWidth: landscape
-                      ? constraints.maxWidth
-                      : KioskCustomizeSpec.artboardWidth * s,
+                  // Same as Version A: fill the shell. Do not cap at
+                  // `2572 * s` — that is what produced the oversized beige
+                  // side margins. KioskShell already caps at the artboard.
+                  maxWidth: constraints.maxWidth,
                   child: Column(
                     children: [
                       // Progress bar + back button. Rebuilt on step change,

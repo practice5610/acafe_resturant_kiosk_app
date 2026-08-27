@@ -183,19 +183,36 @@ void main() {
     test('a row keeps ONE height, so cards never go ragged', () {
       // A Row/Wrap lets each child size itself, which is how the old grid ended
       // up with a short card beside a tall empty one.
+      expect(source, contains('double _choiceCardHeight('));
       expect(source, contains('double _optionCardHeight('));
       expect(source, contains('double _addOnCardHeight('));
       expect(source, contains('height: cardHeight'));
     });
 
-    test('a row with no artwork drops the image slot rather than reserving it',
+    test('variation and add-on cards share one compact image/name/price box',
         () {
-      expect(source, contains('bool _hasOptionArt('));
-      expect(source, contains('if (showImage)'),
-          reason: 'the slot is conditional, not a fixed band of white');
-      // Decided per row/group so every card in a row keeps ONE height.
-      expect(source, contains('group.addons.any((addon) => addon.hasImage)'));
-      expect(source, contains('images.any(_hasOptionArt)'));
+      expect(source, contains('_choiceTileWidth('));
+      expect(source, contains('KioskResponsive.compactMax'));
+      expect(KioskCustomizeSpec.choiceCardWidth, 320);
+      expect(KioskCustomizeSpec.choiceCardHeight, 340);
+      expect(KioskCustomizeSpec.choiceCardMaxEdgeCompact, 96);
+      expect(KioskCustomizeSpec.choiceCardMaxEdgeCompact,
+          lessThan(KioskCustomizeSpec.choiceCardWidth));
+      expect(KioskCustomizeSpec.choiceCardWidth,
+          lessThan(KioskCustomizeSpec.optionCardWidth));
+      expect(KioskCustomizeSpec.choiceCardWidth,
+          lessThan(KioskCustomizeSpec.addOnCardWidth));
+      expect(KioskCustomizeSpec.choiceCardHeight,
+          lessThan(KioskCustomizeSpec.optionCardHeight));
+      expect(KioskCustomizeSpec.choiceCardHeight,
+          lessThan(KioskCustomizeSpec.addOnCardHeight));
+    });
+
+    test('cup/can cards are shorter than the Figma 1099x790 ratio', () {
+      expect(KioskCustomizeSpec.vesselHeightFactor, lessThan(1));
+      expect(source, contains('KioskCustomizeSpec.vesselHeightFactor'));
+      expect(source, contains('compact: true'),
+          reason: 'the vessel panel tightens its chrome as well as its cards');
     });
   });
 
@@ -407,12 +424,13 @@ void main() {
       expect(body.contains('_AddOnCard('), isFalse);
     });
 
-    test('the vessel card sizes its contents from its own width', () {
+    test('the vessel card sizes its contents from its own box', () {
       final int start = source.indexOf('class _CupCanCard');
       final int end = source.indexOf('\nclass ', start + 10);
       final String body = source.substring(start, end);
 
-      expect(body, contains('final double k = width /'));
+      expect(body, contains('final double kW = width /'));
+      expect(body, contains('final double kH = height /'));
       expect(body, contains('height: height,'),
           reason: 'both vessels are given the same height by the section');
     });
