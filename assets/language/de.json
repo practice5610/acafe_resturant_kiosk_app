@@ -904,5 +904,20 @@
   "no_tip": "Kein Trinkgeld",
   "tip": "Trinkgeld",
   "thank_you_name": "Danke, {name}!",
-  "grab_it_at_the_counter": "Holt es an der Theke ab, wenn euer Name erscheint. Enjoy!"
+  "grab_it_at_the_counter": "Holt es an der Theke ab, wenn euer Name erscheint. Enjoy!",
+  "allergen_popup_title": "GIBT ES ETWAS, DAS WIR WISSEN SOLLTEN?",
+  "allergen_popup_subtitle": "Wählen Sie alles aus, was auf Sie zutrifft, damit wir Ihr Erlebnis personalisieren können",
+  "allergen_select_all": "Alle auswählen",
+  "allergen_apply_filters": "FILTER ANWENDEN",
+  "allergen_no_matching_items": "Keine Artikel entsprechen Ihren Allergenfiltern",
+  "allergen_egg": "Ei",
+  "allergen_gluten": "Gluten",
+  "allergen_dairy": "Milchprodukte",
+  "allergen_nuts": "Nüsse",
+  "allergen_soy": "Soja",
+  "allergen_change_filters": "Allergenfilter ändern",
+  "allergen_contains": "ENTHÄLT",
+  "allergen_info_title": "ENTHÄLT ALLERGENE",
+  "allergen_info_body": "Dieser Artikel enthält Folgendes. Bitte teilen Sie uns mit, wenn Sie Allergien haben.",
+  "allergen_info_dismiss": "VERSTANDEN"
 }

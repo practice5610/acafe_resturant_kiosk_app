@@ -904,5 +904,20 @@
   "no_tip": "Pas de pourboire",
   "tip": "Pourboire",
   "thank_you_name": "Merci, {name} !",
-  "grab_it_at_the_counter": "Récupérez-le au comptoir lorsque votre nom s'affiche. Enjoy !"
+  "grab_it_at_the_counter": "Récupérez-le au comptoir lorsque votre nom s'affiche. Enjoy !",
+  "allergen_popup_title": "QUELQUE CHOSE À SIGNALER ?",
+  "allergen_popup_subtitle": "Sélectionnez tout ce qui vous concerne afin que nous puissions personnaliser votre expérience",
+  "allergen_select_all": "Tout sélectionner",
+  "allergen_apply_filters": "APPLIQUER LES FILTRES",
+  "allergen_no_matching_items": "Aucun article ne correspond à vos filtres d'allergènes",
+  "allergen_egg": "Œuf",
+  "allergen_gluten": "Gluten",
+  "allergen_dairy": "Produits laitiers",
+  "allergen_nuts": "Fruits à coque",
+  "allergen_soy": "Soja",
+  "allergen_change_filters": "Modifier les filtres d'allergènes",
+  "allergen_contains": "CONTIENT",
+  "allergen_info_title": "CONTIENT DES ALLERGÈNES",
+  "allergen_info_body": "Cet article contient les éléments suivants. Merci de nous signaler toute allergie.",
+  "allergen_info_dismiss": "J'AI COMPRIS"
 }

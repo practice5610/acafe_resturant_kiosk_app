@@ -100,27 +100,48 @@ String normalizeKioskTag(String value) {
 }
 
 bool productHasKioskTag(Product product, String pillLabel) {
-  final String wanted = normalizeKioskTag(pillLabel);
-  if (wanted.isEmpty) return false;
+  return productHasAnyKioskTag(product, {normalizeKioskTag(pillLabel)});
+}
+
+/// True when the product carries at least one of [normalizedWanted] (values
+/// already run through [normalizeKioskTag]).
+bool productHasAnyKioskTag(Product product, Set<String> normalizedWanted) {
+  if (normalizedWanted.isEmpty) return false;
   for (final ProductTag tag in product.tags ?? const <ProductTag>[]) {
-    if (normalizeKioskTag(tag.tag ?? '') == wanted) {
+    if (normalizedWanted.contains(normalizeKioskTag(tag.tag ?? ''))) {
       return true;
     }
   }
   return false;
 }
 
+/// Products matching ANY of the selected pills, not all of them.
+///
+/// The pills are merchandising tags — a drink is Popular *or* Seasonal and
+/// almost never both — so intersecting them would empty the grid on the second
+/// tap. Union means each extra pill widens the menu, which is what a row of
+/// toggles looks like it does. An empty selection is "no tag filter".
 List<Product> filterKioskProductsByTag({
   required List<Product> products,
-  String? pillLabel,
+  Set<String> pillLabels = const <String>{},
 }) {
-  if (pillLabel == null || pillLabel.trim().isEmpty) {
+  final Set<String> wanted = pillLabels
+      .map(normalizeKioskTag)
+      .where((String t) => t.isNotEmpty)
+      .toSet();
+  if (wanted.isEmpty) {
     return products;
   }
-  return products.where((p) => productHasKioskTag(p, pillLabel)).toList();
+  return products.where((p) => productHasAnyKioskTag(p, wanted)).toList();
 }
 
 /// Sort + price filtering shared by the menu (testable without providers).
+///
+/// Deliberately does NOT apply allergens. A price range or a sort order is a
+/// preference the customer set in the filter sheet; "I can't eat nuts" is a
+/// constraint that holds whether or not that sheet was ever opened. Allergens
+/// are therefore applied at the display sites, next to the tag pill — see
+/// [filterKioskProductsByAllergens].
 List<Product> filterKioskProducts({
   required List<Product> products,
   required SearchProvider searchProvider,

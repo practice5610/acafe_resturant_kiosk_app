@@ -7,7 +7,7 @@ import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -64,8 +64,7 @@ class _CompactLineCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(KioskUI.radius),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
-        onTap: () => openKioskCustomize(context, cart.product!,
-            cart: cart, cartIndex: index),
+        onTap: () => openKioskCartLine(context, cart, cartIndex: index),
         child: Container(
           height: 120,
           decoration: BoxDecoration(
@@ -86,6 +85,7 @@ class _CompactLineCard extends StatelessWidget {
                     image: KioskProductImageHelper.cartLineImageUrl(
                       cart: cart,
                       productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                      dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
                     ),
                     fit: BoxFit.cover,
                   ),
@@ -98,7 +98,9 @@ class _CompactLineCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      cart.product?.name ?? '',
+                      cart.isDeal
+                          ? (cart.dealTitle ?? cart.product?.name ?? '')
+                          : (cart.product?.name ?? ''),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: loewExtraBold.copyWith(
@@ -171,8 +173,7 @@ class _ScaledLineCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(30 * s),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
-        onTap: () => openKioskCustomize(context, cart.product!,
-            cart: cart, cartIndex: index),
+        onTap: () => openKioskCartLine(context, cart, cartIndex: index),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(30 * s),
@@ -193,6 +194,7 @@ class _ScaledLineCard extends StatelessWidget {
                     image: KioskProductImageHelper.cartLineImageUrl(
                       cart: cart,
                       productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                      dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
                     ),
                     fit: BoxFit.cover,
                   ),
@@ -205,7 +207,9 @@ class _ScaledLineCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      cart.product?.name ?? '',
+                      cart.isDeal
+                          ? (cart.dealTitle ?? cart.product?.name ?? '')
+                          : (cart.product?.name ?? ''),
                       style: loewExtraBold.copyWith(
                           fontSize: 72 * s, height: 1.05, color: Colors.black),
                     ),
@@ -331,6 +335,12 @@ class KioskLinePriceRow extends StatelessWidget {
 }
 
 List<String> _modifierLines(CartModel cart) {
+  if (cart.isDeal) {
+    return (cart.components ?? [])
+        .map((c) => c.product?.name ?? '')
+        .where((n) => n.isNotEmpty)
+        .toList();
+  }
   final List<String> lines = [];
   final variations = cart.product?.variations ?? [];
   final selected = cart.variations ?? [];

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
+import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/place_order_body.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
@@ -68,48 +69,21 @@ Future<KioskPlaceResult> placeKioskOrder(
   }
 
   // Build the order cart items — mirrors the web app's confirm_button_widget.
+  // A deal line is expanded into one entry per included product so kitchen
+  // tickets stay one row per drink/food, tagged with deal_id.
   final List<Cart> carts = [];
   for (final cart in cartProvider.cartList) {
     if (cart == null) continue;
-
-    final List<int?> addOnIdList = [];
-    final List<int?> addOnQtyList = [];
-    for (final addOn in cart.addOnIds ?? []) {
-      addOnIdList.add(addOn.id);
-      addOnQtyList.add(addOn.quantity);
-    }
-
-    final List<OrderVariation> variations = [];
-    final productVariations = cart.product?.variations;
-    final selected = cart.variations;
-    if (productVariations != null && selected != null && selected.isNotEmpty) {
-      for (int i = 0; i < productVariations.length; i++) {
-        if (i < selected.length && selected[i].contains(true)) {
-          variations.add(OrderVariation(
-              name: productVariations[i].name,
-              values: OrderVariationValue(label: [])));
-          final values = productVariations[i].variationValues ?? [];
-          for (int j = 0; j < values.length; j++) {
-            if (j < selected[i].length && (selected[i][j] ?? false)) {
-              variations.last.values!.label!.add(values[j].level);
-            }
-          }
+    if (cart.isDeal) {
+      final int copies = cart.quantity ?? 1;
+      for (int i = 0; i < copies; i++) {
+        for (final component in cart.components ?? const []) {
+          carts.add(_kioskOrderCartFromLine(component, dealId: cart.dealId));
         }
       }
+    } else {
+      carts.add(_kioskOrderCartFromLine(cart));
     }
-
-    carts.add(Cart(
-      cart.product!.id.toString(),
-      cart.discountedPrice.toString(),
-      [],
-      variations,
-      cart.discountAmount,
-      cart.quantity,
-      cart.taxAmount,
-      addOnIdList,
-      addOnQtyList,
-      instruction: cart.instruction,
-    ));
   }
 
   final branches = splashProvider.configModel?.branches;
@@ -158,4 +132,46 @@ Future<KioskPlaceResult> placeKioskOrder(
     }
   }, asGuest: true);
   return completer.future;
+}
+
+Cart _kioskOrderCartFromLine(CartModel cart, {int? dealId}) {
+  final List<int?> addOnIdList = [];
+  final List<int?> addOnQtyList = [];
+  for (final addOn in cart.addOnIds ?? []) {
+    addOnIdList.add(addOn.id);
+    addOnQtyList.add(addOn.quantity);
+  }
+
+  final List<OrderVariation> variations = [];
+  final productVariations = cart.product?.variations;
+  final selected = cart.variations;
+  if (productVariations != null && selected != null && selected.isNotEmpty) {
+    for (int i = 0; i < productVariations.length; i++) {
+      if (i < selected.length && selected[i].contains(true)) {
+        variations.add(OrderVariation(
+            name: productVariations[i].name,
+            values: OrderVariationValue(label: [])));
+        final values = productVariations[i].variationValues ?? [];
+        for (int j = 0; j < values.length; j++) {
+          if (j < selected[i].length && (selected[i][j] ?? false)) {
+            variations.last.values!.label!.add(values[j].level);
+          }
+        }
+      }
+    }
+  }
+
+  return Cart(
+    cart.product!.id.toString(),
+    cart.discountedPrice.toString(),
+    [],
+    variations,
+    cart.discountAmount,
+    cart.quantity,
+    cart.taxAmount,
+    addOnIdList,
+    addOnQtyList,
+    instruction: cart.instruction,
+    dealId: dealId,
+  );
 }

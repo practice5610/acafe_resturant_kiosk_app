@@ -38,6 +38,7 @@ class AppConstants {
   static const String kioskCustomizeEventsUri =
       '/api/v1/kiosk/customize-events';
   static const String kioskProductsUri = '/api/v1/kiosk/products';
+  static const String kioskDealsUri = '/api/v1/kiosk/deals';
   static const String trackUri = '/api/v1/customer/order/track?order_id=';
   static const String messageUri = '/api/v1/customer/message/get';
   static const String sendMessageUri = '/api/v1/customer/message/send';
@@ -171,6 +172,7 @@ class AppConstants {
   static const String kioskDeviceCategory = 'kiosk_device_category';
   static const String kioskOrderingExperience = 'kiosk_ordering_experience';
   static const String kioskMenuCacheKey = 'kiosk_menu_cache_v2';
+  static const String kioskDealsCacheKey = 'kiosk_deals_cache_v1';
   static const String kioskManagerStockCacheKey = 'kiosk_manager_stock_cache_v2';
   static const String currentAddress = 'current_address';
   static const String lastOrderPaymentMethod = 'last_order_payment_method';

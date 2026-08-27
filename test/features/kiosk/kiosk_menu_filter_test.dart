@@ -77,7 +77,7 @@ void main() {
         tagged('Espresso', const []),
       ];
       expect(
-        filterKioskProductsByTag(products: products, pillLabel: null)
+        filterKioskProductsByTag(products: products, pillLabels: const {})
             .map((p) => p.name),
         ['Latte', 'Espresso'],
       );
@@ -90,7 +90,7 @@ void main() {
           tagged('Espresso', ['Signature']),
           tagged('Water', const []),
         ],
-        pillLabel: 'POPULAR',
+        pillLabels: const {'POPULAR'},
       );
 
       expect(result.map((p) => p.name), ['Latte']);
@@ -102,10 +102,50 @@ void main() {
           tagged('Matcha', ['Ceremonial']),
           tagged('Latte', ['Popular']),
         ],
-        pillLabel: 'CEROMONIAL',
+        pillLabels: const {'CEROMONIAL'},
       );
 
       expect(result.map((p) => p.name), ['Matcha']);
+    });
+
+    test('shows the union of several selected pills, not the intersection',
+        () {
+      final result = filterKioskProductsByTag(
+        products: [
+          tagged('Latte', ['Popular']),
+          tagged('Espresso', ['Signature']),
+          tagged('Mango', ['Seasonal']),
+          tagged('Water', const []),
+        ],
+        pillLabels: const {'POPULAR', 'SIGNATURE'},
+      );
+
+      expect(result.map((p) => p.name), ['Latte', 'Espresso']);
+    });
+
+    test('lists a product carrying two selected tags only once', () {
+      final result = filterKioskProductsByTag(
+        products: [
+          tagged('Latte', ['Popular', 'Signature']),
+          tagged('Water', const []),
+        ],
+        pillLabels: const {'POPULAR', 'SIGNATURE'},
+      );
+
+      expect(result.map((p) => p.name), ['Latte']);
+    });
+
+    test('normalizes every selected pill, not just the first', () {
+      final result = filterKioskProductsByTag(
+        products: [
+          tagged('Matcha', ['Ceremonial']),
+          tagged('Espresso', ['Special']),
+          tagged('Water', const []),
+        ],
+        pillLabels: const {'CEROMONIAL', 'SPECIALS'},
+      );
+
+      expect(result.map((p) => p.name), ['Matcha', 'Espresso']);
     });
 
     test('matches Specials pill to a Special tag', () {

@@ -9,6 +9,7 @@ import 'package:acafe_customer/common/widgets/product_shimmer_widget.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
@@ -266,6 +267,23 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
                         constraints.maxWidth,
                         landscape: KioskLayout.isLandscape(context, constraints),
                       );
+                          // Search has to honour the allergen answer too — a
+                          // customer who declared "no nuts" and then typed
+                          // "brownie" must not be handed one. Filtered here
+                          // rather than in the provider because the paging
+                          // counts (totalSize/offset) are the server's.
+                          final List<Product> results =
+                              filterKioskProductsByAllergens(
+                            products: searchProvider
+                                    .searchProductModel?.products ??
+                                const <Product>[],
+                            avoided:
+                                KioskAllergenPreferences.instance.avoided,
+                          );
+                          if (results.isEmpty) {
+                            return const Center(
+                                child: NoDataWidget(isFooter: false));
+                          }
                           return GridView.builder(
                             padding: EdgeInsets.zero,
                             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -273,11 +291,11 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
                               crossAxisCount: geo.columns,
                               mainAxisExtent: geo.tileHeight,
                             ),
-                            itemCount: searchProvider.searchProductModel?.products?.length,
+                            itemCount: results.length,
                             physics: const NeverScrollableScrollPhysics(),
                             shrinkWrap: true,
                             itemBuilder: (context, index) => _KioskResultCard(
-                              product: searchProvider.searchProductModel!.products![index],
+                              product: results[index],
                               tileWidth: geo.tileWidth,
                             ),
                           );

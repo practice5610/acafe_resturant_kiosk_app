@@ -48,10 +48,35 @@ class CatalogSocketFrame {
     }
   }
 
+  static CatalogEvent? dealChanged(dynamic message) {
+    try {
+      final payload = _asMap(message);
+      if (payload == null) {
+        return null;
+      }
+      final name = payload['event']?.toString() ?? '';
+      if (!_isNamed(name, 'deal.changed')) {
+        return null;
+      }
+      final dynamic raw = payload['data'] is String
+          ? jsonDecode(payload['data'] as String)
+          : payload['data'];
+      if (raw is! Map) {
+        return null;
+      }
+      return CatalogEvent.fromJson(Map<String, dynamic>.from(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Reverb sends `product.changed`. Echo-style clients use a leading dot.
-  static bool _isProductChanged(String name) {
+  static bool _isProductChanged(String name) =>
+      _isNamed(name, 'product.changed');
+
+  static bool _isNamed(String name, String expected) {
     final normalized = name.startsWith('.') ? name.substring(1) : name;
-    return normalized == 'product.changed';
+    return normalized == expected;
   }
 
   static Map<String, dynamic>? _asMap(dynamic message) {

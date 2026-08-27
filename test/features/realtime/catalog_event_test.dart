@@ -226,6 +226,17 @@ void main() {
       expect(event!.productId, 42);
     });
 
+    test('parses nested deal.changed JSON from Reverb', () {
+      const frame =
+          '{"event":"deal.changed","channel":"branch.1.products","data":"{\\"v\\":1,\\"event_id\\":\\"d1\\",\\"action\\":\\"updated\\",\\"deal_id\\":9,\\"branch_id\\":1}"}';
+      final event = CatalogSocketFrame.dealChanged(frame);
+      expect(event, isNotNull);
+      expect(event!.dealId, 9);
+      expect(event.action, 'updated');
+      expect(event.isDeal, isTrue);
+      expect(CatalogSocketFrame.productChanged(frame), isNull);
+    });
+
     test('ignores protocol frames', () {
       expect(
         CatalogSocketFrame.productChanged(

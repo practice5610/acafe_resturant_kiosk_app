@@ -10,8 +10,18 @@ int findMatchingCartLineIndex(List<CartModel?> cartList, CartModel candidate) {
 }
 
 /// Same product + same variation picks + same add-ons + same instruction
-/// => one cart line.
+/// => one cart line. Deal lines match on deal id + every component instead.
 bool cartLinesMatch(CartModel a, CartModel b) {
+  if (a.isDeal || b.isDeal) {
+    if (a.dealId != b.dealId) return false;
+    final List<CartModel> aParts = a.components ?? const [];
+    final List<CartModel> bParts = b.components ?? const [];
+    if (aParts.length != bParts.length) return false;
+    for (int i = 0; i < aParts.length; i++) {
+      if (!cartLinesMatch(aParts[i], bParts[i])) return false;
+    }
+    return true;
+  }
   if (a.product?.id != b.product?.id) return false;
   if (!_variationSelectionsMatch(a.variations, b.variations)) return false;
   if (!_addOnsMatch(a.addOnIds, b.addOnIds)) return false;

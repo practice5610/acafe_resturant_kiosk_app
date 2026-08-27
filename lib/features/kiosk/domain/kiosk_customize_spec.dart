@@ -182,14 +182,24 @@ class KioskCustomizeSpec {
   static const double vesselImageWidth = 290;
   static const double vesselImageGap = 24;
 
-  /// Loew Bold 28 with 3.36 tracking, uppercase — Figma `cup-text` / `can-text`.
-  /// The rendered word is sized from the card's width, not the squashed
-  /// height, and never below [vesselLabelMinSize].
+  /// Uppercase `cup-text` / `can-text`. The rendered word now takes the
+  /// SECTION-HEADING size and weight ([panelTitleSize], Loew ExtraBold) rather
+  /// than the design's own 28, so "Size", "Add add-ons" and "CUP" read as one
+  /// family of labels down the column. Sizing it from the card width instead
+  /// let it outgrow those headings whenever height pulled the page scale down.
   static const double vesselLabelSize = 28;
-  static const double vesselLabelTracking = 3.36;
 
-  /// Floor for the CUP/CAN word so a short vessel card cannot crush it.
-  /// Kept below the size/add-on labels so it does not dominate the section.
+  /// Tracking as a share of the font size (3.36 / 28), so the letter-spacing
+  /// follows whatever size the label ends up at.
+  static const double vesselLabelTrackingRatio = 0.12;
+
+  /// Cap on the vessel word as a share of the card width, so a narrow card
+  /// ellipsizes rather than colliding with the vessel image above it.
+  static const double vesselLabelMaxWidthShare = 0.18;
+
+  /// Floor for the optional price line under the vessel word, so a short card
+  /// cannot crush it. No longer applies to the word itself — that follows
+  /// [panelTitleSize].
   static const double vesselLabelMinSize = 16;
 
   // -- bottom action bar ---------------------------------------------------

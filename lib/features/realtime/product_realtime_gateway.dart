@@ -23,6 +23,7 @@ class ProductRealtimeGateway {
   bool _subscribed = false;
 
   void Function(CatalogEvent event)? onEvent;
+  void Function(CatalogEvent event)? onDealEvent;
   VoidCallback? onReconnect;
 
   int? get branchId => _branchId;
@@ -103,6 +104,17 @@ class ProductRealtimeGateway {
     }
     if (CatalogSocketFrame.isProtocolPing(message)) {
       _send({'event': 'pusher:pong', 'data': {}});
+      return;
+    }
+    final dealEvent = CatalogSocketFrame.dealChanged(message);
+    if (dealEvent != null) {
+      if (kDebugMode) {
+        debugPrint(
+          'ProductRealtimeGateway deal.changed '
+          'id=${dealEvent.dealId} action=${dealEvent.action}',
+        );
+      }
+      onDealEvent?.call(dealEvent);
       return;
     }
     final event = CatalogSocketFrame.productChanged(message);

@@ -6,11 +6,14 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_option_layout.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_allergen_notice.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
@@ -177,7 +180,7 @@ double _menuProductNameSize(BuildContext context) {
     gap: 41 * s,
     landscape: size.width > size.height,
   );
-  return 45 * (geo.tileWidth / 564.0);
+  return 45 * (geo.tileWidth / 564.0) * KioskResponsive.menuTypeScale;
 }
 
 /// Two lines of label is what a real product name needs — Figma's own
@@ -328,7 +331,46 @@ class _CustomizeSections {
 /// reopen that line so previous add-ons / variations stay selected and Add to
 /// Cart updates it instead of inserting a duplicate.
 void openKioskCustomize(BuildContext context, Product product,
-    {CartModel? cart, int? cartIndex}) {
+    {CartModel? cart,
+    int? cartIndex,
+    ValueChanged<CartModel>? onConfigured}) {
+  // THE ALLERGEN GATE. The first time a customer reaches for a product in an
+  // order, ask what they need to avoid before showing them anything they might
+  // not be able to eat (Figma POS 1385:15054). Once per order, not once per
+  // product — see [KioskAllergenPreferences].
+  //
+  // Guarded on `cart == null` so this only fires on a NEW product selection.
+  // Re-opening an existing cart line is an edit, and someone with a line in the
+  // cart has necessarily already been asked.
+  if (cart == null && onConfigured == null && !KioskAllergenPreferences.instance.asked) {
+    _askAllergensThenOpenKioskCustomize(context, product);
+    return;
+  }
+  _openKioskCustomizeNow(context, product,
+      cart: cart, cartIndex: cartIndex, onConfigured: onConfigured);
+}
+
+/// Shows the allergen popup, then opens the product the customer tapped —
+/// unless what they just declared rules it out.
+Future<void> _askAllergensThenOpenKioskCustomize(
+    BuildContext context, Product product) async {
+  await showKioskAllergenFilter(context);
+  if (!context.mounted) return;
+
+  // They tapped a product, then told us they avoid something it contains. The
+  // menu behind this popup has already dropped it, so opening it anyway would
+  // contradict the answer they just gave.
+  if (kioskProductHasAllergen(
+      product, KioskAllergenPreferences.instance.avoided)) {
+    return;
+  }
+  _openKioskCustomizeNow(context, product);
+}
+
+void _openKioskCustomizeNow(BuildContext context, Product product,
+    {CartModel? cart,
+    int? cartIndex,
+    ValueChanged<CartModel>? onConfigured}) {
   final cartProvider = Provider.of<CartProvider>(context, listen: false);
   final productProvider = Provider.of<ProductProvider>(context, listen: false);
 
@@ -341,16 +383,20 @@ void openKioskCustomize(BuildContext context, Product product,
   if (!hasModifiers) {
     productProvider.initData(product, null);
     productProvider.initProductVariationStatus(0);
-    cartProvider.addToCart(
-        buildKioskCartModel(context, product), productProvider.cartIndex);
+    final CartModel built = buildKioskCartModel(context, product);
+    if (onConfigured != null) {
+      onConfigured(built);
+      return;
+    }
+    cartProvider.addToCart(built, productProvider.cartIndex);
     return;
   }
 
   bool replaceOtherProductLines = false;
-  if (cart == null) {
+  if (onConfigured == null && cart == null) {
     for (int i = cartProvider.cartList.length - 1; i >= 0; i--) {
       final line = cartProvider.cartList[i];
-      if (line?.product?.id == product.id) {
+      if (line?.product?.id == product.id && line?.isDeal != true) {
         cart = line;
         cartIndex = i;
         replaceOtherProductLines = true;
@@ -380,12 +426,14 @@ void openKioskCustomize(BuildContext context, Product product,
               cartIndex: cartIndex,
               initialInstruction: cart?.instruction,
               replaceOtherProductLines: replaceOtherProductLines,
+              onConfigured: onConfigured,
             )
           : KioskProductCustomizeScreen(
               product: product,
               cartIndex: cartIndex,
               initialInstruction: cart?.instruction,
               replaceOtherProductLines: replaceOtherProductLines,
+              onConfigured: onConfigured,
             ),
     ),
   );
@@ -456,6 +504,7 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
   int? get cartIndex;
   String? get instruction;
   bool get replaceOtherProductLines;
+  ValueChanged<CartModel>? get onConfigured => null;
 
   /// The ordering experience an ADMIN chose for this device. Both versions read
   /// it from the same place, so an event's `variant` always describes what was
@@ -605,10 +654,17 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
     if (!_validate(context, productProvider)) return;
     track(context, KioskCustomizeEvent.addToCartClicked);
     _completed = true;
+    final CartModel built =
+        buildKioskCartModel(context, product, instruction: instruction);
+    final ValueChanged<CartModel>? configured = onConfigured;
+    if (configured != null) {
+      configured(built);
+      Navigator.of(context).pop();
+      return;
+    }
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     final int? index = cartIndex ?? productProvider.cartIndex;
-    cartProvider.addToCart(
-        buildKioskCartModel(context, product, instruction: instruction), index);
+    cartProvider.addToCart(built, index);
     if (replaceOtherProductLines &&
         product.id != null &&
         index != null &&
@@ -642,12 +698,14 @@ class KioskProductCustomizeScreen extends StatefulWidget {
   /// When true, saving replaces this product's cart line and drops any other
   /// leftover lines for the same product (menu tap reopened an existing item).
   final bool replaceOtherProductLines;
+  final ValueChanged<CartModel>? onConfigured;
   const KioskProductCustomizeScreen({
     super.key,
     required this.product,
     this.cartIndex,
     this.initialInstruction,
     this.replaceOtherProductLines = false,
+    this.onConfigured,
   });
 
   @override
@@ -671,6 +729,8 @@ class _KioskProductCustomizeScreenState
   String? get instruction => _instruction;
   @override
   bool get replaceOtherProductLines => widget.replaceOtherProductLines;
+  @override
+  ValueChanged<CartModel>? get onConfigured => widget.onConfigured;
 
   @override
   void initState() {
@@ -753,8 +813,20 @@ class _KioskProductCustomizeScreenState
                 final Widget header = _Header(
                     s: s, product: product, productProvider: productProvider);
 
+                // Allergen disclosure sits ABOVE the first panel — i.e. above
+                // Size — so it is read before any choice is made rather than
+                // after. It is not a panel: it is a left-aligned strip, and it
+                // is absent entirely for a product that declares nothing.
+                //
+                // Prepended to this list rather than inserted into each of the
+                // three layout branches below, so landscape, pinned portrait
+                // and scrolling portrait all place it identically.
+                final Widget? allergenNotice =
+                    KioskAllergenNotice.maybe(s: s, product: product);
+
                 // Size first, then each dietary group, each in its own panel.
                 final List<Widget> variationPanels = [
+                  if (allergenNotice != null) allergenNotice,
                   if (sizeVariations.isNotEmpty)
                     _SizeOptionsPanel(
                       s: s,
@@ -2216,6 +2288,7 @@ class _CupCanSection extends StatelessWidget {
               for (int i = 0; i < values.length; i++) ...[
                 if (i > 0) SizedBox(width: gap),
                 _CupCanCard(
+                  s: s,
                   width: cardWidth,
                   height: cardHeight,
                   name: values[i].level?.trim() ?? '',
@@ -2282,6 +2355,11 @@ class _CupCanCard extends StatelessWidget {
   final String image;
   final bool selected;
   final VoidCallback onTap;
+
+  /// The page scale, so the vessel word can match the section headings, which
+  /// are authored in artboard px like everything else.
+  final double s;
+
   const _CupCanCard({
     required this.width,
     required this.height,
@@ -2292,7 +2370,15 @@ class _CupCanCard extends StatelessWidget {
     required this.image,
     required this.selected,
     required this.onTap,
+    required this.s,
   });
+
+  /// Section-heading size, capped so a narrow card ellipsizes the word rather
+  /// than letting it run past the vessel image above it.
+  double get _vesselLabelSize => math.min(
+        KioskCustomizeSpec.panelTitleSize * s,
+        width * KioskCustomizeSpec.vesselLabelMaxWidthShare,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -2344,18 +2430,19 @@ class _CupCanCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                // Sized from the card WIDTH, not the shortened height — `k`
-                // follows the 0.58 vessel factor and was crushing this to
-                // ~5px. A width share plus a floor keeps CUP / CAN readable.
-                style: loewBold.copyWith(
-                  fontSize: math.max(
-                    KioskCustomizeSpec.vesselLabelMinSize,
-                    width * 0.055,
-                  ),
-                  letterSpacing: math.max(
-                    0.8,
-                    KioskCustomizeSpec.vesselLabelTracking * kW,
-                  ),
+                // ONE family of labels. "Size", "Add add-ons" and "CUP" sit in
+                // the same column and read as the same kind of thing, so they
+                // share the section-heading size and weight exactly.
+                //
+                // This used to be sized from the card WIDTH and set in Bold,
+                // independent of `s`. Whenever height pulled the scale down —
+                // which is the normal case on the 1080x1920 kiosk — the
+                // headings shrank but this did not, so the vessel word ended up
+                // LARGER than the headings above it.
+                style: loewExtraBold.copyWith(
+                  fontSize: _vesselLabelSize,
+                  letterSpacing:
+                      _vesselLabelSize * KioskCustomizeSpec.vesselLabelTrackingRatio,
                   height: 1.0,
                   color: _kInkText,
                 ),

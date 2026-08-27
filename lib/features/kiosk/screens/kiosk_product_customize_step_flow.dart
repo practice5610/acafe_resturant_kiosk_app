@@ -62,12 +62,14 @@ class KioskProductCustomizeStepScreen extends StatefulWidget {
 
   /// See [KioskProductCustomizeScreen.replaceOtherProductLines].
   final bool replaceOtherProductLines;
+  final ValueChanged<CartModel>? onConfigured;
   const KioskProductCustomizeStepScreen({
     super.key,
     required this.product,
     this.cartIndex,
     this.initialInstruction,
     this.replaceOtherProductLines = false,
+    this.onConfigured,
   });
 
   @override
@@ -106,6 +108,8 @@ class _KioskProductCustomizeStepScreenState
   String? get instruction => _instruction;
   @override
   bool get replaceOtherProductLines => widget.replaceOtherProductLines;
+  @override
+  ValueChanged<CartModel>? get onConfigured => widget.onConfigured;
 
   @override
   void initState() {
@@ -234,6 +238,7 @@ class _KioskProductCustomizeStepScreenState
         cartIndex: cartIndex,
         initialInstruction: _instruction,
         replaceOtherProductLines: replaceOtherProductLines,
+        onConfigured: onConfigured,
       );
     }
 
@@ -401,7 +406,13 @@ class _KioskProductCustomizeStepScreenState
       double s, _CustomizeStep step, ProductProvider productProvider) {
     switch (step) {
       case _CustomizeStep.milks:
+        final Widget? allergenNotice =
+            KioskAllergenNotice.maybe(s: s, product: product);
         final List<Widget> panels = [
+          // Above Size, exactly as in Version A — the two flows are an A/B
+          // switch on presentation, so a disclosure must not depend on which
+          // one the device happens to be running.
+          if (allergenNotice != null) allergenNotice,
           if (_sections.size.isNotEmpty)
             _SizeOptionsPanel(
               s: s,

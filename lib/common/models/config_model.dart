@@ -465,6 +465,7 @@ class BaseUrls {
   String? _chatImageUrl;
   String? _branchImageUrl;
   String? _getWayIMageUrl;
+  String? _dealImageUrl;
 
   BaseUrls(
       {String? productImageUrl,
@@ -479,6 +480,7 @@ class BaseUrls {
         String? chatImageUrl,
         String? branchImageUrl,
         String? getWayImageUrl,
+        String? dealImageUrl,
       }) {
     _productImageUrl = productImageUrl;
     _addonImageUrl = addonImageUrl;
@@ -492,6 +494,7 @@ class BaseUrls {
     _chatImageUrl = chatImageUrl;
     _branchImageUrl = branchImageUrl;
     _getWayIMageUrl = getWayImageUrl;
+    _dealImageUrl = dealImageUrl;
   }
 
   String? get productImageUrl => _productImageUrl;
@@ -506,6 +509,7 @@ class BaseUrls {
   String? get chatImageUrl => _chatImageUrl;
   String? get branchImageUrl => _branchImageUrl;
   String? get getWayImageUrl => _getWayIMageUrl;
+  String? get dealImageUrl => _dealImageUrl;
 
   BaseUrls.fromJson(Map<String, dynamic> json) {
     _productImageUrl = json['product_image_url'] ?? '';
@@ -520,6 +524,7 @@ class BaseUrls {
     _chatImageUrl = json['chat_image_url'] ?? '';
     _branchImageUrl = json['branch_image_url'] ?? '';
     _getWayIMageUrl = json['gateway_image_url'] ?? '';
+    _dealImageUrl = json['deal_image_url'] ?? json['banner_image_url'] ?? '';
   }
 
   Map<String, dynamic> toJson() {
@@ -535,6 +540,7 @@ class BaseUrls {
     data['chat_image_url'] = _chatImageUrl;
     data['branch_image_url'] = _branchImageUrl;
     data['gateway_image_url'] = _getWayIMageUrl;
+    data['deal_image_url'] = _dealImageUrl;
     return data;
   }
 }

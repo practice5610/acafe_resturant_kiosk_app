@@ -904,5 +904,20 @@
   "no_tip": "No tip",
   "tip": "Tip",
   "thank_you_name": "Thank you, {name}!",
-  "grab_it_at_the_counter": "Grab it at the counter when your name shows up enjoy!"
+  "grab_it_at_the_counter": "Grab it at the counter when your name shows up enjoy!",
+  "allergen_popup_title": "ANYTHING WE SHOULD KNOW?",
+  "allergen_popup_subtitle": "Select everything that applies to you so we can personalize your experience",
+  "allergen_select_all": "Select all",
+  "allergen_apply_filters": "APPLY FILTERS",
+  "allergen_no_matching_items": "No items match your allergen filters",
+  "allergen_egg": "Egg",
+  "allergen_gluten": "Gluten",
+  "allergen_dairy": "Dairy",
+  "allergen_nuts": "Nuts",
+  "allergen_soy": "Soy",
+  "allergen_change_filters": "Change allergen filters",
+  "allergen_contains": "CONTAINS",
+  "allergen_info_title": "CONTAINS ALLERGENS",
+  "allergen_info_body": "This item contains the following. Please let us know if you have any allergies.",
+  "allergen_info_dismiss": "GOT IT"
 }

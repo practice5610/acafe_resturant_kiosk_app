@@ -6,6 +6,7 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/reposotories/product_repo.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
 import 'package:acafe_customer/features/realtime/catalog_realtime_policy.dart';
@@ -26,12 +27,14 @@ class ProductRealtimeController {
   final ProductRealtimeGateway gateway;
 
   final Map<int, Timer> _debounce = {};
+  Timer? _dealDebounce;
   final ListQueue<String> _seenEventIds = ListQueue<String>();
   static const int _seenCap = 100;
 
   CategoryProvider? _categories;
   CartProvider? _cart;
   LocalizationProvider? _localization;
+  KioskDealProvider? _deals;
   WebsocketConfig? _config;
 
   Future<void> start({
@@ -40,13 +43,16 @@ class ProductRealtimeController {
     required CategoryProvider categories,
     required CartProvider cart,
     required LocalizationProvider localization,
+    required KioskDealProvider deals,
   }) async {
     _config = config;
     _categories = categories;
     _cart = cart;
     _localization = localization;
+    _deals = deals;
 
     gateway.onEvent = _onEvent;
+    gateway.onDealEvent = _onDealEvent;
     gateway.onReconnect = _onReconnect;
     await gateway.connect(config: config, branchId: branchId);
   }
@@ -56,6 +62,8 @@ class ProductRealtimeController {
       timer.cancel();
     }
     _debounce.clear();
+    _dealDebounce?.cancel();
+    _dealDebounce = null;
     await gateway.disconnect();
   }
 
@@ -148,6 +156,41 @@ class ProductRealtimeController {
     }
   }
 
+  void _onDealEvent(CatalogEvent event) {
+    if (kDebugMode) {
+      debugPrint(
+        'ProductRealtimeController deal action=${event.action} '
+        'deal=${event.dealId}',
+      );
+    }
+    final bool duplicate = event.eventId.isNotEmpty &&
+        _seenEventIds.contains(event.eventId);
+    if (duplicate) {
+      return;
+    }
+    if (event.eventId.isNotEmpty) {
+      _seenEventIds.add(event.eventId);
+      while (_seenEventIds.length > _seenCap) {
+        _seenEventIds.removeFirst();
+      }
+    }
+
+    if (event.isDelete) {
+      final int id = event.dealId;
+      if (id > 0) {
+        _deals?.applyRealtimeRemove(id);
+        _cart?.removeByDealId(id);
+      }
+      return;
+    }
+
+    _dealDebounce?.cancel();
+    _dealDebounce = Timer(const Duration(milliseconds: 300), () {
+      _dealDebounce = null;
+      _deals?.fetchDeals();
+    });
+  }
+
   void _applyRemoved(int productId) {
     if (productId <= 0) {
       return;
@@ -162,6 +205,7 @@ class ProductRealtimeController {
       return;
     }
     _categories?.prefetchKioskMenu(localeCode: locale, force: true);
+    unawaited(_deals?.fetchDeals() ?? Future.value());
   }
 
   bool _isNotFound(ApiResponseModel response) {
@@ -194,6 +238,7 @@ class ProductRealtimeController {
         )) {
           _fullReload();
         }
+        unawaited(_deals?.fetchDeals() ?? Future.value());
         return;
       }
     } catch (_) {}

@@ -333,6 +333,12 @@ class ProductTag {
   String? tag;
   String? color;
   bool? isKioskFilter;
+
+  /// Marks this tag as an allergen declaration (Egg, Gluten, Dairy, Nuts, Soy)
+  /// rather than a merchandising pill. Drives the kiosk allergen filter — see
+  /// `kiosk_allergen.dart`. Mutually exclusive with [isKioskFilter] in the
+  /// seeded data, and the kiosk treats it that way.
+  bool? isAllergen;
   int? sortOrder;
 
   ProductTag({
@@ -340,6 +346,7 @@ class ProductTag {
     this.tag,
     this.color,
     this.isKioskFilter,
+    this.isAllergen,
     this.sortOrder,
   });
 
@@ -349,6 +356,8 @@ class ProductTag {
     color = json['color']?.toString();
     final dynamic filter = json['is_kiosk_filter'];
     isKioskFilter = filter == true || filter == 1 || filter == '1';
+    final dynamic allergen = json['is_allergen'];
+    isAllergen = allergen == true || allergen == 1 || allergen == '1';
     sortOrder = json['sort_order'] is int
         ? json['sort_order'] as int
         : int.tryParse('${json['sort_order']}');
@@ -360,6 +369,7 @@ class ProductTag {
       'tag': tag,
       'color': color,
       'is_kiosk_filter': isKioskFilter,
+      'is_allergen': isAllergen,
       'sort_order': sortOrder,
     };
   }

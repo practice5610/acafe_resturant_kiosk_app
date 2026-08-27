@@ -53,7 +53,14 @@ class KioskProductImageHelper {
   static String cartLineImageUrl({
     required CartModel cart,
     required String? productImageBaseUrl,
+    String? dealImageBaseUrl,
   }) {
+    if (cart.isDeal) {
+      return resolveUrl(
+        productImageBaseUrl: dealImageBaseUrl ?? productImageBaseUrl,
+        filename: cart.dealImage,
+      );
+    }
     return resolveUrl(
       productImageBaseUrl: productImageBaseUrl,
       filename: cart.product?.image,

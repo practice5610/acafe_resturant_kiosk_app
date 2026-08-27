@@ -41,6 +41,10 @@ class KioskResponsive {
   static const double minScale = 0.24;
   static const double maxScale = 1.0;
 
+  /// Menu type is smaller than the Figma artboard so it matches the reduced
+  /// customize / add-on screens. Layout (gaps, cards, bars) is unchanged.
+  static const double menuTypeScale = 0.6;
+
   /// Compact band: below this, portrait single-column. Must sit clear of 1080
   /// so the production device is never near a seam.
   static const double compactMax = 900;

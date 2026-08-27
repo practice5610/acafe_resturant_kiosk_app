@@ -159,6 +159,17 @@ class Images {
 
   //svg
   static const String kioskLogoWhiteSvg = 'assets/svg/acafe_logo_white.svg';
+
+  // Allergen filter popup (Figma POS 1385:15054). The five allergen glyphs are
+  // white line icons drawn on their own colour circle — see [KioskAllergen] —
+  // plus the popup's own back chevron and checkbox tick.
+  static const String allergenEggSvg = 'assets/svg/allergen_egg.svg';
+  static const String allergenGlutenSvg = 'assets/svg/allergen_gluten.svg';
+  static const String allergenDairySvg = 'assets/svg/allergen_dairy.svg';
+  static const String allergenNutsSvg = 'assets/svg/allergen_nuts.svg';
+  static const String allergenSoySvg = 'assets/svg/allergen_soy.svg';
+  static const String allergenCheckSvg = 'assets/svg/allergen_check.svg';
+  static const String allergenBackSvg = 'assets/svg/allergen_back.svg';
   static const String kioskDownArrow = 'assets/image/kiosk_down_arrow.gif';
   // Vessel artwork for the kiosk "Can or cup?" step. The backend generates that
   // variation group from a switch and ships no images with it, so the kiosk

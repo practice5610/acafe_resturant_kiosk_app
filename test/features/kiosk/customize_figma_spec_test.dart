@@ -83,9 +83,16 @@ void main() {
       expect(KioskCustomizeSpec.optionLabelSize, closeTo(45.36, 0.001));
       expect(KioskCustomizeSpec.addOnNameSize, 45);
       expect(KioskCustomizeSpec.addOnPriceSize, 36);
-      // `cup-text` / `can-text`: Loew Bold 28 with 3.36 tracking.
+      // `cup-text` / `can-text` are drawn at 28 with 3.36 tracking in Figma,
+      // and the artboard value is kept here for the record — but the RENDERED
+      // word deliberately departs from it: it takes [panelTitleSize] and Loew
+      // ExtraBold so "Size", "Add add-ons" and "CUP" read as one family of
+      // labels down the column. See customize_heading_parity_test.dart, which
+      // is the test that now owns the vessel word's size.
       expect(KioskCustomizeSpec.vesselLabelSize, 28);
-      expect(KioskCustomizeSpec.vesselLabelTracking, closeTo(3.36, 0.001));
+      // Tracking became a ratio (3.36 / 28) so it follows whatever size the
+      // label ends up at.
+      expect(KioskCustomizeSpec.vesselLabelTrackingRatio, closeTo(0.12, 0.001));
       expect(KioskCustomizeSpec.vesselLabelMinSize, 16);
       expect(KioskCustomizeSpec.actionLabelSize, 72);
     });

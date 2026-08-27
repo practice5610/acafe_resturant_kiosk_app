@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
@@ -64,8 +65,11 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
         .languageCode;
     final categories = Provider.of<CategoryProvider>(context, listen: false);
     final splash = Provider.of<SplashProvider>(context, listen: false);
+    final deals = Provider.of<KioskDealProvider>(context, listen: false);
 
     // Disk cache if present; one network prefetch only when the cache is empty.
+    deals.loadCached();
+    deals.fetchDeals();
     categories.warmKioskMenuFromDisk(locale).then((_) {
       if (!mounted) return;
       KioskMenuImageHelper.precacheAroundSelected(context, categories, splash);
@@ -83,6 +87,8 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     final splash = Provider.of<SplashProvider>(context, listen: false);
 
     await categories.ensureKioskMenuReady(localeCode: locale);
+    if (!mounted) return;
+    await Provider.of<KioskDealProvider>(context, listen: false).fetchDeals();
     if (!mounted) return;
 
     // Warm the FIRST (visible) category's images before showing the menu so the

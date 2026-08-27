@@ -100,7 +100,9 @@ class CartProvider extends ChangeNotifier {
     final remaining = <CartModel?>[];
     for (int i = 0; i < _cartList.length; i++) {
       final line = _cartList[i];
-      if (i != keepIndex && line?.product?.id == productId) {
+      if (i != keepIndex &&
+          line?.isDeal != true &&
+          line?.product?.id == productId) {
         _amount = _amount - ((line!.discountedPrice ?? 0) * (line.quantity ?? 1));
       } else {
         remaining.add(line);
@@ -119,6 +121,24 @@ class CartProvider extends ChangeNotifier {
     final remaining = <CartModel?>[];
     for (final cart in _cartList) {
       if (cart?.product?.id == productId) {
+        _amount = _amount - ((cart!.discountedPrice ?? 0) * (cart.quantity ?? 1));
+      } else {
+        remaining.add(cart);
+      }
+    }
+    if (remaining.length == _cartList.length) {
+      return;
+    }
+    _cartList = remaining;
+    cartRepo!.addToCartList(_cartList);
+    if (_cartList.isEmpty) _dropAttachedCoupon();
+    notifyListeners();
+  }
+
+  void removeByDealId(int dealId) {
+    final remaining = <CartModel?>[];
+    for (final cart in _cartList) {
+      if (cart?.dealId == dealId) {
         _amount = _amount - ((cart!.discountedPrice ?? 0) * (cart.quantity ?? 1));
       } else {
         remaining.add(cart);
@@ -179,6 +199,7 @@ class CartProvider extends ChangeNotifier {
 
   int getCartIndex (Product product) {
     for(int index = 0; index < _cartList.length; index ++) {
+      if(_cartList[index]?.isDeal == true) continue;
       if(_cartList[index]!.product!.id == product.id ) {
 
         return index;
@@ -189,6 +210,7 @@ class CartProvider extends ChangeNotifier {
   int getCartProductQuantityCount (Product product) {
     int quantity = 0;
     for(int index = 0; index < _cartList.length; index ++) {
+      if(_cartList[index]?.isDeal == true) continue;
       if(_cartList[index]!.product!.id == product.id ) {
         quantity = quantity + (_cartList[index]!.quantity ?? 0);
       }
@@ -206,6 +228,20 @@ class CartProvider extends ChangeNotifier {
   }
 
   void onUpdateCartQuantity({required int index, required Product product,  required bool isRemove}) {
+    if (index >= 0 && index < _cartList.length && _cartList[index]?.isDeal == true) {
+      final int qty = _cartList[index]!.quantity ?? 1;
+      if (isRemove && qty <= 1) {
+        removeFromCart(index);
+        showCustomSnackBarHelper(getTranslated('this_item_removed_form_cart', Get.context!));
+        return;
+      }
+      setQuantity(
+        isIncrement: !isRemove,
+        cart: _cartList[index],
+        fromProductView: false,
+      );
+      return;
+    }
 
     if(!_isProductInCart(product)) {
       final ProductProvider productProvider = Provider.of<ProductProvider>(Get.context!, listen: false);
@@ -236,6 +272,7 @@ class CartProvider extends ChangeNotifier {
   bool _isProductInCart(Product product){
     int count = 0;
     for(int index = 0; index < _cartList.length; index ++) {
+      if(_cartList[index]?.isDeal == true) continue;
       if(_cartList[index]!.product!.id == product.id ) {
         count++;
         if(count > 1) {

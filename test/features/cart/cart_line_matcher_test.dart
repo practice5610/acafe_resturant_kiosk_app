@@ -87,5 +87,53 @@ void main() {
         -1,
       );
     });
+
+    test('matches identical deal lines by deal id and components', () {
+      final espresso = _line(productId: 1);
+      final croissant = _line(productId: 2);
+      final dealA = CartModel.deal(
+        dealId: 9,
+        title: 'Special',
+        bundlePrice: 12,
+        originalPrice: 16,
+        components: [espresso, croissant],
+      );
+      final dealB = CartModel.deal(
+        dealId: 9,
+        title: 'Special',
+        bundlePrice: 12,
+        originalPrice: 16,
+        components: [_line(productId: 1), _line(productId: 2)],
+      );
+      expect(findMatchingCartLineIndex([dealA], dealB), 0);
+    });
+
+    test('does not match deals with different component options', () {
+      final dealA = CartModel.deal(
+        dealId: 9,
+        title: 'Special',
+        bundlePrice: 12,
+        originalPrice: 16,
+        components: [
+          _line(productId: 1, variations: [
+            [true, false],
+          ]),
+          _line(productId: 2),
+        ],
+      );
+      final dealB = CartModel.deal(
+        dealId: 9,
+        title: 'Special',
+        bundlePrice: 12,
+        originalPrice: 16,
+        components: [
+          _line(productId: 1, variations: [
+            [false, true],
+          ]),
+          _line(productId: 2),
+        ],
+      );
+      expect(findMatchingCartLineIndex([dealA], dealB), -1);
+    });
   });
 }

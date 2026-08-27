@@ -904,5 +904,20 @@
   "no_tip": "Geen fooi",
   "tip": "Fooi",
   "thank_you_name": "Dank je, {name}!",
-  "grab_it_at_the_counter": "Haal het op bij de toonbank wanneer je naam verschijnt. Enjoy!"
+  "grab_it_at_the_counter": "Haal het op bij de toonbank wanneer je naam verschijnt. Enjoy!",
+  "allergen_popup_title": "IETS DAT WE MOETEN WETEN?",
+  "allergen_popup_subtitle": "Selecteer alles wat op u van toepassing is, zodat we uw ervaring kunnen personaliseren",
+  "allergen_select_all": "Alles selecteren",
+  "allergen_apply_filters": "FILTERS TOEPASSEN",
+  "allergen_no_matching_items": "Geen items komen overeen met uw allergenenfilters",
+  "allergen_egg": "Ei",
+  "allergen_gluten": "Gluten",
+  "allergen_dairy": "Zuivel",
+  "allergen_nuts": "Noten",
+  "allergen_soy": "Soja",
+  "allergen_change_filters": "Allergenenfilters wijzigen",
+  "allergen_contains": "BEVAT",
+  "allergen_info_title": "BEVAT ALLERGENEN",
+  "allergen_info_body": "Dit item bevat het volgende. Laat het ons weten als u allergieën heeft.",
+  "allergen_info_dismiss": "BEGREPEN"
 }

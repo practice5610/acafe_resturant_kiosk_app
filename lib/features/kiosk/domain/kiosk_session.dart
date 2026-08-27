@@ -1,4 +1,5 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
 
 /// Lightweight in-memory holder for the current kiosk checkout session.
@@ -28,8 +29,12 @@ class KioskSession {
     lastOrderId = null;
     tipPercent = null;
     // "We already asked this customer about a drink" must not carry over to
-    // the next person to walk up to the kiosk.
+    // the next person to walk up to the kiosk. Nor must "this customer avoids
+    // nuts" — leaking that would hide products from someone who never
+    // declared anything, which is the one failure mode of an allergen filter
+    // that a customer cannot detect for themselves.
     resetKioskUpsellMemory();
+    resetKioskAllergenMemory();
   }
 
   /// True only after the customer picked a real tip (5 / 10 / 15%). Declining
@@ -44,9 +49,14 @@ class KioskSession {
 }
 
 /// Line total for a cart item = discounted unit price × qty + active add-ons.
-double kioskLineTotal(CartModel cart) =>
-    (cart.discountedPrice ?? 0) * (cart.quantity ?? 1) +
-    _kioskLineAddOnsTotal(cart);
+double kioskLineTotal(CartModel cart) {
+  final int qty = cart.quantity ?? 1;
+  final double addons = _kioskLineAddOnsTotal(cart);
+  if (cart.isDeal) {
+    return ((cart.discountedPrice ?? 0) + addons) * qty;
+  }
+  return (cart.discountedPrice ?? 0) * qty + addons;
+}
 
 /// Line total BEFORE the product's own discount = list unit price x qty +
 /// add-ons.
@@ -55,8 +65,14 @@ double kioskLineTotal(CartModel cart) =>
 /// beside [kioskLineTotal], so the customer can see what the discount took off
 /// this line. Equal to [kioskLineTotal] when the product is not discounted —
 /// callers compare the two rather than asking whether a discount exists.
-double kioskLineOriginalTotal(CartModel cart) =>
-    (cart.price ?? 0) * (cart.quantity ?? 1) + _kioskLineAddOnsTotal(cart);
+double kioskLineOriginalTotal(CartModel cart) {
+  final int qty = cart.quantity ?? 1;
+  final double addons = _kioskLineAddOnsTotal(cart);
+  if (cart.isDeal) {
+    return ((cart.price ?? 0) + addons) * qty;
+  }
+  return (cart.price ?? 0) * qty + addons;
+}
 
 /// Grand total across all cart lines.
 double kioskCartTotal(List<CartModel?> cartList) {
@@ -78,6 +94,14 @@ int kioskCartItemCount(List<CartModel?> cartList) {
 
 /// Sum of all add-ons on a line (qty-aware), used by the order summary.
 double _kioskLineAddOnsTotal(CartModel cart) {
+  double total = _kioskAddOnsOn(cart);
+  for (final CartModel component in cart.components ?? const []) {
+    total += _kioskAddOnsOn(component);
+  }
+  return total;
+}
+
+double _kioskAddOnsOn(CartModel cart) {
   double total = 0;
   for (final addOn in cart.addOnIds ?? []) {
     final qty = addOn.quantity ?? 1;
@@ -91,9 +115,7 @@ double _kioskLineAddOnsTotal(CartModel cart) {
 double kioskItemsTotal(List<CartModel?> cartList) {
   double total = 0;
   for (final cart in cartList) {
-    if (cart == null) continue;
-    total +=
-        (cart.price ?? 0) * (cart.quantity ?? 1) + _kioskLineAddOnsTotal(cart);
+    if (cart != null) total += kioskLineOriginalTotal(cart);
   }
   return total;
 }
