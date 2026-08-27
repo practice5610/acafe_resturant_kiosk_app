@@ -95,6 +95,7 @@ class Product {
         bool? isChanged,
         String? changeReason,
         int? halalStatus,
+        List<ProductTag>? tags,
       }) {
     _id = id;
     _name = name;
@@ -119,6 +120,7 @@ class Product {
     _mainPrice = mainPrice;
     _isChanged = isChanged;
     _changeReason = changeReason;
+    this.tags = tags;
   }
 
   int? get id => _id;
@@ -179,6 +181,10 @@ class Product {
   /// How often this product has been ordered. Drives the order of the kiosk's
   /// upsell suggestions, so the kiosk offers what people actually buy.
   int? popularityCount;
+
+  /// Merchandising / search tags from the product create screen (Popular,
+  /// Signature, Seasonal, …). Used by the kiosk filter pills.
+  List<ProductTag>? tags;
   BranchProduct? get branchProduct => _branchProduct;
   bool? get isChanged => _isChanged;
   String? get changeReason => _changeReason;
@@ -264,6 +270,17 @@ class Product {
     if(json.containsKey('change_reason')){
       _changeReason = json['change_reason'];
     }
+
+    if (json['tags'] is List) {
+      tags = [];
+      for (final dynamic v in json['tags']) {
+        if (v is Map) {
+          tags!.add(ProductTag.fromJson(Map<String, dynamic>.from(v)));
+        } else if (v is String && v.trim().isNotEmpty) {
+          tags!.add(ProductTag(tag: v));
+        }
+      }
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -304,7 +321,47 @@ class Product {
     data['set_menu'] = _setMenu;
     data['main_price'] = _mainPrice;
     data['branch_product'] = _branchProduct;
+    if (tags != null) {
+      data['tags'] = tags!.map((t) => t.toJson()).toList();
+    }
     return data;
+  }
+}
+
+class ProductTag {
+  int? id;
+  String? tag;
+  String? color;
+  bool? isKioskFilter;
+  int? sortOrder;
+
+  ProductTag({
+    this.id,
+    this.tag,
+    this.color,
+    this.isKioskFilter,
+    this.sortOrder,
+  });
+
+  ProductTag.fromJson(Map<String, dynamic> json) {
+    id = json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}');
+    tag = json['tag']?.toString();
+    color = json['color']?.toString();
+    final dynamic filter = json['is_kiosk_filter'];
+    isKioskFilter = filter == true || filter == 1 || filter == '1';
+    sortOrder = json['sort_order'] is int
+        ? json['sort_order'] as int
+        : int.tryParse('${json['sort_order']}');
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'tag': tag,
+      'color': color,
+      'is_kiosk_filter': isKioskFilter,
+      'sort_order': sortOrder,
+    };
   }
 }
 class BranchProduct {

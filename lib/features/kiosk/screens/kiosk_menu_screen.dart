@@ -60,10 +60,8 @@ double _topBarActionBorderWidth(double s) =>
 
 // Filter pills from the design: POPULAR / SIGNATURE / SEASONAL / SPECIALS /
 // PURE on the first row, CEROMONIAL alone on the second (spelling as in the
-// Figma source). Presentation-only for now — the product catalogue has no
-// matching tag field, so tapping a pill only changes which one looks
-// selected; it doesn't filter the grid. Wire this up once the backend
-// exposes a tag/collection for products.
+// Figma source). The labels stay hardcoded; tapping a pill filters the current
+// category to products that have that tag on the product create screen.
 const List<String> _kFilterPillLabels = [
   'POPULAR',
   'SIGNATURE',
@@ -72,7 +70,6 @@ const List<String> _kFilterPillLabels = [
   'PURE',
 ];
 const String _kFilterPillSecondRowLabel = 'CEROMONIAL';
-const String _kDefaultFilterPill = 'SIGNATURE';
 
 /// Removes the overscroll glow/stretch so dragging the grid past its top edge
 /// doesn't paint a grey "shadow" over the page (matches a clean kiosk look).
@@ -106,6 +103,7 @@ class KioskMenuScreen extends StatefulWidget {
 class _KioskMenuScreenState extends State<KioskMenuScreen> {
   LocalizationProvider? _localization;
   String? _lastLocale;
+  String? _selectedTagPill;
 
   @override
   void initState() {
@@ -257,11 +255,20 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                                     hGap: 19.8 * s,
                                     vGap: 28 * s,
                                     scrollInsteadOfWrap: landscape,
+                                    selected: _selectedTagPill,
+                                    onSelect: (label) => setState(() {
+                                      _selectedTagPill =
+                                          _selectedTagPill == label
+                                              ? null
+                                              : label;
+                                    }),
                                   ),
                                   SizedBox(height: 61 * s * chrome),
                                   Expanded(
                                       child: _ProductArea(
-                                          s: s, landscape: landscape)),
+                                          s: s,
+                                          landscape: landscape,
+                                          tagFilter: _selectedTagPill)),
                                 ],
                               ),
                             ),
@@ -404,15 +411,17 @@ class _LanguageFlagButton extends StatelessWidget {
 }
 
 /// Filter pills row: POPULAR/SIGNATURE/SEASONAL/SPECIALS/PURE, wrapping to a
-/// second row for CEROMONIAL, matching the Figma layout. See
-/// [_kFilterPillLabels] for why this is presentation-only.
-class _FilterPillsRow extends StatefulWidget {
+/// second row for CEROMONIAL, matching the Figma layout. Tapping a pill
+/// filters the current category to products with that tag.
+class _FilterPillsRow extends StatelessWidget {
   final double pillHeight;
   final double fontSize;
   final double borderWidth;
   final double hPadding;
   final double hGap;
   final double vGap;
+  final String? selected;
+  final ValueChanged<String> onSelect;
 
   /// Landscape laptops: keep one row and scroll sideways so the second pill
   /// line does not steal product-grid height.
@@ -424,15 +433,10 @@ class _FilterPillsRow extends StatefulWidget {
     required this.hPadding,
     required this.hGap,
     required this.vGap,
+    required this.selected,
+    required this.onSelect,
     this.scrollInsteadOfWrap = false,
   });
-
-  @override
-  State<_FilterPillsRow> createState() => _FilterPillsRowState();
-}
-
-class _FilterPillsRowState extends State<_FilterPillsRow> {
-  String _selected = _kDefaultFilterPill;
 
   @override
   Widget build(BuildContext context) {
@@ -440,22 +444,22 @@ class _FilterPillsRowState extends State<_FilterPillsRow> {
       for (final label in [..._kFilterPillLabels, _kFilterPillSecondRowLabel])
         _FilterPill(
           label: label,
-          selected: _selected == label,
-          height: widget.pillHeight,
-          fontSize: widget.fontSize,
-          borderWidth: widget.borderWidth,
-          hPadding: widget.hPadding,
-          onTap: () => setState(() => _selected = label),
+          selected: selected == label,
+          height: pillHeight,
+          fontSize: fontSize,
+          borderWidth: borderWidth,
+          hPadding: hPadding,
+          onTap: () => onSelect(label),
         ),
     ];
 
-    if (widget.scrollInsteadOfWrap) {
+    if (scrollInsteadOfWrap) {
       return SizedBox(
-        height: widget.pillHeight,
+        height: pillHeight,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: pills.length,
-          separatorBuilder: (_, __) => SizedBox(width: widget.hGap),
+          separatorBuilder: (_, __) => SizedBox(width: hGap),
           itemBuilder: (_, i) => pills[i],
         ),
       );
@@ -466,8 +470,8 @@ class _FilterPillsRowState extends State<_FilterPillsRow> {
     // 2414px artboard — CEROMONIAL lands on its own line at that width,
     // matching the Figma layout, but nothing clips on smaller screens.
     return Wrap(
-      spacing: widget.hGap,
-      runSpacing: widget.vGap,
+      spacing: hGap,
+      runSpacing: vGap,
       children: pills,
     );
   }
@@ -632,19 +636,28 @@ class _RailCard extends StatelessWidget {
 class _ProductArea extends StatelessWidget {
   final double s;
   final bool landscape;
-  const _ProductArea({required this.s, this.landscape = false});
+  final String? tagFilter;
+  const _ProductArea({
+    required this.s,
+    this.landscape = false,
+    this.tagFilter,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Consumer2<CategoryProvider, SearchProvider>(
       builder: (context, category, search, _) {
         final bool filtersActive = kioskMenuFiltersActive(category, search);
-        final List<Product> products = filtersActive
+        List<Product> products = filtersActive
             ? applyKioskMenuFilters(
                 categoryProvider: category,
                 searchProvider: search,
               )
             : (category.categoryProductModel?.products ?? const []);
+        products = filterKioskProductsByTag(
+          products: products,
+          pillLabel: tagFilter,
+        );
 
         return category.categoryProductModel == null && !filtersActive
             ? _ProductGridSkeleton(s: s, landscape: landscape)
@@ -711,7 +724,7 @@ class _ProductGrid extends StatelessWidget {
                     s: s,
                     tileWidth: tileWidth,
                     product: products[index],
-                    badge: _badgeFor(index, columns),
+                    badge: _badgeForProduct(products[index]),
                   ),
                   childCount: firstCount,
                 ),
@@ -730,7 +743,10 @@ class _ProductGrid extends StatelessWidget {
                   gridDelegate: gridDelegate,
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => _KioskProductCard(
-                        s: s, tileWidth: tileWidth, product: remaining[index]),
+                        s: s,
+                        tileWidth: tileWidth,
+                        product: remaining[index],
+                        badge: _badgeForProduct(remaining[index])),
                     childCount: remaining.length,
                   ),
                 ),
@@ -742,12 +758,48 @@ class _ProductGrid extends StatelessWidget {
     );
   }
 
-  /// Static badges to match the design — first tile is "Popular", and the first
-  /// tile of the second row is "Special".
-  _Badge? _badgeFor(int index, int columns) {
-    if (index == 0) return const _Badge('Popular', _kPopularGreen);
-    if (index == columns) return const _Badge('Special', _kSpecialRed);
-    return null;
+  /// Badge from the product's own tags (Popular, Specials, …), not grid index.
+  _Badge? _badgeForProduct(Product product) {
+    final List<ProductTag> tags = product.tags ?? const <ProductTag>[];
+    if (tags.isEmpty) return null;
+    ProductTag chosen = tags.first;
+    for (final ProductTag tag in tags) {
+      if (tag.isKioskFilter == true) {
+        chosen = tag;
+        break;
+      }
+    }
+    final String raw = chosen.tag?.trim() ?? '';
+    if (raw.isEmpty) return null;
+    return _Badge(_badgeLabel(raw), _badgeColor(chosen));
+  }
+
+  String _badgeLabel(String tag) {
+    if (normalizeKioskTag(tag) == 'specials') return 'Special';
+    if (tag.length <= 1) return tag.toUpperCase();
+    return '${tag[0].toUpperCase()}${tag.substring(1).toLowerCase()}';
+  }
+
+  Color _badgeColor(ProductTag tag) {
+    final Color? fromHex = _colorFromHex(tag.color);
+    if (fromHex != null) return fromHex;
+    switch (normalizeKioskTag(tag.tag ?? '')) {
+      case 'popular':
+        return _kPopularGreen;
+      case 'specials':
+        return _kSpecialRed;
+      default:
+        return _kSpecialRed;
+    }
+  }
+
+  Color? _colorFromHex(String? hex) {
+    if (hex == null) return null;
+    final String value = hex.replaceFirst('#', '').trim();
+    if (value.length != 6) return null;
+    final int? parsed = int.tryParse(value, radix: 16);
+    if (parsed == null) return null;
+    return Color(0xFF000000 | parsed);
   }
 }
 

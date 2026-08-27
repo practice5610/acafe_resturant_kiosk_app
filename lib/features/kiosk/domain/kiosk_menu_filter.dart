@@ -84,6 +84,42 @@ List<Product> applyKioskMenuFilters({
   );
 }
 
+/// Case-insensitive match of a hardcoded kiosk pill (POPULAR, CEROMONIAL, …)
+/// against a product's tags from the backend. Figma's "CEROMONIAL" spelling
+/// and "Special"/"Specials" both resolve to the seeded tag names.
+String normalizeKioskTag(String value) {
+  final String s = value.trim().toLowerCase();
+  switch (s) {
+    case 'ceromonial':
+      return 'ceremonial';
+    case 'special':
+      return 'specials';
+    default:
+      return s;
+  }
+}
+
+bool productHasKioskTag(Product product, String pillLabel) {
+  final String wanted = normalizeKioskTag(pillLabel);
+  if (wanted.isEmpty) return false;
+  for (final ProductTag tag in product.tags ?? const <ProductTag>[]) {
+    if (normalizeKioskTag(tag.tag ?? '') == wanted) {
+      return true;
+    }
+  }
+  return false;
+}
+
+List<Product> filterKioskProductsByTag({
+  required List<Product> products,
+  String? pillLabel,
+}) {
+  if (pillLabel == null || pillLabel.trim().isEmpty) {
+    return products;
+  }
+  return products.where((p) => productHasKioskTag(p, pillLabel)).toList();
+}
+
 /// Sort + price filtering shared by the menu (testable without providers).
 List<Product> filterKioskProducts({
   required List<Product> products,

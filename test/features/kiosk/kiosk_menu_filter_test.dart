@@ -61,4 +61,61 @@ void main() {
       expect(result.first.name, 'Cheap');
     });
   });
+
+  group('filterKioskProductsByTag', () {
+    Product tagged(String name, List<String> tagNames) {
+      return Product(
+        name: name,
+        price: 5,
+        tags: tagNames.map((t) => ProductTag(tag: t)).toList(),
+      );
+    }
+
+    test('keeps the full category list when no pill is selected', () {
+      final products = [
+        tagged('Latte', ['Popular']),
+        tagged('Espresso', const []),
+      ];
+      expect(
+        filterKioskProductsByTag(products: products, pillLabel: null)
+            .map((p) => p.name),
+        ['Latte', 'Espresso'],
+      );
+    });
+
+    test('shows only products with that tag in the current list', () {
+      final result = filterKioskProductsByTag(
+        products: [
+          tagged('Latte', ['Popular']),
+          tagged('Espresso', ['Signature']),
+          tagged('Water', const []),
+        ],
+        pillLabel: 'POPULAR',
+      );
+
+      expect(result.map((p) => p.name), ['Latte']);
+    });
+
+    test('matches Figma CEROMONIAL to the seeded Ceremonial tag', () {
+      final result = filterKioskProductsByTag(
+        products: [
+          tagged('Matcha', ['Ceremonial']),
+          tagged('Latte', ['Popular']),
+        ],
+        pillLabel: 'CEROMONIAL',
+      );
+
+      expect(result.map((p) => p.name), ['Matcha']);
+    });
+
+    test('matches Specials pill to a Special tag', () {
+      expect(
+        productHasKioskTag(
+          tagged('Espresso', ['Special']),
+          'SPECIALS',
+        ),
+        isTrue,
+      );
+    });
+  });
 }

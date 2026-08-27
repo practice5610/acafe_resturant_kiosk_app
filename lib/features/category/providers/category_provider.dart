@@ -195,6 +195,10 @@ class CategoryProvider extends DataSyncProvider {
           ..write(product.branchProduct?.isAvailable)
           ..write(':')
           ..write(product.updatedAt)
+          ..write(':')
+          ..write((product.tags ?? const <ProductTag>[])
+              .map((t) => t.tag)
+              .join('|'))
           ..write(',');
       }
       buffer.write(';');
