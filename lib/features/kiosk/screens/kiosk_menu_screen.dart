@@ -265,7 +265,6 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                                     hPadding: 42 * s,
                                     hGap: 19.8 * s,
                                     vGap: 28 * s,
-                                    scrollInsteadOfWrap: landscape,
                                     selected: _selectedTagPills,
                                     onSelect: (label) => setState(() {
                                       if (!_selectedTagPills.remove(label)) {
@@ -434,9 +433,6 @@ class _FilterPillsRow extends StatelessWidget {
   final Set<String> selected;
   final ValueChanged<String> onSelect;
 
-  /// Landscape laptops: keep one row and scroll sideways so the second pill
-  /// line does not steal product-grid height.
-  final bool scrollInsteadOfWrap;
   const _FilterPillsRow({
     required this.pillHeight,
     required this.fontSize,
@@ -446,7 +442,6 @@ class _FilterPillsRow extends StatelessWidget {
     required this.vGap,
     required this.selected,
     required this.onSelect,
-    this.scrollInsteadOfWrap = false,
   });
 
   @override
@@ -464,22 +459,19 @@ class _FilterPillsRow extends StatelessWidget {
         ),
     ];
 
-    if (scrollInsteadOfWrap) {
-      return SizedBox(
-        height: pillHeight,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: pills.length,
-          separatorBuilder: (_, __) => SizedBox(width: hGap),
-          itemBuilder: (_, i) => pills[i],
-        ),
-      );
-    }
-
-    // Wrap (not a fixed Row) so pills reflow onto additional lines instead of
-    // overflowing when the available width is narrower than the design's
-    // 2414px artboard — CEROMONIAL lands on its own line at that width,
-    // matching the Figma layout, but nothing clips on smaller screens.
+    // Wrap, in every composition. It puts as many pills on a line as the
+    // measured width holds and reflows the rest, so a wide display shows the
+    // whole set on one line and a narrow one gets the Figma's second line with
+    // CEROMONIAL on it. Nothing is ever cut.
+    //
+    // Landscape used to scroll this row sideways instead, to stop a second
+    // line taking height from the product grid. That traded a few pixels of
+    // grid for a worse failure: the row clipped its last pill mid-word, with
+    // no scrollbar and no fade to say there was more — "CEROMO" against the
+    // panel edge reads as a broken layout, not as something to swipe. The
+    // second line costs `pillHeight + vGap`, which is 74px on a 1366x768
+    // laptop and less on anything larger, and on a display big enough to show
+    // every pill at once it costs nothing at all because the row never wraps.
     return Wrap(
       spacing: hGap,
       runSpacing: vGap,
