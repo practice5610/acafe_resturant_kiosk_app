@@ -227,8 +227,7 @@ void main() {
       }
     });
 
-    test('a landscape two-column artboard is roughly half the stacked height',
-        () {
+    test('a landscape artboard is the taller column plus the action bar', () {
       final double stacked = kioskCustomizeArtboardHeight(
         hasDescription: true,
         variationPanels: 1,
@@ -242,8 +241,35 @@ void main() {
         hasVessel: true,
         landscape: true,
       );
-      expect(landscape, closeTo(stacked * 0.52, 0.001));
-      expect(landscape, lessThan(stacked * 0.6));
+      // Two columns, so the page is shorter than the stack — but by the real
+      // difference (the header column drops out from under the panels), not by
+      // a flat factor.
+      expect(landscape, lessThan(stacked));
+      expect(landscape,
+          closeTo(stacked - KioskCustomizeSpec.headerHeight(hasDescription: true) -
+              KioskCustomizeSpec.headerToPanels, 0.001),
+          reason: 'the panel column is the taller one for this product');
+    });
+
+    test('a landscape artboard never budgets less than the header column', () {
+      // The regression: a product whose only question is a Size row has a
+      // SHORT panel column, so a fraction-of-the-stack rule budgeted less
+      // height than the header alone occupies. The scale came out too large
+      // and the hero/name/stepper block overflowed across the action bar.
+      final double landscape = kioskCustomizeArtboardHeight(
+        hasDescription: true,
+        variationPanels: 1,
+        hasAddOns: false,
+        hasVessel: false,
+        landscape: true,
+      );
+      expect(
+        landscape,
+        greaterThanOrEqualTo(
+            KioskCustomizeSpec.headerHeight(hasDescription: true) +
+                KioskCustomizeSpec.actionBarBlock),
+        reason: 'the header column does not scroll; it has to fit',
+      );
     });
 
     test('landscape scale at 2560×1440 is no longer stuck at the height-pull floor',

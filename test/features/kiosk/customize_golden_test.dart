@@ -193,6 +193,10 @@ void main() {
       ),
     );
     await tester.pump();
+    // A column that has to scroll fades its indicator in over ~300ms; without
+    // this the shot catches it mid-fade and the image is not reproducible.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
   }
 
   const Map<String, Size> shots = {

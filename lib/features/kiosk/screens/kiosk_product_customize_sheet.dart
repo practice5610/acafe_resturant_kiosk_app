@@ -872,8 +872,18 @@ class _KioskProductCustomizeScreenState
                 final double gutter = KioskCustomizeSpec.gutter * s;
                 final double panelGap = KioskCustomizeSpec.panelGap * s;
 
+                // Portrait stacks the header at the top of the page, so it
+                // carries the design's back button in its own top-left corner.
+                // Landscape centres the header in its column (see
+                // [_FittedColumn]) — a button pinned INSIDE it would ride down
+                // to the middle of the page with it — so there the page draws
+                // the button itself, at the artboard's coordinates.
                 final Widget header = _Header(
-                    s: s, product: product, productProvider: productProvider);
+                  s: s,
+                  product: product,
+                  productProvider: productProvider,
+                  showBackButton: !landscape,
+                );
 
                 // Allergen disclosure sits ABOVE the first panel — i.e. above
                 // Size — so it is read before any choice is made rather than
@@ -946,43 +956,71 @@ class _KioskProductCustomizeScreenState
                     children: [
                       if (landscape)
                         Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Stack(
                             children: [
-                              Expanded(
-                                flex: 5,
-                                child: Padding(
-                                  padding: EdgeInsets.fromLTRB(
-                                      gutter, 0, gutter / 2, 0),
-                                  child: header,
+                              Padding(
+                                // The panel column has no hero to start it, so
+                                // without this it began at the very top edge of
+                                // the display. The artboard opens the page at
+                                // `heroTop`; both columns start there.
+                                padding: EdgeInsets.only(
+                                    top: KioskCustomizeSpec.heroTop * s),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Both columns centre-or-scroll (see
+                                    // [_FittedColumn]), so the header opposite the
+                                    // panels reads as one balanced spread and a
+                                    // viewport too short even for the floored scale
+                                    // scrolls instead of overflowing.
+                                    Expanded(
+                                      flex: 5,
+                                      child: _FittedColumn(
+                                        s: s,
+                                        padding: EdgeInsets.fromLTRB(
+                                            gutter, 0, gutter / 2, 0),
+                                        children: [header],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 7,
+                                      child: _FittedColumn(
+                                        s: s,
+                                        padding: EdgeInsets.fromLTRB(
+                                            gutter / 2, 0, gutter, 0),
+                                        children: [
+                                          for (int i = 0;
+                                              i < variationPanels.length;
+                                              i++) ...[
+                                            if (i > 0)
+                                              SizedBox(height: panelGap),
+                                            variationPanels[i],
+                                          ],
+                                          if (addOns != null) ...[
+                                            if (variationPanels.isNotEmpty)
+                                              SizedBox(height: panelGap),
+                                            addOns,
+                                          ],
+                                          for (final panel in vesselPanels) ...[
+                                            SizedBox(height: panelGap),
+                                            panel,
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              Expanded(
-                                flex: 7,
-                                child: SingleChildScrollView(
-                                  padding: EdgeInsets.fromLTRB(
-                                      gutter / 2, 0, gutter, 0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      for (int i = 0;
-                                          i < variationPanels.length;
-                                          i++) ...[
-                                        if (i > 0) SizedBox(height: panelGap),
-                                        variationPanels[i],
-                                      ],
-                                      if (addOns != null) ...[
-                                        if (variationPanels.isNotEmpty)
-                                          SizedBox(height: panelGap),
-                                        addOns,
-                                      ],
-                                      for (final panel in vesselPanels) ...[
-                                        SizedBox(height: panelGap),
-                                        panel,
-                                      ],
-                                    ],
-                                  ),
+                              Positioned(
+                                left: gutter,
+                                top: KioskCustomizeSpec.backButtonTop * s,
+                                child: KioskBackButton(
+                                  size: KioskCustomizeSpec.backButton * s,
+                                  borderWidth: _border(
+                                      KioskCustomizeSpec.backButtonBorder, s),
+                                  iconSize:
+                                      KioskCustomizeSpec.backButtonIcon * s,
+                                  fallback: RouterHelper.getKioskMenuRoute,
                                 ),
                               ),
                             ],
@@ -1375,6 +1413,122 @@ class _CardQtyStepper extends StatelessWidget {
 /// at it, which is what keeps a row of cards level instead of ragged — a Row
 /// lets each child size itself, and that is how the old grid ended up with a
 /// short card beside a tall empty one.
+/// A column of sections that CENTRES itself while there is room and scrolls
+/// the moment there is not.
+///
+/// The customize page is scaled by width whenever the window is wider than it
+/// is tall relative to the 2572x5400 artboard — a 1512px browser window puts
+/// the page at ~0.59 — and that leaves vertical slack no element claims. Every
+/// column here used to be top-aligned, so the slack collected in one block at
+/// the bottom: a Size panel hanging off the progress bar with a third of the
+/// screen empty under it, and, in the three-step flow's portrait layout, most
+/// of a 1920px kiosk.
+///
+/// Centring spends the slack evenly above and below instead, which reads as
+/// deliberate whitespace rather than a layout that ran out of content. Nothing
+/// is clipped when the slack runs out: past that point [Column] is taller than
+/// [minHeight], the alignment stops having anything to distribute, and the
+/// scroll view takes over exactly as it did before.
+///
+/// Do NOT put a section that wants to FILL its column in here — the add-ons
+/// panel ([_AddOnsSection] with `scrollable: true`) sizes itself to the height
+/// it is given, and a scroll view gives it an unbounded one. That panel is
+/// already its own absorber for the slack, which is why the add-ons step needs
+/// none of this.
+class _FittedColumn extends StatefulWidget {
+  /// Page scale, for the scroll indicator's thickness only.
+  final double s;
+  final EdgeInsets padding;
+  final List<Widget> children;
+  const _FittedColumn({
+    required this.s,
+    this.padding = EdgeInsets.zero,
+    required this.children,
+  });
+
+  @override
+  State<_FittedColumn> createState() => _FittedColumnState();
+}
+
+class _FittedColumnState extends State<_FittedColumn> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _reveal();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FittedColumn oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _reveal();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// See [_AddOnScrollBoxState._reveal] — a scrollbar that has never seen a
+  /// scroll notification renders nothing, so a column that IS overflowing
+  /// would give no sign of it until the customer happened to drag.
+  void _reveal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      final ScrollPosition position = _controller.position;
+      if (!position.hasContentDimensions) return;
+      position.didUpdateScrollPositionBy(0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double thickness = _kScrollbarWidth * widget.s;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // An unbounded parent (never the case for the two-column row or a
+        // step body, both of which sit in an Expanded) simply gets the plain
+        // content height.
+        final double room = constraints.maxHeight.isFinite
+            ? math.max(0.0, constraints.maxHeight - widget.padding.vertical)
+            : 0.0;
+        return ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          // The indicator paints nothing while the content fits — which is the
+          // centred case, every time — so this costs the balanced layout
+          // nothing and only appears on the viewport that genuinely has to
+          // scroll, where a panel otherwise just ran off under the action bar
+          // with no sign there was more of it. The thumb rides the page gutter
+          // rather than the panel because [padding] is applied INSIDE the
+          // scroll view.
+          child: RawScrollbar(
+            controller: _controller,
+            thumbVisibility: true,
+            interactive: true,
+            thickness: thickness,
+            radius: Radius.circular(_kScrollbarRadius * widget.s),
+            thumbColor: _kScrollThumb,
+            child: SingleChildScrollView(
+              controller: _controller,
+              padding: widget.padding,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: room),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: widget.children,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _HorizontalOptionRow extends StatelessWidget {
   final double s;
   final double gap;
@@ -1406,13 +1560,23 @@ class _HorizontalOptionRow extends StatelessWidget {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: [
-                for (int i = 0; i < children.length; i++) ...[
-                  if (i > 0) SizedBox(width: gap),
-                  children[i],
+            // Card width follows the ARTBOARD's density — seven across a kiosk
+            // panel — so a question with three answers fills three sevenths of
+            // the row and the rest is panel. Left-aligned that reads as a row
+            // that failed to load; centred it reads as three cards. The row
+            // still starts flush left the moment the cards fill it, which is
+            // the case the design draws and the case that scrolls.
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (int i = 0; i < children.length; i++) ...[
+                    if (i > 0) SizedBox(width: gap),
+                    children[i],
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1934,12 +2098,36 @@ class _AddOnsSection extends StatelessWidget {
   /// vertical scroller. False when the whole page already scrolls, so the grid
   /// sizes to its content instead of nesting a second scroller inside one.
   final bool scrollable;
+
+  /// Height the panel may occupy, when the caller knows it — the three-step
+  /// flow, where this panel has a whole column to itself.
+  ///
+  /// Given it, the panel keeps only as many WHOLE rows of cards as that height
+  /// allows and scrolls the rest inside itself, so a large display shows a
+  /// compact two-row grid with the design's own indicator beside it rather than
+  /// a panel stretched the full height of the screen with a row sliced through
+  /// the middle at the fold. Whatever height it does not use goes back to the
+  /// step, which centres the panel in it — that is where the air above and
+  /// below the panel comes from.
+  ///
+  /// Null (Version A) leaves the panel exactly as it was: [scrollable] alone
+  /// decides between filling its slot and sizing to its content.
+  final double? maxHeight;
   const _AddOnsSection({
     required this.s,
     required this.product,
     required this.productProvider,
     this.scrollable = true,
+    this.maxHeight,
   });
+
+  /// Height of the panel's chrome — padding, title, and the gap under it.
+  /// Mirrors [_SectionPanel.build] for the non-compact case this panel uses.
+  double get _chrome =>
+      KioskCustomizeSpec.panelPadTop * s +
+      KioskCustomizeSpec.panelTitleSize * 1.295 * s +
+      KioskCustomizeSpec.panelTitleGap * s +
+      KioskCustomizeSpec.panelPadBottom * s;
 
   @override
   Widget build(BuildContext context) {
@@ -1983,14 +2171,97 @@ class _AddOnsSection extends StatelessWidget {
       ],
     );
 
+    final Widget panelChild = scrollable || maxHeight != null
+        ? _AddOnScrollBox(s: s, child: content)
+        : content;
+
     return _SectionPanel(
       s: s,
-      fill: scrollable,
+      // A capped panel hugs the box below; only the uncapped pinned layout
+      // still stretches to fill its slot.
+      fill: scrollable && maxHeight == null,
       title: single
           ? _addonGroupTitle(context, groups.first)
           : (getTranslated('add_add_ons', context) ?? 'Add add-ons'),
-      child: scrollable ? _AddOnScrollBox(s: s, child: content) : content,
+      child: maxHeight == null
+          ? panelChild
+          : LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                height: _boxHeight(
+                  context,
+                  gridWidth: constraints.maxWidth,
+                  groups: groups,
+                  single: single,
+                ),
+                child: panelChild,
+              ),
+            ),
     );
+  }
+
+  /// Visible height of the card area: the tallest whole number of card rows
+  /// that fits [maxHeight], never more than the grid actually needs.
+  ///
+  /// Snapping to whole rows is the point. A box sized to whatever height was
+  /// left over cuts the last row in half at the fold, which is the one thing a
+  /// grid of tappable cards must not do — a half card reads as a broken image,
+  /// not as "scroll for more". The indicator does that job instead.
+  double _boxHeight(
+    BuildContext context, {
+    required double gridWidth,
+    required List<AddOnGroup> groups,
+    required bool single,
+  }) {
+    final double gap = _choiceGap(s);
+    // [_AddOnScrollBox] reserves this much on the right for its indicator, so
+    // the cards divide what is left — the same width they will actually get.
+    final double cardsWidth = math.max(
+        1.0, gridWidth - (_kScrollbarWidth * s + _addOnGap(s) * 2));
+    final double cardWidth = _choiceTileWidth(
+      viewportWidth: MediaQuery.sizeOf(context).width,
+      panelWidth: cardsWidth,
+      s: s,
+      gap: gap,
+    );
+    final double cardHeight = _choiceCardHeight(cardWidth);
+    final int columns = math.max(
+        1,
+        kioskOptionColumns(
+          width: cardsWidth,
+          cardWidth: KioskCustomizeSpec.choiceCardWidth * s,
+          gap: gap,
+        ));
+
+    // What the grid needs in full, headings included.
+    final double headingHeight =
+        KioskCustomizeSpec.optionLabelSize * s * 1.2 + _addOnGap(s);
+    double content = 0;
+    int cardRows = 0;
+    for (int i = 0; i < groups.length; i++) {
+      if (!single) {
+        if (i > 0) content += KioskCustomizeSpec.panelTitleGap * 0.5 * s;
+        content += headingHeight;
+      }
+      final int shown = [
+        for (final addon in groups[i].addons)
+          if (product.indexOfAddOn(addon.id) != null) addon,
+      ].length;
+      final int rows = (shown / columns).ceil();
+      cardRows += rows;
+      content += rows * cardHeight + math.max(0, rows - 1) * gap;
+    }
+
+    final double room = math.max(0.0, (maxHeight ?? 0) - _chrome);
+    if (content <= room) return content;
+
+    // Several groups interleave headings with rows, so there is no single row
+    // pitch to snap to; those take the room as given.
+    if (!single) return room;
+
+    final int fit =
+        math.max(1, ((room + gap) / (cardHeight + gap)).floor());
+    final int rows = math.min(fit, math.max(1, cardRows));
+    return rows * cardHeight + math.max(0, rows - 1) * gap;
   }
 }
 
