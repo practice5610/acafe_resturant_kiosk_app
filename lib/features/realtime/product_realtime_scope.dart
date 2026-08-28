@@ -21,6 +21,7 @@ class ProductRealtimeScope extends StatefulWidget {
 
 class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
   int? _startedForBranch;
+  int? _startedForDevice;
   String? _startedForEndpoint;
 
   @override
@@ -36,6 +37,7 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
     final controller = di.sl<ProductRealtimeController>();
     final config = splash.configModel?.websocket;
     final branchId = auth.branchId;
+    final deviceId = auth.deviceId;
 
     if (config == null || !config.isUsable || branchId == null || branchId <= 0) {
       if (kDebugMode) {
@@ -48,6 +50,7 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
       if (_startedForBranch != null) {
         await controller.stop();
         _startedForBranch = null;
+        _startedForDevice = null;
         _startedForEndpoint = null;
       }
       return;
@@ -58,7 +61,12 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
     // moments later. Comparing the branch alone would skip that swap and leave
     // the socket retrying a dead endpoint for the rest of the session.
     final endpoint = config.socketUri?.toString();
-    if (_startedForBranch == branchId && _startedForEndpoint == endpoint) {
+    if (_startedForBranch == branchId &&
+        _startedForDevice == deviceId &&
+        _startedForEndpoint == endpoint) {
+      // Already connected — still re-bind auth so hot reload / provider swaps
+      // keep Ordering Experience pushes working.
+      controller.bindAuth(auth);
       return;
     }
 
@@ -73,6 +81,7 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
     // a second connection.
     final bool restarting = _startedForBranch != null;
     _startedForBranch = branchId;
+    _startedForDevice = deviceId;
     _startedForEndpoint = endpoint;
 
     if (restarting) {
@@ -81,17 +90,19 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
     }
     if (kDebugMode) {
       debugPrint(
-        'ProductRealtimeScope connecting branch=$branchId '
+        'ProductRealtimeScope connecting branch=$branchId device=$deviceId '
         'host=${config.host}:${config.port} scheme=${config.scheme}',
       );
     }
     await controller.start(
       config: config,
       branchId: branchId,
+      deviceId: deviceId,
       categories: categories,
       cart: cart,
       localization: localization,
       deals: deals,
+      auth: auth,
     );
   }
 

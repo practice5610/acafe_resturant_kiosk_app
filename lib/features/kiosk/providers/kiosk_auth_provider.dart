@@ -36,6 +36,34 @@ class KioskAuthProvider extends ChangeNotifier {
   String get category => kioskAuthRepo.getDeviceCategory();
   bool get isPosDevice => category == 'pos';
 
+  /// Apply an Ordering Experience push from Reverb. Ignores events aimed at
+  /// another device. When this session never persisted a device id (older
+  /// login), adopts [deviceId] from the event so subsequent filters work.
+  /// Returns true when the local cached value actually changed.
+  Future<bool> applyOrderingExperienceFromRealtime({
+    required int deviceId,
+    required String orderingExperience,
+  }) async {
+    if (deviceId <= 0) {
+      return false;
+    }
+    final int? localDeviceId = kioskAuthRepo.getDeviceId();
+    if (localDeviceId != null && localDeviceId != deviceId) {
+      return false;
+    }
+    final next = KioskOrderingExperience.fromApi(orderingExperience);
+    if (this.orderingExperience == next &&
+        kioskAuthRepo.getOrderingExperience() == next.apiValue) {
+      return false;
+    }
+    await kioskAuthRepo.saveOrderingExperience(next.apiValue);
+    if (localDeviceId == null) {
+      await kioskAuthRepo.saveDeviceId(deviceId);
+    }
+    notifyListeners();
+    return true;
+  }
+
   /// One-time device login. On success persists token + bound branch and
   /// returns success; on failure returns the server message (wrong creds /
   /// inactive device).

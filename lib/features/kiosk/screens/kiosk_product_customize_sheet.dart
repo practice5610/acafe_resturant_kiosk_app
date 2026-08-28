@@ -410,33 +410,89 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
 
   // THE A/B SWITCH. Which customization flow this kiosk renders is a back-office
   // setting on the device (Device Update -> Ordering Experience), delivered as
-  // `device.ordering_experience` and cached in SharedPreferences. Everything
-  // above this line — the cart lookup, the ProductProvider seeding, the
-  // no-modifiers shortcut — is shared, so the two versions can only ever differ
-  // in presentation. A device that has never been told which flow to run falls
-  // back to Version A (see [KioskOrderingExperience.fallback]).
-  final KioskOrderingExperience experience =
-      Provider.of<KioskAuthProvider>(context, listen: false).orderingExperience;
-
+  // `device.ordering_experience` (login/me + live websocket) and cached in
+  // SharedPreferences. Everything above this line — the cart lookup, the
+  // ProductProvider seeding, the no-modifiers shortcut — is shared, so the two
+  // versions can only ever differ in presentation. A live admin change remounts
+  // the correct flow via [KioskCustomizeExperienceHost] without a full reload.
   Navigator.of(context).push(
     MaterialPageRoute(
-      builder: (_) => experience.isVersionB
-          ? KioskProductCustomizeStepScreen(
-              product: product,
-              cartIndex: cartIndex,
-              initialInstruction: cart?.instruction,
-              replaceOtherProductLines: replaceOtherProductLines,
-              onConfigured: onConfigured,
-            )
-          : KioskProductCustomizeScreen(
-              product: product,
-              cartIndex: cartIndex,
-              initialInstruction: cart?.instruction,
-              replaceOtherProductLines: replaceOtherProductLines,
-              onConfigured: onConfigured,
-            ),
+      builder: (_) => KioskCustomizeExperienceHost(
+        product: product,
+        cartIndex: cartIndex,
+        initialInstruction: cart?.instruction,
+        replaceOtherProductLines: replaceOtherProductLines,
+        onConfigured: onConfigured,
+      ),
     ),
   );
+}
+
+/// Watches [KioskAuthProvider.orderingExperience] so an admin A↔B switch over
+/// the websocket remounts Version A or Version B immediately, even mid-customize.
+///
+/// Remounting resets step progress (Version B) but keeps [ProductProvider]
+/// selections. The abandon analytics fire is suppressed for that remount so a
+/// live switch is not counted as the customer walking away.
+class KioskCustomizeExperienceHost extends StatefulWidget {
+  final Product product;
+  final int? cartIndex;
+  final String? initialInstruction;
+  final bool replaceOtherProductLines;
+  final ValueChanged<CartModel>? onConfigured;
+
+  const KioskCustomizeExperienceHost({
+    super.key,
+    required this.product,
+    this.cartIndex,
+    this.initialInstruction,
+    this.replaceOtherProductLines = false,
+    this.onConfigured,
+  });
+
+  /// Set when this host is about to swap A↔B so the outgoing screen's dispose
+  /// does not emit `customization_abandoned`.
+  static bool suppressAbandonOnce = false;
+
+  @override
+  State<KioskCustomizeExperienceHost> createState() =>
+      _KioskCustomizeExperienceHostState();
+}
+
+class _KioskCustomizeExperienceHostState
+    extends State<KioskCustomizeExperienceHost> {
+  KioskOrderingExperience? _shown;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<KioskAuthProvider>(
+      builder: (context, auth, _) {
+        final experience = auth.orderingExperience;
+        if (_shown != null && _shown != experience) {
+          KioskCustomizeExperienceHost.suppressAbandonOnce = true;
+        }
+        _shown = experience;
+        return KeyedSubtree(
+          key: ValueKey(experience.apiValue),
+          child: experience.isVersionB
+              ? KioskProductCustomizeStepScreen(
+                  product: widget.product,
+                  cartIndex: widget.cartIndex,
+                  initialInstruction: widget.initialInstruction,
+                  replaceOtherProductLines: widget.replaceOtherProductLines,
+                  onConfigured: widget.onConfigured,
+                )
+              : KioskProductCustomizeScreen(
+                  product: widget.product,
+                  cartIndex: widget.cartIndex,
+                  initialInstruction: widget.initialInstruction,
+                  replaceOtherProductLines: widget.replaceOtherProductLines,
+                  onConfigured: widget.onConfigured,
+                ),
+        );
+      },
+    );
+  }
 }
 
 /// Builds the cart line from the current [ProductProvider] selection state.
@@ -748,8 +804,14 @@ class _KioskProductCustomizeScreenState
 
   @override
   void dispose() {
-    // Left the screen without the line reaching the cart.
-    if (!_completed) {
+    // Left the screen without the line reaching the cart — unless an admin
+    // live-switched Ordering Experience and this host remounted the other flow.
+    final bool suppress =
+        KioskCustomizeExperienceHost.suppressAbandonOnce;
+    if (suppress) {
+      KioskCustomizeExperienceHost.suppressAbandonOnce = false;
+    }
+    if (!_completed && !suppress) {
       KioskCustomizeAnalytics.instance.track(
         KioskCustomizeEvent.customizationAbandoned,
         experience: _lastExperience,

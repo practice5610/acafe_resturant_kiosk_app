@@ -139,9 +139,15 @@ class _KioskProductCustomizeStepScreenState
 
   @override
   void dispose() {
-    // Left the flow without the line reaching the cart. `step` records WHERE
-    // they dropped out, which is the drop-off-by-step figure in the report.
-    if (!_completed && _steps.isNotEmpty) {
+    // Left the flow without the line reaching the cart — unless an admin
+    // live-switched Ordering Experience and this host remounted the other flow.
+    // `step` records WHERE they dropped out for the drop-off-by-step report.
+    final bool suppress =
+        KioskCustomizeExperienceHost.suppressAbandonOnce;
+    if (suppress) {
+      KioskCustomizeExperienceHost.suppressAbandonOnce = false;
+    }
+    if (!_completed && !suppress && _steps.isNotEmpty) {
       KioskCustomizeAnalytics.instance.track(
         KioskCustomizeEvent.customizationAbandoned,
         experience: _lastExperience,

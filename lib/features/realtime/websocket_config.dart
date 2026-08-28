@@ -23,6 +23,9 @@ class WebsocketConfig {
 
   String channelName(int branchId) => 'branch.$branchId.products';
 
+  /// Per-device settings channel (Ordering Experience and future device pushes).
+  String deviceSettingsChannelName(int deviceId) => 'device.$deviceId.settings';
+
   Uri? get socketUri {
     if (!isUsable) return null;
     return Uri(

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
+import 'package:acafe_customer/features/realtime/device_ordering_experience_event.dart';
 
 class CatalogSocketFrame {
   static String eventName(dynamic message) {
@@ -65,6 +66,30 @@ class CatalogSocketFrame {
         return null;
       }
       return CatalogEvent.fromJson(Map<String, dynamic>.from(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static DeviceOrderingExperienceEvent? deviceOrderingExperienceChanged(
+      dynamic message) {
+    try {
+      final payload = _asMap(message);
+      if (payload == null) {
+        return null;
+      }
+      final name = payload['event']?.toString() ?? '';
+      if (!_isNamed(name, 'device.ordering_experience.changed')) {
+        return null;
+      }
+      final dynamic raw = payload['data'] is String
+          ? jsonDecode(payload['data'] as String)
+          : payload['data'];
+      if (raw is! Map) {
+        return null;
+      }
+      return DeviceOrderingExperienceEvent.fromJson(
+          Map<String, dynamic>.from(raw));
     } catch (_) {
       return null;
     }
