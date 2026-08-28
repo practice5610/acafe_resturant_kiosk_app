@@ -7,6 +7,7 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_option_layout.dart';
@@ -78,12 +79,9 @@ const Color _kCreamText = Color(0xFFF3F3DD);
 const Color _kDarkButton = Color(0xFF1E1E1E);
 
 /// Variation groups whose name mentions "cup"/"can" get the big two-card
-/// treatment and are only shown when the product actually has them. This is the
-/// name the backend's Cup/Can switch generates ("Can or cup?"); the pattern
-/// stays loose so hand-authored groups from before the switch still match.
-/// Word-bounded on purpose — an unbounded `can` also matched "Pecan".
-final RegExp _kCupCanPattern =
-    RegExp(r'\b(cups?|cans?)\b', caseSensitive: false);
+/// treatment and are only shown when the product actually has them. The
+/// pattern lives on [kioskCupCanPattern] so the upsell classifier and this
+/// screen never disagree about what a drink is.
 
 // Add-on scroller — Figma `Rectangle 100` (thumb) over `Rectangle 101` (track):
 // both 20px wide, 15px radius, thumb #000000 on a #B9B5A6 track. The add-on
@@ -303,7 +301,7 @@ class _CustomizeSections {
     final indexed =
         List.generate(variations.length, (i) => MapEntry(i, variations[i]));
     bool isCupCan(MapEntry<int, Variation> e) =>
-        _kCupCanPattern.hasMatch(e.value.name ?? '');
+        kioskCupCanPattern.hasMatch(e.value.name ?? '');
 
     return _CustomizeSections(
       cupCan: indexed.where(isCupCan).toList(),
