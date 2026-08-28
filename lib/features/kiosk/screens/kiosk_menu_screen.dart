@@ -791,7 +791,13 @@ class _ProductGrid extends StatelessWidget {
           behavior: const _NoGlowScrollBehavior(),
           child: Consumer<KioskDealProvider>(
             builder: (context, dealsProvider, _) {
-              final deals = dealsProvider.deals;
+              // Isolate deal UI: a banner failure must never blank the product grid.
+              List<KioskDeal> deals = const <KioskDeal>[];
+              try {
+                deals = dealsProvider.deals;
+              } catch (_) {
+                deals = const <KioskDeal>[];
+              }
               final bool showPromo = deals.isNotEmpty;
               final int splitAt = showPromo ? firstCount : products.length;
               final List<Product> rest =

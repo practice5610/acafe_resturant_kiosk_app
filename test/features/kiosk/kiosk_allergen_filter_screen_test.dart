@@ -11,10 +11,11 @@ import '../../helpers/kiosk_layout_harness.dart';
 /// Allergen filter popup (Figma POS node 1385:15054).
 ///
 /// Two things are being protected here. First, that the popup survives every
-/// viewport the kiosk ships on — the card is 2078 x 2098 on the artboard and
-/// the rows have to scroll rather than overflow on a short landscape panel.
-/// Second, that the interaction commits the right thing, since a wrong
-/// selection here removes food from someone's menu.
+/// viewport the kiosk ships on AND stays a dialog on each of them — it is
+/// sized from the card, not the screen, and the rows have to scroll rather
+/// than overflow on a short landscape panel. Second, that the interaction
+/// commits the right thing, since a wrong selection here removes food from
+/// someone's menu.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -43,6 +44,42 @@ void main() {
           expect(find.text(allergen.label), findsOneWidget,
               reason: '${allergen.label} row missing at $size');
         }
+      });
+    }
+
+    // The popup used to be drawn at the raw 2078px Figma frame — 81% of the
+    // artboard — which on every panel we ship read as a second page rather
+    // than a dialog. These lock in the smaller card.
+    for (final Size size in kioskTargetSizes) {
+      testWidgets('the card reads as a dialog at ${size.width.toInt()}'
+          'x${size.height.toInt()}', (tester) async {
+        await pumpPopup(tester, size);
+
+        final Rect card = tester.getRect(find.byKey(kKioskAllergenCardKey));
+
+        expect(card.width, lessThanOrEqualTo(size.width * 0.66),
+            reason: 'card is filling the screen again at $size');
+        expect(card.height, lessThanOrEqualTo(size.height),
+            reason: 'card is taller than the viewport at $size');
+        expect(card.left, greaterThanOrEqualTo(0));
+        expect(card.right, lessThanOrEqualTo(size.width + 0.5));
+        expect((card.center.dx - size.width / 2).abs(), lessThan(1),
+            reason: 'card is not centred at $size');
+      });
+    }
+
+    // Not a kiosk panel, but the flow runs in a browser during development and
+    // a resized window must degrade rather than overflow: the card takes the
+    // width it can get and everything inside shrinks by the same factor.
+    for (final Size size in const <Size>[Size(720, 1280), Size(600, 900)]) {
+      testWidgets('survives a narrow window at ${size.width.toInt()}'
+          'x${size.height.toInt()}', (tester) async {
+        await pumpPopup(tester, size);
+
+        expectNoOverflow(tester, size);
+        final Rect card = tester.getRect(find.byKey(kKioskAllergenCardKey));
+        expect(card.width, lessThanOrEqualTo(size.width));
+        expect(find.text('APPLY FILTERS'), findsOneWidget);
       });
     }
 

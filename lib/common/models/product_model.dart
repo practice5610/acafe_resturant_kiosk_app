@@ -26,9 +26,17 @@ class ProductModel {
 
     if (json['products'] != null) {
       products = [];
-      json['products'].forEach((v) {
-        products!.add(Product.fromJson(v));
-      });
+      for (final dynamic v in json['products']) {
+        try {
+          if (v is Map<String, dynamic>) {
+            products!.add(Product.fromJson(v));
+          } else if (v is Map) {
+            products!.add(Product.fromJson(Map<String, dynamic>.from(v)));
+          }
+        } catch (_) {
+          // Skip a single corrupt product rather than blanking the kiosk menu.
+        }
+      }
     }
   }
 
@@ -194,7 +202,7 @@ class Product {
     _name = json['name'];
     _description = json['description'];
     _image = json['image'];
-    _price = json['price'].toDouble();
+    _price = _readDouble(json['price']);
     if (json['variations'] != null) {
       _variations = [];
       json['variations'].forEach((v) {
@@ -225,8 +233,7 @@ class Product {
         _addOnGroups = [];
       }
     }
-    _tax = json['tax'].toDouble();
-    _tax = json['tax'].toDouble();
+    _tax = _readDouble(json['tax']);
     _status = json['status'] ?? 0;
     area = json['area']?.toString();
     popularityCount = json['popularity_count'] is int
@@ -234,7 +241,12 @@ class Product {
         : int.tryParse('${json['popularity_count']}');
     _createdAt = json['created_at'];
     _updatedAt = json['updated_at'];
-    _attributes = json['attributes'].cast<String>();
+    final dynamic rawAttributes = json['attributes'];
+    if (rawAttributes is List) {
+      _attributes = rawAttributes.map((e) => '$e').toList();
+    } else {
+      _attributes = <String>[];
+    }
     if (json['category_ids'] != null) {
       _categoryIds = [];
       json['category_ids'].forEach((v) {
@@ -247,21 +259,21 @@ class Product {
         _choiceOptions!.add(ChoiceOption.fromJson(v));
       });
     }
-    _discount = json['discount'].toDouble();
+    _discount = _readDouble(json['discount']);
     _discountType = json['discount_type'];
     _taxType = json['tax_type'];
     _setMenu = json['set_menu'];
     productType=  json["product_type"];
     if(json['branch_product'] != null) {
       _branchProduct =  BranchProduct.fromJson(json['branch_product']);
-      _price = _branchProduct!.price;
-      _discount = _branchProduct!.discount;
-      _discountType = _branchProduct!.discountType;
+      _price = _branchProduct!.price ?? _price;
+      _discount = _branchProduct!.discount ?? _discount;
+      _discountType = _branchProduct!.discountType ?? _discountType;
 
     }else{
       _branchProduct = null;
     }
-    _mainPrice = double.tryParse('${json['price']}');
+    _mainPrice = _readDouble(json['price']);
 
     if(json.containsKey('is_changed')){
       _isChanged = '${json['is_changed']}'.contains('1');
@@ -419,7 +431,7 @@ class BranchProduct {
 
       });
     }
-    discount = json['discount'].toDouble();
+    discount = _readDouble(json['discount']) ?? 0;
     discountType = json['discount_type'];
     stockType = json['stock_type'];
     stock = json['stock'];
@@ -652,7 +664,12 @@ class ChoiceOption {
   ChoiceOption.fromJson(Map<String, dynamic> json) {
     _name = json['name'];
     _title = json['title'];
-    _options = json['options'].cast<String>();
+    final dynamic rawOptions = json['options'];
+    if (rawOptions is List) {
+      _options = rawOptions.map((e) => '$e').toList();
+    } else {
+      _options = <String>[];
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -664,5 +681,10 @@ class ChoiceOption {
   }
 }
 
-
-
+/// Null-safe number reader for API payloads where ints, doubles, strings and
+/// nulls are all common. Never throws — missing values become null.
+double? _readDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse('$value');
+}

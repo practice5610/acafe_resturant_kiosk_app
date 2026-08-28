@@ -36,9 +36,19 @@ class CartProvider extends ChangeNotifier {
 
   void getCartData(BuildContext context) {
     _cartList = [];
-    _cartList.addAll(cartRepo!.getCartList(context));
-    for (var cart in _cartList) {
-      _amount = _amount + (cart!.discountedPrice! * cart.quantity!);
+    try {
+      _cartList.addAll(cartRepo!.getCartList(context));
+    } catch (e) {
+      debugPrint('getCartData: clearing corrupt cart ($e)');
+      _cartList = [];
+      try {
+        cartRepo?.addToCartList(_cartList);
+      } catch (_) {}
+    }
+    _amount = 0;
+    for (final cart in _cartList) {
+      if (cart == null) continue;
+      _amount += (cart.discountedPrice ?? 0) * (cart.quantity ?? 1);
     }
   }
 

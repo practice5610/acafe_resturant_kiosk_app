@@ -144,25 +144,38 @@ class CartModel {
 
 
   CartModel.fromJson(Map<String, dynamic> json) {
-    _price = json['price'].toDouble();
-    _discountedPrice = json['discounted_price'].toDouble();
+    _price = _cartReadDouble(json['price']);
+    _discountedPrice = _cartReadDouble(json['discounted_price']);
     if (json['variation'] != null) {
       _variation = [];
       json['variation'].forEach((v) {
         _variation!.add(Variation.fromJson(v));
       });
     }
-    _discountAmount = json['discount_amount'].toDouble();
-    _quantity = json['quantity'];
-    _taxAmount = json['tax_amount'].toDouble();
+    _discountAmount = _cartReadDouble(json['discount_amount']);
+    _quantity = json['quantity'] is int
+        ? json['quantity'] as int
+        : int.tryParse('${json['quantity']}') ?? 1;
+    _taxAmount = _cartReadDouble(json['tax_amount']);
     if (json['add_on_ids'] != null) {
       _addOnIds = [];
       json['add_on_ids'].forEach((v) {
         _addOnIds!.add(AddOn.fromJson(v));
       });
     }
-    if (json['product'] != null) {
-      _product = Product.fromJson(json['product']);
+    final rawProduct = json['product'];
+    if (rawProduct is Map<String, dynamic>) {
+      try {
+        _product = Product.fromJson(rawProduct);
+      } catch (_) {
+        _product = null;
+      }
+    } else if (rawProduct is Map) {
+      try {
+        _product = Product.fromJson(Map<String, dynamic>.from(rawProduct));
+      } catch (_) {
+        _product = null;
+      }
     }
     if (json['variations'] != null) {
       _variations = [];
@@ -177,16 +190,24 @@ class CartModel {
     if (rawInstruction is String && rawInstruction.trim().isNotEmpty) {
       _instruction = rawInstruction.trim();
     }
-    _dealId = json['deal_id'];
-    _dealTitle = json['deal_title'];
-    _dealImage = json['deal_image'];
-    if (json['bundle_price'] != null) {
-      _bundlePrice = json['bundle_price'].toDouble();
-    }
+    _dealId = json['deal_id'] is int
+        ? json['deal_id'] as int
+        : int.tryParse('${json['deal_id']}');
+    _dealTitle = json['deal_title']?.toString();
+    _dealImage = json['deal_image']?.toString();
+    _bundlePrice = _cartReadDouble(json['bundle_price']);
     if (json['components'] != null) {
       _components = [];
       json['components'].forEach((v) {
-        _components!.add(CartModel.fromJson(v));
+        try {
+          if (v is Map<String, dynamic>) {
+            _components!.add(CartModel.fromJson(v));
+          } else if (v is Map) {
+            _components!.add(CartModel.fromJson(Map<String, dynamic>.from(v)));
+          }
+        } catch (_) {
+          // Skip a corrupt deal component rather than failing cart load.
+        }
       });
     }
   }
@@ -237,8 +258,10 @@ class AddOn {
   int? get quantity => _quantity;
 
   AddOn.fromJson(Map<String, dynamic> json) {
-    _id = json['id'];
-    _quantity = json['quantity'];
+    _id = json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}');
+    _quantity = json['quantity'] is int
+        ? json['quantity'] as int
+        : int.tryParse('${json['quantity']}') ?? 1;
   }
 
   Map<String, dynamic> toJson() {
@@ -248,3 +271,10 @@ class AddOn {
     return data;
   }
 }
+
+double? _cartReadDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse('$value');
+}
+
