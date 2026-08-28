@@ -102,6 +102,7 @@ Future<KioskPlaceResult> placeKioskOrder(
     couponDiscountTitle: couponCode,
     couponCode: couponCode,
     orderAmount: double.parse(amount.toStringAsFixed(2)),
+    tipAmount: tipAmount > 0 ? tipAmount : null,
     deliveryAddressId: 0,
     deliveryAddress: null,
     orderType: 'take_away',
