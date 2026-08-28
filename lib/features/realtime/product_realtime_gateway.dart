@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
 import 'package:acafe_customer/features/realtime/catalog_socket_frame.dart';
+import 'package:acafe_customer/features/realtime/device_settings_event.dart';
 import 'package:acafe_customer/features/realtime/websocket_config.dart';
 
 /// Thin Reverb transport (Pusher protocol, public channels only).
@@ -15,8 +16,11 @@ class ProductRealtimeGateway {
   Timer? _pingTimer;
   Timer? _reconnectTimer;
   WebsocketConfig? _config;
-  String? _channelName;
+  /// Every channel this connection subscribes to: the branch catalog channel,
+  /// plus this device's own settings channel once the kiosk knows its id.
+  List<String> _channels = const [];
   int? _branchId;
+  int? _deviceId;
   bool _wantConnected = false;
   bool _connectedOnce = false;
   bool _closing = false;
@@ -24,34 +28,46 @@ class ProductRealtimeGateway {
 
   void Function(CatalogEvent event)? onEvent;
   void Function(CatalogEvent event)? onDealEvent;
+  void Function(DeviceSettingsEvent event)? onDeviceSettingsEvent;
   VoidCallback? onReconnect;
 
   int? get branchId => _branchId;
+  int? get deviceId => _deviceId;
   bool get isConnected =>
-      _socket != null && _channelName != null && _subscribed;
+      _socket != null && _channels.isNotEmpty && _subscribed;
 
   Future<void> connect({
     required WebsocketConfig config,
     required int branchId,
+    int? deviceId,
   }) async {
     if (!config.isUsable || branchId <= 0) {
       return;
     }
+    final channels = <String>[
+      config.channelName(branchId),
+      if (deviceId != null && deviceId > 0) config.deviceChannelName(deviceId),
+    ];
     // The endpoint has to match too. isConnected can read true while nothing
     // is actually connected -- _subscribed is set optimistically by the 400ms
     // fallback in _open() -- so against a host that hangs rather than refuses,
     // comparing the branch alone would skip the reconnect a corrected config
     // needs.
+    // The channel list is part of the identity too: a kiosk that learns its
+    // device id after boot has the same branch and endpoint but now needs a
+    // second subscription, and comparing the branch alone would skip it.
     if (_wantConnected &&
         _branchId == branchId &&
         _config?.socketUri == config.socketUri &&
+        listEquals(_channels, channels) &&
         isConnected) {
       return;
     }
 
     _config = config;
     _branchId = branchId;
-    _channelName = config.channelName(branchId);
+    _deviceId = deviceId;
+    _channels = channels;
     _wantConnected = true;
     await _open();
   }
@@ -59,8 +75,7 @@ class ProductRealtimeGateway {
   Future<void> _open() async {
     await _closeSocket();
     final config = _config;
-    final channelName = _channelName;
-    if (!_wantConnected || config == null || channelName == null) {
+    if (!_wantConnected || config == null || _channels.isEmpty) {
       return;
     }
 
@@ -106,6 +121,18 @@ class ProductRealtimeGateway {
       _send({'event': 'pusher:pong', 'data': {}});
       return;
     }
+    final deviceEvent = CatalogSocketFrame.deviceSettingsChanged(message);
+    if (deviceEvent != null) {
+      if (kDebugMode) {
+        debugPrint(
+          'ProductRealtimeGateway device.settings.changed '
+          'device=${deviceEvent.deviceId} action=${deviceEvent.action} '
+          'experience=${deviceEvent.orderingExperience}',
+        );
+      }
+      onDeviceSettingsEvent?.call(deviceEvent);
+      return;
+    }
     final dealEvent = CatalogSocketFrame.dealChanged(message);
     if (dealEvent != null) {
       if (kDebugMode) {
@@ -130,16 +157,22 @@ class ProductRealtimeGateway {
   }
 
   void _subscribe(dynamic data) {
-    _send({
-      'event': 'pusher:subscribe',
-      'data': {'channel': _channelName},
-    });
+    // A repeat subscribe frame for a channel already joined is a no-op on the
+    // server (channel membership is a set per connection), so re-sending when
+    // connection_established lands after the 400ms fallback is safe -- and it
+    // is what rescues a frame the server dropped for arriving too early.
+    for (final channel in _channels) {
+      _send({
+        'event': 'pusher:subscribe',
+        'data': {'channel': channel},
+      });
+    }
     if (_subscribed) {
       return;
     }
     _subscribed = true;
     if (kDebugMode) {
-      debugPrint('ProductRealtimeGateway subscribed $_channelName');
+      debugPrint('ProductRealtimeGateway subscribed ${_channels.join(', ')}');
     }
 
     int timeoutSeconds =
@@ -198,8 +231,9 @@ class ProductRealtimeGateway {
     // session" -- the predicate for reconciling a gap on the next subscribe.
     // Clearing it made every pause/resume look like a first connect and
     // silently skipped the syncMenu reconciliation.
-    _channelName = null;
+    _channels = const [];
     _branchId = null;
+    _deviceId = null;
     _config = null;
     await _closeSocket();
   }

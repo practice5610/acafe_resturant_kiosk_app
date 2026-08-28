@@ -1093,6 +1093,12 @@ class _KioskProductCard extends StatelessWidget {
   }
 }
 
+/// Promo banner aspect ratio — **2:1** (width : height).
+///
+/// Upload artwork at this ratio (recommended **1600×800**) so [BoxFit.cover]
+/// fills the slot with little or no cropping and without stretching.
+const double _kDealBannerAspectRatio = 2.0;
+
 /// Data-driven promotional deal banner inserted mid-grid after the first two
 /// product rows. Hidden when there are no active deals for this branch.
 class _DealPromoBanner extends StatelessWidget {
@@ -1106,8 +1112,8 @@ class _DealPromoBanner extends StatelessWidget {
     if (deals.length == 1) {
       return _DealBannerTile(s: s, deal: deals.first);
     }
-    return SizedBox(
-      height: 760 * s,
+    return AspectRatio(
+      aspectRatio: _kDealBannerAspectRatio,
       child: PageView.builder(
         itemCount: deals.length,
         itemBuilder: (context, index) => Padding(
@@ -1134,16 +1140,17 @@ class _DealBannerTile extends StatelessWidget {
     );
     return KioskTap(
       onTap: () => openKioskDealDetail(context, deal),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(60 * s),
-        child: SizedBox(
-          height: 760 * s,
-          width: double.infinity,
+      child: AspectRatio(
+        aspectRatio: _kDealBannerAspectRatio,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(60 * s),
           child: imageUrl.isNotEmpty
               ? CustomImageWidget(
                   placeholder: Images.placeholderImage,
                   image: imageUrl,
                   fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
                 )
               : const DecoratedBox(
                   decoration: BoxDecoration(

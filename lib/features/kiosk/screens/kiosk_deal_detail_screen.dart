@@ -238,17 +238,19 @@ class _KioskDealDetailScreenState extends State<KioskDealDetailScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
                 children: [
+                  // Same 2:1 slot as the menu promo banner (upload 1600×800).
                   ClipRRect(
                     borderRadius: BorderRadius.circular(28),
-                    child: SizedBox(
-                      height: 220,
-                      width: double.infinity,
+                    child: AspectRatio(
+                      aspectRatio: 2,
                       child: bannerUrl.isEmpty
                           ? _DealFallbackBanner(deal: _deal)
                           : CustomImageWidget(
                               placeholder: Images.placeholderImage,
                               image: bannerUrl,
                               fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
                             ),
                     ),
                   ),

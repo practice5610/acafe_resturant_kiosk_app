@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
+import 'package:acafe_customer/features/realtime/device_settings_event.dart';
 
 class CatalogSocketFrame {
   static String eventName(dynamic message) {
@@ -65,6 +66,34 @@ class CatalogSocketFrame {
         return null;
       }
       return CatalogEvent.fromJson(Map<String, dynamic>.from(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Back-office settings for this one kiosk, from `device.{id}.settings`.
+  static DeviceSettingsEvent? deviceSettingsChanged(dynamic message) {
+    final raw = _dataOf(message, 'device.settings.changed');
+    if (raw == null) {
+      return null;
+    }
+    return DeviceSettingsEvent.fromJson(Map<String, dynamic>.from(raw));
+  }
+
+  /// The `data` object of [message] when it carries event [expected], else null.
+  static Map? _dataOf(dynamic message, String expected) {
+    try {
+      final payload = _asMap(message);
+      if (payload == null) {
+        return null;
+      }
+      if (!_isNamed(payload['event']?.toString() ?? '', expected)) {
+        return null;
+      }
+      final dynamic raw = payload['data'] is String
+          ? jsonDecode(payload['data'] as String)
+          : payload['data'];
+      return raw is Map ? raw : null;
     } catch (_) {
       return null;
     }
