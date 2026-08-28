@@ -1,12 +1,32 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 
+/// Variation groups whose name mentions "cup"/"can" count as a drink vessel.
+///
+/// This is the name the backend's Cup/Can switch generates ("Can or cup?");
+/// the pattern stays loose so hand-authored groups from before the switch
+/// still match. Word-bounded on purpose — an unbounded `can` also matched
+/// "Pecan". Shared with the customize screen so the upsell and the cup/can
+/// cards never disagree about what a drink is.
+final RegExp kioskCupCanPattern =
+    RegExp(r'\b(cups?|cans?)\b', caseSensitive: false);
+
+/// True when [product] has a cup or can option the customer can pick.
+bool productHasCupCanOption(Product? product) {
+  final variations = product?.variations;
+  if (variations == null) return false;
+  for (final variation in variations) {
+    if (kioskCupCanPattern.hasMatch(variation.name ?? '')) return true;
+  }
+  return false;
+}
+
 /// What a product counts as when deciding whether an order is "complete".
 enum KioskCourse {
-  /// Anything from the bar — coffee, matcha, soft drinks, teas.
+  /// Anything served in a cup or can — coffee, matcha, soft drinks, teas.
   drink,
 
-  /// Anything made in the kitchen — poffertjes and other food.
+  /// Anything without a cup/can option — poffertjes and other food.
   food,
 
   /// Beanies, mugs, beans. Never triggers an upsell in either direction: a bag
@@ -15,22 +35,17 @@ enum KioskCourse {
 
   /// Classify a product.
   ///
-  /// `products.area` is the backend's own kitchen-routing field and is the
-  /// authority. It is complete as of the 2026_08_25 backfill, but a product
-  /// created by an older code path could still arrive with it empty — so an
-  /// unknown area falls back to [drink], which is the safe answer in a cafe:
-  /// mis-labelling a drink as food would make the kiosk offer a customer a
-  /// drink they are already holding.
+  /// Cup/can is the drink signal the admin actually sets. `products.area` is
+  /// still read for merchandise (there is no cup/can equivalent), but it is
+  /// not used for food vs drink: new products are always saved as `bar` and
+  /// the edit form has no area selector, so `area` would treat kitchen items
+  /// as drinks and ask the wrong question.
   static KioskCourse of(Product? product) {
-    switch (product?.area?.trim().toLowerCase()) {
-      case 'kitchen':
-        return KioskCourse.food;
-      case 'merchandise':
-        return KioskCourse.merchandise;
-      case 'bar':
-      default:
-        return KioskCourse.drink;
+    if (product?.area?.trim().toLowerCase() == 'merchandise') {
+      return KioskCourse.merchandise;
     }
+    if (productHasCupCanOption(product)) return KioskCourse.drink;
+    return KioskCourse.food;
   }
 }
 
@@ -70,15 +85,26 @@ class KioskOrderComposition {
     bool drink = false;
     bool merch = false;
 
-    for (final line in cartList) {
-      if (line == null) continue;
-      switch (KioskCourse.of(line.product)) {
+    void apply(Product? product) {
+      switch (KioskCourse.of(product)) {
         case KioskCourse.food:
           food = true;
         case KioskCourse.drink:
           drink = true;
         case KioskCourse.merchandise:
           merch = true;
+      }
+    }
+
+    for (final line in cartList) {
+      if (line == null) continue;
+      final components = line.components;
+      if (line.isDeal && components != null && components.isNotEmpty) {
+        for (final component in components) {
+          apply(component.product);
+        }
+      } else {
+        apply(line.product);
       }
     }
 

@@ -6,6 +6,7 @@ class PlaceOrderBody {
   double? _bringChangeAmount;
   String? _couponDiscountTitle;
   double? _orderAmount;
+  double? _tipAmount;
   String? _orderType;
   int? _deliveryAddressId;
   dynamic _deliveryAddress;
@@ -49,6 +50,7 @@ class PlaceOrderBody {
         String? isCutleryRequired,
         int? selectedDeliveryArea,
         double? bringChangeAmount,
+        double? tipAmount,
         dynamic deliveryAddress,
         int? deviceId,
       }) {
@@ -56,6 +58,7 @@ class PlaceOrderBody {
     _couponDiscountAmount = couponDiscountAmount;
     _couponDiscountTitle = couponDiscountTitle;
     _orderAmount = orderAmount;
+    _tipAmount = tipAmount;
     _orderType = orderType;
     _deliveryAddressId = deliveryAddressId;
     _deliveryAddress = deliveryAddress;
@@ -79,6 +82,7 @@ class PlaceOrderBody {
   double? get couponDiscountAmount => _couponDiscountAmount;
   String? get couponDiscountTitle => _couponDiscountTitle;
   double? get orderAmount => _orderAmount;
+  double? get tipAmount => _tipAmount;
   String? get orderType => _orderType;
   int? get deliveryAddressId => _deliveryAddressId;
   String? get paymentMethod => _paymentMethod;
@@ -107,6 +111,7 @@ class PlaceOrderBody {
     _couponDiscountAmount = json['coupon_discount_amount'];
     _couponDiscountTitle = json['coupon_discount_title'];
     _orderAmount = json['order_amount'];
+    _tipAmount = (json['tip_amount'] as num?)?.toDouble();
     _orderType = json['order_type'];
     _deliveryAddressId = json['delivery_address_id'];
     _paymentMethod = json['payment_method'];
@@ -135,6 +140,9 @@ class PlaceOrderBody {
     data['coupon_discount_amount'] = _couponDiscountAmount;
     data['coupon_discount_title'] = _couponDiscountTitle;
     data['order_amount'] = _orderAmount;
+    if (_tipAmount != null && _tipAmount! > 0) {
+      data['tip_amount'] = _tipAmount;
+    }
     data['order_type'] = _orderType;
     data['delivery_address_id'] = _deliveryAddressId;
     data['payment_method'] = _paymentMethod;

@@ -166,12 +166,20 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
     final couponProvider = Provider.of<CouponProvider>(context, listen: false);
     final String? couponCode = kioskOrderCouponCode(couponProvider);
     final name = KioskSession.instance.customerName;
+    final double tipAmount = kioskTipAmount(
+      kioskPayableTotal(
+        cartProvider.cartList,
+        couponProvider.discount ?? 0,
+      ),
+      KioskSession.instance.tipPercentOrZero,
+    );
     final placeOrderBody = PlaceOrderBody(
       cart: carts,
       couponDiscountAmount: couponProvider.discount ?? 0,
       couponDiscountTitle: couponCode,
       couponCode: couponCode,
       orderAmount: double.parse(_amount.toStringAsFixed(2)),
+      tipAmount: tipAmount > 0 ? tipAmount : null,
       deliveryAddressId: 0,
       deliveryAddress: null,
       orderType: 'take_away',
@@ -183,13 +191,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
         name: name,
         note: cartProvider.orderNote,
         tipPercent: KioskSession.instance.tipPercentOrZero,
-        tipAmount: kioskTipAmount(
-          kioskPayableTotal(
-            cartProvider.cartList,
-            couponProvider.discount ?? 0,
-          ),
-          KioskSession.instance.tipPercentOrZero,
-        ),
+        tipAmount: tipAmount,
       ),
       distance: 0,
       isPartial: '0',

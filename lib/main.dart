@@ -56,6 +56,30 @@ Future<void> main() async {
   disableKioskBrowserHistorySwipe();
   final WidgetsBinding widgetsBinding =
       WidgetsFlutterBinding.ensureInitialized();
+
+  // Release builds used to paint a solid mid-gray ErrorWidget with no chrome
+  // when /menu-kiosk threw — looking like a blank crash. Keep the brand page
+  // colour and a short message so the kiosk is recoverable.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return const ColoredBox(
+      color: BrandColors.background,
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Something went wrong.\nTap the browser refresh button to continue.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: BrandColors.onBackground,
+              fontSize: 18,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ),
+      ),
+    );
+  };
+
   if (!kIsWeb) {
     FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   }

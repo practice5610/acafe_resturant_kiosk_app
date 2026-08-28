@@ -45,10 +45,14 @@ class KioskDeal {
     final rawItems = json['items'];
     if (rawItems is List) {
       for (final item in rawItems) {
-        if (item is Map<String, dynamic>) {
-          items.add(KioskDealItem.fromJson(item));
-        } else if (item is Map) {
-          items.add(KioskDealItem.fromJson(Map<String, dynamic>.from(item)));
+        try {
+          if (item is Map<String, dynamic>) {
+            items.add(KioskDealItem.fromJson(item));
+          } else if (item is Map) {
+            items.add(KioskDealItem.fromJson(Map<String, dynamic>.from(item)));
+          }
+        } catch (_) {
+          // Skip a bad item; the deal may still be usable with remaining slots.
         }
       }
     }
@@ -99,12 +103,15 @@ class KioskDealItem {
 
   factory KioskDealItem.fromJson(Map<String, dynamic> json) {
     final rawProduct = json['product'];
+    if (rawProduct is! Map) {
+      throw FormatException('Deal item missing product map');
+    }
     return KioskDealItem(
       quantity: int.tryParse('${json['quantity'] ?? 1}') ?? 1,
       product: Product.fromJson(
         rawProduct is Map<String, dynamic>
             ? rawProduct
-            : Map<String, dynamic>.from(rawProduct as Map),
+            : Map<String, dynamic>.from(rawProduct),
       ),
     );
   }

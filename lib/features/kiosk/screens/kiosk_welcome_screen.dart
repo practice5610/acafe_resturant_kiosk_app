@@ -86,20 +86,32 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     final categories = Provider.of<CategoryProvider>(context, listen: false);
     final splash = Provider.of<SplashProvider>(context, listen: false);
 
-    await categories.ensureKioskMenuReady(localeCode: locale);
+    try {
+      await categories.ensureKioskMenuReady(localeCode: locale);
+    } catch (_) {
+      // Menu still opens; the screen shows its own skeleton / empty state.
+    }
     if (!mounted) return;
-    await Provider.of<KioskDealProvider>(context, listen: false).fetchDeals();
+
+    // Deals are nice-to-have. Never block entry to the menu on a bad payload.
+    try {
+      await Provider.of<KioskDealProvider>(context, listen: false)
+          .fetchDeals()
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {}
     if (!mounted) return;
 
     // Warm the FIRST (visible) category's images before showing the menu so the
     // first paint has no shimmer; neighbours warm in the background. Bounded by
     // a timeout so a slow network can never freeze the tap.
-    await KioskMenuImageHelper.precacheAroundSelected(
-      context,
-      categories,
-      splash,
-      awaitVisible: true,
-    ).timeout(const Duration(seconds: 3), onTimeout: () {});
+    try {
+      await KioskMenuImageHelper.precacheAroundSelected(
+        context,
+        categories,
+        splash,
+        awaitVisible: true,
+      ).timeout(const Duration(seconds: 3), onTimeout: () {});
+    } catch (_) {}
     if (!mounted) return;
 
     setState(() => _orderLoading = false);

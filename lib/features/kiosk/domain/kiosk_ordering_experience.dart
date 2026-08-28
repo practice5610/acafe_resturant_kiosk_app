@@ -1,7 +1,8 @@
 /// Which item-customization flow this kiosk renders.
 ///
 /// Set per device in the back office (Device Update → Ordering Experience) and
-/// delivered to the kiosk on `device/login` and `device/me` as
+/// delivered to the kiosk on `device/login`, `device/me`, and the live
+/// `device.ordering_experience.changed` websocket event as
 /// `device.ordering_experience`. The wire values mirror
 /// `App\Model\Device::ORDERING_EXPERIENCES` on the Laravel side — keep the two
 /// lists in step.

@@ -6,10 +6,12 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/reposotories/product_repo.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
 import 'package:acafe_customer/features/realtime/catalog_realtime_policy.dart';
+import 'package:acafe_customer/features/realtime/device_ordering_experience_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_gateway.dart';
 import 'package:acafe_customer/features/realtime/websocket_config.dart';
 import 'package:dio/dio.dart';
@@ -35,6 +37,7 @@ class ProductRealtimeController {
   CartProvider? _cart;
   LocalizationProvider? _localization;
   KioskDealProvider? _deals;
+  KioskAuthProvider? _auth;
   WebsocketConfig? _config;
 
   Future<void> start({
@@ -44,17 +47,32 @@ class ProductRealtimeController {
     required CartProvider cart,
     required LocalizationProvider localization,
     required KioskDealProvider deals,
+    required KioskAuthProvider auth,
+    int? deviceId,
   }) async {
     _config = config;
     _categories = categories;
     _cart = cart;
     _localization = localization;
     _deals = deals;
+    bindAuth(auth);
 
     gateway.onEvent = _onEvent;
     gateway.onDealEvent = _onDealEvent;
+    gateway.onDeviceOrderingExperienceEvent = _onDeviceOrderingExperience;
     gateway.onReconnect = _onReconnect;
-    await gateway.connect(config: config, branchId: branchId);
+    await gateway.connect(
+      config: config,
+      branchId: branchId,
+      deviceId: deviceId ?? auth.deviceId,
+    );
+  }
+
+  /// Hot reload / already-connected path: keep the auth pointer fresh so
+  /// Ordering Experience pushes still land on the live provider.
+  void bindAuth(KioskAuthProvider auth) {
+    _auth = auth;
+    gateway.onDeviceOrderingExperienceEvent = _onDeviceOrderingExperience;
   }
 
   Future<void> stop() async {
@@ -64,7 +82,38 @@ class ProductRealtimeController {
     _debounce.clear();
     _dealDebounce?.cancel();
     _dealDebounce = null;
+    _auth = null;
     await gateway.disconnect();
+  }
+
+  Future<void> _onDeviceOrderingExperience(
+      DeviceOrderingExperienceEvent event) async {
+    final bool duplicate = event.eventId.isNotEmpty &&
+        _seenEventIds.contains(event.eventId);
+    if (duplicate) {
+      return;
+    }
+    if (event.eventId.isNotEmpty) {
+      _seenEventIds.add(event.eventId);
+      while (_seenEventIds.length > _seenCap) {
+        _seenEventIds.removeFirst();
+      }
+    }
+
+    final auth = _auth;
+    if (auth == null) {
+      return;
+    }
+    final changed = await auth.applyOrderingExperienceFromRealtime(
+      deviceId: event.deviceId,
+      orderingExperience: event.orderingExperience,
+    );
+    if (kDebugMode && changed) {
+      debugPrint(
+        'ProductRealtimeController ordering experience -> '
+        '${event.orderingExperience} (device=${event.deviceId})',
+      );
+    }
   }
 
   void _onEvent(CatalogEvent event) {

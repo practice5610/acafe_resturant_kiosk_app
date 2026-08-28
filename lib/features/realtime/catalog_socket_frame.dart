@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
-import 'package:acafe_customer/features/realtime/device_settings_event.dart';
+import 'package:acafe_customer/features/realtime/device_ordering_experience_event.dart';
 
 class CatalogSocketFrame {
   static String eventName(dynamic message) {
@@ -71,29 +71,25 @@ class CatalogSocketFrame {
     }
   }
 
-  /// Back-office settings for this one kiosk, from `device.{id}.settings`.
-  static DeviceSettingsEvent? deviceSettingsChanged(dynamic message) {
-    final raw = _dataOf(message, 'device.settings.changed');
-    if (raw == null) {
-      return null;
-    }
-    return DeviceSettingsEvent.fromJson(Map<String, dynamic>.from(raw));
-  }
-
-  /// The `data` object of [message] when it carries event [expected], else null.
-  static Map? _dataOf(dynamic message, String expected) {
+  static DeviceOrderingExperienceEvent? deviceOrderingExperienceChanged(
+      dynamic message) {
     try {
       final payload = _asMap(message);
       if (payload == null) {
         return null;
       }
-      if (!_isNamed(payload['event']?.toString() ?? '', expected)) {
+      final name = payload['event']?.toString() ?? '';
+      if (!_isNamed(name, 'device.ordering_experience.changed')) {
         return null;
       }
       final dynamic raw = payload['data'] is String
           ? jsonDecode(payload['data'] as String)
           : payload['data'];
-      return raw is Map ? raw : null;
+      if (raw is! Map) {
+        return null;
+      }
+      return DeviceOrderingExperienceEvent.fromJson(
+          Map<String, dynamic>.from(raw));
     } catch (_) {
       return null;
     }

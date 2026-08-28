@@ -90,10 +90,24 @@ class KioskDealProvider extends ChangeNotifier {
     if (raw is! List) return [];
     final List<KioskDeal> out = [];
     for (final item in raw) {
-      if (item is Map<String, dynamic>) {
-        out.add(KioskDeal.fromJson(item));
-      } else if (item is Map) {
-        out.add(KioskDeal.fromJson(Map<String, dynamic>.from(item)));
+      try {
+        final KioskDeal deal;
+        if (item is Map<String, dynamic>) {
+          deal = KioskDeal.fromJson(item);
+        } else if (item is Map) {
+          deal = KioskDeal.fromJson(Map<String, dynamic>.from(item));
+        } else {
+          continue;
+        }
+        // A deal with zero parseable items cannot be ordered — skip it so the
+        // banner never opens a broken detail screen.
+        if (deal.items.isEmpty) {
+          debugPrint('KioskDealProvider: skipping deal ${deal.id} (no items)');
+          continue;
+        }
+        out.add(deal);
+      } catch (e) {
+        debugPrint('KioskDealProvider: skipping corrupt deal ($e)');
       }
     }
     return out;

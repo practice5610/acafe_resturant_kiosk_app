@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
 import 'package:acafe_customer/features/realtime/catalog_socket_frame.dart';
-import 'package:acafe_customer/features/realtime/device_settings_event.dart';
+import 'package:acafe_customer/features/realtime/device_ordering_experience_event.dart';
 import 'package:acafe_customer/features/realtime/websocket_config.dart';
 
 /// Thin Reverb transport (Pusher protocol, public channels only).
@@ -16,9 +16,7 @@ class ProductRealtimeGateway {
   Timer? _pingTimer;
   Timer? _reconnectTimer;
   WebsocketConfig? _config;
-  /// Every channel this connection subscribes to: the branch catalog channel,
-  /// plus this device's own settings channel once the kiosk knows its id.
-  List<String> _channels = const [];
+  List<String> _channelNames = const [];
   int? _branchId;
   int? _deviceId;
   bool _wantConnected = false;
@@ -28,13 +26,15 @@ class ProductRealtimeGateway {
 
   void Function(CatalogEvent event)? onEvent;
   void Function(CatalogEvent event)? onDealEvent;
-  void Function(DeviceSettingsEvent event)? onDeviceSettingsEvent;
+  void Function(DeviceOrderingExperienceEvent event)?
+      onDeviceOrderingExperienceEvent;
   VoidCallback? onReconnect;
 
   int? get branchId => _branchId;
   int? get deviceId => _deviceId;
+  List<String> get channelNames => List<String>.unmodifiable(_channelNames);
   bool get isConnected =>
-      _socket != null && _channels.isNotEmpty && _subscribed;
+      _socket != null && _channelNames.isNotEmpty && _subscribed;
 
   Future<void> connect({
     required WebsocketConfig config,
@@ -44,22 +44,21 @@ class ProductRealtimeGateway {
     if (!config.isUsable || branchId <= 0) {
       return;
     }
-    final channels = <String>[
-      config.channelName(branchId),
-      if (deviceId != null && deviceId > 0) config.deviceChannelName(deviceId),
-    ];
+    final channels = <String>[config.channelName(branchId)];
+    if (deviceId != null && deviceId > 0) {
+      channels.add(config.deviceSettingsChannelName(deviceId));
+    }
+
     // The endpoint has to match too. isConnected can read true while nothing
     // is actually connected -- _subscribed is set optimistically by the 400ms
     // fallback in _open() -- so against a host that hangs rather than refuses,
     // comparing the branch alone would skip the reconnect a corrected config
     // needs.
-    // The channel list is part of the identity too: a kiosk that learns its
-    // device id after boot has the same branch and endpoint but now needs a
-    // second subscription, and comparing the branch alone would skip it.
     if (_wantConnected &&
         _branchId == branchId &&
+        _deviceId == deviceId &&
         _config?.socketUri == config.socketUri &&
-        listEquals(_channels, channels) &&
+        _listEquals(_channelNames, channels) &&
         isConnected) {
       return;
     }
@@ -67,7 +66,7 @@ class ProductRealtimeGateway {
     _config = config;
     _branchId = branchId;
     _deviceId = deviceId;
-    _channels = channels;
+    _channelNames = channels;
     _wantConnected = true;
     await _open();
   }
@@ -75,7 +74,7 @@ class ProductRealtimeGateway {
   Future<void> _open() async {
     await _closeSocket();
     final config = _config;
-    if (!_wantConnected || config == null || _channels.isEmpty) {
+    if (!_wantConnected || config == null || _channelNames.isEmpty) {
       return;
     }
 
@@ -121,18 +120,6 @@ class ProductRealtimeGateway {
       _send({'event': 'pusher:pong', 'data': {}});
       return;
     }
-    final deviceEvent = CatalogSocketFrame.deviceSettingsChanged(message);
-    if (deviceEvent != null) {
-      if (kDebugMode) {
-        debugPrint(
-          'ProductRealtimeGateway device.settings.changed '
-          'device=${deviceEvent.deviceId} action=${deviceEvent.action} '
-          'experience=${deviceEvent.orderingExperience}',
-        );
-      }
-      onDeviceSettingsEvent?.call(deviceEvent);
-      return;
-    }
     final dealEvent = CatalogSocketFrame.dealChanged(message);
     if (dealEvent != null) {
       if (kDebugMode) {
@@ -142,6 +129,19 @@ class ProductRealtimeGateway {
         );
       }
       onDealEvent?.call(dealEvent);
+      return;
+    }
+    final orderingEvent =
+        CatalogSocketFrame.deviceOrderingExperienceChanged(message);
+    if (orderingEvent != null) {
+      if (kDebugMode) {
+        debugPrint(
+          'ProductRealtimeGateway device.ordering_experience.changed '
+          'device=${orderingEvent.deviceId} '
+          'experience=${orderingEvent.orderingExperience}',
+        );
+      }
+      onDeviceOrderingExperienceEvent?.call(orderingEvent);
       return;
     }
     final event = CatalogSocketFrame.productChanged(message);
@@ -157,14 +157,10 @@ class ProductRealtimeGateway {
   }
 
   void _subscribe(dynamic data) {
-    // A repeat subscribe frame for a channel already joined is a no-op on the
-    // server (channel membership is a set per connection), so re-sending when
-    // connection_established lands after the 400ms fallback is safe -- and it
-    // is what rescues a frame the server dropped for arriving too early.
-    for (final channel in _channels) {
+    for (final channelName in _channelNames) {
       _send({
         'event': 'pusher:subscribe',
-        'data': {'channel': channel},
+        'data': {'channel': channelName},
       });
     }
     if (_subscribed) {
@@ -172,7 +168,9 @@ class ProductRealtimeGateway {
     }
     _subscribed = true;
     if (kDebugMode) {
-      debugPrint('ProductRealtimeGateway subscribed ${_channels.join(', ')}');
+      debugPrint(
+        'ProductRealtimeGateway subscribed ${_channelNames.join(', ')}',
+      );
     }
 
     int timeoutSeconds =
@@ -231,10 +229,18 @@ class ProductRealtimeGateway {
     // session" -- the predicate for reconciling a gap on the next subscribe.
     // Clearing it made every pause/resume look like a first connect and
     // silently skipped the syncMenu reconciliation.
-    _channels = const [];
+    _channelNames = const [];
     _branchId = null;
     _deviceId = null;
     _config = null;
     await _closeSocket();
+  }
+
+  static bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }

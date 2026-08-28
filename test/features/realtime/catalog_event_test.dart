@@ -237,6 +237,28 @@ void main() {
       expect(CatalogSocketFrame.productChanged(frame), isNull);
     });
 
+    test('parses device.ordering_experience.changed frames', () {
+      const frame =
+          '{"event":"device.ordering_experience.changed","channel":"branch.1.products","data":"{\\"v\\":1,\\"event_id\\":\\"ox1\\",\\"device_id\\":1,\\"branch_id\\":1,\\"ordering_experience\\":\\"version_b\\"}"}';
+      final event =
+          CatalogSocketFrame.deviceOrderingExperienceChanged(frame);
+      expect(event, isNotNull);
+      expect(event!.deviceId, 1);
+      expect(event.orderingExperience, 'version_b');
+      expect(CatalogSocketFrame.productChanged(frame), isNull);
+      expect(CatalogSocketFrame.dealChanged(frame), isNull);
+    });
+
+    test('parses Echo-style .device.ordering_experience.changed frames', () {
+      const frame =
+          '{"event":".device.ordering_experience.changed","channel":"branch.1.products","data":"{\\"v\\":1,\\"event_id\\":\\"ox2\\",\\"device_id\\":4,\\"branch_id\\":2,\\"ordering_experience\\":\\"version_a\\"}"}';
+      final event =
+          CatalogSocketFrame.deviceOrderingExperienceChanged(frame);
+      expect(event, isNotNull);
+      expect(event!.deviceId, 4);
+      expect(event.orderingExperience, 'version_a');
+    });
+
     test('ignores protocol frames', () {
       expect(
         CatalogSocketFrame.productChanged(

@@ -23,7 +23,7 @@ import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
 // ===========================================================================
-// KIOSK — "WOULD YOU LIKE TO ADD A DRINK?" upsell
+// KIOSK — "WOULD YOU LIKE SOMETHING TO DRINK?" upsell
 // ===========================================================================
 // Shown when the customer heads for the cart or checkout with a one-sided
 // order. Which question gets asked is decided by [KioskOrderComposition], not
@@ -79,8 +79,8 @@ class _KioskUpsellSheet extends StatelessWidget {
   const _KioskUpsellSheet({required this.course});
 
   String _title(BuildContext context) => course == KioskCourse.drink
-      ? kioskTranslate(
-          context, 'would_you_like_to_add_a_drink', 'Would you like to add a drink?')
+      ? kioskTranslate(context, 'would_you_like_something_to_drink',
+          'Would you like something to drink?')
       : kioskTranslate(context, 'would_you_like_something_to_eat',
           'Would you like something to eat?');
 
@@ -332,11 +332,11 @@ Future<void> _offerThenGo(BuildContext context, VoidCallback go) async {
   go();
 }
 
-/// Combo match first (product ids, not `area`), then the food/drink grid.
+/// Combo match first (product ids), then the food/drink grid.
 ///
-/// Combo-first matters: `products.area` has no admin UI and new kitchen
-/// items are often stored as `bar`, so the course rule can be wrong while
-/// a deal match on product ids is still correct.
+/// Combo-first still matters: a deal match on product ids is independent of
+/// whether those products are food or drink. The course rule itself now uses
+/// cup/can, not `products.area`.
 Future<void> _presentUpsell(BuildContext context) async {
   final cart = Provider.of<CartProvider>(context, listen: false);
   final deals = Provider.of<KioskDealProvider>(context, listen: false).deals;

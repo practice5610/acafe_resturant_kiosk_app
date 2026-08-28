@@ -6,21 +6,33 @@ import 'package:provider/provider.dart';
 
 class PriceConverterHelper {
   static String convertPrice(double? price, {double? discount, String? discountType}) {
-    final configModel = Provider.of<SplashProvider>(Get.context!, listen: false).configModel!;
-    if(discount != null && discountType != null){
-      if(discountType == 'amount') {
-        price = price! - discount;
-      }else if(discountType == 'percent') {
-        price = price! - ((discount / 100) * price);
+    // Never force-unwrap config / context here — the menu cart bar calls this
+    // on every build, and a single null used to blank the entire /menu-kiosk.
+    final BuildContext? ctx = Get.context;
+    final configModel = ctx == null
+        ? null
+        : Provider.of<SplashProvider>(ctx, listen: false).configModel;
+    final int decimals = configModel?.decimalPointSettings ?? 2;
+    final String symbol = configModel?.currencySymbol ?? '€';
+    final String position = configModel?.currencySymbolPosition ?? 'left';
+
+    double value = price ?? 0;
+    if (discount != null && discountType != null) {
+      if (discountType == 'amount') {
+        value = value - discount;
+      } else if (discountType == 'percent') {
+        value = value - ((discount / 100) * value);
       }
     }
-    return configModel.currencySymbolPosition == 'left'
-        ? '${configModel.currencySymbol}' '${price?.toStringAsFixed(configModel.decimalPointSettings!).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},',
-    )}'
-        : '${price!.toStringAsFixed(configModel.decimalPointSettings!).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},',
-    )}' ' ${configModel.currencySymbol}';
+
+    final String formatted = value.toStringAsFixed(decimals).replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+
+    return position == 'left'
+        ? '$symbol$formatted'
+        : '$formatted $symbol';
   }
 
   static double? convertWithDiscount(double? price, double? discount, String? discountType) {

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -357,13 +358,25 @@ void main() {
 
       // The section builds the panel and the scroller together, so the bar is
       // drawn within the panel's padding rather than beside the whole region.
+      //
+      // The scroller goes into a local first — the capped and the uncapped
+      // panel share the one instance — so this checks that the local is what
+      // the panel is handed, rather than comparing raw source positions.
       final int panel = body.indexOf('_SectionPanel(');
       final int scroller = body.indexOf('_AddOnScrollBox(');
       expect(panel, greaterThan(-1));
-      expect(scroller, greaterThan(panel),
+      expect(scroller, greaterThan(-1));
+      expect(body.substring(panel), contains('panelChild'),
           reason: 'the scroller must be a child of the panel, not its sibling');
-      expect(body, contains('fill: scrollable'),
-          reason: 'the panel has to give the scroller its remaining height');
+      expect(body.contains('return _AddOnScrollBox'), isFalse,
+          reason: 'the scroller is never the section\'s own root');
+      expect(body, contains('fill: scrollable && maxHeight == null'),
+          reason: 'the pinned panel gives the scroller its remaining height; '
+              'a panel capped to whole rows (`maxHeight`) hugs that box '
+              'instead, and still carries the scroller inside itself');
+      expect(body, contains('scrollable || maxHeight != null'),
+          reason: 'a capped panel keeps the indicator too — it is the only '
+              'sign that there are more add-ons below the last whole row');
     });
 
     test('cup/can is pinned outside the scroll area, above the action bar', () {
@@ -386,11 +399,29 @@ void main() {
     test('the action bar is a sibling of the scroll area, never over it', () {
       // Requirement: the bottom buttons must not overlap the customization
       // content. A pinned Column child cannot, a Stack/Positioned bar could.
+      //
+      // The screen does draw exactly one overlay: the back button, which the
+      // artboard places over the top-left of the page. Portrait gets it from
+      // the header; landscape centres the header in its column, which would
+      // carry a button pinned inside it down to the middle of the page, so
+      // the page draws that one itself. Hence "the only Positioned is the
+      // back button" rather than "there are no Positioneds".
       final int start =
           source.indexOf('class _KioskProductCustomizeScreenState');
       final int end = source.indexOf('\nString kioskProductDescription');
       final String body = source.substring(start, end);
-      expect(body.contains('Positioned('), isFalse);
+
+      final List<int> overlays = [
+        for (final Match m in 'Positioned('.allMatches(body)) m.start,
+      ];
+      expect(overlays.length, 1,
+          reason: 'the back button is the screen\'s only overlay');
+      final String overlay = body.substring(overlays.single,
+          math.min(overlays.single + 400, body.length));
+      expect(overlay, contains('KioskBackButton'));
+      expect(overlay, isNot(contains('_ActionBar(')),
+          reason: 'the bar is a Column sibling, never inside the Stack');
+
       expect(body, contains('Expanded('),
           reason: 'the scrolling region takes the height the bar leaves');
     });

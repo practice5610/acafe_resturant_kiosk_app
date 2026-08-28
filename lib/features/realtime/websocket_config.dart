@@ -23,9 +23,8 @@ class WebsocketConfig {
 
   String channelName(int branchId) => 'branch.$branchId.products';
 
-  /// Per-device channel carrying this kiosk's back-office settings. Public,
-  /// like the product channel -- the server keeps every secret off it.
-  String deviceChannelName(int deviceId) => 'device.$deviceId.settings';
+  /// Per-device settings channel (Ordering Experience and future device pushes).
+  String deviceSettingsChannelName(int deviceId) => 'device.$deviceId.settings';
 
   Uri? get socketUri {
     if (!isUsable) return null;

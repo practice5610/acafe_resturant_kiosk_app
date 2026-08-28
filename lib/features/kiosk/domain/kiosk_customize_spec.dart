@@ -241,30 +241,47 @@ double kioskCustomizeArtboardHeight({
   bool landscape = false,
 }) {
   const spec = KioskCustomizeSpec.panelChrome;
-  double height =
-      KioskCustomizeSpec.headerHeight(hasDescription: hasDescription) +
-          KioskCustomizeSpec.headerToPanels;
+  final double header =
+      KioskCustomizeSpec.headerHeight(hasDescription: hasDescription);
 
+  double panels = 0;
   for (int i = 0; i < variationPanels; i++) {
-    if (i > 0) height += KioskCustomizeSpec.panelGap;
-    height += spec + KioskCustomizeSpec.optionCardHeight;
+    if (i > 0) panels += KioskCustomizeSpec.panelGap;
+    panels += spec + KioskCustomizeSpec.optionCardHeight;
   }
   if (hasAddOns) {
-    if (variationPanels > 0) height += KioskCustomizeSpec.panelGap;
-    height += spec + KioskCustomizeSpec.addOnCardHeight;
+    if (variationPanels > 0) panels += KioskCustomizeSpec.panelGap;
+    panels += spec + KioskCustomizeSpec.addOnCardHeight;
   }
   if (hasVessel) {
     if (variationPanels > 0 || hasAddOns) {
-      height += KioskCustomizeSpec.panelGap;
+      panels += KioskCustomizeSpec.panelGap;
     }
-    height += spec + KioskCustomizeSpec.vesselCardHeight;
+    panels += spec + KioskCustomizeSpec.vesselCardHeight;
   }
-  final double stacked = height + KioskCustomizeSpec.actionBarBlock;
-  // Two-column landscape reports roughly half the stacked height so
-  // [kioskCustomizeScale] is no longer dominated by byHeight. Guards on the
-  // scale function itself are load-bearing and must not change.
-  if (landscape) return stacked * 0.52;
-  return stacked;
+
+  // Landscape draws the header and the panels as two COLUMNS, so the page is
+  // as tall as the taller of the two plus the pinned action bar — never the
+  // two stacked.
+  //
+  // This used to be `stacked * 0.52`, a flat fudge factor, and that is the bug
+  // it replaces: 0.52 of a stack is only near the true height when the panel
+  // column happens to be about as tall as the header. For a product with one
+  // small question — a Size row and nothing else, or Version B's single step —
+  // the panel column is short, the stack is short, and half of a short stack
+  // budgets LESS height than the header alone needs. The scale then came out
+  // too large and the header (hero photo, name, description, quantity stepper)
+  // overflowed the bottom of its column, painting over the action bar.
+  //
+  // The header is the floor here even when the panels are taller, because the
+  // panel column scrolls and the header column does not.
+  if (landscape) {
+    return math.max(header, panels) + KioskCustomizeSpec.actionBarBlock;
+  }
+  return header +
+      KioskCustomizeSpec.headerToPanels +
+      panels +
+      KioskCustomizeSpec.actionBarBlock;
 }
 
 /// Lower bound on how far the height rule may pull the scale below the width

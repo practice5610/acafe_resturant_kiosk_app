@@ -27,6 +27,7 @@ void main() {
     expect(config.isUsable, isTrue);
     expect(config.useTls, isTrue);
     expect(config.channelName(3), 'branch.3.products');
+    expect(config.deviceSettingsChannelName(1), 'device.1.settings');
     expect(
       config.socketUri.toString(),
       'wss://api.example.com:443/app/app-key?protocol=7&client=js&version=8.3.0&flash=false',

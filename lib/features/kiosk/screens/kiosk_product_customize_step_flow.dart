@@ -139,9 +139,15 @@ class _KioskProductCustomizeStepScreenState
 
   @override
   void dispose() {
-    // Left the flow without the line reaching the cart. `step` records WHERE
-    // they dropped out, which is the drop-off-by-step figure in the report.
-    if (!_completed && _steps.isNotEmpty) {
+    // Left the flow without the line reaching the cart — unless an admin
+    // live-switched Ordering Experience and this host remounted the other flow.
+    // `step` records WHERE they dropped out for the drop-off-by-step report.
+    final bool suppress =
+        KioskCustomizeExperienceHost.suppressAbandonOnce;
+    if (suppress) {
+      KioskCustomizeExperienceHost.suppressAbandonOnce = false;
+    }
+    if (!_completed && !suppress && _steps.isNotEmpty) {
       KioskCustomizeAnalytics.instance.track(
         KioskCustomizeEvent.customizationAbandoned,
         experience: _lastExperience,
@@ -315,32 +321,39 @@ class _KioskProductCustomizeStepScreenState
                             children: [
                               Expanded(
                                 flex: 5,
-                                child: Padding(
+                                // Centre-or-scroll for the same reasons
+                                // Version A's header column does — see
+                                // [_FittedColumn].
+                                child: _FittedColumn(
+                                  s: s,
                                   padding: EdgeInsets.fromLTRB(
                                       KioskCustomizeSpec.gutter * s,
                                       0,
                                       KioskCustomizeSpec.gutter * s / 2,
                                       0),
-                                  child: _Header(
-                                    s: s,
-                                    product: product,
-                                    productProvider: productProvider,
-                                    showBackButton: false,
-                                  ),
+                                  children: [
+                                    _Header(
+                                      s: s,
+                                      product: product,
+                                      productProvider: productProvider,
+                                      showBackButton: false,
+                                    ),
+                                  ],
                                 ),
                               ),
                               Expanded(
                                 flex: 7,
                                 child: ValueListenableBuilder<int>(
                                   valueListenable: _stepIndex,
-                                  builder: (context, current, _) => Padding(
+                                  builder: (context, current, _) => _stepBody(
+                                    s,
+                                    _steps[current],
+                                    productProvider,
                                     padding: EdgeInsets.fromLTRB(
                                         KioskCustomizeSpec.gutter * s / 2,
                                         0,
                                         KioskCustomizeSpec.gutter * s,
                                         0),
-                                    child: _stepBody(s, _steps[current],
-                                        productProvider),
                                   ),
                                 ),
                               ),
@@ -367,11 +380,12 @@ class _KioskProductCustomizeStepScreenState
                       Expanded(
                         child: ValueListenableBuilder<int>(
                           valueListenable: _stepIndex,
-                          builder: (context, current, _) => Padding(
+                          builder: (context, current, _) => _stepBody(
+                            s,
+                            _steps[current],
+                            productProvider,
                             padding: EdgeInsets.symmetric(
                                 horizontal: KioskCustomizeSpec.gutter * s),
-                            child:
-                                _stepBody(s, _steps[current], productProvider),
                           ),
                         ),
                       ),
@@ -402,8 +416,12 @@ class _KioskProductCustomizeStepScreenState
   }
 
   /// The body of one step — the very same section widgets Version A stacks.
+  /// [padding] is handed to the step rather than wrapped around it: a
+  /// [_FittedColumn] applies it INSIDE its scroll view, which keeps the scroll
+  /// thumb out in the page gutter instead of over the panel's right edge.
   Widget _stepBody(
-      double s, _CustomizeStep step, ProductProvider productProvider) {
+      double s, _CustomizeStep step, ProductProvider productProvider,
+      {EdgeInsets padding = EdgeInsets.zero}) {
     switch (step) {
       case _CustomizeStep.milks:
         final Widget? allergenNotice =
@@ -429,27 +447,54 @@ class _KioskProductCustomizeStepScreenState
               productProvider: productProvider,
             ),
         ];
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        // One step's worth of panels is short — a Size row, or a couple of
+        // dietary groups — while the body is given the whole page between the
+        // progress bar and the action bar. Top-aligned that stranded the panel
+        // against the bar with the rest of the screen empty; centred it sits
+        // in its own space. See [_FittedColumn].
+        return _FittedColumn(
+          s: s,
+          padding: padding,
+          children: [
+            for (int i = 0; i < panels.length; i++) ...[
+              if (i > 0) SizedBox(height: KioskCustomizeSpec.panelGap * s),
+              panels[i],
+            ],
+          ],
+        );
+      case _CustomizeStep.addOns:
+        // The panel is told the height it may take (`maxHeight`) rather than
+        // being left to fill it. It keeps the whole rows that fit — two of
+        // them on a large landscape display — and scrolls the remainder inside
+        // itself, beside the design's own indicator. What it does not use comes
+        // back here, and [_FittedColumn] centres it, which is where the space
+        // above and below the panel comes from.
+        //
+        // Filling the column was the Version A behaviour and the wrong one
+        // here: it stretched the panel the full height of the screen and its
+        // scroller then cut a row of cards in half at the fold. Version A can
+        // fill because its panel sits under a header and above cup/can in one
+        // long page, where the leftover height has nowhere better to go.
+        return LayoutBuilder(
+          builder: (context, constraints) => _FittedColumn(
+            s: s,
+            padding: padding,
             children: [
-              for (int i = 0; i < panels.length; i++) ...[
-                if (i > 0) SizedBox(height: KioskCustomizeSpec.panelGap * s),
-                panels[i],
-              ],
+              _AddOnsSection(
+                s: s,
+                product: product,
+                productProvider: productProvider,
+                maxHeight: constraints.maxHeight.isFinite
+                    ? constraints.maxHeight - padding.vertical
+                    : null,
+              ),
             ],
           ),
         );
-      case _CustomizeStep.addOns:
-        return _AddOnsSection(
-          s: s,
-          product: product,
-          productProvider: productProvider,
-        );
       case _CustomizeStep.cupOrCan:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.start,
+        return _FittedColumn(
+          s: s,
+          padding: padding,
           children: [
             for (int i = 0; i < _sections.cupCan.length; i++) ...[
               if (i > 0) SizedBox(height: KioskCustomizeSpec.panelGap * s),

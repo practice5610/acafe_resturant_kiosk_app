@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
@@ -18,6 +19,9 @@ const Color _kNoteMuted = Color(0xFF8A8275);
 const Color _kNoteCream = Color(0xFFF3F3DD);
 
 const int _kNoteMaxLength = 255;
+
+/// Narrowest the note + keyboard column may get before it stops being usable.
+const double _kNoteMinColumn = 280;
 
 const String _kNoteHint =
     'Anything we should know? Let us know about cutlery, napkins, straws, '
@@ -50,6 +54,39 @@ Future<void> openKioskOrderNote(BuildContext context) {
       );
     },
   );
+}
+
+/// Widest column whose note card and keyboard both fit [height].
+///
+/// Both the board's height ([_KeyMetrics.height]) and the card's chrome
+/// ([_NoteCard.chromeFor]) grow with the column's width, so the widest column
+/// that still leaves [_kNoteMinField] for the note is found by bisection
+/// rather than by a formula — the clamps inside those two make the relation
+/// piecewise, and a closed form would have to duplicate every one of them.
+double _fittingColumn({
+  required double maxColumn,
+  required double height,
+  required double gutter,
+}) {
+  bool fits(double w) =>
+      _KeyMetrics.of(w).height +
+          _NoteCard.chromeFor(w) +
+          _NoteCard.minFieldFor(w) +
+          gutter * 3 <=
+      height;
+
+  if (fits(maxColumn)) return maxColumn;
+  double lo = _kNoteMinColumn;
+  double hi = maxColumn;
+  for (int i = 0; i < 14; i++) {
+    final double mid = (lo + hi) / 2;
+    if (fits(mid)) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
 }
 
 class KioskOrderNoteSheet extends StatefulWidget {
@@ -174,67 +211,74 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final bool landscape =
-                    constraints.maxWidth > constraints.maxHeight;
                 final double width = constraints.maxWidth;
                 final double gutter = (width * 0.035).clamp(10.0, 28.0);
-                final double cardWidth = landscape
-                    ? (width * 0.42).clamp(280.0, 720.0)
-                    : (width - gutter * 2).clamp(280.0, 900.0);
 
-                final Widget noteCard = Center(
+                // ONE column, the note directly above the board that types
+                // into it. Landscape used to put the card and the keyboard in
+                // opposite corners of a two-pane Row, which read as two
+                // unrelated panels — you cannot see the field you are typing
+                // into and the keys as one thing when they sit diagonally
+                // apart. Stacked, they are a field and its keyboard, and the
+                // same arrangement serves every orientation.
+                //
+                // The column is bounded on BOTH axes. Width alone is not
+                // enough: the board's height follows from its width, so a wide
+                // column on a short landscape window (1024x768) asked for more
+                // height than the window had, squeezed the note field to its
+                // floor and pushed CONTINUE off the bottom.
+                final double column = _fittingColumn(
+                  maxColumn: (width - gutter * 2).clamp(_kNoteMinColumn, 1040.0),
+                  height: constraints.maxHeight,
+                  gutter: gutter,
+                );
+
+                // Room left for the card once the board has taken its share.
+                // Derived from the board's own module (see [_KeyMetrics]) —
+                // never guessed at, which is the mistake that clipped the key
+                // rows for so long.
+                final double boardHeight = _KeyMetrics.of(column).height;
+                final double cardRoom = constraints.maxHeight -
+                    gutter * 3 -
+                    boardHeight;
+
+                return Center(
+                  // Fits -> the pair is centred as one block. Does not fit (a
+                  // short window) -> it scrolls rather than overflowing.
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: gutter, vertical: gutter),
-                    child: GestureDetector(
-                      onTap: () {}, // absorb taps inside the card
-                      child: _NoteCard(
-                        width: cardWidth,
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        onBack: _cancel,
+                    padding: EdgeInsets.all(gutter),
+                    child: SizedBox(
+                      width: column,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () {}, // absorb taps inside the card
+                            child: _NoteCard(
+                              width: column,
+                              maxHeight: cardRoom,
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              onBack: _cancel,
+                            ),
+                          ),
+                          SizedBox(height: gutter),
+                          // No width passed on purpose: the panel measures the
+                          // slot it is actually given.
+                          _KeyboardPanel(
+                            radius: (column * 0.02).clamp(12.0, 26.0),
+                            shift: _shift,
+                            onLetter: _onLetter,
+                            onShift: () => setState(() => _shift = !_shift),
+                            onBackspace: _onBackspace,
+                            onSpace: () => _insert(' '),
+                            onClear: _onClear,
+                            onContinue: _save,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                );
-
-                final Widget keyboard = _KeyboardPanel(
-                  width: landscape ? width * 0.52 : width,
-                  shift: _shift,
-                  onLetter: _onLetter,
-                  onShift: () => setState(() => _shift = !_shift),
-                  onBackspace: _onBackspace,
-                  onSpace: () => _insert(' '),
-                  onClear: _onClear,
-                  onContinue: _save,
-                );
-
-                if (landscape) {
-                  return Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: gutter, vertical: gutter),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(flex: 5, child: noteCard),
-                        SizedBox(width: gutter),
-                        Expanded(
-                          flex: 6,
-                          child: Align(
-                            alignment: Alignment.bottomCenter,
-                            child: SingleChildScrollView(child: keyboard),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return Column(
-                  children: [
-                    Expanded(child: noteCard),
-                    keyboard,
-                  ],
                 );
               },
             ),
@@ -248,23 +292,53 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
 /// The floating card: back button, title, and the note field itself.
 class _NoteCard extends StatelessWidget {
   final double width;
+
+  /// Height the card may take. The note field spends whatever is left after
+  /// the card's own chrome, so a short window shrinks the field instead of
+  /// pushing the keyboard off the bottom of the screen.
+  final double maxHeight;
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onBack;
 
   const _NoteCard({
     required this.width,
+    required this.maxHeight,
     required this.controller,
     required this.focusNode,
     required this.onBack,
   });
 
+  static double _padFor(double width) => (width * 0.04).clamp(14.0, 32.0);
+  static double _titleFor(double width) => (width * 0.038).clamp(15.0, 30.0);
+  static double _backFor(double width) => (width * 0.075).clamp(34.0, 60.0);
+
+  static double _bodyFor(double width) => (width * 0.03).clamp(13.0, 22.0);
+
+  /// Everything the card spends on itself: the three paddings and the header
+  /// row, budgeted at two title lines so a long translation cannot grow the
+  /// card after the field has been sized.
+  static double chromeFor(double width) =>
+      _padFor(width) * 3 +
+      math.max(_backFor(width), _titleFor(width) * 1.1 * 2);
+
+  /// Shortest the field BOX may be: its own inner padding plus two lines of
+  /// the note.
+  ///
+  /// The floor has to be stated in terms of what the customer can actually
+  /// write in. A flat floor on the box was worth barely one line once the
+  /// card's padding — which grows with the card — had taken its share, so a
+  /// short landscape window ended up with a field that could not show the
+  /// hint it was displaying.
+  static double minFieldFor(double width) =>
+      _padFor(width) * 0.8 * 2 + _bodyFor(width) * 1.45 * 2;
+
   @override
   Widget build(BuildContext context) {
-    final double pad = (width * 0.04).clamp(14.0, 32.0);
-    final double titleSize = (width * 0.038).clamp(15.0, 30.0);
-    final double bodySize = (width * 0.03).clamp(13.0, 22.0);
-    final double backSize = (width * 0.075).clamp(34.0, 60.0);
+    final double pad = _padFor(width);
+    final double titleSize = _titleFor(width);
+    final double bodySize = _bodyFor(width);
+    final double backSize = _backFor(width);
 
     return Container(
       width: width,
@@ -309,7 +383,8 @@ class _NoteCard extends StatelessWidget {
           ),
           SizedBox(height: pad),
           Container(
-            height: (width * 0.42).clamp(150.0, 340.0),
+            height: (maxHeight - chromeFor(width))
+                .clamp(minFieldFor(width), 340.0),
             width: double.infinity,
             padding: EdgeInsets.all(pad * 0.8),
             decoration: BoxDecoration(
@@ -384,8 +459,71 @@ class _CircleBackButton extends StatelessWidget {
 }
 
 /// QWERTY keyboard + the pinned CONTINUE action.
+/// The key module for a board [width] wide.
+///
+/// The board and every caller that has to leave room for it derive from this
+/// one function, so the two can never disagree. Both bugs this screen has had
+/// were exactly that kind of disagreement: a caller predicting a width the Row
+/// did not give, and a layout that had no idea how tall the board would be.
+class _KeyMetrics {
+  final double pad;
+  final double gap;
+  final double keyWidth;
+  final double keyHeight;
+  final double keyRadius;
+  final double letterSize;
+  final double continueHeight;
+
+  const _KeyMetrics._({
+    required this.pad,
+    required this.gap,
+    required this.keyWidth,
+    required this.keyHeight,
+    required this.keyRadius,
+    required this.letterSize,
+    required this.continueHeight,
+  });
+
+  factory _KeyMetrics.of(double width) {
+    // The top row's ten keys set the module the whole keyboard is built from,
+    // so every row lines up regardless of screen width.
+    final double pad = (width * 0.03).clamp(10.0, 26.0);
+    final double gap = (width * 0.014).clamp(5.0, 12.0);
+    final double keyWidth = (width - pad * 2 - gap * 9) / 10;
+    // The ceilings stop the key going wide without going tall: past roughly a
+    // 1900px board the letters and the key height would otherwise stay put and
+    // a large display would draw a row of flat, under-set keys. Nothing below
+    // that reaches them.
+    final double keyHeight = (keyWidth * 0.86).clamp(38.0, 110.0);
+    final double letterSize = (keyWidth * 0.36).clamp(13.0, 34.0);
+    return _KeyMetrics._(
+      pad: pad,
+      gap: gap,
+      keyWidth: keyWidth,
+      keyHeight: keyHeight,
+      keyRadius: (keyWidth * 0.18).clamp(6.0, 20.0),
+      letterSize: letterSize,
+      continueHeight: (keyHeight * 1.15).clamp(48.0, 126.0),
+    );
+  }
+
+  /// Rows 2 and 3 are one and two keys short; they keep the same row span and
+  /// centre themselves, exactly like a physical keyboard.
+  double get row3KeyWidth => (keyWidth * 10 + gap * 9 - gap * 8) / 9;
+
+  /// Half the row, for the Space / Clear pair.
+  double get wideKeyWidth => (keyWidth * 10 + gap * 9 - gap) / 2;
+
+  /// Four key rows, the gaps between them, and the CONTINUE button, plus the
+  /// panel's own padding.
+  double get height =>
+      pad + keyHeight * 4 + gap * 3 + pad + continueHeight + pad * 0.9;
+}
+
 class _KeyboardPanel extends StatelessWidget {
-  final double width;
+  /// Corner radius of the panel itself — it is a floating card now, stacked
+  /// under the note, rather than a full-bleed strip along the bottom.
+  final double radius;
   final bool shift;
   final ValueChanged<String> onLetter;
   final VoidCallback onShift;
@@ -395,7 +533,7 @@ class _KeyboardPanel extends StatelessWidget {
   final VoidCallback onContinue;
 
   const _KeyboardPanel({
-    required this.width,
+    required this.radius,
     required this.shift,
     required this.onLetter,
     required this.onShift,
@@ -432,120 +570,126 @@ class _KeyboardPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The top row's ten keys set the module the whole keyboard is built from,
-    // so every row lines up regardless of screen width.
-    final double pad = (width * 0.03).clamp(10.0, 26.0);
-    final double gap = (width * 0.014).clamp(5.0, 12.0);
-    final double keyWidth = (width - pad * 2 - gap * 9) / 10;
-    final double keyHeight = (keyWidth * 0.86).clamp(38.0, 78.0);
-    final double keyRadius = (keyWidth * 0.18).clamp(6.0, 14.0);
-    final double letterSize = (keyWidth * 0.36).clamp(13.0, 24.0);
+    return LayoutBuilder(builder: (context, constraints) {
+      // The board is built from the width it is REALLY given. Deriving the key
+      // module from a number passed in by the caller means the caller has to
+      // predict the slot, and a caller that predicts it even slightly high
+      // overflows every row at once — there is no give in a keyboard, ten keys
+      // and nine gaps have to add up exactly.
+      final _KeyMetrics m = _KeyMetrics.of(constraints.maxWidth);
+      final double pad = m.pad;
+      final double gap = m.gap;
+      final double keyWidth = m.keyWidth;
+      final double keyHeight = m.keyHeight;
+      final double keyRadius = m.keyRadius;
+      final double letterSize = m.letterSize;
+      final double row3KeyWidth = m.row3KeyWidth;
 
-    // Rows 2 and 3 are one and two keys short; they keep the same key module
-    // and centre themselves, exactly like a physical keyboard.
-    final double row3KeyWidth = (keyWidth * 10 + gap * 9 - gap * 8) / 9;
-
-    return Container(
-      width: double.infinity,
-      color: _kNoteKeyboardBg,
-      padding: EdgeInsets.fromLTRB(pad, pad, pad, pad * 0.9),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _KeyRow(
-            gap: gap,
-            children: [
-              for (final letter in _row1)
-                _Key(
-                  width: keyWidth,
-                  height: keyHeight,
-                  radius: keyRadius,
-                  label: shift ? letter.toUpperCase() : letter.toLowerCase(),
-                  fontSize: letterSize,
-                  onTap: () => onLetter(letter),
-                ),
-            ],
-          ),
-          SizedBox(height: gap),
-          _KeyRow(
-            gap: gap,
-            children: [
-              for (final letter in _row2)
-                _Key(
-                  width: keyWidth,
-                  height: keyHeight,
-                  radius: keyRadius,
-                  label: shift ? letter.toUpperCase() : letter.toLowerCase(),
-                  fontSize: letterSize,
-                  onTap: () => onLetter(letter),
-                ),
-            ],
-          ),
-          SizedBox(height: gap),
-          _KeyRow(
-            gap: gap,
-            children: [
-              _Key(
-                width: row3KeyWidth,
-                height: keyHeight,
-                radius: keyRadius,
-                fontSize: letterSize,
-                active: shift,
-                icon: Icons.arrow_upward_rounded,
-                onTap: onShift,
-              ),
-              for (final letter in _row3)
+        return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: _kNoteKeyboardBg,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        padding: EdgeInsets.fromLTRB(pad, pad, pad, pad * 0.9),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _KeyRow(
+              gap: gap,
+              children: [
+                for (final letter in _row1)
+                  _Key(
+                    width: keyWidth,
+                    height: keyHeight,
+                    radius: keyRadius,
+                    label: shift ? letter.toUpperCase() : letter.toLowerCase(),
+                    fontSize: letterSize,
+                    onTap: () => onLetter(letter),
+                  ),
+              ],
+            ),
+            SizedBox(height: gap),
+            _KeyRow(
+              gap: gap,
+              children: [
+                for (final letter in _row2)
+                  _Key(
+                    width: keyWidth,
+                    height: keyHeight,
+                    radius: keyRadius,
+                    label: shift ? letter.toUpperCase() : letter.toLowerCase(),
+                    fontSize: letterSize,
+                    onTap: () => onLetter(letter),
+                  ),
+              ],
+            ),
+            SizedBox(height: gap),
+            _KeyRow(
+              gap: gap,
+              children: [
                 _Key(
                   width: row3KeyWidth,
                   height: keyHeight,
                   radius: keyRadius,
-                  label: shift ? letter.toUpperCase() : letter.toLowerCase(),
                   fontSize: letterSize,
-                  onTap: () => onLetter(letter),
+                  active: shift,
+                  icon: Icons.arrow_upward_rounded,
+                  onTap: onShift,
                 ),
-              _Key(
-                width: row3KeyWidth,
-                height: keyHeight,
-                radius: keyRadius,
-                fontSize: letterSize,
-                filled: true,
-                icon: Icons.backspace_outlined,
-                onTap: onBackspace,
-              ),
-            ],
-          ),
-          SizedBox(height: gap),
-          _KeyRow(
-            gap: gap,
-            children: [
-              _Key(
-                width: (keyWidth * 10 + gap * 9 - gap) / 2,
-                height: keyHeight,
-                radius: keyRadius,
-                label: getTranslated('space', context) ?? 'Space',
-                fontSize: letterSize,
-                onTap: onSpace,
-              ),
-              _Key(
-                width: (keyWidth * 10 + gap * 9 - gap) / 2,
-                height: keyHeight,
-                radius: keyRadius,
-                label: getTranslated('clear', context) ?? 'Clear',
-                fontSize: letterSize,
-                onTap: onClear,
-              ),
-            ],
-          ),
-          SizedBox(height: pad),
-          _ContinueButton(
-            height: (keyHeight * 1.15).clamp(48.0, 84.0),
-            radius: keyRadius,
-            fontSize: (letterSize * 1.05).clamp(14.0, 24.0),
-            onTap: onContinue,
-          ),
-        ],
-      ),
-    );
+                for (final letter in _row3)
+                  _Key(
+                    width: row3KeyWidth,
+                    height: keyHeight,
+                    radius: keyRadius,
+                    label: shift ? letter.toUpperCase() : letter.toLowerCase(),
+                    fontSize: letterSize,
+                    onTap: () => onLetter(letter),
+                  ),
+                _Key(
+                  width: row3KeyWidth,
+                  height: keyHeight,
+                  radius: keyRadius,
+                  fontSize: letterSize,
+                  filled: true,
+                  icon: Icons.backspace_outlined,
+                  onTap: onBackspace,
+                ),
+              ],
+            ),
+            SizedBox(height: gap),
+            _KeyRow(
+              gap: gap,
+              children: [
+                _Key(
+                  width: m.wideKeyWidth,
+                  height: keyHeight,
+                  radius: keyRadius,
+                  label: getTranslated('space', context) ?? 'Space',
+                  fontSize: letterSize,
+                  onTap: onSpace,
+                ),
+                _Key(
+                  width: m.wideKeyWidth,
+                  height: keyHeight,
+                  radius: keyRadius,
+                  label: getTranslated('clear', context) ?? 'Clear',
+                  fontSize: letterSize,
+                  onTap: onClear,
+                ),
+              ],
+            ),
+            SizedBox(height: pad),
+            _ContinueButton(
+              height: (keyHeight * 1.15).clamp(48.0, 126.0),
+              radius: keyRadius,
+              fontSize: (letterSize * 1.05).clamp(14.0, 34.0),
+              onTap: onContinue,
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 

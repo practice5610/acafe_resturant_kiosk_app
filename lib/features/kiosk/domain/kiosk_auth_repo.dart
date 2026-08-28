@@ -111,6 +111,18 @@ class KioskAuthRepo {
   String? getOrderingExperience() =>
       sharedPreferences.getString(AppConstants.kioskOrderingExperience);
 
+  /// Persist a live Ordering Experience update from the websocket (admin
+  /// changed Device Update without forcing a re-login).
+  Future<void> saveOrderingExperience(String orderingExperience) async {
+    await sharedPreferences.setString(
+        AppConstants.kioskOrderingExperience, orderingExperience);
+  }
+
+  /// Persist the device id when an older session never stored it.
+  Future<void> saveDeviceId(int deviceId) async {
+    await sharedPreferences.setInt(AppConstants.kioskDeviceId, deviceId);
+  }
+
   /// Wipe the device session (revoked/inactive/logout).
   Future<void> clearSession() async {
     await sharedPreferences.remove(AppConstants.token);

@@ -9,8 +9,10 @@ import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -61,7 +63,12 @@ void main() {
     Size(1024, 1600),
     Size(1080, 1920), // portrait kiosk
     Size(1286, 2700), // the artboard, halved
+    Size(1024, 768), // landscape tablet
+    Size(1366, 768), // small laptop
     Size(1440, 900), // landscape desktop window
+    Size(1512, 905), // MacBook Pro 14" browser window, chrome deducted
+    Size(1920, 1080),
+    Size(2560, 1440), // large landscape display
   ];
 
   Product buildProduct() {
@@ -128,7 +135,7 @@ void main() {
   }
 
   Future<void> pumpScreen(WidgetTester tester, Size viewport,
-      {bool stepFlow = false}) async {
+      {bool stepFlow = false, Product? product}) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final dio = DioClient(
@@ -138,7 +145,7 @@ void main() {
       sharedPreferences: prefs,
     );
 
-    final product = buildProduct();
+    product ??= buildProduct();
     final productProvider = ProductProvider(
         productRepo: ProductRepo(dioClient: dio, sharedPreferences: prefs))
       ..initData(product, null)
@@ -252,12 +259,199 @@ void main() {
       (tester) async {
     // Figma spends 1291 of 5400 on the header — under a quarter of the page.
     // The old compact header existed because the real one blew past that.
+    //
+    // That proportion is a PORTRAIT one: it describes the header's share of a
+    // page the panels sit below. Landscape puts them side by side, so the
+    // header column is meant to run most of the way down; what matters there
+    // is only that it stops above the action bar, which is asserted instead.
     for (final viewport in viewports) {
       await pumpScreen(tester, viewport);
       final Rect stepper = tester.getRect(find.text('1'));
-      expect(stepper.bottom, lessThan(viewport.height * 0.45),
-          reason: 'header runs to ${stepper.bottom} of ${viewport.height} '
+      if (viewport.width > viewport.height) {
+        final Rect bar = tester.getRect(find.byType(KioskCheckoutButton).first);
+        expect(stepper.bottom, lessThanOrEqualTo(bar.top),
+            reason: 'header runs to ${stepper.bottom}, over a bar at '
+                '${bar.top} at ${viewport.width}x${viewport.height}');
+      } else {
+        expect(stepper.bottom, lessThan(viewport.height * 0.45),
+            reason: 'header runs to ${stepper.bottom} of ${viewport.height} '
+                'at ${viewport.width}x${viewport.height}');
+      }
+    }
+
+    await closeScreen(tester);
+  });
+
+  // The bug this pins: on a landscape window the header and the panels are two
+  // COLUMNS, and the page height rule used to report a flat fraction of the two
+  // STACKED. For a product whose only question is a Size row that fraction came
+  // out smaller than the header alone needs, the scale was chosen too large,
+  // and the hero/name/stepper block overflowed the bottom of its column —
+  // painting the quantity stepper across the Cancel Item button.
+  testWidgets('a one-question product fits a short landscape window',
+      (tester) async {
+    Product sizeOnly() {
+      final Product full = buildProduct();
+      return Product(
+        id: full.id,
+        name: 'New Test Live',
+        description: full.description,
+        image: '',
+        price: full.price,
+        tax: 0,
+        discount: 0,
+        discountType: 'amount',
+        taxType: 'amount',
+        addOns: full.addOns,
+        addOnGroups: full.addOnGroups,
+        // Size and cup/can only: no dietary groups, so the panel column beside
+        // the header is a single short panel.
+        variations: [full.variations!.first, full.variations!.last],
+      );
+    }
+
+    for (final bool stepFlow in [false, true]) {
+      for (final Size viewport in [
+        const Size(1512, 905),
+        const Size(1512, 820),
+        const Size(1440, 900),
+      ]) {
+        await pumpScreen(tester, viewport,
+            stepFlow: stepFlow, product: sizeOnly());
+        expect(tester.takeException(), isNull,
+            reason: 'version ${stepFlow ? 'B' : 'A'} overflowed at '
+                '${viewport.width}x${viewport.height}');
+      }
+    }
+
+    await closeScreen(tester);
+  });
+
+  // Landscape draws the header and the panels as two columns and the page is
+  // scaled by WIDTH there, so both columns come up short and the leftover
+  // height used to collect in one dead block at the bottom. They centre now,
+  // which only reads right if the back button stays where the artboard puts
+  // it: a button pinned inside the header would ride down to the middle of
+  // the page with it.
+  testWidgets('the landscape back button stays in the page\'s top corner',
+      (tester) async {
+    for (final Size viewport in [
+      const Size(1366, 768),
+      const Size(1512, 905),
+      const Size(2560, 1440),
+    ]) {
+      await pumpScreen(tester, viewport);
+      final Rect back = tester.getRect(find.byType(KioskBackButton).first);
+      expect(back.top, lessThan(viewport.height * 0.2),
+          reason: 'back button at ${back.top} of ${viewport.height} '
               'at ${viewport.width}x${viewport.height}');
+      expect(back.left, lessThan(viewport.width * 0.15));
+    }
+
+    await closeScreen(tester);
+  });
+
+  // A question with fewer answers than the row has slots — three sizes in a
+  // seven-across kiosk panel — used to hang off the panel's left edge and read
+  // as a row that had failed to load.
+  testWidgets('an option row that does not fill the panel is centred',
+      (tester) async {
+    for (final Size viewport in [
+      const Size(1080, 1920),
+      const Size(1512, 905),
+      const Size(2560, 1440),
+    ]) {
+      await pumpScreen(tester, viewport);
+      final Rect small = tester.getRect(find.text('SMALL'));
+      final Rect large = tester.getRect(find.text('LARGE'));
+      // The panel's own box: the row is centred in it, so the row's centre
+      // and the panel's centre have to land together.
+      final Rect panel = tester.getRect(
+          find.ancestor(of: find.text('SMALL'), matching: find.byType(Container))
+              .last);
+      final double rowCentre = (small.left + large.right) / 2;
+      expect((rowCentre - panel.center.dx).abs(),
+          lessThan(viewport.width * 0.05),
+          reason: 'row centred at $rowCentre, panel at ${panel.center.dx} '
+              'at ${viewport.width}x${viewport.height}');
+    }
+
+    await closeScreen(tester);
+  });
+
+  // The add-ons step used to FILL its column: the panel stretched the whole
+  // height of the screen and its inner scroller then cut a row of cards in
+  // half at the fold. It is told the height it may take now, keeps the whole
+  // rows that fit, and hands the rest back to be centred — so the panel is
+  // compact, has air above and below it, and scrolls inside itself.
+  testWidgets('the add-ons panel keeps whole rows and its own indicator',
+      (tester) async {
+    // Add-ons only, so the flow opens straight on the step under test rather
+    // than having to be driven through Size first.
+    Product addOnsOnly() {
+      final Product full = buildProduct();
+      return Product(
+        id: full.id,
+        name: full.name,
+        description: full.description,
+        image: '',
+        price: full.price,
+        tax: 0,
+        discount: 0,
+        discountType: 'amount',
+        taxType: 'amount',
+        addOns: full.addOns,
+        addOnGroups: full.addOnGroups,
+        variations: const [],
+      );
+    }
+
+    for (final Size viewport in [
+      const Size(1512, 905),
+      const Size(1920, 1080),
+      const Size(2560, 1440),
+      const Size(1080, 1920),
+    ]) {
+      await pumpScreen(tester, viewport,
+          stepFlow: true, product: addOnsOnly());
+      // Single group -> the panel takes the group's own name.
+      expect(find.text('Non Dairy'), findsOneWidget,
+          reason: 'the add-ons step is the whole flow for this product');
+
+      final Rect panel = tester.getRect(find
+          .ancestor(of: find.text('Non Dairy'), matching: find.byType(Container))
+          .first);
+      final Rect bar = tester.getRect(find.byType(KioskCheckoutButton).first);
+      final Rect back = tester.getRect(find.byType(KioskBackButton).first);
+
+      // Air on both sides of it: the panel is centred in its column, not
+      // stretched to the full height of the screen.
+      expect(panel.top, greaterThan(back.bottom),
+          reason: 'the panel starts below the progress bar, not against it, '
+              'at ${viewport.width}x${viewport.height}');
+      expect(bar.top - panel.bottom, greaterThan(8),
+          reason: 'the panel ran to ${panel.bottom}, against a bar at '
+              '${bar.top} at ${viewport.width}x${viewport.height}');
+
+      // Whole rows: the card area is an exact number of card pitches tall, so
+      // the fold can never land through the middle of a row.
+      final Rect first = tester.getRect(find.text('TEST ADDON 1'));
+      final ScrollableState grid = tester.state(find
+          .descendant(of: find.byType(RawScrollbar), matching: find.byType(Scrollable))
+          .last);
+      final Rect card = tester.getRect(find
+          .ancestor(of: find.text('TEST ADDON 1'), matching: find.byType(Container))
+          .first);
+      final double gap = KioskCustomizeSpec.choiceCardGap *
+          (card.width / KioskCustomizeSpec.choiceCardWidth);
+      final double pitch = card.height + gap;
+      final double rows = (grid.position.viewportDimension + gap) / pitch;
+      expect((rows - rows.roundToDouble()).abs(), lessThan(0.05),
+          reason: 'the card area is $rows rows tall at '
+              '${viewport.width}x${viewport.height} — a fraction of a row '
+              'means the fold cuts one in half');
+      expect(first.top, greaterThan(panel.top),
+          reason: 'the first row sits inside the panel');
     }
 
     await closeScreen(tester);
