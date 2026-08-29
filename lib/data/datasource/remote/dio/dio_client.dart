@@ -27,21 +27,31 @@ class DioClient {
   }
 
   Future<void> updateHeader({String? getToken, Dio? dioC})async {
+    final branchId = sharedPreferences.getInt(AppConstants.branch);
+    final languageCode = sharedPreferences.getString(AppConstants.languageCode)
+        ?? 'en';
+
+    final headers = <String, dynamic>{
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-localization': languageCode,
+      'ngrok-skip-browser-warning': 'true',
+    };
+
+    // Only send a real branch id. The old `'${null}'` header became the
+    // literal string "null", which made per-branch coupons look empty.
+    if (branchId != null && branchId > 0) {
+      headers['branch-id'] = branchId.toString();
+    }
+    if (getToken != null && getToken.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $getToken';
+    }
+
     dio
       ?..options.baseUrl = baseUrl
       ..options.connectTimeout = const Duration(seconds: 30)
       ..options.receiveTimeout = const Duration(seconds: 30)
       ..httpClientAdapter
-      ..options.headers = {
-
-        'Content-Type': 'application/json; charset=UTF-8',
-        'branch-id': '${sharedPreferences.getInt(AppConstants.branch)}',
-        'X-localization': sharedPreferences.getString(AppConstants.languageCode)
-            ?? 'en',
-        'Authorization': 'Bearer $getToken',
-        'ngrok-skip-browser-warning': 'true',
-
-      };
+      ..options.headers = headers;
     dio?.interceptors.add(loggingInterceptor);
   }
 

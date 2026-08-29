@@ -18,7 +18,7 @@ class CouponRepo {
 
   Future<ApiResponseModel> applyCoupon(String couponCode, {String? guestId}) async {
     try {
-      final response = await dioClient!.get('${AppConstants.couponApplyUri}$couponCode${guestId != null ? '&&guest_id=$guestId' : ''}');
+      final response = await dioClient!.get('${AppConstants.couponApplyUri}$couponCode${guestId != null ? '&guest_id=$guestId' : ''}');
       return ApiResponseModel.withSuccess(response);
     } catch (e) {
       return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
