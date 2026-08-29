@@ -34,6 +34,7 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_added_to_cart_screen
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_ordering_experience.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:provider/provider.dart';
 
 // Version B (the three-step flow) is a `part` of this library rather than a
@@ -297,7 +298,7 @@ class _CustomizeSections {
   });
 
   factory _CustomizeSections.of(Product product) {
-    final variations = product.variations ?? [];
+    final variations = ProductHelper.effectiveVariations(product) ?? [];
     final indexed =
         List.generate(variations.length, (i) => MapEntry(i, variations[i]));
     bool isCupCan(MapEntry<int, Variation> e) =>
@@ -372,7 +373,7 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
   final cartProvider = Provider.of<CartProvider>(context, listen: false);
   final productProvider = Provider.of<ProductProvider>(context, listen: false);
 
-  final variations = product.variations ?? [];
+  final variations = ProductHelper.effectiveVariations(product) ?? [];
   final addOns = product.addOns ?? [];
   final bool hasModifiers = variations.isNotEmpty ||
       addOns.isNotEmpty ||
@@ -416,7 +417,8 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
   }
 
   productProvider.initData(product, cart);
-  productProvider.initProductVariationStatus(product.variations?.length ?? 0);
+  productProvider.initProductVariationStatus(
+      ProductHelper.effectiveVariations(product)?.length ?? 0);
 
   // THE A/B SWITCH. Which customization flow this kiosk renders is a back-office
   // setting on the device (Device Update -> Ordering Experience), delivered as
@@ -472,28 +474,76 @@ class KioskCustomizeExperienceHost extends StatefulWidget {
 class _KioskCustomizeExperienceHostState
     extends State<KioskCustomizeExperienceHost> {
   KioskOrderingExperience? _shown;
+  late Product _product;
+  late String _modifierSignature;
+  bool _reinitScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _product = widget.product;
+    _modifierSignature = ProductHelper.catalogModifierSignature(_product);
+  }
+
+  @override
+  void didUpdateWidget(covariant KioskCustomizeExperienceHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.product.id != widget.product.id) {
+      _product = widget.product;
+      _modifierSignature = ProductHelper.catalogModifierSignature(_product);
+    }
+  }
+
+  void _scheduleCatalogReinit(Product latest, String signature) {
+    if (_reinitScheduled) return;
+    _reinitScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reinitScheduled = false;
+      if (!mounted) return;
+      setState(() {
+        _product = latest;
+        _modifierSignature = signature;
+      });
+      // Admin changed addons/variations while this sheet was open — reset
+      // selections so option indexes cannot point at removed rows.
+      final productProvider =
+          Provider.of<ProductProvider>(context, listen: false);
+      productProvider.initData(latest, null);
+      productProvider.initProductVariationStatus(
+          ProductHelper.effectiveVariations(latest)?.length ?? 0);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<KioskAuthProvider>(
-      builder: (context, auth, _) {
+    return Consumer2<KioskAuthProvider, CategoryProvider>(
+      builder: (context, auth, categories, _) {
+        final Product latest =
+            categories.findCachedProduct(_product.id) ?? _product;
+        final String signature =
+            ProductHelper.catalogModifierSignature(latest);
+        if (signature != _modifierSignature) {
+          _scheduleCatalogReinit(latest, signature);
+        }
+
         final experience = auth.orderingExperience;
         if (_shown != null && _shown != experience) {
           KioskCustomizeExperienceHost.suppressAbandonOnce = true;
         }
         _shown = experience;
         return KeyedSubtree(
-          key: ValueKey(experience.apiValue),
+          key: ValueKey<String>(
+              '${experience.apiValue}_$_modifierSignature'),
           child: experience.isVersionB
               ? KioskProductCustomizeStepScreen(
-                  product: widget.product,
+                  product: _product,
                   cartIndex: widget.cartIndex,
                   initialInstruction: widget.initialInstruction,
                   replaceOtherProductLines: widget.replaceOtherProductLines,
                   onConfigured: widget.onConfigured,
                 )
               : KioskProductCustomizeScreen(
-                  product: widget.product,
+                  product: _product,
                   cartIndex: widget.cartIndex,
                   initialInstruction: widget.initialInstruction,
                   replaceOtherProductLines: widget.replaceOtherProductLines,
@@ -636,7 +686,7 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
     Iterable<int> indexes, {
     bool silent = false,
   }) {
-    final variations = product.variations ?? [];
+    final variations = ProductHelper.effectiveVariations(product) ?? [];
     for (final int index in indexes) {
       if (index < 0 || index >= variations.length) continue;
       final v = variations[index];
@@ -707,7 +757,7 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
 
   /// Full check, run before the cart write in BOTH versions.
   bool _validate(BuildContext context, ProductProvider productProvider) {
-    final variations = product.variations ?? [];
+    final variations = ProductHelper.effectiveVariations(product) ?? [];
     return _validateVariations(
           context,
           productProvider,

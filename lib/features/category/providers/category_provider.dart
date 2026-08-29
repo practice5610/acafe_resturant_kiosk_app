@@ -640,6 +640,30 @@ class CategoryProvider extends DataSyncProvider {
     }
   }
 
+  /// Latest cached copy of a product across every prefetched category bucket.
+  /// Used by the open customize sheet to pick up product.changed refetches.
+  Product? findCachedProduct(int? productId) {
+    if (productId == null) return null;
+    for (final model in _kioskProductsByCategory.values) {
+      final list = model.products;
+      if (list == null) continue;
+      for (final product in list) {
+        if (product.id == productId) {
+          return product;
+        }
+      }
+    }
+    final selected = _categoryProductModel?.products;
+    if (selected != null) {
+      for (final product in selected) {
+        if (product.id == productId) {
+          return product;
+        }
+      }
+    }
+    return null;
+  }
+
   void applyRealtimeRemove(int productId) {
     var changed = false;
     for (final model in _kioskProductsByCategory.values) {

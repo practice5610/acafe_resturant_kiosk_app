@@ -96,6 +96,26 @@ List<Product> applyKioskMenuFilters({
   );
 }
 
+/// Merchandising tag to show as the menu-card corner badge, or null.
+///
+/// Allergen tags (Egg, Dairy, …) never qualify — they power the allergen
+/// filter / customize notice only. Prefer an explicit kiosk-filter pill
+/// (Popular, Seasonal, …); otherwise the first non-allergen tag wins.
+ProductTag? kioskMenuCardBadgeTag(Product product) {
+  final List<ProductTag> tags = product.tags ?? const <ProductTag>[];
+  ProductTag? fallback;
+  for (final ProductTag tag in tags) {
+    if (tag.isAllergen == true) continue;
+    final String raw = tag.tag?.trim() ?? '';
+    if (raw.isEmpty) continue;
+    if (tag.isKioskFilter == true) {
+      return tag;
+    }
+    fallback ??= tag;
+  }
+  return fallback;
+}
+
 /// Case-insensitive match of a hardcoded kiosk pill (POPULAR, CEROMONIAL, …)
 /// against a product's tags from the backend. Figma's "CEROMONIAL" spelling
 /// and "Special"/"Specials" both resolve to the seeded tag names.

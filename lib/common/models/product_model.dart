@@ -463,9 +463,9 @@ class VariationValue {
   VariationValue({this.level, this.optionPrice, this.image});
 
   VariationValue.fromJson(Map<String, dynamic> json) {
-    level = json['label'];
-    optionPrice = double.parse(json['optionPrice'].toString());
-    image = json['image'];
+    level = json['label']?.toString();
+    optionPrice = double.tryParse('${json['optionPrice']}') ?? 0;
+    image = json['image']?.toString();
   }
 
   Map<String, dynamic> toJson() {
@@ -497,18 +497,24 @@ class Variation {
   });
 
   Variation.fromJson(Map<String, dynamic> json) {
-    name = json['name'];
+    name = json['name']?.toString();
     isMultiSelect = '${json['type']}' == 'multi';
-    min =  isMultiSelect! ? int.parse(json['min'].toString()) : 0;
-    max = isMultiSelect! ? int.parse(json['max'].toString()) : 0;
+    min = isMultiSelect!
+        ? (int.tryParse('${json['min']}') ?? 0)
+        : 0;
+    max = isMultiSelect!
+        ? (int.tryParse('${json['max']}') ?? 0)
+        : 0;
     isRequired = '${json['required']}' == 'on';
     if (json['values'] != null) {
       variationValues = [];
       json['values'].forEach((v) {
-        variationValues!.add(VariationValue.fromJson(v));
+        if (v is Map) {
+          variationValues!
+              .add(VariationValue.fromJson(Map<String, dynamic>.from(v)));
+        }
       });
     }
-
   }
 
   Map<String, dynamic> toJson() {
@@ -555,13 +561,13 @@ class AddOns {
   bool get hasImage => _image != null && _image!.isNotEmpty && _image != 'def.png';
 
   AddOns.fromJson(Map<String, dynamic> json) {
-    _id = json['id'];
-    _name = json['name'];
-    _price = json['price'].toDouble();
-    _createdAt = json['created_at'];
-    _updatedAt = json['updated_at'];
+    _id = json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}');
+    _name = json['name']?.toString();
+    _price = double.tryParse('${json['price']}') ?? 0;
+    _createdAt = json['created_at']?.toString();
+    _updatedAt = json['updated_at']?.toString();
     _tax = double.tryParse('${json['tax']}');
-    _image = json['image'];
+    _image = json['image']?.toString();
   }
 
   Map<String, dynamic> toJson() {

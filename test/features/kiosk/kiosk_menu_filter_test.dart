@@ -158,4 +158,41 @@ void main() {
       );
     });
   });
+
+  group('kioskMenuCardBadgeTag', () {
+    test('hides allergen-only tags from the menu card badge', () {
+      final product = Product(
+        name: 'New Test Live 2',
+        tags: [
+          ProductTag(tag: 'Egg', isAllergen: true, isKioskFilter: false),
+        ],
+      );
+
+      expect(kioskMenuCardBadgeTag(product), isNull);
+    });
+
+    test('still shows a merchandising pill when allergens are also present', () {
+      final product = Product(
+        name: 'Latte',
+        tags: [
+          ProductTag(tag: 'Egg', isAllergen: true, isKioskFilter: false),
+          ProductTag(tag: 'Popular', isAllergen: false, isKioskFilter: true),
+        ],
+      );
+
+      expect(kioskMenuCardBadgeTag(product)?.tag, 'Popular');
+    });
+
+    test('prefers kiosk-filter pill over a plain non-allergen tag', () {
+      final product = Product(
+        name: 'Flat White',
+        tags: [
+          ProductTag(tag: 'House', isAllergen: false, isKioskFilter: false),
+          ProductTag(tag: 'Seasonal', isAllergen: false, isKioskFilter: true),
+        ],
+      );
+
+      expect(kioskMenuCardBadgeTag(product)?.tag, 'Seasonal');
+    });
+  });
 }

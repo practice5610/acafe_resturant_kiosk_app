@@ -841,17 +841,11 @@ class _ProductGrid extends StatelessWidget {
     );
   }
 
-  /// Badge from the product's own tags (Popular, Specials, …), not grid index.
+  /// Badge from merchandising tags only (Popular, Specials, …).
+  /// Allergen tags never appear here — see [kioskMenuCardBadgeTag].
   _Badge? _badgeForProduct(Product product) {
-    final List<ProductTag> tags = product.tags ?? const <ProductTag>[];
-    if (tags.isEmpty) return null;
-    ProductTag chosen = tags.first;
-    for (final ProductTag tag in tags) {
-      if (tag.isKioskFilter == true) {
-        chosen = tag;
-        break;
-      }
-    }
+    final ProductTag? chosen = kioskMenuCardBadgeTag(product);
+    if (chosen == null) return null;
     final String raw = chosen.tag?.trim() ?? '';
     if (raw.isEmpty) return null;
     return _Badge(_badgeLabel(raw), _badgeColor(chosen));

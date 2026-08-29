@@ -24,10 +24,10 @@ import 'package:acafe_customer/utill/images.dart';
 ///
 ///  * **No new API surface.** The column ships in the same JSON the kiosk
 ///    already fetches.
-///  * **Allergen tags never render as badges.** The product card only draws
-///    tags with `is_kiosk_filter == true` (see `_badgeForProduct`), and an
-///    allergen tag is not a merchandising pill, so "Nuts" does not suddenly
-///    appear on the card next to "POPULAR".
+///  * **Allergen tags never render as badges.** Menu cards use
+///    `kioskMenuCardBadgeTag` in `kiosk_menu_filter.dart`, which skips
+///    `is_allergen` tags so "Egg" / "Nuts" never appear next to merchandising
+///    pills like "POPULAR".
 enum KioskAllergen {
   egg(
     label: 'Egg',
