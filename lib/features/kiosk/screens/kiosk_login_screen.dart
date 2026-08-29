@@ -2,28 +2,52 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
-import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
-/// One-time device login for the kiosk, styled to match the new design system
-/// (Loew typography, #F7F1DE surface, #FBF8EF fields). The form is a centered
-/// card capped at [kKioskFormDesignWidth]: it stays a comfortable size on large/kiosk
-/// screens and scales down (via `s`) on smaller ones. After a successful login
-/// the device is bound to its branch and goes to the Intro.
+/// One-time device login for the kiosk: a fixed-width card, centred on both
+/// axes, on the #F7F1DE page surface.
 ///
-/// The layout is the same stacked column on every screen — brand above the
-/// fields, centered — sized by one height-aware scale. Wide displays get a
-/// bigger column, never a second one.
+/// Nothing here scales with the window. Type, field height and the card width
+/// are constants, so the form is the same physical object on a 375px browser
+/// window, an 800x1280 portrait tablet and a 1920x1080 POS monitor — a wide
+/// screen buys breathing room around the card, never a stretched form.
+///
+/// After a successful login the device is bound to its branch and goes to the
+/// Intro.
 
-/// Height of the stacked form on the artboard (`s = 1`): the brand block, the
-/// two fields, the button and the surrounding padding. Used to cap the scale so
-/// the whole form fits a short, wide window instead of running off-screen.
-const double _kStackedDesignHeight = 700;
+// ---------------------------------------------------------------------------
+// Layout constants. Spacing follows an 8 / 16 / 24 / 32 scale.
+// ---------------------------------------------------------------------------
+
+/// Width of the card from the tablet breakpoint upwards.
+const double _kCardMaxWidth = 440;
+
+/// Below this the card gives up its fixed width and takes ~90% of the screen.
+const double _kNarrowBreakpoint = 600;
+
+/// Above this the card keeps its width and simply gets more room around it.
+const double _kWideBreakpoint = 1100;
+
+/// Short windows (landscape tablets, a browser with the keyboard up) drop the
+/// generous vertical rhythm so the card is never clipped.
+const double _kCompactHeight = 700;
+
+/// Minimum touch target on a kiosk screen — fields and the button.
+const double _kControlHeight = 60;
+
+const double _kCardRadius = 28;
+const double _kFieldRadius = 18;
+
+const Color _kCardBg = Color(0xFFFFFDF8);
+const Color _kCardBorder = Color(0xFFE9E1CC);
+const Color _kFieldBg = KioskUI.pageBg;
+const Color _kFieldBorder = Color(0xFFDDD4BA);
 
 class KioskLoginScreen extends StatefulWidget {
   const KioskLoginScreen({super.key});
@@ -84,142 +108,176 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Keyboard shrinks the body; the scroll view below takes care of the rest.
+      resizeToAvoidBottomInset: true,
       backgroundColor: KioskUI.pageBg,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // One scale drives both the column width and the type. Width sets
-            // it (capped, so sizes stay comfortable on large screens); a short
-            // window pulls it down so the stacked form still fits on screen.
-            final double s = math
-                .min(
-                  kioskFormScale(constraints.maxWidth),
-                  constraints.maxHeight / _kStackedDesignHeight,
-                )
-                .clamp(0.4, KioskResponsive.maxScale * 1.8);
-            final double formWidth =
-                math.min(kKioskFormDesignWidth * s, constraints.maxWidth);
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final double width = constraints.maxWidth;
+          final double height = constraints.maxHeight;
 
-            return Consumer<KioskAuthProvider>(
-              builder: (context, provider, _) {
-                final Widget brand = Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'A/CAFÉ',
-                      textAlign: TextAlign.center,
-                      style: loewExtraBold.copyWith(
-                          fontSize: 64 * s,
-                          letterSpacing: 3 * s,
-                          color: Colors.black),
-                    ),
-                    SizedBox(height: 14 * s),
-                    Text(
-                      'Device login',
-                      textAlign: TextAlign.center,
-                      style: loewMedium.copyWith(
-                          fontSize: 26 * s, color: Colors.black),
-                    ),
-                    SizedBox(height: 8 * s),
-                    Opacity(
-                      opacity: 0.6,
-                      child: Text(
-                        'Sign in once to bind this kiosk to its branch.',
-                        textAlign: TextAlign.center,
-                        style: loewRegular.copyWith(
-                            fontSize: 18 * s, height: 1.3, color: Colors.black),
-                      ),
-                    ),
-                  ],
-                );
-                final Widget fields = Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _LoginField(
-                      s: s,
-                      label: 'USERNAME',
-                      hint: 'Enter username',
-                      icon: Icons.person_outline,
-                      controller: _usernameController,
-                      focusNode: _usernameFocus,
-                      errorText: _usernameError,
-                      textInputAction: TextInputAction.next,
-                      onChanged: (_) {
-                        if (_usernameError != null) {
-                          setState(() => _usernameError = null);
-                        }
-                      },
-                      onSubmitted: (_) => _passwordFocus.requestFocus(),
-                    ),
-                    SizedBox(height: 26 * s),
-                    _LoginField(
-                      s: s,
-                      label: 'PASSWORD',
-                      hint: '••••••••',
-                      icon: Icons.lock_outline,
-                      controller: _passwordController,
-                      focusNode: _passwordFocus,
-                      errorText: _passwordError,
-                      obscureText: _obscure,
-                      textInputAction: TextInputAction.done,
-                      suffix: IconButton(
-                        icon: Icon(
-                          _obscure ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.black54,
-                          size: 26 * s,
-                        ),
-                        onPressed: () => setState(() => _obscure = !_obscure),
-                      ),
-                      onChanged: (_) {
-                        if (_passwordError != null) {
-                          setState(() => _passwordError = null);
-                        }
-                      },
-                      onSubmitted: (_) => _submit(),
-                    ),
-                    if (provider.loginError.isNotEmpty) ...[
-                      SizedBox(height: 24 * s),
-                      _ErrorBanner(s: s, message: provider.loginError),
-                    ],
-                    SizedBox(height: 40 * s),
-                    KioskPrimaryButton(
-                      s: s,
-                      label: 'LOGIN',
-                      loading: provider.isLoading,
-                      onTap: _submit,
-                    ),
-                  ],
-                );
+          final bool narrow = width < _kNarrowBreakpoint;
+          final bool wide = width >= _kWideBreakpoint;
+          final bool compact = height < _kCompactHeight;
 
-                // Same stacked column at every size, starting at the top of
-                // the screen and scrolling when it does not fit.
-                return SingleChildScrollView(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: formWidth),
-                      child: Padding(
-                        padding:
-                            EdgeInsets.fromLTRB(40 * s, 64 * s, 40 * s, 56 * s),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            brand,
-                            SizedBox(height: 56 * s),
-                            fields,
-                          ],
-                        ),
+          // Narrow: ~90% of the screen. Tablet and up: the fixed card width.
+          final double cardWidth =
+              narrow ? math.min(width * 0.9, _kCardMaxWidth) : _kCardMaxWidth;
+          final double gutter = narrow
+              ? 16.0
+              : wide
+                  ? 64.0
+                  : 32.0;
+
+          return DecoratedBox(
+            // A large display gets a barely-there wash instead of a flat field
+            // of cream around the card.
+            decoration: BoxDecoration(
+              gradient: wide
+                  ? const RadialGradient(
+                      center: Alignment.center,
+                      radius: 0.95,
+                      colors: [Color(0xFFFCF8EC), KioskUI.pageBg],
+                    )
+                  : null,
+              color: wide ? null : KioskUI.pageBg,
+            ),
+            child: SafeArea(
+              child: Consumer<KioskAuthProvider>(
+                builder: (context, provider, _) {
+                  // Centre on both axes; scroll only when the card cannot fit.
+                  return Center(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: gutter,
+                        vertical: compact ? 24 : 40,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: cardWidth),
+                        child:
+                            _card(provider, narrow: narrow, compact: compact),
                       ),
                     ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _card(
+    KioskAuthProvider provider, {
+    required bool narrow,
+    required bool compact,
+  }) {
+    return Container(
+      // Named so the layout test can measure the card itself.
+      key: const ValueKey('kioskLoginCard'),
+      padding: EdgeInsets.symmetric(
+        horizontal: narrow ? 24 : 32,
+        vertical: compact ? 32 : 40,
+      ),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(_kCardRadius),
+        border: Border.all(color: _kCardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 40,
+            offset: Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Wordmark. scaleDown only guards a pathologically narrow window; it
+          // is at its full size on every real device.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              'A/CAFÉ',
+              maxLines: 1,
+              style: loewExtraBold.copyWith(
+                fontSize: compact ? 38 : 48,
+                letterSpacing: 2,
+                height: 1.1,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          SizedBox(height: compact ? 8 : 16),
+          Text(
+            'Device login',
+            textAlign: TextAlign.center,
+            style: loewMedium.copyWith(fontSize: 22, color: Colors.black),
+          ),
+          const SizedBox(height: 8),
+          Opacity(
+            opacity: 0.6,
+            child: Text(
+              'Sign in once to bind this kiosk to its branch.',
+              textAlign: TextAlign.center,
+              style: loewRegular.copyWith(
+                fontSize: 15,
+                height: 1.35,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          SizedBox(height: compact ? 24 : 32),
+          _LoginField(
+            label: 'USERNAME',
+            hint: 'Enter username',
+            icon: Icons.person_outline,
+            controller: _usernameController,
+            focusNode: _usernameFocus,
+            errorText: _usernameError,
+            textInputAction: TextInputAction.next,
+            onChanged: (_) {
+              if (_usernameError != null) {
+                setState(() => _usernameError = null);
+              }
+            },
+            onSubmitted: (_) => _passwordFocus.requestFocus(),
+          ),
+          const SizedBox(height: 24),
+          _LoginField(
+            label: 'PASSWORD',
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            controller: _passwordController,
+            focusNode: _passwordFocus,
+            errorText: _passwordError,
+            obscureText: _obscure,
+            textInputAction: TextInputAction.done,
+            suffix: IconButton(
+              icon: Icon(
+                _obscure ? Icons.visibility_off : Icons.visibility,
+                color: Colors.black54,
+                size: 22,
+              ),
+              onPressed: () => setState(() => _obscure = !_obscure),
+            ),
+            onChanged: (_) {
+              if (_passwordError != null) {
+                setState(() => _passwordError = null);
+              }
+            },
+            onSubmitted: (_) => _submit(),
+          ),
+          if (provider.loginError.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _ErrorBanner(message: provider.loginError),
+          ],
+          SizedBox(height: compact ? 24 : 32),
+          _LoginButton(loading: provider.isLoading, onTap: _submit),
+        ],
       ),
     );
   }
@@ -227,8 +285,9 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
 
 /// A labelled, rounded text field in the kiosk design system (with prefix icon
 /// and optional suffix), plus an inline red error when [errorText] is set.
+///
+/// Metrics are fixed: [_kControlHeight] tall and 17pt text on every screen.
 class _LoginField extends StatelessWidget {
-  final double s;
   final String label;
   final String hint;
   final IconData icon;
@@ -241,7 +300,6 @@ class _LoginField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   const _LoginField({
-    required this.s,
     required this.label,
     required this.hint,
     required this.icon,
@@ -261,27 +319,30 @@ class _LoginField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style:
-                loewExtraBold.copyWith(fontSize: 22 * s, color: Colors.black)),
-        SizedBox(height: 10 * s),
+        Text(
+          label,
+          style: loewExtraBold.copyWith(
+            fontSize: 14,
+            letterSpacing: 1,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
         Container(
-          constraints: BoxConstraints(minHeight: 74 * s),
-          padding: EdgeInsets.symmetric(horizontal: 24 * s),
+          constraints: const BoxConstraints(minHeight: _kControlHeight),
+          padding: EdgeInsets.only(left: 18, right: suffix == null ? 18 : 8),
           decoration: BoxDecoration(
-            color: kCheckoutFieldBg,
-            borderRadius: BorderRadius.circular(18 * s),
+            color: _kFieldBg,
+            borderRadius: BorderRadius.circular(_kFieldRadius),
             border: Border.all(
-              color: hasError ? kCheckoutErrorRed : kCheckoutHintColor,
-              width: hasError
-                  ? (2.5 * s).clamp(1.5, 3.0)
-                  : (1.5 * s).clamp(1.0, 2.0),
+              color: hasError ? kCheckoutErrorRed : _kFieldBorder,
+              width: hasError ? 2 : 1.5,
             ),
           ),
           child: Row(
             children: [
-              Icon(icon, color: Colors.black, size: 26 * s),
-              SizedBox(width: 16 * s),
+              Icon(icon, color: Colors.black, size: 22),
+              const SizedBox(width: 14),
               Expanded(
                 child: TextField(
                   controller: controller,
@@ -291,14 +352,14 @@ class _LoginField extends StatelessWidget {
                   enableSuggestions: false,
                   textInputAction: textInputAction,
                   cursorColor: Colors.black,
-                  style: loewRegular.copyWith(
-                      fontSize: 24 * s, color: Colors.black),
+                  style:
+                      loewRegular.copyWith(fontSize: 17, color: Colors.black),
                   decoration: InputDecoration(
                     isCollapsed: true,
                     border: InputBorder.none,
                     hintText: hint,
                     hintStyle: loewRegular.copyWith(
-                        fontSize: 24 * s, color: kCheckoutHintColor),
+                        fontSize: 17, color: kCheckoutHintColor),
                   ),
                   onChanged: onChanged,
                   onSubmitted: onSubmitted,
@@ -309,40 +370,83 @@ class _LoginField extends StatelessWidget {
           ),
         ),
         if (hasError) ...[
-          SizedBox(height: 8 * s),
-          Text(errorText!,
-              style: loewMedium.copyWith(
-                  fontSize: 16 * s, color: kCheckoutErrorRed)),
+          const SizedBox(height: 8),
+          Text(
+            errorText!,
+            style: loewMedium.copyWith(fontSize: 14, color: kCheckoutErrorRed),
+          ),
         ],
       ],
     );
   }
 }
 
+/// Black primary action, [_kControlHeight] tall on every screen.
+class _LoginButton extends StatelessWidget {
+  final bool loading;
+  final VoidCallback onTap;
+  const _LoginButton({required this.loading, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black,
+      borderRadius: BorderRadius.circular(_kFieldRadius),
+      clipBehavior: Clip.antiAlias,
+      child: KioskTap(
+        onTap: loading ? null : onTap,
+        child: SizedBox(
+          height: _kControlHeight,
+          width: double.infinity,
+          child: Center(
+            child: loading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(kCheckoutButtonText),
+                    ),
+                  )
+                : Text(
+                    'LOGIN',
+                    style: loewExtraBold.copyWith(
+                      fontSize: 18,
+                      letterSpacing: 1.4,
+                      color: kCheckoutButtonText,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ErrorBanner extends StatelessWidget {
-  final double s;
   final String message;
-  const _ErrorBanner({required this.s, required this.message});
+  const _ErrorBanner({required this.message});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20 * s, vertical: 16 * s),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: kCheckoutErrorRed.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18 * s),
-        border: Border.all(
-            color: kCheckoutErrorRed.withValues(alpha: 0.4),
-            width: (1.5 * s).clamp(1.0, 2.0)),
+        borderRadius: BorderRadius.circular(_kFieldRadius),
+        border: Border.all(color: kCheckoutErrorRed.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: kCheckoutErrorRed, size: 24 * s),
-          SizedBox(width: 12 * s),
+          const Icon(Icons.error_outline, color: kCheckoutErrorRed, size: 20),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(message,
-                style: loewMedium.copyWith(
-                    fontSize: 18 * s, height: 1.2, color: kCheckoutErrorRed)),
+            child: Text(
+              message,
+              style: loewMedium.copyWith(
+                  fontSize: 15, height: 1.25, color: kCheckoutErrorRed),
+            ),
           ),
         ],
       ),
