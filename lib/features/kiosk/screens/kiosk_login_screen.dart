@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
@@ -184,15 +186,24 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
                 );
 
                 if (landscape) {
+                  // Medium tablets (e.g. 1024×768) have formWidth ≈ 1000 but
+                  // only ~960px of usable width — a raw `.clamp(formWidth,
+                  // maxWidth*0.94)` throws and paints the grey ErrorWidget.
+                  final double landscapeCap = constraints.maxWidth * 0.94;
+                  final double rowMax = kioskBounded(
+                    formWidth * 1.85,
+                    min: math.min(formWidth, landscapeCap),
+                    max: landscapeCap,
+                  );
                   return Padding(
                     padding: EdgeInsets.symmetric(
                         horizontal: 40 * s, vertical: 24 * s),
                     child: Center(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxWidth: (formWidth * 1.85)
-                              .clamp(formWidth, constraints.maxWidth * 0.94),
-                          minHeight: constraints.maxHeight - 48 * s,
+                          maxWidth: rowMax,
+                          minHeight:
+                              math.max(0.0, constraints.maxHeight - 48 * s),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,

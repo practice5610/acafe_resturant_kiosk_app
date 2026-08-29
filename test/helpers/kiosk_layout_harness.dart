@@ -20,6 +20,10 @@ import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Viewports the audit requires every kiosk layout to survive.
+///
+/// Includes medium landscape tablets (1024×768 / 900×600) — those used to
+/// throw on login/checkout because `.clamp(floor, screen*frac)` had floor >
+/// ceiling and painted the grey ErrorWidget.
 const kioskTargetSizes = <Size>[
   Size(1080, 1920),
   Size(2160, 3840),
@@ -27,6 +31,8 @@ const kioskTargetSizes = <Size>[
   Size(2560, 1440),
   Size(3840, 2160),
   Size(1366, 768),
+  Size(1024, 768),
+  Size(900, 600),
 ];
 
 /// Currency config so [PriceConverterHelper] can run in widget tests.

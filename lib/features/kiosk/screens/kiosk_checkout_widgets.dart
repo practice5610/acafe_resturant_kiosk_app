@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
@@ -210,8 +212,14 @@ class KioskCheckoutScaffold extends StatelessWidget {
                   checkoutScale(constraints.maxWidth, constraints.maxHeight);
               final bool landscape =
                   constraints.maxWidth > constraints.maxHeight;
+              // 62% of a medium landscape window can sit below the 720 floor —
+              // use kioskBounded so the column shrinks instead of crashing.
               final double columnMax = landscape
-                  ? (constraints.maxWidth * 0.62).clamp(720.0, 1600.0)
+                  ? kioskBounded(
+                      constraints.maxWidth * 0.62,
+                      min: math.min(720.0, constraints.maxWidth),
+                      max: math.min(1600.0, constraints.maxWidth),
+                    )
                   : KioskResponsive.designWidth;
               return KioskCenteredContent(
                 maxWidth: columnMax,

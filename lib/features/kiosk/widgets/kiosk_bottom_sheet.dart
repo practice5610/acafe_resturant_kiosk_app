@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 
@@ -29,12 +31,19 @@ class KioskBottomSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final Size viewport = KioskMetrics.maybeOf(context)?.viewport ??
         MediaQuery.sizeOf(context);
-    final double maxHeight =
-        (viewport.height * heightFactor).clamp(240.0, viewport.height * 0.9);
+    final double maxHeight = kioskBounded(
+      viewport.height * heightFactor,
+      min: math.min(240.0, viewport.height * 0.9),
+      max: viewport.height * 0.9,
+    );
     final bool landscape = viewport.width >= viewport.height;
     final double widthCap = maxWidth ??
         (landscape
-            ? (viewport.width * 0.55).clamp(640.0, 1400.0)
+            ? kioskBounded(
+                viewport.width * 0.55,
+                min: math.min(640.0, viewport.width),
+                max: math.min(1400.0, viewport.width),
+              )
             : double.infinity);
 
     final BoxConstraints childConstraints = expandToHeightFactor
