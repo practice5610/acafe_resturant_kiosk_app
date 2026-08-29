@@ -15,6 +15,15 @@ import 'package:provider/provider.dart';
 /// card capped at [kKioskFormDesignWidth]: it stays a comfortable size on large/kiosk
 /// screens and scales down (via `s`) on smaller ones. After a successful login
 /// the device is bound to its branch and goes to the Intro.
+///
+/// The layout is the same stacked column on every screen — brand above the
+/// fields, centered — sized by one height-aware scale. Wide displays get a
+/// bigger column, never a second one.
+
+/// Height of the stacked form on the artboard (`s = 1`): the brand block, the
+/// two fields, the button and the surrounding padding. Used to cap the scale so
+/// the whole form fits a short, wide window instead of running off-screen.
+const double _kStackedDesignHeight = 700;
 
 class KioskLoginScreen extends StatefulWidget {
   const KioskLoginScreen({super.key});
@@ -79,16 +88,20 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Form width is capped, so sizes stay comfortable on large screens
-            // and shrink only when the screen is narrower than the cap.
+            // One scale drives both the column width and the type. Width sets
+            // it (capped, so sizes stay comfortable on large screens); a short
+            // window pulls it down so the stacked form still fits on screen.
+            final double s = math
+                .min(
+                  kioskFormScale(constraints.maxWidth),
+                  constraints.maxHeight / _kStackedDesignHeight,
+                )
+                .clamp(0.4, KioskResponsive.maxScale * 1.8);
             final double formWidth =
-                KioskResponsive.formContentWidth(constraints.maxWidth);
-            final double s = kioskFormScale(constraints.maxWidth);
+                math.min(kKioskFormDesignWidth * s, constraints.maxWidth);
 
             return Consumer<KioskAuthProvider>(
               builder: (context, provider, _) {
-                final bool landscape =
-                    constraints.maxWidth > constraints.maxHeight;
                 final Widget brand = Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
@@ -115,9 +128,7 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
                         'Sign in once to bind this kiosk to its branch.',
                         textAlign: TextAlign.center,
                         style: loewRegular.copyWith(
-                            fontSize: 18 * s,
-                            height: 1.3,
-                            color: Colors.black),
+                            fontSize: 18 * s, height: 1.3, color: Colors.black),
                       ),
                     ),
                   ],
@@ -155,14 +166,11 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
                       textInputAction: TextInputAction.done,
                       suffix: IconButton(
                         icon: Icon(
-                          _obscure
-                              ? Icons.visibility_off
-                              : Icons.visibility,
+                          _obscure ? Icons.visibility_off : Icons.visibility,
                           color: Colors.black54,
                           size: 26 * s,
                         ),
-                        onPressed: () =>
-                            setState(() => _obscure = !_obscure),
+                        onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                       onChanged: (_) {
                         if (_passwordError != null) {
@@ -185,50 +193,18 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
                   ],
                 );
 
-                if (landscape) {
-                  // Medium tablets (e.g. 1024×768) have formWidth ≈ 1000 but
-                  // only ~960px of usable width — a raw `.clamp(formWidth,
-                  // maxWidth*0.94)` throws and paints the grey ErrorWidget.
-                  final double landscapeCap = constraints.maxWidth * 0.94;
-                  final double rowMax = kioskBounded(
-                    formWidth * 1.85,
-                    min: math.min(formWidth, landscapeCap),
-                    max: landscapeCap,
-                  );
-                  return Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 40 * s, vertical: 24 * s),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: rowMax,
-                          minHeight:
-                              math.max(0.0, constraints.maxHeight - 48 * s),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(flex: 4, child: brand),
-                            SizedBox(width: 48 * s),
-                            Expanded(
-                              flex: 5,
-                              child: SingleChildScrollView(child: fields),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
+                // Same stacked column at every size, starting at the top of
+                // the screen and scrolling when it does not fit.
                 return SingleChildScrollView(
-                  child: Center(
+                  child: Align(
+                    alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: formWidth),
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                            40 * s, 64 * s, 40 * s, 56 * s),
+                        padding:
+                            EdgeInsets.fromLTRB(40 * s, 64 * s, 40 * s, 56 * s),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             brand,
