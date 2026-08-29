@@ -654,12 +654,32 @@ class KioskHeaderBar extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                IgnorePointer(
-                  child: Text(title,
-                      style: loewExtraBold.copyWith(
-                          fontSize: titleFontSize * s,
-                          letterSpacing: 2 * s,
-                          color: Colors.black)),
+                // Positioned.fill gives FittedBox tight bounds so "A/CAFÉ"
+                // scales down on landscape carts where titleFontSize (120)
+                // exceeds rowHeight (100) instead of clipping at the top.
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Padding(
+                      // Leave room for the back button so the logo never
+                      // overlaps it when the title is wide.
+                      padding:
+                          EdgeInsets.symmetric(horizontal: backSize * s),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: loewExtraBold.copyWith(
+                            fontSize: titleFontSize * s,
+                            height: 1,
+                            letterSpacing: 2 * s,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 Align(
                   alignment: Alignment.centerLeft,

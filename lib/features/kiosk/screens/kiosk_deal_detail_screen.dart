@@ -14,6 +14,7 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_added_to_cart_screen
 import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
@@ -238,19 +239,15 @@ class _KioskDealDetailScreenState extends State<KioskDealDetailScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
-                    child: SizedBox(
-                      height: 220,
-                      width: double.infinity,
-                      child: bannerUrl.isEmpty
-                          ? _DealFallbackBanner(deal: _deal)
-                          : CustomImageWidget(
-                              placeholder: Images.placeholderImage,
-                              image: bannerUrl,
-                              fit: BoxFit.cover,
-                            ),
-                    ),
+                  // Same rules as the menu banner (one implementation, see
+                  // KioskDealBannerImage): the box takes the artwork's own
+                  // ratio so nothing is cropped, it stops at half the window
+                  // on a large panel, and it starts at the leading edge. The
+                  // old fixed `height: 220` at full width was an 8:1 box for a
+                  // 2.4:1 image — almost all of the artwork was cropped away.
+                  KioskDealBannerImage(
+                    imageUrl: bannerUrl,
+                    fallback: _DealFallbackBanner(deal: _deal),
                   ),
                   if ((_deal.description ?? '').trim().isNotEmpty) ...[
                     const SizedBox(height: 16),

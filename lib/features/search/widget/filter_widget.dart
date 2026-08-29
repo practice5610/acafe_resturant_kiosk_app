@@ -27,11 +27,22 @@ class FilterWidget extends StatelessWidget {
   final double? maxValue;
   final VoidCallback? onApply;
   final VoidCallback? onReset;
+
+  /// Optional section rendered above "Sort by".
+  ///
+  /// The kiosk puts its allergen entry point here. It stays a slot rather than
+  /// being built in because this sheet is shared with the customer web app's
+  /// search results, which has no allergen flow — and because the allergen
+  /// selection is not part of [SearchProvider]'s filter state, so it must not
+  /// be wired into Apply / Reset.
+  final Widget? leadingSection;
+
   const FilterWidget({
     super.key,
     required this.maxValue,
     this.onApply,
     this.onReset,
+    this.leadingSection,
   });
 
   @override
@@ -55,6 +66,26 @@ class FilterWidget extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: Dimensions.paddingSizeLarge),
+
+            if (leadingSection != null) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Dimensions.paddingSizeLarge),
+                child: leadingSection!,
+              ),
+              const SizedBox(height: Dimensions.paddingSizeLarge),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Dimensions.paddingSizeLarge),
+                child: Divider(
+                    color: Theme.of(context)
+                        .textTheme
+                        .bodyLarge
+                        ?.color
+                        ?.withValues(alpha: 0.1)),
+              ),
+              const SizedBox(height: Dimensions.paddingSizeLarge),
+            ],
 
             ///sort by
             Padding(

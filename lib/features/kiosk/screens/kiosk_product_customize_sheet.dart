@@ -379,6 +379,18 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
       product.effectiveAddOnGroups.isNotEmpty;
 
   if (!hasModifiers) {
+    // Plain products (merch, bottles, …) have nothing to customize. Re-opening
+    // an existing cart line used to call [addToCart] with a fresh qty-1 model
+    // and no cart index, which merged into the matching line and bumped
+    // quantity — the same symptom as tapping "+". Editing is a no-op.
+    if (cart != null || cartIndex != null) {
+      if (onConfigured != null) {
+        productProvider.initData(product, cart);
+        productProvider.initProductVariationStatus(0);
+        onConfigured(buildKioskCartModel(context, product));
+      }
+      return;
+    }
     productProvider.initData(product, null);
     productProvider.initProductVariationStatus(0);
     final CartModel built = buildKioskCartModel(context, product);
