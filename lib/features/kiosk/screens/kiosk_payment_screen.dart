@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -348,8 +351,11 @@ class _FailureModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double cardWidth =
-        (1640 * s).clamp(320.0, maxWidth * 0.86);
+    final double cardWidth = kioskBounded(
+      1640 * s,
+      min: math.min(320.0, maxWidth * 0.86),
+      max: maxWidth * 0.86,
+    );
     return Container(
       color: const Color(0xFF1E1E1E).withValues(alpha: 0.45),
       alignment: Alignment.center,

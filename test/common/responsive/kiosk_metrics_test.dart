@@ -96,6 +96,22 @@ void main() {
     });
   });
 
+  group('kioskBounded', () {
+    test('returns the value when it sits between min and max', () {
+      expect(kioskBounded(50, min: 10, max: 100), 50);
+    });
+
+    test('prefers the ceiling when min would exceed max', () {
+      // Medium landscape login: formWidth 1000, usable ~962.
+      expect(kioskBounded(1850, min: 1000, max: 962.56), 962.56);
+      expect(kioskBounded(634, min: 720, max: 1024), 720);
+    });
+
+    test('collapses to max when the range is empty', () {
+      expect(kioskBounded(500, min: 800, max: 600), 600);
+    });
+  });
+
   group('product grid', () {
     KioskProductGridGeometry menuGrid(double screenWidth) {
       final double s = KioskResponsive.scale(screenWidth);

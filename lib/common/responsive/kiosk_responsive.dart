@@ -306,11 +306,17 @@ KioskCategoryRailLayout kioskCategoryRailLayout({
   );
 }
 
-/// [clamp] throws when min > max (tiny inner rows). Prefer the cap.
-double _bounded(double value, {required double min, required double max}) {
+/// Safe clamp. Flutter's `num.clamp` throws when [min] > [max] (common when
+/// a fixed floor meets a screen-relative ceiling on medium tablets). Prefer
+/// the ceiling so layout still paints instead of the grey ErrorWidget.
+double kioskBounded(double value, {required double min, required double max}) {
   if (max <= min) return max;
   return value.clamp(min, max);
 }
+
+/// [clamp] throws when min > max (tiny inner rows). Prefer the cap.
+double _bounded(double value, {required double min, required double max}) =>
+    kioskBounded(value, min: min, max: max);
 
 /// Category-rail type size. Must not call `clamp(11, 40 * s)` — on a small
 /// window `40 * s` is below 11 and Flutter paints a red "Invalid argument: 11"

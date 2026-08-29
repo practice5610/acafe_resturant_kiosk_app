@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
@@ -228,7 +229,11 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
                 // height than the window had, squeezed the note field to its
                 // floor and pushed CONTINUE off the bottom.
                 final double column = _fittingColumn(
-                  maxColumn: (width - gutter * 2).clamp(_kNoteMinColumn, 1040.0),
+                  maxColumn: kioskBounded(
+                    width - gutter * 2,
+                    min: math.min(_kNoteMinColumn, width - gutter * 2),
+                    max: math.min(1040.0, math.max(0.0, width - gutter * 2)),
+                  ),
                   height: constraints.maxHeight,
                   gutter: gutter,
                 );

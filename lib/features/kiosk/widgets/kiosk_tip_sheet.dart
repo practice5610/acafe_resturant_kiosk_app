@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_tip.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
@@ -418,8 +421,16 @@ class _TipMetrics {
     final double s = KioskLayout.scaleOf(context, constraints);
     final bool landscape = KioskLayout.isLandscape(context, constraints);
     final double width = landscape
-        ? (2100 * s).clamp(480.0, constraints.maxWidth * 0.88)
-        : (1640 * s).clamp(320.0, constraints.maxWidth * 0.86);
+        ? kioskBounded(
+            2100 * s,
+            min: math.min(480.0, constraints.maxWidth * 0.88),
+            max: constraints.maxWidth * 0.88,
+          )
+        : kioskBounded(
+            1640 * s,
+            min: math.min(320.0, constraints.maxWidth * 0.86),
+            max: constraints.maxWidth * 0.86,
+          );
     final double gap = (32 * s).clamp(10.0, 32.0);
     final double pad = landscape
         ? (56 * s).clamp(20.0, 56.0)
