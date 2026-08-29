@@ -144,20 +144,9 @@ double _choiceTileWidth({
 bool _hasOptionArt(String image) =>
     image.isNotEmpty && !CustomImageWidget.isDefaultImage(image);
 
-/// Image for a variation / add-on choice card. Uses the option's own artwork
-/// when present; otherwise the product photo so every card still shows the
-/// same image → name → price stack.
-String _choiceImageUrl({
-  required String image,
-  required Product product,
-  required String? productImageBaseUrl,
-}) {
-  if (_hasOptionArt(image)) return image;
-  return KioskProductImageHelper.heroImageUrl(
-    product: product,
-    productImageBaseUrl: productImageBaseUrl,
-  );
-}
+/// Image for a variation / add-on choice card. Only the option's own artwork —
+/// never the product photo. Empty keeps a blank slot via [_OptionImageSlot].
+String _choiceImageUrl(String image) => _hasOptionArt(image) ? image : '';
 
 /// Same type token as a kiosk menu product name (`45px` on a `564px` tile).
 /// Sized from THIS choice card so SMALL / ADDON1 decrease with the tile,
@@ -1802,8 +1791,8 @@ class _SizeOptionsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
     // Flatten the groups first. Every size card uses the same compact
-    // image → name → price box as add-ons, falling back to the product
-    // photo when a size option has no artwork of its own.
+    // image → name → price box as add-ons; missing option art leaves a blank
+    // slot (never the product photo).
     final options = [
       for (final entry in entries)
         for (int i = 0; i < (entry.value.variationValues?.length ?? 0); i++)
@@ -1813,12 +1802,10 @@ class _SizeOptionsPanel extends StatelessWidget {
             variation: entry.value,
             value: entry.value.variationValues![i],
             image: _choiceImageUrl(
-              image: KioskProductImageHelper.optionCardImageUrl(
+              KioskProductImageHelper.optionCardImageUrl(
                 value: entry.value.variationValues![i],
                 productImageBaseUrl: splash.baseUrls?.productImageUrl,
               ),
-              product: product,
-              productImageBaseUrl: splash.baseUrls?.productImageUrl,
             ),
           ),
     ];
@@ -1896,12 +1883,10 @@ class _VariationSection extends StatelessWidget {
     final List<String> images = [
       for (final value in values)
         _choiceImageUrl(
-          image: KioskProductImageHelper.optionCardImageUrl(
+          KioskProductImageHelper.optionCardImageUrl(
             value: value,
             productImageBaseUrl: splash.baseUrls?.productImageUrl,
           ),
-          product: product,
-          productImageBaseUrl: splash.baseUrls?.productImageUrl,
         ),
     ];
     const bool showImage = true;
@@ -2385,7 +2370,6 @@ class _GroupedAddOnCards extends StatelessWidget {
         showPrice: showPrice,
         reserveQuantity: reserveQuantity,
       );
-      final splash = Provider.of<SplashProvider>(context, listen: false);
 
       return Wrap(
         alignment: WrapAlignment.start,
@@ -2407,11 +2391,7 @@ class _GroupedAddOnCards extends StatelessWidget {
                   height: cardHeight,
                   name: addon.name ?? '',
                   priceDelta: addon.price ?? 0,
-                  image: _choiceImageUrl(
-                    image: _addonImageUrl(context, addon),
-                    product: product,
-                    productImageBaseUrl: splash.baseUrls?.productImageUrl,
-                  ),
+                  image: _choiceImageUrl(_addonImageUrl(context, addon)),
                   showImage: showImage,
                   showPrice: showPrice,
                   selected: selected,
