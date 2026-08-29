@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_allergen_filter_row.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_bottom_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
@@ -27,19 +28,30 @@ void openKioskMenuFilterSheet(BuildContext context) {
     maxWidth: KioskUI.filterSheetMaxWidth,
     heightFactor: 0.65,
     expandToHeightFactor: true,
-    child: Container(
-      decoration: const BoxDecoration(
-        color: KioskSearchTheme.pageBg,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(28),
-          topRight: Radius.circular(28),
+    child: Builder(
+      // Its own context so the allergen row can close THIS sheet before the
+      // popup opens; the outer `context` belongs to the page underneath.
+      builder: (sheetContext) => Container(
+        decoration: const BoxDecoration(
+          color: KioskSearchTheme.pageBg,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(28),
+            topRight: Radius.circular(28),
+          ),
         ),
-      ),
-      child: FilterWidget(
-        maxValue: maxPrice,
-        onApply: () {
-          searchProvider.commitFilters();
-        },
+        child: FilterWidget(
+          maxValue: maxPrice,
+          // Allergens sit above Sort by: a customer who waved the popup away on
+          // their first product tap has no other way back to it, so this is the
+          // way IN rather than a nicety, and burying it under the price chips
+          // would defeat the point.
+          leadingSection: KioskAllergenFilterRow(
+            onBeforeOpen: () => Navigator.of(sheetContext).pop(),
+          ),
+          onApply: () {
+            searchProvider.commitFilters();
+          },
+        ),
       ),
     ),
   );

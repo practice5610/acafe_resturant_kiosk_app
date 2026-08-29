@@ -63,93 +63,103 @@ class _CompactLineCard extends StatelessWidget {
       color: kOrderCardBg,
       borderRadius: BorderRadius.circular(KioskUI.radius),
       clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        onTap: () => openKioskCartLine(context, cart, cartIndex: index),
-        child: Container(
-          height: 120,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(KioskUI.radius),
-            border: Border.all(color: kOrderCardBorder),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 88,
-                  height: 88,
-                  child: CustomImageWidget(
-                    placeholder: Images.placeholderImage,
-                    image: KioskProductImageHelper.cartLineImageUrl(
-                      cart: cart,
-                      productImageBaseUrl: splash.baseUrls?.productImageUrl,
-                      dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
-                    ),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+      child: Container(
+        height: 120,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(KioskUI.radius),
+          border: Border.all(color: kOrderCardBorder),
+        ),
+        padding: const EdgeInsets.all(16),
+        // Stepper is a sibling of the edit tap — not nested inside it — so a
+        // card-body tap never competes with "+" in the gesture arena.
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: KioskTap(
+                onTap: () =>
+                    openKioskCartLine(context, cart, cartIndex: index),
+                child: Row(
                   children: [
-                    Text(
-                      cart.isDeal
-                          ? (cart.dealTitle ?? cart.product?.name ?? '')
-                          : (cart.product?.name ?? ''),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: loewExtraBold.copyWith(
-                        fontSize: KioskUI.body,
-                        height: 1.1,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    KioskLinePriceRow(
-                      cart: cart,
-                      fontSize: KioskUI.body,
-                      gap: 8,
-                    ),
-                    if (modifiers.isNotEmpty)
-                      Text(
-                        modifiers.first,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: loewRegular.copyWith(
-                          fontSize: KioskUI.caption,
-                          color: Colors.black54,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: 88,
+                        height: 88,
+                        child: CustomImageWidget(
+                          placeholder: Images.placeholderImage,
+                          image: KioskProductImageHelper.cartLineImageUrl(
+                            cart: cart,
+                            productImageBaseUrl:
+                                splash.baseUrls?.productImageUrl,
+                            dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
+                          ),
+                          fit: BoxFit.cover,
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            cart.isDeal
+                                ? (cart.dealTitle ?? cart.product?.name ?? '')
+                                : (cart.product?.name ?? ''),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: loewExtraBold.copyWith(
+                              fontSize: KioskUI.body,
+                              height: 1.1,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          KioskLinePriceRow(
+                            cart: cart,
+                            fontSize: KioskUI.body,
+                            gap: 8,
+                          ),
+                          if (modifiers.isNotEmpty)
+                            Text(
+                              modifiers.first,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: loewRegular.copyWith(
+                                fontSize: KioskUI.caption,
+                                color: Colors.black54,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-              KioskQtyStepper(
-                quantity: cart.quantity ?? 1,
-                buttonSize: 44,
-                onDecrement: () {
-                  final cartProvider =
-                      Provider.of<CartProvider>(context, listen: false);
-                  if ((cart.quantity ?? 1) > 1) {
-                    cartProvider.onUpdateCartQuantity(
-                        index: index, product: cart.product!, isRemove: true);
-                  } else {
-                    cartProvider.removeFromCart(index);
-                  }
-                },
-                onIncrement: () =>
-                    Provider.of<CartProvider>(context, listen: false)
-                        .onUpdateCartQuantity(
-                            index: index,
-                            product: cart.product!,
-                            isRemove: false),
-              ),
-            ],
-          ),
+            ),
+            KioskQtyStepper(
+              quantity: cart.quantity ?? 1,
+              buttonSize: 44,
+              onDecrement: () {
+                final cartProvider =
+                    Provider.of<CartProvider>(context, listen: false);
+                if ((cart.quantity ?? 1) > 1) {
+                  cartProvider.onUpdateCartQuantity(
+                      index: index, product: cart.product!, isRemove: true);
+                } else {
+                  cartProvider.removeFromCart(index);
+                }
+              },
+              onIncrement: () =>
+                  Provider.of<CartProvider>(context, listen: false)
+                      .onUpdateCartQuantity(
+                          index: index,
+                          product: cart.product!,
+                          isRemove: false),
+            ),
+          ],
         ),
       ),
     );
@@ -172,89 +182,101 @@ class _ScaledLineCard extends StatelessWidget {
       color: kOrderCardBg,
       borderRadius: BorderRadius.circular(30 * s),
       clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        onTap: () => openKioskCartLine(context, cart, cartIndex: index),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30 * s),
-            border: Border.all(
-                color: kOrderCardBorder, width: (1.5 * s).clamp(1.0, 3.0)),
-          ),
-          padding: EdgeInsets.all(30 * s),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(33 * s),
-                child: SizedBox(
-                  width: 473 * s,
-                  height: 660 * s,
-                  child: CustomImageWidget(
-                    placeholder: Images.placeholderImage,
-                    image: KioskProductImageHelper.cartLineImageUrl(
-                      cart: cart,
-                      productImageBaseUrl: splash.baseUrls?.productImageUrl,
-                      dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
-                    ),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              SizedBox(width: 50 * s),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30 * s),
+          border: Border.all(
+              color: kOrderCardBorder, width: (1.5 * s).clamp(1.0, 3.0)),
+        ),
+        padding: EdgeInsets.all(30 * s),
+        // Stepper is a sibling of the edit tap — not nested inside it — so a
+        // card-body tap never competes with "+" in the gesture arena.
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: KioskTap(
+                onTap: () =>
+                    openKioskCartLine(context, cart, cartIndex: index),
+                child: Row(
                   children: [
-                    Text(
-                      cart.isDeal
-                          ? (cart.dealTitle ?? cart.product?.name ?? '')
-                          : (cart.product?.name ?? ''),
-                      style: loewExtraBold.copyWith(
-                          fontSize: 72 * s, height: 1.05, color: Colors.black),
-                    ),
-                    SizedBox(height: 16 * s),
-                    KioskLinePriceRow(
-                      cart: cart,
-                      fontSize: 90 * s,
-                      gap: 24 * s,
-                    ),
-                    SizedBox(height: 24 * s),
-                    for (final line in modifiers)
-                      Padding(
-                        padding: EdgeInsets.only(bottom: 14 * s),
-                        child: Text(line,
-                            style: loewRegular.copyWith(
-                                fontSize: 64 * s,
-                                height: 1.1,
-                                color: Colors.black)),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(33 * s),
+                      child: SizedBox(
+                        width: 473 * s,
+                        height: 660 * s,
+                        child: CustomImageWidget(
+                          placeholder: Images.placeholderImage,
+                          image: KioskProductImageHelper.cartLineImageUrl(
+                            cart: cart,
+                            productImageBaseUrl:
+                                splash.baseUrls?.productImageUrl,
+                            dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
+                          ),
+                          fit: BoxFit.cover,
+                        ),
                       ),
+                    ),
+                    SizedBox(width: 50 * s),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            cart.isDeal
+                                ? (cart.dealTitle ?? cart.product?.name ?? '')
+                                : (cart.product?.name ?? ''),
+                            style: loewExtraBold.copyWith(
+                                fontSize: 72 * s,
+                                height: 1.05,
+                                color: Colors.black),
+                          ),
+                          SizedBox(height: 16 * s),
+                          KioskLinePriceRow(
+                            cart: cart,
+                            fontSize: 90 * s,
+                            gap: 24 * s,
+                          ),
+                          SizedBox(height: 24 * s),
+                          for (final line in modifiers)
+                            Padding(
+                              padding: EdgeInsets.only(bottom: 14 * s),
+                              child: Text(line,
+                                  style: loewRegular.copyWith(
+                                      fontSize: 64 * s,
+                                      height: 1.1,
+                                      color: Colors.black)),
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-              SizedBox(width: 30 * s),
-              _QtyStepper(
-                s: s,
-                quantity: cart.quantity ?? 1,
-                onDecrement: () {
-                  final cartProvider =
-                      Provider.of<CartProvider>(context, listen: false);
-                  if ((cart.quantity ?? 1) > 1) {
-                    cartProvider.onUpdateCartQuantity(
-                        index: index, product: cart.product!, isRemove: true);
-                  } else {
-                    cartProvider.removeFromCart(index);
-                  }
-                },
-                onIncrement: () =>
-                    Provider.of<CartProvider>(context, listen: false)
-                        .onUpdateCartQuantity(
-                            index: index,
-                            product: cart.product!,
-                            isRemove: false),
-              ),
-            ],
-          ),
+            ),
+            SizedBox(width: 30 * s),
+            _QtyStepper(
+              s: s,
+              quantity: cart.quantity ?? 1,
+              onDecrement: () {
+                final cartProvider =
+                    Provider.of<CartProvider>(context, listen: false);
+                if ((cart.quantity ?? 1) > 1) {
+                  cartProvider.onUpdateCartQuantity(
+                      index: index, product: cart.product!, isRemove: true);
+                } else {
+                  cartProvider.removeFromCart(index);
+                }
+              },
+              onIncrement: () =>
+                  Provider.of<CartProvider>(context, listen: false)
+                      .onUpdateCartQuantity(
+                          index: index,
+                          product: cart.product!,
+                          isRemove: false),
+            ),
+          ],
         ),
       ),
     );

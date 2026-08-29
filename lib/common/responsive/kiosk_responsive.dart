@@ -108,6 +108,39 @@ class KioskResponsive {
 
   /// Rail must not take more than this share of the inner menu row.
   static const double categoryRailMaxFraction = 0.24;
+
+  // ── Promotional deal banner ────────────────────────────────────────────
+  //
+  // The banner used to be a fixed `760 * scale` tall box at the full width of
+  // the product area, with the artwork `BoxFit.cover`-ed into it. That box's
+  // aspect ratio has nothing to do with the artwork's: width tracks the grid
+  // (which depends on window width, rail width and column count) while height
+  // tracks `scale` (which in landscape is also bounded by window HEIGHT). The
+  // two drift apart, so the same banner was side-cropped on a narrow window
+  // and top-and-bottom-cropped on a wide one. Sizing the slot from the
+  // image's own ratio is what makes it correct at every size.
+
+  /// Ratio used before the artwork's real one is known, so the first frame
+  /// reserves about the right amount of room and the grid does not jump.
+  /// Matches the 2400×1000 house banner.
+  static const double dealBannerDefaultAspect = 2.4;
+
+  /// Aspect bounds for the slot. A near-square upload would otherwise take
+  /// over the page, and a letterbox strip would vanish; outside these bounds
+  /// the artwork is cover-cropped rather than allowed to dictate the layout.
+  static const double dealBannerMinAspect = 1.6;
+  static const double dealBannerMaxAspect = 4.0;
+
+  /// On a large-format panel the banner stops at half the window. Full grid
+  /// width there reads as a stretched billboard; half reads as a feature card
+  /// sitting deliberately between two rows of products.
+  static const double dealBannerLargeWidthFraction = 0.5;
+
+  /// The banner never takes more than this share of the window's HEIGHT.
+  /// Width alone is not enough on a short landscape window (a 1366×768
+  /// laptop): a full-width 2.4:1 banner there is over half the viewport, so
+  /// the products it is meant to sit between scroll out of sight.
+  static const double dealBannerMaxHeightFraction = 0.42;
 }
 
 /// Max width the app content is centered within on large displays. The
@@ -281,6 +314,159 @@ class KioskProductGridGeometry {
       imageHeight: imageHeight,
       textBlockHeight: textBlockHeight,
       tileHeight: imageHeight + textBlockHeight,
+    );
+  }
+}
+
+/// Size of the promotional deal banner slot.
+///
+/// Two rules, in this order:
+///
+///  1. **Width.** The banner fills the product area, except on a large-format
+///     panel ([KioskResponsive.largeMin] and up) where it stops at
+///     [KioskResponsive.dealBannerLargeWidthFraction] of the window. The cap
+///     is measured against the WINDOW, not the product area, because that is
+///     what "half the screen" means to someone looking at the kiosk.
+///
+///  2. **Height.** Derived from the artwork's own aspect ratio, so the slot
+///     and the image agree and there is nothing to crop or stretch. Until the
+///     ratio is known [KioskResponsive.dealBannerDefaultAspect] stands in.
+///
+/// Both inputs are guarded: a zero or negative width (which a [LayoutBuilder]
+/// can hand out for one frame during a resize) yields a zero-size slot rather
+/// than an infinity that would throw in the render tree.
+class KioskDealBannerGeometry {
+  /// Laid-out width of the banner, in logical pixels.
+  final double width;
+
+  /// Laid-out height, always [width] / [aspect].
+  final double height;
+
+  /// The ratio actually used, after clamping.
+  final double aspect;
+
+  /// Whether the half-window cap bound (i.e. the banner is narrower than the
+  /// product area). Exposed so the caller can centre it.
+  final bool capped;
+
+  const KioskDealBannerGeometry({
+    required this.width,
+    required this.height,
+    required this.aspect,
+    required this.capped,
+  });
+
+  factory KioskDealBannerGeometry.resolve({
+    required double areaWidth,
+    required double windowWidth,
+    double windowHeight = double.infinity,
+    double? imageAspect,
+  }) {
+    final double aspect = _clampAspect(imageAspect);
+
+    if (!areaWidth.isFinite || areaWidth <= 0) {
+      return KioskDealBannerGeometry(
+        width: 0,
+        height: 0,
+        aspect: aspect,
+        capped: false,
+      );
+    }
+
+    double width = areaWidth;
+    bool capped = false;
+
+    // Width cap: half the window on a large-format panel.
+    if (windowWidth.isFinite && windowWidth >= KioskResponsive.largeMin) {
+      final double half =
+          windowWidth * KioskResponsive.dealBannerLargeWidthFraction;
+      if (half < width) {
+        width = half;
+        capped = true;
+      }
+    }
+
+    double height = width / aspect;
+
+    // Height cap: shrink the whole card, keeping its ratio, rather than
+    // squashing it. This is what keeps a short landscape window from handing
+    // the banner more than its share of the viewport.
+    if (windowHeight.isFinite && windowHeight > 0) {
+      final double maxHeight =
+          windowHeight * KioskResponsive.dealBannerMaxHeightFraction;
+      if (height > maxHeight) {
+        height = maxHeight;
+        width = maxHeight * aspect;
+        capped = true;
+      }
+    }
+
+    return KioskDealBannerGeometry(
+      width: width,
+      height: height,
+      aspect: aspect,
+      capped: capped,
+    );
+  }
+
+  /// The shared slot for a carousel of banners, so paging between artwork of
+  /// different shapes never resizes the grid underneath.
+  ///
+  /// Every card is laid out at ONE width — the narrowest any of them is
+  /// allowed (a tall banner hits the height cap sooner, so it is the one that
+  /// sets the common width). The slot is then that width at the TALLEST
+  /// artwork's ratio, which is exactly the room the tallest card needs and
+  /// more than every other card needs, so each one centres inside it.
+  ///
+  /// Taking the tallest *geometry* instead would be wrong: once two banners
+  /// are both height-capped they are equally tall but not equally wide, and
+  /// picking either one's width hands the other a card wider than its page.
+  static KioskDealBannerGeometry forAll({
+    required double areaWidth,
+    required double windowWidth,
+    double windowHeight = double.infinity,
+    required Iterable<double?> imageAspects,
+  }) {
+    double? sharedWidth;
+    double? minAspect;
+
+    for (final aspect in imageAspects) {
+      final geo = KioskDealBannerGeometry.resolve(
+        areaWidth: areaWidth,
+        windowWidth: windowWidth,
+        windowHeight: windowHeight,
+        imageAspect: aspect,
+      );
+      if (sharedWidth == null || geo.width < sharedWidth) {
+        sharedWidth = geo.width;
+      }
+      if (minAspect == null || geo.aspect < minAspect) minAspect = geo.aspect;
+    }
+
+    if (sharedWidth == null || minAspect == null) {
+      return KioskDealBannerGeometry.resolve(
+        areaWidth: areaWidth,
+        windowWidth: windowWidth,
+        windowHeight: windowHeight,
+      );
+    }
+
+    return KioskDealBannerGeometry(
+      width: sharedWidth,
+      height: sharedWidth <= 0 ? 0 : sharedWidth / minAspect,
+      aspect: minAspect,
+      capped: sharedWidth < areaWidth,
+    );
+  }
+
+  static double _clampAspect(double? aspect) {
+    if (aspect == null || !aspect.isFinite || aspect <= 0) {
+      return KioskResponsive.dealBannerDefaultAspect;
+    }
+    return kioskBounded(
+      aspect,
+      min: KioskResponsive.dealBannerMinAspect,
+      max: KioskResponsive.dealBannerMaxAspect,
     );
   }
 }

@@ -9,6 +9,7 @@ import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
@@ -20,7 +21,6 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_pin_entry_sheet.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
@@ -816,7 +816,7 @@ class _ProductGrid extends StatelessWidget {
                           top: rowGap,
                           bottom: rest.isNotEmpty ? rowGap : 0,
                         ),
-                        child: _DealPromoBanner(s: s, deals: deals),
+                        child: KioskDealPromoBanner(s: s, deals: deals),
                       ),
                     ),
                   if (rest.isNotEmpty)
@@ -1420,8 +1420,9 @@ class _LatestItemCard extends StatelessWidget {
         : '${splash.baseUrls?.productImageUrl}/${product?.image}';
     // `cart` is a public field, so the `== null` check above does not promote
     // it (dart.dev/go/non-promo-public-field). The bang is safe on this branch.
-    final double unitPrice =
-        cart == null ? 0 : kioskLineTotal(cart!) / (cart!.quantity ?? 1);
+    // Per-unit price (product + add-ons), not lineTotal/qty — that old split
+    // shrank when qty rose because add-ons were not scaled with quantity.
+    final double unitPrice = cart == null ? 0 : kioskLineUnitPrice(cart!);
     final String title = isDeal
         ? (cart?.dealTitle ?? product?.name ?? '')
         : (product?.name ?? '');

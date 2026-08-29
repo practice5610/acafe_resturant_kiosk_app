@@ -1,17 +1,26 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
 
-/// Line total for a cart item = discounted unit price × qty + active add-ons.
+/// Line total for a cart item = (discounted unit price + per-unit add-ons) × qty.
+///
+/// Add-ons are configured per unit on the customize screen, so they must scale
+/// with [CartModel.quantity]. Otherwise bumping qty dilutes the per-unit price
+/// shown on the menu cart bar and undercharges extras on multi-qty lines.
 double kioskLineTotal(CartModel cart) {
   final int qty = cart.quantity ?? 1;
   final double addons = _kioskLineAddOnsTotal(cart);
-  if (cart.isDeal) {
-    return ((cart.discountedPrice ?? 0) + addons) * qty;
-  }
-  return (cart.discountedPrice ?? 0) * qty + addons;
+  return ((cart.discountedPrice ?? 0) + addons) * qty;
 }
 
-/// Line total BEFORE the product's own discount = list unit price x qty +
-/// add-ons.
+/// Payable price of a single unit of this line (discounted price + add-ons).
+///
+/// Stable as quantity changes — use this for the menu "latest item" card so
+/// the price under the name does not shrink when the customer taps "+".
+double kioskLineUnitPrice(CartModel cart) {
+  return (cart.discountedPrice ?? 0) + _kioskLineAddOnsTotal(cart);
+}
+
+/// Line total BEFORE the product's own discount = (list unit price + add-ons)
+/// × qty.
 ///
 /// The order summary (Figma POS node 1385:15938) prints this struck through
 /// beside [kioskLineTotal], so the customer can see what the discount took off
@@ -20,10 +29,7 @@ double kioskLineTotal(CartModel cart) {
 double kioskLineOriginalTotal(CartModel cart) {
   final int qty = cart.quantity ?? 1;
   final double addons = _kioskLineAddOnsTotal(cart);
-  if (cart.isDeal) {
-    return ((cart.price ?? 0) + addons) * qty;
-  }
-  return (cart.price ?? 0) * qty + addons;
+  return ((cart.price ?? 0) + addons) * qty;
 }
 
 /// Grand total across all cart lines.

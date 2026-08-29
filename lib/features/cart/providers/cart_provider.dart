@@ -151,6 +151,7 @@ class CartProvider extends ChangeNotifier {
   void replaceCartList(List<CartModel?> items) {
     _cartList = List<CartModel?>.from(items);
     _recomputeAmount();
+    notifyListeners();
   }
 
   void removeFromCart(int index) {

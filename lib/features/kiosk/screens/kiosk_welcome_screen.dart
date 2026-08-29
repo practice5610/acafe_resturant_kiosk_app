@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -18,6 +19,10 @@ import 'package:provider/provider.dart';
 /// animated down-arrow at the bottom (per the Figma "Overlay-Content" design).
 /// Tapping anywhere on the screen goes to the menu.
 ///
+/// The artwork is never cropped and never zoomed: it is drawn whole, and the
+/// surplus left by a screen of a different shape is filled by continuing the
+/// artwork's own edge pixels, so the background still reaches every edge.
+///
 /// Menu data (categories + products) is prefetched in the background so the
 /// menu screen renders instantly when the user taps to continue.
 class KioskWelcomeScreen extends StatefulWidget {
@@ -31,7 +36,16 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   static const String _introImageAsset = 'assets/video/kiosk_intro_Image.png';
   static const AssetImage _introImage = AssetImage(_introImageAsset);
 
-  bool _imageReady = false;
+  /// Aspect ratio of the intro artwork (the 2572x4522 kiosk artboard). Used to
+  /// scale the overlay type with the artwork instead of with the window.
+  static const double _introAspect = 2572 / 4522;
+
+  /// Decoded artwork. Held directly (rather than shown through [Image]) so the
+  /// painter can draw the whole picture *and* extend its edges in one pass.
+  ui.Image? _intro;
+  ImageStream? _introStream;
+  ImageStreamListener? _introListener;
+
   bool _orderLoading = false;
 
   @override
@@ -43,19 +57,41 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _precacheIntro();
+    _resolveIntro();
   }
 
-  Future<void> _precacheIntro() async {
-    if (_imageReady) return;
-    try {
-      await precacheImage(_introImage, context);
-    } catch (_) {
-      // Asset missing or failed to decode -> keep the solid dark background
-      // instead of crashing the kiosk.
-      return;
-    }
-    if (mounted) setState(() => _imageReady = true);
+  @override
+  void dispose() {
+    if (_introListener != null) _introStream?.removeListener(_introListener!);
+    _intro?.dispose();
+    super.dispose();
+  }
+
+  void _resolveIntro() {
+    final ImageStream stream =
+        _introImage.resolve(createLocalImageConfiguration(context));
+    if (stream.key == _introStream?.key) return;
+    if (_introListener != null) _introStream?.removeListener(_introListener!);
+
+    _introListener = ImageStreamListener(
+      (ImageInfo info, bool _) {
+        final ui.Image image = info.image.clone();
+        info.dispose();
+        if (!mounted) {
+          image.dispose();
+          return;
+        }
+        setState(() {
+          _intro?.dispose();
+          _intro = image;
+        });
+      },
+      // Asset missing or failed to decode -> keep the solid background instead
+      // of crashing the kiosk.
+      onError: (_, __) {},
+    );
+    _introStream = stream;
+    stream.addListener(_introListener!);
   }
 
   void _startMenuPrefetch() {
@@ -123,26 +159,26 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   Widget build(BuildContext context) {
     final Size size =
         KioskMetrics.maybeOf(context)?.window ?? MediaQuery.sizeOf(context);
-    final bool landscape = size.width >= size.height;
-    // Landscape type is keyed to the shorter axis so the prompt does not
-    // explode across a wide panel. Portrait still follows width.
-    final double typeRef =
-        landscape ? math.min(size.width * 0.55, size.height) : size.width;
-    final double logoWidth = (typeRef * 0.26).clamp(150.0, 980.0);
-    final double instructionFont = (typeRef * 0.054).clamp(20.0, 220.0);
-    final double arrowSize = landscape
-        ? (size.height * 0.16).clamp(64.0, 280.0)
-        : (size.height * 0.19).clamp(90.0, 520.0);
+
+    // Size of the artwork as actually drawn (contain, never cropped). Type and
+    // the arrow scale off it, so the composition keeps the artboard's
+    // proportions on a phone, a laptop window and the kiosk panel alike.
+    final double artWidth = math.min(size.width, size.height * _introAspect);
+    final double artHeight = artWidth / _introAspect;
+
+    final double logoWidth = (artWidth * 0.26).clamp(120.0, 980.0);
+    final double instructionFont = (artWidth * 0.054).clamp(18.0, 220.0);
+    final double arrowSize = (artHeight * 0.11).clamp(56.0, 320.0);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _introEdgeFallback,
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _orderLoading ? null : _onContinue,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Background: intro image if available, otherwise a solid dark fill.
+            // The artwork, whole, filling the screen edge to edge.
             _buildBackground(),
 
             // Gentle top + bottom dark scrim so the logo, prompt and arrow stay
@@ -153,10 +189,10 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black45,
+                    Colors.black26,
                     Colors.transparent,
                     Colors.transparent,
-                    Colors.black45,
+                    Colors.black26,
                   ],
                   stops: [0.0, 0.22, 0.7, 1.0],
                 ),
@@ -228,26 +264,102 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   }
 
   Widget _buildBackground() {
-    // Solid dark background shown until the intro image is decoded — no default
-    // image is ever shown, so there is no swap/flicker. The intro then fades in
-    // once it is fully in the image cache.
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        const ColoredBox(color: Colors.black),
-        AnimatedOpacity(
-          opacity: _imageReady ? 1 : 0,
-          duration: const Duration(milliseconds: 400),
-          child: _imageReady
-              ? const Image(
-                  image: _introImage,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                  filterQuality: FilterQuality.medium,
-                )
-              : const SizedBox.shrink(),
-        ),
-      ],
+    final ui.Image? image = _intro;
+    // Until the artwork is decoded the screen is the artwork's own edge colour,
+    // so the fade-in is a fade, not a swap between two different backgrounds.
+    return AnimatedOpacity(
+      opacity: image == null ? 0 : 1,
+      duration: const Duration(milliseconds: 400),
+      child: image == null
+          ? const SizedBox.shrink()
+          : CustomPaint(painter: _IntroBackgroundPainter(image)),
     );
   }
+}
+
+/// Flat colour matching the artwork's edge pixels (#E9EAF2), used before the
+/// image is decoded.
+const Color _introEdgeFallback = Color(0xFFE9EAF2);
+
+/// Draws the intro artwork whole — `contain`, never cropped or zoomed — and
+/// fills whatever the screen has left over by stretching the artwork's own
+/// outermost pixels outwards.
+///
+/// Because the picture's border is a flat gradient backdrop, the extension is
+/// invisible: the result reads as one image reaching every edge, on a phone, a
+/// wide desktop window or the portrait kiosk panel, with no blurred backdrop
+/// and no letterbox bars.
+class _IntroBackgroundPainter extends CustomPainter {
+  final ui.Image image;
+
+  const _IntroBackgroundPainter(this.image);
+
+  /// Width, in source pixels, of the edge strip that gets stretched outwards,
+  /// and how far inside the border it is sampled from. The inset skips the
+  /// outermost rows/columns, which carry compression noise that would otherwise
+  /// be stretched into visible streaks.
+  static const double _edgeStrip = 6;
+  static const double _edgeInset = 3;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+
+    final double iw = image.width.toDouble();
+    final double ih = image.height.toDouble();
+    if (iw <= 0 || ih <= 0) return;
+
+    final double scale = math.min(size.width / iw, size.height / ih);
+    final double dw = iw * scale;
+    final double dh = ih * scale;
+    final double dx = (size.width - dw) / 2;
+    final double dy = (size.height - dh) / 2;
+
+    final Paint paint = Paint()
+      ..filterQuality = FilterQuality.medium
+      ..isAntiAlias = false;
+
+    // Edge extension first, the artwork on top, so the 1px overlap that hides
+    // the seam is always covered by real pixels.
+    // Only one axis can ever have surplus, so these two blocks are exclusive.
+    if (dx > 0.5) {
+      canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(_edgeInset, 0, _edgeStrip, ih),
+        Rect.fromLTWH(0, dy, dx + 1, dh),
+        paint,
+      );
+      canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(iw - _edgeInset - _edgeStrip, 0, _edgeStrip, ih),
+        Rect.fromLTWH(dx + dw - 1, dy, dx + 1, dh),
+        paint,
+      );
+    }
+    if (dy > 0.5) {
+      canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(0, _edgeInset, iw, _edgeStrip),
+        Rect.fromLTWH(dx, 0, dw, dy + 1),
+        paint,
+      );
+      canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(0, ih - _edgeInset - _edgeStrip, iw, _edgeStrip),
+        Rect.fromLTWH(dx, dy + dh - 1, dw, dy + 1),
+        paint,
+      );
+    }
+
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, iw, ih),
+      Rect.fromLTWH(dx, dy, dw, dh),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_IntroBackgroundPainter oldDelegate) =>
+      oldDelegate.image != image;
 }
