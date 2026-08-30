@@ -7,7 +7,6 @@ import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_screen.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/utill/images.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -18,8 +17,7 @@ import 'package:provider/provider.dart';
 /// portrait kiosk, so these checks are about the screen surviving every
 /// viewport the kiosk actually ships on — portrait kiosk, resized browser
 /// window, short landscape display — without overflowing or dropping a section,
-/// and about the on-screen board driving the same controller a physical
-/// keyboard would.
+/// and about the code field accepting scanner / system-keyboard input.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -103,16 +101,9 @@ void main() {
       expect(find.text('Use the scanner below you'), findsOneWidget);
       expect(find.text('BACK'), findsOneWidget);
       expect(find.text('CONTINUE'), findsOneWidget);
-      expect(find.text('Space'), findsOneWidget);
-      expect(find.text('Clear'), findsOneWidget);
-      // Digits, QWERTY, ASDFGHJKL and ZXCVBNM — no row dropped or clipped.
-      expect(find.text('1'), findsOneWidget);
-      expect(find.text('0'), findsOneWidget);
-      expect(find.text('Q'), findsOneWidget);
-      expect(find.text('L'), findsOneWidget);
-      expect(find.text('M'), findsOneWidget);
-      expect(svgKey(Images.kioskKeyShiftSvg), findsOneWidget);
-      expect(svgKey(Images.kioskKeyBackspaceSvg), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Space'), findsNothing);
+      expect(find.text('Clear'), findsNothing);
       expect(svgKey(Images.kioskCouponQrSvg), findsOneWidget);
     });
   }
@@ -166,56 +157,13 @@ void main() {
     expect(find.text('back'), findsNothing);
   });
 
-  testWidgets('keys type into the field; backspace and clear undo it',
+  testWidgets('the field accepts typed input from a system keyboard',
       (tester) async {
     await render(tester, const Size(1080, 1920));
 
-    for (final key in ['Z', 'X', '9']) {
-      await tester.tap(find.text(key));
-      await tester.pump();
-    }
-    expect(fieldOf(tester).controller!.text, 'ZX9');
-
-    await tester.tap(svgKey(Images.kioskKeyBackspaceSvg));
+    await tester.enterText(find.byType(TextField), 'A81739');
     await tester.pump();
-    expect(fieldOf(tester).controller!.text, 'ZX');
-
-    await tester.tap(find.text('Space'));
-    await tester.pump();
-    expect(fieldOf(tester).controller!.text, 'ZX ');
-
-    await tester.tap(find.text('Clear'));
-    await tester.pump();
-    expect(fieldOf(tester).controller!.text, isEmpty);
-  });
-
-  testWidgets(
-      'a run of keys builds one code on a desktop/web-style host',
-      (tester) async {
-    // Regression: tapping a key is a tap OUTSIDE the field, so the framework
-    // unfocused it; re-focusing then re-selected the whole value
-    // (`selectAllOnFocus` defaults to true on web and desktop), and the next
-    // key replaced the code instead of appending to it — the kiosk could only
-    // ever hold one character. macOS reproduces the web path exactly.
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-    try {
-      await render(tester, const Size(1080, 1920));
-
-      for (final key in ['A', '8', '1', '7', '3', '9']) {
-        await tester.tap(find.text(key));
-        await tester.pump();
-      }
-      expect(fieldOf(tester).controller!.text, 'A81739');
-      expect(
-        fieldOf(tester).controller!.selection,
-        const TextSelection.collapsed(offset: 6),
-        reason: 'the caret stays at the end instead of selecting the code',
-      );
-    } finally {
-      // Must be cleared inside the test body: the binding asserts on it before
-      // `addTearDown` callbacks run.
-      debugDefaultTargetPlatformOverride = null;
-    }
+    expect(fieldOf(tester).controller!.text, 'A81739');
   });
 
   testWidgets('the field submits on Enter, the way a scanner finishes a code',
@@ -228,24 +176,8 @@ void main() {
     final TextField field = fieldOf(tester);
     expect(field.onSubmitted, isNotNull);
     expect(field.textInputAction, TextInputAction.done);
-  });
-
-  testWidgets('shift flips the caps the board shows and the case it types',
-      (tester) async {
-    await render(tester, const Size(1080, 1920));
-
-    // Coupon codes are upper case, so the board opens shifted.
-    expect(find.text('Q'), findsOneWidget);
-    expect(find.text('q'), findsNothing);
-
-    await tester.tap(svgKey(Images.kioskKeyShiftSvg));
-    await tester.pump();
-    expect(find.text('q'), findsOneWidget);
-    expect(find.text('Q'), findsNothing);
-
-    await tester.tap(find.text('q'));
-    await tester.pump();
-    expect(fieldOf(tester).controller!.text, 'q');
+    expect(field.readOnly, isFalse);
+    expect(field.keyboardType, TextInputType.visiblePassword);
   });
 
   test('every string the screen asks for exists in all four languages', () {
@@ -255,8 +187,6 @@ void main() {
       'use_the_scanner_below_you',
       'back',
       'continue',
-      'space',
-      'clear',
     ];
     for (final code in const ['en', 'de', 'fr', 'nl']) {
       final values = json.decode(

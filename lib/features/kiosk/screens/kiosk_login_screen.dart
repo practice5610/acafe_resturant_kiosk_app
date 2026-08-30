@@ -48,7 +48,7 @@ const double _kFieldRadius = 18;
 
 const Color _kCardBg = Color(0xFFFFFDF8);
 const Color _kCardBorder = Color(0xFFE9E1CC);
-const Color _kFieldBg = KioskUI.pageBg;
+const Color _kFieldBg = Colors.white;
 const Color _kFieldBorder = Color(0xFFDDD4BA);
 
 class KioskLoginScreen extends StatefulWidget {

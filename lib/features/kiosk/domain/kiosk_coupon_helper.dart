@@ -69,8 +69,8 @@ void endKioskCustomerSession(
 /// Opens the kiosk coupon entry screen (Figma POS node 1385:15500).
 ///
 /// This used to raise a bottom sheet over the cart; the redesign is a full
-/// screen with its own on-screen keyboard, so it is pushed as a route and the
-/// cart is restored when the customer taps BACK or CONTINUE.
+/// screen pushed as a route, and the cart is restored when the customer taps
+/// BACK or CONTINUE.
 Future<void> openKioskCouponScreen(
   BuildContext context, {
   required double orderAmount,

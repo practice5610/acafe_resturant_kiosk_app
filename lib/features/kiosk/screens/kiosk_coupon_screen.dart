@@ -9,13 +9,12 @@ import 'package:provider/provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/domain/models/coupon_apply_result.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
-import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_applied_screen.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_keyboard.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -26,9 +25,9 @@ import 'package:acafe_customer/utill/styles.dart';
 
 /// Kiosk coupon entry — Figma POS node 1385:15500 ("07 – Coupon: Enter Code").
 ///
-/// Replaces the old bottom-sheet coupon picker with the designed full screen:
-/// brand mark, prompt, a large code field, the on-screen keyboard, the
-/// "SCAN YOUR CODE" panel and the BACK / CONTINUE pair.
+/// Brand mark, prompt, a large code field, the "SCAN YOUR CODE" panel and the
+/// BACK / CONTINUE pair. Customers type with the device keyboard (tap the
+/// field) or scan a barcode into the same field.
 ///
 /// CONTINUE (and Enter, which is how a barcode scanner finishes a code) hands
 /// the code to [CouponProvider.applyCouponDetailed]. A code that grants
@@ -41,7 +40,7 @@ import 'package:acafe_customer/utill/styles.dart';
 /// positions, the screen resolves one Figma-pixel scale [_KioskCouponMetrics.s]
 /// from *both* axes and then re-distributes whatever height is left over into
 /// the design's whitespace gaps only ([_KioskCouponMetrics.gapFactor]) — the
-/// cards, keys and buttons never stretch. A portrait kiosk therefore fills the
+/// cards and buttons never stretch. A portrait kiosk therefore fills the
 /// width exactly as drawn, while a short landscape display keeps every
 /// component's proportion, tightens the whitespace, and centres the column.
 class KioskCouponScreen extends StatefulWidget {
@@ -58,11 +57,6 @@ class KioskCouponScreen extends StatefulWidget {
 class _KioskCouponScreenState extends State<KioskCouponScreen> {
   late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
-
-  /// Coupon codes are upper case (the Figma field reads "A81739266"), so the
-  /// board starts shifted; the key caps mirror this the way a soft keyboard
-  /// does, and Shift releases it for the rare mixed-case code.
-  bool _shift = true;
 
   @override
   void initState() {
@@ -85,50 +79,6 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
       : kioskOrderAmountBeforeCoupon(
           Provider.of<CartProvider>(context, listen: false).cartList,
         );
-
-  // --- text editing --------------------------------------------------------
-  // The field stays editable so the kiosk's web build also accepts a physical
-  // keyboard; every on-screen key edits at the live selection so both input
-  // paths share one controller (same contract as the order-note keyboard).
-
-  TextSelection get _selection {
-    final TextEditingValue value = _controller.value;
-    return value.selection.isValid
-        ? value.selection
-        : TextSelection.collapsed(offset: value.text.length);
-  }
-
-  void _write(String text, int caret) {
-    _controller.value = _controller.value.copyWith(
-      text: text,
-      selection: TextSelection.collapsed(offset: caret),
-      composing: TextRange.empty,
-    );
-    if (!_focusNode.hasFocus) _focusNode.requestFocus();
-  }
-
-  void _insert(String value) {
-    final TextSelection sel = _selection;
-    final String text = _controller.text.replaceRange(sel.start, sel.end, value);
-    if (text.length > _kMaxCodeLength) return;
-    _write(text, sel.start + value.length);
-  }
-
-  void _backspace() {
-    final TextSelection sel = _selection;
-    final String current = _controller.text;
-    if (sel.start != sel.end) {
-      _write(current.replaceRange(sel.start, sel.end, ''), sel.start);
-      return;
-    }
-    if (sel.start == 0) return;
-    _write(current.replaceRange(sel.start - 1, sel.start, ''), sel.start - 1);
-  }
-
-  void _clear() {
-    if (_controller.text.isEmpty) return;
-    _write('', 0);
-  }
 
   // --- actions -------------------------------------------------------------
 
@@ -156,9 +106,8 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
     );
   }
 
-  /// CONTINUE. An empty field clears an applied coupon (the Clear key + CONTINUE
-  /// is the redesign's "remove"); otherwise the code is validated, and a code
-  /// that grants something opens the confirmation beat
+  /// CONTINUE. An empty field clears an applied coupon; otherwise the code is
+  /// validated, and a code that grants something opens the confirmation beat
   /// ([KioskCouponAppliedScreen]) before the screen closes back to the cart.
   Future<void> _submit() async {
     final coupon = Provider.of<CouponProvider>(context, listen: false);
@@ -229,26 +178,17 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
       },
       child: Scaffold(
         backgroundColor: _kPageBg,
+        // Keep the column above the system keyboard when the field is focused.
+        resizeToAvoidBottomInset: true,
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
               final m = _KioskCouponMetrics.resolve(
                 constraints.maxWidth,
                 constraints.maxHeight,
-                landscape: constraints.maxWidth > constraints.maxHeight,
               );
 
-              final Widget keyboard = KioskKeyboard(
-                s: m.s,
-                shift: _shift,
-                onKey: _insert,
-                onShift: () => setState(() => _shift = !_shift),
-                onBackspace: _backspace,
-                onSpace: () => _insert(' '),
-                onClear: _clear,
-              );
-
-              final Widget portraitColumn = Column(
+              final Widget column = Column(
                 children: [
                   SizedBox(height: m.gap(_kTopGap)),
                   _Logo(m: m, onBack: _close),
@@ -261,9 +201,7 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
                     focusNode: _focusNode,
                     onSubmit: _submit,
                   ),
-                  SizedBox(height: m.gap(_kFieldToKeyboard)),
-                  keyboard,
-                  SizedBox(height: m.gap(_kKeyboardToScan)),
+                  SizedBox(height: m.gap(_kFieldToScan)),
                   _ScanPanel(m: m),
                   SizedBox(height: m.gap(_kScanToButtons)),
                   _ActionBar(m: m, onBack: _close, onContinue: _submit),
@@ -271,47 +209,10 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
                 ],
               );
 
-              final Widget landscapeRow = Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: 5,
-                    child: Column(
-                      children: [
-                        SizedBox(height: m.gap(_kTopGap)),
-                        _Logo(m: m, onBack: _close),
-                        SizedBox(height: m.gap(_kLogoToTitle)),
-                        _Title(m: m),
-                        SizedBox(height: m.gap(_kTitleToField)),
-                        _CodeField(
-                          m: m,
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          onSubmit: _submit,
-                        ),
-                        const Spacer(),
-                        _ScanPanel(m: m),
-                        SizedBox(height: m.gap(_kScanToButtons)),
-                        _ActionBar(m: m, onBack: _close, onContinue: _submit),
-                        SizedBox(height: m.gap(_kBottomGap)),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: m.px(48)),
-                  Expanded(
-                    flex: 6,
-                    child: FittedBox(
-                      fit: BoxFit.contain,
-                      child: keyboard,
-                    ),
-                  ),
-                ],
-              );
-
               final Widget content = SizedBox(
                 width: m.contentWidth,
                 height: m.contentHeight,
-                child: m.landscape ? landscapeRow : portraitColumn,
+                child: column,
               );
 
               // Only reachable once the scale has bottomed out on a very small
@@ -347,11 +248,11 @@ const Color _kButtonLabel = Color(0xFFFAF9F5);
 const int _kMaxCodeLength = 24;
 
 // Vertical rhythm: whitespace gaps (flexible) and element heights (fixed).
+// Field→scan was field→keyboard (270) + keyboard→scan (190) in the artboard.
 const double _kTopGap = 136;
 const double _kLogoToTitle = 618.5;
 const double _kTitleToField = 105;
-const double _kFieldToKeyboard = 270;
-const double _kKeyboardToScan = 190;
+const double _kFieldToScan = 460;
 const double _kScanToButtons = 517;
 const double _kBottomGap = 124;
 
@@ -406,17 +307,15 @@ const double _kButtonPadH = 64;
 const double _kGapTotal = _kTopGap +
     _kLogoToTitle +
     _kTitleToField +
-    _kFieldToKeyboard +
-    _kKeyboardToScan +
+    _kFieldToScan +
     _kScanToButtons +
     _kBottomGap; // 1960.5
 
 const double _kFixedTotal = _kLogoHeight +
     _kTitleFont +
     _kFieldHeight +
-    KioskKeyboard.designHeight +
     _kPanelHeight +
-    _kButtonHeight; // 2569.475
+    _kButtonHeight; // 1405.475
 
 /// How far the design's whitespace may be squeezed / stretched before the
 /// scale itself has to give way.
@@ -434,35 +333,22 @@ class _KioskCouponMetrics {
   final double contentWidth;
   final double contentHeight;
 
-  /// True when the keyboard sits beside the field rather than beneath it.
-  final bool landscape;
-
   const _KioskCouponMetrics._({
     required this.s,
     required this.gapFactor,
     required this.contentWidth,
     required this.contentHeight,
-    this.landscape = false,
   });
 
-  factory _KioskCouponMetrics.resolve(double width, double height,
-      {bool landscape = false}) {
+  factory _KioskCouponMetrics.resolve(double width, double height) {
     // The shortest height the design can occupy is its fixed elements plus
     // half its whitespace; sizing against that (rather than the full 4530)
-    // lets landscape displays keep usable key/button sizes.
-    // In landscape the keyboard is beside the field, so it drops out of the
-    // vertical stack and byHeight stops dominating the scale.
-    final double minDesignHeight = landscape
-        ? math.max(_kFixedTotal - KioskKeyboard.designHeight,
-                KioskKeyboard.designHeight) +
-            _kGapTotal * _kMinGapFactor * 0.4
-        : _kFixedTotal + _kGapTotal * _kMinGapFactor; // 3549.725
+    // lets short displays keep usable field/button sizes.
+    final double minDesignHeight =
+        _kFixedTotal + _kGapTotal * _kMinGapFactor; // 2385.725
 
     final double s = math
-        .min(
-          landscape ? (width * 0.48) / _kDesignWidth : width / _kDesignWidth,
-          height / minDesignHeight,
-        )
+        .min(width / _kDesignWidth, height / minDesignHeight)
         .clamp(0.16, 1.0);
 
     final double fixed = _kFixedTotal * s;
@@ -474,11 +360,8 @@ class _KioskCouponMetrics {
     return _KioskCouponMetrics._(
       s: s,
       gapFactor: gapFactor,
-      contentWidth: landscape ? width : _kDesignWidth * s,
-      contentHeight: landscape
-          ? height
-          : fixed + _kGapTotal * s * gapFactor,
-      landscape: landscape,
+      contentWidth: _kDesignWidth * s,
+      contentHeight: fixed + _kGapTotal * s * gapFactor,
     );
   }
 
@@ -608,21 +491,23 @@ class _CodeField extends StatelessWidget {
         controller: controller,
         focusNode: focusNode,
         autofocus: true,
+        readOnly: false,
+        showCursor: true,
+        keyboardType: TextInputType.visiblePassword,
         textAlign: TextAlign.center,
         textAlignVertical: TextAlignVertical.center,
         maxLines: 1,
         textCapitalization: TextCapitalization.characters,
         textInputAction: TextInputAction.done,
         onSubmitted: (_) => onSubmit(),
-        // A tap on the kiosk's own keyboard is a tap "outside" this field. Left
-        // to the framework that blurs it, and re-focusing then selects the whole
-        // value (`selectAllOnFocus` defaults to true on web and desktop) — so
-        // the next key replaced the code instead of appending. Hold the focus,
-        // and keep the caret even if focus is regained some other way.
-        onTapOutside: (_) {},
+        // Keep the caret where the customer left it when focus returns (scanner
+        // append / system keyboard). Default web/desktop select-all would
+        // replace the whole code on the next key.
         selectAllOnFocus: false,
         autocorrect: false,
         enableSuggestions: false,
+        smartDashesType: SmartDashesType.disabled,
+        smartQuotesType: SmartQuotesType.disabled,
         cursorColor: _kInk,
         cursorWidth: m.stroke(6),
         inputFormatters: [

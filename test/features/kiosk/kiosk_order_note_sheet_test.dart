@@ -6,27 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// The order-note modal stacks a note card over an on-screen keyboard, one
-/// centred column, in every orientation.
-///
-/// Two bugs shaped these tests, both the same mistake — a caller predicting a
-/// measurement instead of deriving it. First the board was handed a predicted
-/// WIDTH (`viewport * 0.52`) while its Row actually gave it
-/// `(viewport - gutter * 3) * 6/11`; a keyboard has no give, so every pixel of
-/// the difference came off the right edge as a RenderFlex overflow that
-/// clipped P, backspace and Clear. Then the column was chosen on width alone,
-/// which asked for more HEIGHT than a short landscape window had and pushed
-/// CONTINUE off the bottom.
-///
-/// So these pin the derived-not-guessed properties: the board fits its slot,
-/// the rows line up, the stack fits the window, and the note stays directly
-/// above the keys.
+/// The order-note modal is a note card over CONTINUE — one centred column —
+/// with no on-screen keyboard. Customers type with the device keyboard.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   /// Without a localization delegate `getTranslated` echoes its key, so the
-  /// wide keys render as "space"/"clear" here and "Space"/"Clear" in the app.
-  /// Match either, so the test pins the layout and not the locale.
+  /// button may render as "continue" here and "CONTINUE" in the app.
   Finder labelled(String text) => find.byWidgetPredicate(
       (w) => w is Text && (w.data ?? '').toLowerCase() == text.toLowerCase(),
       description: 'Text "$text" (any case)');
@@ -52,9 +38,6 @@ void main() {
     await tester.pump();
   }
 
-  /// Landscape is the layout that overflowed; portrait is checked so the fix
-  /// is not landscape-only. The narrow landscape sizes matter as much as the
-  /// large ones — the mismatch grew as the window narrowed.
   const List<Size> viewports = [
     Size(1024, 768),
     Size(1366, 768),
@@ -69,65 +52,21 @@ void main() {
 
   for (final Size viewport in viewports) {
     testWidgets(
-        'the keyboard fits its slot at '
+        'lays out the note card and CONTINUE at '
         '${viewport.width.toInt()}x${viewport.height.toInt()}', (tester) async {
       await pumpSheet(tester, viewport);
 
-      expect(tester.takeException(), isNull,
-          reason: 'a RenderFlex overflow means a row of keys is clipped');
-
-      // Every key is on screen, left edge to right edge — Q..P is the row
-      // that sets the module, and Clear is the last thing on the board.
-      for (final String key in ['Q', 'P', 'A', 'L', 'Z', 'M']) {
-        final Rect rect = tester.getRect(find.text(key));
-        expect(rect.left, greaterThanOrEqualTo(-0.5),
-            reason: '"$key" starts off the left edge at $rect');
-        expect(rect.right, lessThanOrEqualTo(viewport.width + 0.5),
-            reason: '"$key" runs past the right edge at $rect');
-      }
-      for (final String label in ['Space', 'Clear', 'Continue']) {
-        final Rect rect = tester.getRect(labelled(label));
-        expect(rect.right, lessThanOrEqualTo(viewport.width + 0.5),
-            reason: '"$label" runs past the right edge at $rect');
-      }
+      expect(tester.takeException(), isNull);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(labelled('Continue'), findsOneWidget);
+      expect(labelled('Space'), findsNothing);
+      expect(labelled('Clear'), findsNothing);
+      expect(find.text('Q'), findsNothing);
     });
   }
 
-  testWidgets('the key rows all span the same width', (tester) async {
-    // The three letter rows are drawn from one module, so they have to line up
-    // whatever the slot turns out to be. A row that is wider than the top row
-    // is the shape the overflow took.
-    for (final Size viewport in viewports) {
-      await pumpSheet(tester, viewport);
-
-      final Rect q = tester.getRect(find.text('Q'));
-      final Rect p = tester.getRect(find.text('P'));
-      final Rect a = tester.getRect(find.text('A'));
-      final Rect l = tester.getRect(find.text('L'));
-      final Rect space = tester.getRect(labelled('Space'));
-      final Rect clear = tester.getRect(labelled('Clear'));
-
-      final double topRow = p.right - q.left;
-      // Letter rows are centred on each other, so compare centres and spans.
-      expect(((a.left + l.right) / 2 - (q.left + p.right) / 2).abs(),
-          lessThan(2.0),
-          reason: 'the ASDF row is off-centre against QWERTY at '
-              '${viewport.width}x${viewport.height}');
-      expect(((space.left + clear.right) / 2 - (q.left + p.right) / 2).abs(),
-          lessThan(2.0),
-          reason: 'the Space/Clear row is off-centre at '
-              '${viewport.width}x${viewport.height}');
-      expect(topRow, greaterThan(0));
-    }
-  });
-
   testWidgets('no overflow through openKioskOrderNote at Retina scale',
       (tester) async {
-    // The other tests pump the sheet directly. This one opens it the way the
-    // cart does, through the dialog route, at the physical size and device
-    // pixel ratio of a 14" MacBook Pro — the machine the overflow was
-    // reported from — so the fix is pinned on the real path and not only on a
-    // convenient harness.
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
 
@@ -153,44 +92,32 @@ void main() {
     openKioskOrderNote(ctx);
     await tester.pumpAndSettle();
 
-    expect(tester.takeException(), isNull,
-        reason: 'a RenderFlex overflow means a row of keys is clipped');
+    expect(tester.takeException(), isNull);
 
     const double logicalWidth = 3024 / 2;
-    expect(tester.getRect(find.text('P')).right,
-        lessThanOrEqualTo(logicalWidth + 0.5));
-    expect(tester.getRect(labelled('Clear')).right,
+    expect(tester.getRect(labelled('Continue')).right,
         lessThanOrEqualTo(logicalWidth + 0.5));
   });
 
-  testWidgets('the note sits directly above the keyboard, not beside it',
+  testWidgets('the note sits above CONTINUE, centred on the same column',
       (tester) async {
-    // Landscape used to be a two-pane Row: the card in one corner, the board
-    // in the other. A field and the keys that type into it cannot be read as
-    // one thing when they sit diagonally apart, so they are stacked now — the
-    // same arrangement in every orientation, both the same width.
     for (final Size viewport in viewports) {
       await pumpSheet(tester, viewport);
 
       final Rect field = tester.getRect(find.byType(TextField));
-      final Rect topRow = tester.getRect(find.text('Q'));
-      final Rect board = tester.getRect(labelled('Continue'));
+      final Rect continueBtn = tester.getRect(labelled('Continue'));
 
-      expect(field.bottom, lessThanOrEqualTo(topRow.top),
-          reason: 'the note must be above the board at '
+      expect(field.bottom, lessThanOrEqualTo(continueBtn.top),
+          reason: 'the note must be above CONTINUE at '
               '${viewport.width}x${viewport.height}');
-      expect((field.center.dx - board.center.dx).abs(), lessThan(2.0),
-          reason: 'the card and the board share a centre line at '
+      expect((field.center.dx - continueBtn.center.dx).abs(), lessThan(2.0),
+          reason: 'the card and CONTINUE share a centre line at '
               '${viewport.width}x${viewport.height}');
     }
   });
 
   testWidgets('the whole stack fits the window at every viewport',
       (tester) async {
-    // The board's height follows from its width, so a column chosen on width
-    // alone asked for more height than a short landscape window had: the note
-    // field collapsed to its floor and CONTINUE ran off the bottom. The
-    // column is bounded on both axes now.
     for (final Size viewport in viewports) {
       await pumpSheet(tester, viewport);
 
@@ -204,8 +131,6 @@ void main() {
           reason: 'CONTINUE runs to ${continueBtn.bottom} of '
               '${viewport.height} at ${viewport.width}x${viewport.height}');
 
-      // And the writable area keeps at least two lines — 36pt is two lines
-      // at the smallest body size the card ever uses.
       expect(tester.getRect(find.byType(TextField)).height,
           greaterThanOrEqualTo(36.0),
           reason: 'the note field collapsed at '
@@ -213,16 +138,49 @@ void main() {
     }
   });
 
-  testWidgets('typing on the board writes through to the field',
+  testWidgets('the field accepts typed input from a system keyboard',
       (tester) async {
     await pumpSheet(tester, const Size(1512, 905));
 
-    await tester.tap(find.text('H'));
-    await tester.pump();
-    await tester.tap(find.text('i'));
+    await tester.enterText(find.byType(TextField), 'Extra napkins please');
     await tester.pump();
 
-    expect(find.text('Hi'), findsOneWidget,
-        reason: 'shift caps the first letter then releases itself');
+    expect(find.text('Extra napkins please'), findsOneWidget);
+  });
+
+  testWidgets('CONTINUE saves the note to the cart', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final cart = CartProvider(cartRepo: CartRepo(sharedPreferences: prefs));
+
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    late BuildContext ctx;
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CartProvider>.value(value: cart),
+        ],
+        child: MaterialApp(
+          home: Builder(builder: (context) {
+            ctx = context;
+            return const Scaffold(body: SizedBox.expand());
+          }),
+        ),
+      ),
+    );
+
+    openKioskOrderNote(ctx);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'No straw');
+    await tester.pump();
+    await tester.tap(labelled('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(cart.orderNote, 'No straw');
+    expect(find.byType(TextField), findsNothing);
   });
 }
