@@ -41,6 +41,12 @@ class KioskCustomizeSpec {
   /// Hero -> `Iced Strawberry Latte` (node 1385:13605, y=932.8).
   static const double heroToTitle = 84;
 
+  /// The photo and the space around it — everything in the header that is
+  /// picture rather than words. It is two thirds of the header block, and the
+  /// only part of it that can be given up: type has a legibility floor, a photo
+  /// does not. See [kioskCustomizeHeroFactor].
+  static const double heroBlock = heroTop + heroHeight + heroToTitle;
+
   /// Loew / ExtraBold / 72 / line-height 100%.
   static const double titleSize = 72;
 
@@ -162,7 +168,21 @@ class KioskCustomizeSpec {
   /// Max width/height edge for those tiles on compact windows (< 900px).
   /// A 2–3-up on a phone otherwise stretches Small/Addon1 across a third
   /// of the panel. Kiosk-sized viewports never use this cap.
+  ///
+  /// This decides DENSITY — how many cards go across — and nothing else. A
+  /// wrapping grid then divides its row among that many columns (see
+  /// `_choiceGridTileWidth`), because a card held at exactly 96px leaves the
+  /// remainder of the row as dead space against the panel's right edge.
   static const double choiceCardMaxEdgeCompact = 96;
+
+  /// Floor on the gutter between two choice cards, in logical pixels.
+  ///
+  /// The design's 24px gutter is an artboard measurement like everything else,
+  /// so it follows `s` — and on a phone `s` is around 0.16, which turns it into
+  /// under 4px: cards that read as one continuous strip rather than as separate
+  /// things to tap. The floor only ever binds below ~1080px of width, where the
+  /// scaled gutter is already thinner than this.
+  static const double choiceCardGapFloor = 10;
 
   // -- cup / can -----------------------------------------------------------
   /// `cup` / `can`: 1099 x 790, 35 apart, 28px radius.
@@ -283,6 +303,55 @@ double kioskCustomizeArtboardHeight({
       panels +
       KioskCustomizeSpec.actionBarBlock;
 }
+
+/// Share of the viewport the header may claim before the hero photo starts
+/// giving height back to the panels.
+///
+/// On the artboard the header is 1373 of 5400 — a quarter of a page the
+/// customer scrolls anyway. A landscape window is the same page with a third of
+/// the height, so at the scale the height-pull floor allows, that same header
+/// covers over half the screen and the customer meets a giant photo where the
+/// design shows a photo and two questions.
+const double kKioskCustomizeHeaderShare = 0.34;
+
+/// How far the hero may shrink. Past this it stops reading as the product's
+/// photo, and a page that still does not fit is better off scrolling.
+const double kKioskCustomizeHeroFloor = 0.35;
+
+/// Fraction of [KioskCustomizeSpec.heroBlock] this viewport can afford.
+///
+/// 1.0 — the design's own hero — whenever the page fits at [scale]: a kiosk in
+/// portrait, a tablet, a phone. Below that only on a viewport too short for the
+/// stack, where every artboard pixel the photo gives back is one the Size row
+/// and the add-ons take.
+double kioskCustomizeHeroFactor({
+  required Size viewport,
+  required double artboardHeight,
+  required double scale,
+  required bool hasDescription,
+}) {
+  if (scale <= 0) return 1;
+  if (kioskCustomizeFits(
+      viewport: viewport, artboardHeight: artboardHeight, scale: scale)) {
+    return 1;
+  }
+  // Artboard px the header may occupy, and what it costs before the photo.
+  final double allowance =
+      (viewport.height * kKioskCustomizeHeaderShare) / scale;
+  final double words =
+      KioskCustomizeSpec.headerHeight(hasDescription: hasDescription) -
+          KioskCustomizeSpec.heroBlock;
+  return ((allowance - words) / KioskCustomizeSpec.heroBlock)
+      .clamp(kKioskCustomizeHeroFloor, 1.0)
+      .toDouble();
+}
+
+/// The page height once the hero has been shrunk by [heroFactor].
+double kioskCustomizeArtboardWithHero({
+  required double artboardHeight,
+  required double heroFactor,
+}) =>
+    artboardHeight - KioskCustomizeSpec.heroBlock * (1 - heroFactor);
 
 /// Lower bound on how far the height rule may pull the scale below the width
 /// rule. Past this the screen is better off scrolling (see [kioskCustomizeFits])

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -336,6 +335,10 @@ void main() {
     });
 
     test('the add-on panel keeps its own indicator', () {
+      // The thumb the design draws, for the flow that still asks for it: the
+      // three-step add-ons step, where the grid is the whole screen and the
+      // indicator is what says it continues past the last row. The single
+      // screen opts out — see the test below.
       final int start = source.indexOf('class _AddOnScrollBoxState');
       final int end = source.indexOf('\nclass ', start + 10);
       final String body = source.substring(start, end);
@@ -343,6 +346,29 @@ void main() {
       expect(body, contains('RawScrollbar'));
       expect(body, contains('thumbColor: _kScrollThumb'));
       expect(body, contains('trackColor: _kScrollTrack'));
+    });
+
+    test('the single screen draws no scroll indicator of any kind', () {
+      // Requirement: nothing on this page carries a bar. It still SCROLLS —
+      // the add-on panel in the pinned layout, the whole page in the short
+      // one — but neither says so with chrome: no thumb inside the add-ons
+      // panel, and none down the page's own edge either, which is what
+      // Flutter's desktop and web scroll behaviour would hang there by
+      // default.
+      final int start =
+          source.indexOf('class _KioskProductCustomizeScreenState');
+      final int end = source.indexOf('\nString kioskProductDescription');
+      final String body = source.substring(start, end);
+
+      expect(body, contains('showIndicator: false'),
+          reason: 'the add-on panel is asked for no thumb');
+      expect(body.contains('RawScrollbar'), isFalse,
+          reason: 'the page draws no indicator of its own');
+      expect(body, contains('scrollbars: false'),
+          reason: 'the page scroller opts out of the platform scrollbar');
+      // The scrolling itself is untouched — this is chrome, not behaviour.
+      expect(body, contains('SingleChildScrollView('),
+          reason: 'the short page still scrolls; it just does it silently');
     });
 
     test('there is exactly one add-on scroller', () {
@@ -400,27 +426,20 @@ void main() {
       // Requirement: the bottom buttons must not overlap the customization
       // content. A pinned Column child cannot, a Stack/Positioned bar could.
       //
-      // The screen does draw exactly one overlay: the back button, which the
-      // artboard places over the top-left of the page. Portrait gets it from
-      // the header; landscape centres the header in its column, which would
-      // carry a button pinned inside it down to the middle of the page, so
-      // the page draws that one itself. Hence "the only Positioned is the
-      // back button" rather than "there are no Positioneds".
+      // Version A stacks the page in every orientation now, so the back button
+      // rides in the header where the artboard draws it and there is nothing
+      // left to overlay: the page is a plain Column of header, panels and bar.
+      // (Version B still splits landscape into two columns and still positions
+      // its own back button — that assertion lives with the step flow.)
       final int start =
           source.indexOf('class _KioskProductCustomizeScreenState');
       final int end = source.indexOf('\nString kioskProductDescription');
       final String body = source.substring(start, end);
 
-      final List<int> overlays = [
-        for (final Match m in 'Positioned('.allMatches(body)) m.start,
-      ];
-      expect(overlays.length, 1,
-          reason: 'the back button is the screen\'s only overlay');
-      final String overlay = body.substring(overlays.single,
-          math.min(overlays.single + 400, body.length));
-      expect(overlay, contains('KioskBackButton'));
-      expect(overlay, isNot(contains('_ActionBar(')),
-          reason: 'the bar is a Column sibling, never inside the Stack');
+      expect('Positioned('.allMatches(body), isEmpty,
+          reason: 'the single-screen page draws no overlays at all');
+      expect(body, contains('_ActionBar('),
+          reason: 'the bar is a Column sibling of the scroll area');
 
       expect(body, contains('Expanded('),
           reason: 'the scrolling region takes the height the bar leaves');

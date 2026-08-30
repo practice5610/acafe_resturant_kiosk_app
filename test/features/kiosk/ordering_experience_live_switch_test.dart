@@ -6,6 +6,8 @@ import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/auth/domain/reposotories/auth_repo.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
+import 'package:acafe_customer/features/category/domain/reposotories/category_repo.dart';
+import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
@@ -133,6 +135,13 @@ void main() {
                 CartProvider(cartRepo: CartRepo(sharedPreferences: prefs)),
           ),
           ChangeNotifierProvider<KioskAuthProvider>.value(value: auth),
+          // The host watches the catalog so an admin editing add-ons mid-sheet
+          // re-seeds the selection; without it the screen cannot even mount.
+          ChangeNotifierProvider<CategoryProvider>(
+            create: (_) => CategoryProvider(
+                categoryRepo:
+                    CategoryRepo(dioClient: dio, sharedPreferences: prefs)),
+          ),
           ChangeNotifierProvider<AuthProvider>(
             create: (_) => AuthProvider(
               authRepo: AuthRepo(dioClient: dio, sharedPreferences: prefs),

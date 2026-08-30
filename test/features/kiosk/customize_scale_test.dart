@@ -291,4 +291,99 @@ void main() {
       expect(KioskCustomizeSpec.artboardWidth * s / 2560, greaterThan(0.45));
     });
   });
+
+  // The hero is the only part of the page with give in it: a photo can be read
+  // at any size, 20px type cannot. So a viewport too short for the stack buys
+  // its height back from the photo rather than from the scale — see
+  // [kioskCustomizeHeroFactor].
+  group('hero factor', () {
+    double stacked() => kioskCustomizeArtboardHeight(
+          hasDescription: true,
+          variationPanels: 2,
+          hasAddOns: true,
+          hasVessel: true,
+        );
+
+    double factorAt(Size viewport) {
+      final double artboard = stacked();
+      return kioskCustomizeHeroFactor(
+        viewport: viewport,
+        artboardHeight: artboard,
+        scale:
+            kioskCustomizeScale(viewport: viewport, artboardHeight: artboard),
+        hasDescription: true,
+      );
+    }
+
+    test('a page that fits keeps the design\'s own hero', () {
+      for (final Size viewport in [
+        const Size(1080, 1920), // the kiosk itself
+        const Size(768, 1280),
+        const Size(408, 826),
+      ]) {
+        final double artboard = stacked();
+        final double s = kioskCustomizeScale(
+            viewport: viewport, artboardHeight: artboard);
+        if (!kioskCustomizeFits(
+            viewport: viewport, artboardHeight: artboard, scale: s)) {
+          continue;
+        }
+        expect(factorAt(viewport), 1.0,
+            reason: 'nothing to buy back at '
+                '${viewport.width}x${viewport.height}');
+      }
+    });
+
+    test('a short landscape window shrinks the hero, never past the floor', () {
+      for (final Size viewport in [
+        const Size(1366, 768),
+        const Size(1512, 905),
+        const Size(1920, 1080),
+        const Size(2560, 1440),
+      ]) {
+        final double f = factorAt(viewport);
+        expect(f, lessThan(1.0),
+            reason: 'the stack does not fit ${viewport.width}x'
+                '${viewport.height}, so the photo has to give');
+        expect(f, greaterThanOrEqualTo(kKioskCustomizeHeroFloor));
+      }
+    });
+
+    test('the header lands inside its share of a landscape viewport', () {
+      // What the factor is FOR: the header — hero, name, blurb, stepper — stops
+      // at [kKioskCustomizeHeaderShare] of the screen, so the first question is
+      // above the fold rather than under a half-page product shot.
+      for (final Size viewport in [
+        const Size(1512, 905),
+        const Size(1920, 1080),
+        const Size(2560, 1440),
+      ]) {
+        final double artboard = stacked();
+        final double s = kioskCustomizeScale(
+            viewport: viewport, artboardHeight: artboard);
+        final double f = factorAt(viewport);
+        final double header =
+            KioskCustomizeSpec.headerHeight(hasDescription: true) -
+                KioskCustomizeSpec.heroBlock * (1 - f);
+        expect(header * s,
+            lessThanOrEqualTo(viewport.height * kKioskCustomizeHeaderShare + 1),
+            reason: 'header is ${header * s} of ${viewport.height} at '
+                '${viewport.width}x${viewport.height}');
+      }
+    });
+
+    test('the page height drops by exactly what the hero gave up', () {
+      final double artboard = stacked();
+      const double f = 0.4;
+      expect(
+        kioskCustomizeArtboardWithHero(artboardHeight: artboard, heroFactor: f),
+        closeTo(artboard - KioskCustomizeSpec.heroBlock * 0.6, 0.001),
+      );
+      expect(
+        kioskCustomizeArtboardWithHero(
+            artboardHeight: artboard, heroFactor: 1.0),
+        artboard,
+      );
+    });
+  });
 }

@@ -260,34 +260,36 @@ void main() {
     // Figma spends 1291 of 5400 on the header — under a quarter of the page.
     // The old compact header existed because the real one blew past that.
     //
-    // That proportion is a PORTRAIT one: it describes the header's share of a
-    // page the panels sit below. Landscape puts them side by side, so the
-    // header column is meant to run most of the way down; what matters there
-    // is only that it stops above the action bar, which is asserted instead.
+    // Version A stacks the page in every orientation now, so this holds
+    // EVERYWHERE, landscape included: a landscape window is the same page with
+    // a third of the height, and at the scale the height-pull floor allows the
+    // design's own header would cover over half of it — the customer would meet
+    // a giant product shot with the first question already below the fold. The
+    // hero gives that height back instead (kioskCustomizeHeroFactor), which is
+    // what this bound pins.
     for (final viewport in viewports) {
       await pumpScreen(tester, viewport);
       final Rect stepper = tester.getRect(find.text('1'));
-      if (viewport.width > viewport.height) {
-        final Rect bar = tester.getRect(find.byType(KioskCheckoutButton).first);
-        expect(stepper.bottom, lessThanOrEqualTo(bar.top),
-            reason: 'header runs to ${stepper.bottom}, over a bar at '
-                '${bar.top} at ${viewport.width}x${viewport.height}');
-      } else {
-        expect(stepper.bottom, lessThan(viewport.height * 0.45),
-            reason: 'header runs to ${stepper.bottom} of ${viewport.height} '
-                'at ${viewport.width}x${viewport.height}');
-      }
+      final Rect bar = tester.getRect(find.byType(KioskCheckoutButton).first);
+      expect(stepper.bottom, lessThanOrEqualTo(bar.top),
+          reason: 'header runs to ${stepper.bottom}, over a bar at '
+              '${bar.top} at ${viewport.width}x${viewport.height}');
+      expect(stepper.bottom, lessThan(viewport.height * 0.45),
+          reason: 'header runs to ${stepper.bottom} of ${viewport.height} '
+              'at ${viewport.width}x${viewport.height}');
     }
 
     await closeScreen(tester);
   });
 
-  // The bug this pins: on a landscape window the header and the panels are two
-  // COLUMNS, and the page height rule used to report a flat fraction of the two
-  // STACKED. For a product whose only question is a Size row that fraction came
-  // out smaller than the header alone needs, the scale was chosen too large,
-  // and the hero/name/stepper block overflowed the bottom of its column —
-  // painting the quantity stepper across the Cancel Item button.
+  // The bug this pins: Version B still draws a landscape window as two COLUMNS,
+  // and the page height rule used to report a flat fraction of the two STACKED.
+  // For a product whose only question is a Size row that fraction came out
+  // smaller than the header alone needs, the scale was chosen too large, and
+  // the hero/name/stepper block overflowed the bottom of its column — painting
+  // the quantity stepper across the Cancel Item button. Version A stacks now
+  // and asks for the stacked height, so it is here as the other half of the
+  // pair rather than as the case that broke.
   testWidgets('a one-question product fits a short landscape window',
       (tester) async {
     Product sizeOnly() {
@@ -327,12 +329,142 @@ void main() {
     await closeScreen(tester);
   });
 
-  // Landscape draws the header and the panels as two columns and the page is
-  // scaled by WIDTH there, so both columns come up short and the leftover
-  // height used to collect in one dead block at the bottom. They centre now,
-  // which only reads right if the back button stays where the artboard puts
-  // it: a button pinned inside the header would ride down to the middle of
-  // the page with it.
+  // THE SINGLE-SCREEN SHAPE. Version A is one vertical column at every size:
+  // the header on top, then Size, then the dietary groups, then the add-ons,
+  // then Cup or can — the phone layout, on a landscape kiosk too. It used to
+  // split landscape into two columns (header beside the panels), which read as
+  // a different screen depending on how the device was mounted and left the
+  // vessel question hanging off the bottom of a column nobody scrolled.
+  testWidgets('landscape stacks the panels under the header, never beside it',
+      (tester) async {
+    Rect panelOf(WidgetTester tester, String cardLabel) => tester.getRect(
+          find
+              .ancestor(
+                  of: find.text(cardLabel), matching: find.byType(Container))
+              .last,
+        );
+
+    for (final Size viewport in [
+      const Size(1024, 768),
+      const Size(1366, 768),
+      const Size(1512, 905),
+      const Size(1920, 1080),
+      const Size(2560, 1440),
+    ]) {
+      await pumpScreen(tester, viewport);
+      final Rect stepper = tester.getRect(find.text('1'));
+      final Rect size = panelOf(tester, 'SMALL');
+      final Rect dietary = panelOf(tester, 'OAT');
+
+      // Below the header, not beside it.
+      expect(size.top, greaterThanOrEqualTo(stepper.bottom),
+          reason: 'size panel at ${size.top} overlaps a header ending at '
+              '${stepper.bottom} at ${viewport.width}x${viewport.height}');
+      // And each panel spans the page rather than half of it.
+      expect(size.width, greaterThan(viewport.width * 0.85),
+          reason: 'size panel is ${size.width} of ${viewport.width} at '
+              '${viewport.width}x${viewport.height}');
+      // One column: the next question is under this one, not next to it.
+      expect(dietary.top, greaterThanOrEqualTo(size.bottom - 1),
+          reason: 'dietary panel at ${dietary.top} beside a size panel ending '
+              'at ${size.bottom} at ${viewport.width}x${viewport.height}');
+    }
+
+    await closeScreen(tester);
+  });
+
+  // NO CHROME FOR THE SCROLLING. The page still drags where it has to — the
+  // add-on grid in the pinned layout, the whole column on a short window — but
+  // neither draws a bar to announce it. The design's black-on-#B9B5A6 thumb
+  // stays with the three-step flow, where the add-on grid is a step of its own.
+  testWidgets('nothing on the single screen paints a scrollbar',
+      (tester) async {
+    for (final Size viewport in [
+      const Size(1080, 1920), // pinned: the add-on panel scrolls inside itself
+      const Size(408, 826),
+      const Size(1512, 905), // short: the whole page scrolls
+      const Size(1920, 1080),
+    ]) {
+      await pumpScreen(tester, viewport);
+      expect(find.byType(RawScrollbar), findsNothing,
+          reason: 'a thumb is painted at '
+              '${viewport.width}x${viewport.height}');
+      expect(find.byType(Scrollbar), findsNothing,
+          reason: 'a material scrollbar is painted at '
+              '${viewport.width}x${viewport.height}');
+      // …and the scrolling itself is still there.
+      expect(find.byType(Scrollable), findsWidgets,
+          reason: 'the page stopped scrolling at '
+              '${viewport.width}x${viewport.height}');
+    }
+
+    await closeScreen(tester);
+  });
+
+  // THE PHONE ADD-ON GRID. Compact windows cap the tile at 96px so a 2–3-up
+  // does not stretch across the panel — but the cards were then LEFT at 96px,
+  // so three of them used 296 of a 354px panel and the remaining 58px sat
+  // against the right edge with nothing in it, over gutters of under 4px. The
+  // cap decides the density now; the columns it implies divide the row.
+  testWidgets('the add-on grid divides a phone row evenly, edge to edge',
+      (tester) async {
+    Rect cardOf(String label) => tester.getRect(find
+        .ancestor(of: find.text(label), matching: find.byType(Container))
+        .first);
+
+    for (final Size viewport in [
+      const Size(412, 914), // Galaxy A51/71
+      const Size(408, 826),
+      const Size(480, 900),
+    ]) {
+      await pumpScreen(tester, viewport);
+      final String at = '${viewport.width}x${viewport.height}';
+
+      // One add-on group, so the panel wears the group's own name.
+      final Rect panel = tester.getRect(find
+          .ancestor(of: find.text('Non Dairy'), matching: find.byType(Container))
+          .first);
+
+      // However many the row holds — the count is the cap's business, the
+      // spacing is this test's.
+      final Rect first = cardOf('TEST ADDON 1');
+      final List<Rect> row = [
+        for (int i = 1; i <= 14; i++)
+          if (find.text('TEST ADDON $i').evaluate().isNotEmpty)
+            cardOf('TEST ADDON $i'),
+      ].where((card) => (card.top - first.top).abs() < 0.5).toList()
+        ..sort((a, b) => a.left.compareTo(b.left));
+
+      expect(row.length, greaterThanOrEqualTo(3),
+          reason: 'only ${row.length} cards across at $at');
+
+      // Equal gutters, wide enough to read as gutters rather than hairlines.
+      final List<double> gaps = [
+        for (int i = 1; i < row.length; i++) row[i].left - row[i - 1].right,
+      ];
+      for (final double gap in gaps) {
+        expect(gap, closeTo(gaps.first, 0.5), reason: 'gutters $gaps at $at');
+        expect(gap, greaterThanOrEqualTo(8),
+            reason: 'a ${gap.toStringAsFixed(1)}px gutter reads as one '
+                'continuous strip at $at');
+      }
+
+      // And the row ends where it starts: no dead strip down the right side.
+      final double left = row.first.left - panel.left;
+      final double right = panel.right - row.last.right;
+      expect(right, closeTo(left, 1.5),
+          reason: '${left.toStringAsFixed(1)} of panel on the left, '
+              '${right.toStringAsFixed(1)} on the right at $at');
+    }
+
+    await closeScreen(tester);
+  });
+
+  // The back button is the artboard's own: top-left of the page, over the hero.
+  // Version A carries it inside the header — which is only correct because the
+  // header sits at the TOP of the page in every orientation now. (Version B's
+  // landscape split centres the header in a column, so it draws its own button
+  // rather than letting this one ride down the page with it.)
   testWidgets('the landscape back button stays in the page\'s top corner',
       (tester) async {
     for (final Size viewport in [
