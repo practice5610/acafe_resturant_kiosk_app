@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_deal.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_deal_repo.dart';
+import 'package:acafe_customer/utill/app_constants.dart';
 
 class KioskDealProvider extends ChangeNotifier {
   KioskDealProvider({required this.dealRepo});
@@ -74,6 +75,12 @@ class KioskDealProvider extends ChangeNotifier {
     } catch (_) {
       return dealById(id);
     }
+  }
+
+  Future<void> clearDeals() async {
+    _deals = [];
+    await dealRepo.sharedPreferences.remove(AppConstants.kioskDealsCacheKey);
+    notifyListeners();
   }
 
   void applyRealtimeRemove(int dealId) {

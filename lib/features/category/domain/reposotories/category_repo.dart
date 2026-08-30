@@ -30,4 +30,44 @@ class CategoryRepo extends DataSyncRepo{
       return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
     }
   }
+
+  /// Token-scoped catalog for the signed-in kiosk device. Branch comes from
+  /// the device token, never from the client `branch-id` header.
+  Future<ApiResponseModel> getKioskCategoryList({
+    int offset = 1,
+    int limit = 24,
+  }) async {
+    try {
+      final response = await dioClient.get(
+        '${AppConstants.kioskCategoriesUri}?limit=$limit&offset=$offset',
+      );
+      return ApiResponseModel.withSuccess(response);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
+
+  Future<ApiResponseModel> getKioskProductList({
+    String? categoryID,
+    required int offset,
+    int limit = 10,
+    String type = 'all',
+    String? name,
+  }) async {
+    try {
+      final buffer = StringBuffer(
+        '${AppConstants.kioskProductsUri}?offset=$offset&limit=$limit&product_type=$type',
+      );
+      if (categoryID != null && categoryID.isNotEmpty) {
+        buffer.write('&category_id=$categoryID');
+      }
+      if (name != null && name.isNotEmpty) {
+        buffer.write('&name=$name');
+      }
+      final response = await dioClient.get(buffer.toString());
+      return ApiResponseModel.withSuccess(response);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
 }

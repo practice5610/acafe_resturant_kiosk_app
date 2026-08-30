@@ -38,8 +38,16 @@ class CategoryProvider extends DataSyncProvider {
 
   // Kiosk menu prefetch cache (singleton — shared between welcome + menu screens).
   String? _kioskPrefetchLocale;
+  int? _kioskPrefetchBranchId;
+  bool _kioskMenuLoaded = false;
   Future<void>? _kioskPrefetchFuture;
   final Map<String, ProductModel> _kioskProductsByCategory = {};
+
+  int? get _sessionBranchId {
+    final id = categoryRepo?.sharedPreferences?.getInt(AppConstants.branch);
+    if (id == null || id <= 0) return null;
+    return id;
+  }
 
   /// True while a prefetch is in flight (used by the ORDER HERE button spinner).
   bool get isKioskMenuPrefetching => _kioskPrefetchFuture != null;
@@ -53,12 +61,31 @@ class CategoryProvider extends DataSyncProvider {
     }
   }
 
-  /// Whether categories + first-category products are ready for instant menu render.
+  /// Whether the in-memory menu matches this locale and the signed-in branch.
+  /// An empty menu is a valid ready state — a new branch with zero products
+  /// must not keep showing another branch's cached catalog.
   bool isKioskMenuReadyFor(String localeCode) {
-    return _categoryList != null &&
-        _categoryList!.isNotEmpty &&
-        _categoryProductModel != null &&
-        _kioskPrefetchLocale == localeCode;
+    final branchId = _sessionBranchId;
+    if (branchId == null || !_kioskMenuLoaded) return false;
+    return _kioskPrefetchLocale == localeCode &&
+        _kioskPrefetchBranchId == branchId;
+  }
+
+  /// Drop the in-memory (+ optional disk) menu so the next prefetch cannot
+  /// leak another branch's products after login / logout / rebind.
+  Future<void> clearKioskMenu({bool persist = true}) async {
+    _categoryList = null;
+    _categoryModel = null;
+    _categoryProductModel = null;
+    _selectedSubCategoryId = null;
+    _kioskProductsByCategory.clear();
+    _kioskPrefetchLocale = null;
+    _kioskPrefetchBranchId = null;
+    _kioskMenuLoaded = false;
+    if (persist) {
+      await categoryRepo?.sharedPreferences?.remove(AppConstants.kioskMenuCacheKey);
+    }
+    notifyListeners();
   }
 
   /// Prefetch categories + all category products for the kiosk welcome screen.
@@ -134,6 +161,7 @@ class CategoryProvider extends DataSyncProvider {
 
   /// Hydrate from SharedPreferences. Network prefetch only if the cache is empty.
   Future<void> warmKioskMenuFromDisk(String localeCode) async {
+    _discardStaleKioskMenuIfNeeded();
     if (_hydrateKioskMenuFromDisk(localeCode)) {
       notifyListeners();
     }
@@ -206,10 +234,25 @@ class CategoryProvider extends DataSyncProvider {
     return buffer.toString();
   }
 
+  void _discardStaleKioskMenuIfNeeded() {
+    final branchId = _sessionBranchId;
+    if (!_kioskMenuLoaded) return;
+    if (branchId != null && _kioskPrefetchBranchId == branchId) return;
+    _categoryList = null;
+    _categoryModel = null;
+    _categoryProductModel = null;
+    _selectedSubCategoryId = null;
+    _kioskProductsByCategory.clear();
+    _kioskPrefetchLocale = null;
+    _kioskPrefetchBranchId = null;
+    _kioskMenuLoaded = false;
+  }
+
   Future<void> _runKioskPrefetch({
     required String localeCode,
     bool force = false,
   }) async {
+    _discardStaleKioskMenuIfNeeded();
     if (!force) {
       final hydrated = _hydrateKioskMenuFromDisk(localeCode);
       if (hydrated && isKioskMenuReadyFor(localeCode)) {
@@ -242,7 +285,14 @@ class CategoryProvider extends DataSyncProvider {
       final Map<String, dynamic> data = jsonDecode(raw);
       final storedLocale = data['locale'] as String?;
       final fetchedAtMs = data['fetchedAt'] as int?;
-      if (storedLocale != localeCode || fetchedAtMs == null) return false;
+      final storedBranch = int.tryParse('${data['branchId']}');
+      final branchId = _sessionBranchId;
+      if (storedLocale != localeCode ||
+          fetchedAtMs == null ||
+          branchId == null ||
+          storedBranch != branchId) {
+        return false;
+      }
 
       final age = DateTime.now().difference(
         DateTime.fromMillisecondsSinceEpoch(fetchedAtMs),
@@ -268,7 +318,9 @@ class CategoryProvider extends DataSyncProvider {
       }
 
       _kioskPrefetchLocale = localeCode;
-      return _categoryProductModel != null;
+      _kioskPrefetchBranchId = branchId;
+      _kioskMenuLoaded = true;
+      return true;
     } catch (_) {
       return false;
     }
@@ -276,24 +328,21 @@ class CategoryProvider extends DataSyncProvider {
 
   Future<bool> _fetchKioskMenuFromNetwork(String localeCode) async {
     if (categoryRepo == null) return false;
+    final branchId = _sessionBranchId;
+    if (branchId == null) return false;
 
     try {
-      final ApiResponseModel catResponse = await categoryRepo!.getCategoryList(
-        source: DataSourceEnum.client,
-        limit: 24,
-        offset: 1,
-      );
+      final ApiResponseModel catResponse =
+          await categoryRepo!.getKioskCategoryList(limit: 24, offset: 1);
       if (catResponse.response?.statusCode != 200) return false;
 
-      final categories =
-          CategoryData.fromJson(catResponse.response!.data).categories ?? [];
-      if (categories.isEmpty) return false;
-
+      final categoryModel = CategoryData.fromJson(catResponse.response!.data);
+      final categories = categoryModel.categories ?? [];
       final Map<String, ProductModel> productsByCategory = {};
 
       for (final category in categories) {
         final ApiResponseModel prodResponse =
-            await categoryRepo!.getCategoryProductList(
+            await categoryRepo!.getKioskProductList(
           categoryID: '${category.id}',
           offset: 1,
           type: 'all',
@@ -305,30 +354,51 @@ class CategoryProvider extends DataSyncProvider {
         }
       }
 
-      if (productsByCategory.isEmpty) return false;
-
-      _categoryList = List<CategoryModel>.from(categories);
-      _categoryModel = CategoryData.fromJson(catResponse.response!.data);
-      _kioskProductsByCategory
-        ..clear()
-        ..addAll(productsByCategory);
-
-      // Preserve the category the user is currently browsing across refreshes
-      // (a background poll must not yank them back to the first category). Fall
-      // back to the first category only when the previous selection is gone.
-      final previousSelection = _selectedSubCategoryId;
-      if (previousSelection != null &&
-          _kioskProductsByCategory.containsKey(previousSelection)) {
-        _selectedSubCategoryId = previousSelection;
-      } else {
-        _selectedSubCategoryId = '${_categoryList!.first.id}';
-      }
-      _categoryProductModel = _kioskProductsByCategory[_selectedSubCategoryId];
+      _applyFetchedKioskMenu(
+        localeCode: localeCode,
+        branchId: branchId,
+        categoryModel: categoryModel,
+        categories: categories,
+        productsByCategory: productsByCategory,
+      );
       _isLoading = false;
-      return _categoryProductModel != null;
+      return true;
     } catch (_) {
       return false;
     }
+  }
+
+  void _applyFetchedKioskMenu({
+    required String localeCode,
+    required int branchId,
+    required CategoryData categoryModel,
+    required List<CategoryModel> categories,
+    required Map<String, ProductModel> productsByCategory,
+  }) {
+    _categoryList = List<CategoryModel>.from(categories);
+    _categoryModel = categoryModel;
+    _kioskProductsByCategory
+      ..clear()
+      ..addAll(productsByCategory);
+    _kioskPrefetchLocale = localeCode;
+    _kioskPrefetchBranchId = branchId;
+    _kioskMenuLoaded = true;
+
+    // Preserve the category the user is currently browsing across refreshes
+    // (a background poll must not yank them back to the first category). Fall
+    // back to the first category only when the previous selection is gone.
+    final previousSelection = _selectedSubCategoryId;
+    if (previousSelection != null &&
+        _kioskProductsByCategory.containsKey(previousSelection)) {
+      _selectedSubCategoryId = previousSelection;
+    } else if (_categoryList!.isNotEmpty) {
+      _selectedSubCategoryId = '${_categoryList!.first.id}';
+    } else {
+      _selectedSubCategoryId = null;
+    }
+    _categoryProductModel = _selectedSubCategoryId == null
+        ? null
+        : _kioskProductsByCategory[_selectedSubCategoryId];
   }
 
   Future<void> _persistKioskMenuToDisk(String localeCode) async {
@@ -345,12 +415,13 @@ class CategoryProvider extends DataSyncProvider {
         AppConstants.kioskMenuCacheKey,
         jsonEncode({
           'locale': localeCode,
+          'branchId': _kioskPrefetchBranchId ?? _sessionBranchId,
           'fetchedAt': DateTime.now().millisecondsSinceEpoch,
           'categories': {
             'total_size': _categoryModel!.totalSize,
             'limit': _categoryModel!.limit,
             'offset': _categoryModel!.offset,
-            'categories': _categoryList!.map((c) => c.toJson()).toList(),
+            'categories': (_categoryList ?? []).map((c) => c.toJson()).toList(),
           },
           'productsByCategory': productsMap,
         }),
@@ -382,7 +453,25 @@ class CategoryProvider extends DataSyncProvider {
       return;
     }
 
-    // Not prefetched (e.g. deep-link/cold start) — normal load with skeleton.
+    // Not prefetched (e.g. deep-link/cold start) — token-scoped kiosk catalog.
+    if (categoryRepo != null) {
+      final ApiResponseModel apiResponse = await categoryRepo!.getKioskProductList(
+        categoryID: categoryID,
+        offset: 1,
+        type: 'all',
+        limit: _kioskPrefetchProductLimit,
+      );
+      if (apiResponse.response != null &&
+          apiResponse.response!.statusCode == 200) {
+        _categoryProductModel =
+            ProductModel.fromJson(apiResponse.response?.data);
+        _kioskProductsByCategory[categoryID] = _categoryProductModel!;
+        _selectedSubCategoryId = categoryID;
+        notifyListeners();
+        return;
+      }
+    }
+
     await getCategoryProductList(categoryID, 1, limit: _kioskPrefetchProductLimit);
     if (_categoryProductModel != null) {
       _kioskProductsByCategory[categoryID] = _categoryProductModel!;
@@ -691,6 +780,10 @@ class CategoryProvider extends DataSyncProvider {
   void applyRealtimeUpsert(Product product) {
     final int? id = product.id;
     if (id == null) return;
+    if (_sessionBranchId == null ||
+        _kioskPrefetchBranchId != _sessionBranchId) {
+      return;
+    }
 
     var found = false;
     for (final model in _kioskProductsByCategory.values) {

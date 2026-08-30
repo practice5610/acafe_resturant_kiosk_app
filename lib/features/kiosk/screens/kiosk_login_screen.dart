@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
+import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -99,6 +101,9 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
 
     if (!mounted) return;
     if (response.isSuccess) {
+      await context.read<CategoryProvider>().clearKioskMenu();
+      context.read<KioskDealProvider>().clearDeals();
+      if (!mounted) return;
       RouterHelper.getKioskWelcomeRoute(
           action: RouteAction.pushNamedAndRemoveUntil);
     }

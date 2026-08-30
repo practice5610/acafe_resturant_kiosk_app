@@ -52,8 +52,14 @@ class KioskAuthRepo {
     String? category,
     String? orderingExperience,
   }) async {
+    final previousBranch = getBranchId();
     await sharedPreferences.setString(AppConstants.token, token);
     await sharedPreferences.setInt(AppConstants.branch, branchId);
+    if (previousBranch != branchId) {
+      await sharedPreferences.remove(AppConstants.kioskMenuCacheKey);
+      await sharedPreferences.remove(AppConstants.kioskDealsCacheKey);
+      await sharedPreferences.remove(AppConstants.kioskManagerStockCacheKey);
+    }
     if (branchName != null) {
       await sharedPreferences.setString(
           AppConstants.kioskBranchName, branchName);
@@ -126,6 +132,7 @@ class KioskAuthRepo {
   /// Wipe the device session (revoked/inactive/logout).
   Future<void> clearSession() async {
     await sharedPreferences.remove(AppConstants.token);
+    await sharedPreferences.remove(AppConstants.branch);
     await sharedPreferences.remove(AppConstants.kioskBranchName);
     await sharedPreferences.remove(AppConstants.kioskDeviceName);
     await sharedPreferences.remove(AppConstants.kioskUsername);
@@ -133,6 +140,9 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskDeviceCategory);
     await sharedPreferences.remove(AppConstants.kioskOrderingExperience);
     await sharedPreferences.remove(AppConstants.cartList);
+    await sharedPreferences.remove(AppConstants.kioskMenuCacheKey);
+    await sharedPreferences.remove(AppConstants.kioskDealsCacheKey);
+    await sharedPreferences.remove(AppConstants.kioskManagerStockCacheKey);
     await dioClient.updateHeader(getToken: null);
   }
 }
