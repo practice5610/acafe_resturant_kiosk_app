@@ -25,6 +25,10 @@ const Color _kStepUpcoming = Color(0xFFB9B5A6);
 const double _kStepProgressArtboardHeight =
     KioskCustomizeSpec.backButtonTop + 156;
 
+/// Ceiling on that growth, so a very short window cannot answer "the page is
+/// tiny" with "then the photo is the page".
+const double _kStepHeroGrowthMax = 1.75;
+
 /// The three questions Version B asks, in order.
 enum _CustomizeStep {
   milks,
@@ -142,8 +146,7 @@ class _KioskProductCustomizeStepScreenState
     // Left the flow without the line reaching the cart — unless an admin
     // live-switched Ordering Experience and this host remounted the other flow.
     // `step` records WHERE they dropped out for the drop-off-by-step report.
-    final bool suppress =
-        KioskCustomizeExperienceHost.suppressAbandonOnce;
+    final bool suppress = KioskCustomizeExperienceHost.suppressAbandonOnce;
     if (suppress) {
       KioskCustomizeExperienceHost.suppressAbandonOnce = false;
     }
@@ -257,43 +260,149 @@ class _KioskProductCustomizeStepScreenState
               builder: (context, constraints) {
                 // See [_KioskCustomizeActions._lastExperience].
                 _lastExperience = experienceOf(context);
+                final Size window =
+                    Size(constraints.maxWidth, constraints.maxHeight);
+                final bool landscape = window.width > window.height;
+
+                // ONE STACK IN EVERY ORIENTATION, exactly as Version A does:
+                // progress bar, product header, the step's panels, action bar.
+                // The old landscape split (header left, step right) read as two
+                // half-finished screens on anything between a tablet and a 4K
+                // panel, and it put the product's photo and its question in
+                // separate places for the customer to join up.
+                //
+                // A wide window centres that stack in a column, and the scale
+                // is measured against THAT width — the page has to fit the
+                // column it is drawn in, not the glass.
+                final bool hasDescription =
+                    kioskProductDescription(product).isNotEmpty;
                 // Same scale rule as Version A, plus the progress bar's own
                 // height: the bar costs vertical room the hero would otherwise
                 // use, so the page has to be measured with it included.
-                final Size viewport =
-                    Size(constraints.maxWidth, constraints.maxHeight);
-                final bool landscape = viewport.width > viewport.height;
-                final double artboard = kioskCustomizeArtboardHeight(
-                      hasDescription:
-                          kioskProductDescription(product).isNotEmpty,
-                      // Version B shows ONE step at a time, so only the tallest
-                      // of the three has to fit — the milk step, which carries
-                      // the size row and every dietary group.
-                      variationPanels: (_sections.size.isEmpty ? 0 : 1) +
-                          _sections.dietary.length,
-                      hasAddOns: false,
-                      hasVessel: false,
-                      landscape: landscape,
+                //
+                // ONE step is on screen at a time, so the page only has to be
+                // as tall as the TALLEST step this product actually has —
+                // measured per step, not assumed to be the milk one. A product
+                // whose only question is add-ons has no milk step at all, and
+                // budgeting that step's (absent) panels left the add-on grid
+                // with no height to be laid out in.
+                double stepArtboard(_CustomizeStep step,
+                        {required bool split}) =>
+                    kioskCustomizeArtboardHeight(
+                      hasDescription: hasDescription,
+                      variationPanels: step == _CustomizeStep.milks
+                          ? (_sections.size.isEmpty ? 0 : 1) +
+                              _sections.dietary.length
+                          : 0,
+                      hasAddOns: step == _CustomizeStep.addOns,
+                      hasVessel: step == _CustomizeStep.cupOrCan,
+                      // `landscape: true` is the OLD two-column budget — the
+                      // taller of the header and the panels, not the two
+                      // stacked. Only the hero still asks for it; see below.
+                      landscape: split,
                     ) +
                     _kStepProgressArtboardHeight;
-                final double s = kioskCustomizeScale(
+
+                final double artboard = _steps
+                    .map((step) => stepArtboard(step, split: false))
+                    .reduce(math.max);
+                final double band =
+                    math.min(window.width, kKioskContentMaxWidth);
+                // The column is the shared reading column, widened by whatever
+                // the window's HEIGHT can pay for: a page this many artboard px
+                // tall on a 2160px panel affords `2572 * (2160 / artboard)` of
+                // width and still fits, and taking that is what stops a 4K
+                // kiosk drawing a small page in a sea of beige. Height is what
+                // this screen is short of, so height is what sets the width.
+                final double heightFit = KioskCustomizeSpec.artboardWidth *
+                    (window.height / artboard);
+                final double column = math.min(
+                  band,
+                  math.max(
+                    kioskReadingColumnWidth(width: band, landscape: landscape),
+                    heightFit,
+                  ),
+                );
+                final Size viewport = Size(column, window.height);
+                // The page at the design's own hero, before the photo is
+                // allowed to give height back or take it.
+                final double baseScale = kioskCustomizeScale(
                     viewport: viewport, artboardHeight: artboard);
+                // A viewport too short for the stack buys height back from the
+                // hero photo rather than from the type — the same escape hatch
+                // Version A uses, which the split layout never needed.
+                final double heroShrink = kioskCustomizeHeroFactor(
+                  viewport: viewport,
+                  artboardHeight: artboard,
+                  scale: baseScale,
+                  hasDescription: hasDescription,
+                );
+                // And where the page DOES fit, the photo is drawn at the size
+                // the old split layout gave it.
+                //
+                // Stacking measures the page against its whole height — header
+                // AND panels AND bar — where the split measured it against the
+                // taller of two columns. `s` is smaller as a result, and the
+                // one element that reads as too small at the smaller scale is
+                // the product's own photo: type has the panel headings and the
+                // buttons to be judged against, the photo has only itself. So
+                // it keeps the split layout's scale as its own factor, while
+                // everything else stays on the page's — never below 1, so this
+                // can only ever give the hero back size, never take it.
+                final double splitScale = kioskCustomizeScale(
+                  viewport: viewport,
+                  artboardHeight: _steps
+                      .map((step) => stepArtboard(step, split: true))
+                      .reduce(math.max),
+                );
+                // …but only as far as the page can still be laid out in one
+                // screen. The scale rule will not shrink below
+                // [kKioskCustomizeHeightPull] of the width rule, so a page
+                // taller than the viewport at THAT scale is one the step's
+                // panels have to be scrolled for — and a photo big enough to
+                // push the questions under the action bar has stopped being an
+                // improvement. This is the largest hero that still fits.
+                final double floorScale = math.min(
+                        viewport.width / KioskCustomizeSpec.artboardWidth,
+                        1.0) *
+                    kKioskCustomizeHeightPull;
+                final double fitCap = floorScale <= 0
+                    ? 1.0
+                    : 1 +
+                        (viewport.height / floorScale - artboard) /
+                            KioskCustomizeSpec.heroBlock;
+                final double heroFactor = heroShrink < 1
+                    ? heroShrink
+                    : math.max(
+                        1.0,
+                        math.min(
+                          baseScale <= 0 ? 1.0 : splitScale / baseScale,
+                          math.min(_kStepHeroGrowthMax, fitCap),
+                        ),
+                      );
+                // The page is then re-measured WITH that hero, so the height
+                // the photo takes is height the page knew about: the rest of
+                // the screen gives up a few per cent of scale and the step's
+                // panels keep their room, instead of the taller photo pushing
+                // them under the action bar to be scrolled for.
+                final double s = kioskCustomizeScale(
+                  viewport: viewport,
+                  artboardHeight: kioskCustomizeArtboardWithHero(
+                    artboardHeight: artboard,
+                    heroFactor: heroFactor,
+                  ),
+                );
+                final double gutter = KioskCustomizeSpec.gutter * s;
 
                 return KioskCenteredContent(
-                  // Same as Version A: fill the shell. Do not cap at
-                  // `2572 * s` — that is what produced the oversized beige
-                  // side margins. KioskShell already caps at the artboard.
-                  maxWidth: constraints.maxWidth,
+                  maxWidth: column,
                   child: Column(
                     children: [
                       // Progress bar + back button. Rebuilt on step change,
                       // which is exactly what it displays.
                       Padding(
-                        padding: EdgeInsets.fromLTRB(
-                            KioskCustomizeSpec.gutter * s,
-                            KioskCustomizeSpec.backButtonTop * s,
-                            KioskCustomizeSpec.gutter * s,
-                            0),
+                        padding: EdgeInsets.fromLTRB(gutter,
+                            KioskCustomizeSpec.backButtonTop * s, gutter, 0),
                         child: ValueListenableBuilder<int>(
                           valueListenable: _stepIndex,
                           builder: (context, current, _) =>
@@ -314,61 +423,14 @@ class _KioskProductCustomizeStepScreenState
                           ),
                         ),
                       ),
-                      if (landscape)
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 5,
-                                // Centre-or-scroll for the same reasons
-                                // Version A's header column does — see
-                                // [_FittedColumn].
-                                child: _FittedColumn(
-                                  s: s,
-                                  padding: EdgeInsets.fromLTRB(
-                                      KioskCustomizeSpec.gutter * s,
-                                      0,
-                                      KioskCustomizeSpec.gutter * s / 2,
-                                      0),
-                                  children: [
-                                    _Header(
-                                      s: s,
-                                      product: product,
-                                      productProvider: productProvider,
-                                      showBackButton: false,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                flex: 7,
-                                child: ValueListenableBuilder<int>(
-                                  valueListenable: _stepIndex,
-                                  builder: (context, current, _) => _stepBody(
-                                    s,
-                                    _steps[current],
-                                    productProvider,
-                                    padding: EdgeInsets.fromLTRB(
-                                        KioskCustomizeSpec.gutter * s / 2,
-                                        0,
-                                        KioskCustomizeSpec.gutter * s,
-                                        0),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else ...[
                       // Identity block — identical on every step, so it sits
                       // OUTSIDE the step listeners and is never rebuilt by a
                       // step change or an add-on tap.
                       Padding(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: KioskCustomizeSpec.gutter * s),
+                        padding: EdgeInsets.symmetric(horizontal: gutter),
                         child: _Header(
                           s: s,
+                          heroFactor: heroFactor,
                           product: product,
                           productProvider: productProvider,
                           showBackButton: false,
@@ -384,12 +446,10 @@ class _KioskProductCustomizeStepScreenState
                             s,
                             _steps[current],
                             productProvider,
-                            padding: EdgeInsets.symmetric(
-                                horizontal: KioskCustomizeSpec.gutter * s),
+                            padding: EdgeInsets.symmetric(horizontal: gutter),
                           ),
                         ),
                       ),
-                      ],
                       ValueListenableBuilder<int>(
                         valueListenable: _stepIndex,
                         builder: (context, current, _) => _StepActionBar(
