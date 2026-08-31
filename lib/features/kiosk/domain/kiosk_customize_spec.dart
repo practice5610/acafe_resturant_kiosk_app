@@ -331,8 +331,14 @@ double kioskCustomizeHeroFactor({
   required bool hasDescription,
 }) {
   if (scale <= 0) return 1;
+  // Looser than the pin/scroll decision: floating-point equality should not
+  // shrink a photo that essentially fits. See [kKioskCustomizeHeroFitEpsilon].
   if (kioskCustomizeFits(
-      viewport: viewport, artboardHeight: artboardHeight, scale: scale)) {
+        viewport: viewport,
+        artboardHeight: artboardHeight,
+        scale: scale,
+        slack: -kKioskCustomizeHeroFitEpsilon,
+      )) {
     return 1;
   }
   // Artboard px the header may occupy, and what it costs before the photo.
@@ -503,13 +509,28 @@ double kioskCustomizeScale({
       .toDouble();
 }
 
-/// Whether the pinned Figma layout fits: header, variation panels, one add-on
-/// row, cup/can and the action bar all on screen at once. False means the
-/// viewport is too short even at the floored scale, and the screen falls back
-/// to scrolling everything between the pinned action bar and the top.
+/// Headroom required before the pinned (non-scrolling) layout is used.
+///
+/// Fonts and borders routinely round a fraction of a pixel above the budgeted
+/// artboard height. Claiming "fits" at exact equality produced the yellow
+/// "BOTTOM OVERFLOWED BY 0.5 PIXELS" banner. Require a full pixel of slack so
+/// borderline pages scroll instead of overflowing.
+const double kKioskCustomizePinSlack = 1.0;
+
+/// Float tolerance when deciding whether the hero may stay at design size.
+/// Kept separate from [kKioskCustomizePinSlack]: the photo can still be full
+/// size on a page that prefers to scroll.
+const double kKioskCustomizeHeroFitEpsilon = 0.5;
+
+/// Whether [artboardHeight] × [scale] fits in [viewport] with [slack] to spare.
+///
+/// Default [slack] is [kKioskCustomizePinSlack] — the pin/scroll decision.
+/// Pass a negative slack (e.g. `-[kKioskCustomizeHeroFitEpsilon]`) for the
+/// looser "is the page essentially on-screen?" check the hero factor uses.
 bool kioskCustomizeFits({
   required Size viewport,
   required double artboardHeight,
   required double scale,
+  double slack = kKioskCustomizePinSlack,
 }) =>
-    artboardHeight * scale <= viewport.height + 0.5;
+    artboardHeight * scale <= viewport.height - slack;

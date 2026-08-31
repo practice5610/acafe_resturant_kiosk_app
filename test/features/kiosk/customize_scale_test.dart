@@ -220,8 +220,11 @@ void main() {
               viewport: viewport, artboardHeight: figmaProduct());
           if (kioskCustomizeFits(
               viewport: viewport, artboardHeight: figmaProduct(), scale: s)) {
-            expect(figmaProduct() * s, lessThanOrEqualTo(h + 0.5),
-                reason: 'pinned at ${w}x$h but the page is taller than that');
+            expect(
+              figmaProduct() * s,
+              lessThanOrEqualTo(h - kKioskCustomizePinSlack),
+              reason: 'pinned at ${w}x$h but the page is taller than that',
+            );
           }
         }
       }
