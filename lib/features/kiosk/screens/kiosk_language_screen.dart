@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
@@ -24,6 +25,7 @@ class KioskLanguageScreen extends StatefulWidget {
 class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
   int? _selectedIndex;
   bool _saving = false;
+  bool _introWarmStarted = false;
 
   @override
   void initState() {
@@ -35,6 +37,15 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
       (l) => l.languageCode == code,
     );
     if (_selectedIndex! < 0) _selectedIndex = 0;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_introWarmStarted && !widget.fromMenu) {
+      _introWarmStarted = true;
+      KioskIntroImage.warm(context);
+    }
   }
 
   Future<void> _onSave() async {
@@ -63,8 +74,18 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
     if (widget.fromMenu) {
       context.pop();
     } else {
-      RouterHelper.getKioskWelcomeRoute(action: RouteAction.pushReplacement);
+      await RouterHelper.openKioskWelcome(
+        context: context,
+        action: RouteAction.pushReplacement,
+      );
     }
+  }
+
+  Future<void> _goWelcome() async {
+    await RouterHelper.openKioskWelcome(
+      context: context,
+      action: RouteAction.pushReplacement,
+    );
   }
 
   @override
@@ -95,9 +116,7 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                             s: s,
                             fallback: widget.fromMenu
                                 ? RouterHelper.getKioskMenuRoute
-                                : () => RouterHelper.getKioskWelcomeRoute(
-                                      action: RouteAction.pushReplacement,
-                                    ),
+                                : _goWelcome,
                           ),
                           Expanded(
                             child: Text(

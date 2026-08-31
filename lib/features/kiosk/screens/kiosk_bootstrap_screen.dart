@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/enums/data_source_enum.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -44,7 +45,12 @@ class _KioskBootstrapScreenState extends State<KioskBootstrapScreen> {
     if (!mounted) return;
 
     if (valid) {
-      RouterHelper.getKioskWelcomeRoute(action: RouteAction.pushReplacement);
+      // Login shell below already warms the intro; ensureReady is a cache hit.
+      if (mounted) KioskIntroImage.warm(context);
+      await RouterHelper.openKioskWelcome(
+        context: mounted ? context : null,
+        action: RouteAction.pushReplacement,
+      );
     } else {
       RouterHelper.getKioskLoginRoute(action: RouteAction.pushReplacement);
     }

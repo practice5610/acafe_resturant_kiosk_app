@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
@@ -33,18 +34,22 @@ class KioskWelcomeScreen extends StatefulWidget {
 }
 
 class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
-  static const String _introImageAsset = 'assets/video/kiosk_intro_Image.png';
-  static const AssetImage _introImage = AssetImage(_introImageAsset);
-
   /// Aspect ratio of the intro artwork (the 2572x4522 kiosk artboard). Used to
   /// scale the overlay type with the artwork instead of with the window.
   static const double _introAspect = 2572 / 4522;
 
   /// Decoded artwork. Held directly (rather than shown through [Image]) so the
   /// painter can draw the whole picture *and* extend its edges in one pass.
+  /// Disposed when this screen leaves — Flutter's [ImageCache] may keep its
+  /// own copy until memory pressure; the next visit re-warms via
+  /// [KioskIntroImage] if needed.
   ui.Image? _intro;
   ImageStream? _introStream;
   ImageStreamListener? _introListener;
+
+  /// True when the decode arrived from cache on the same frame (pre-warmed).
+  /// Skips the fade-in so a warm hit never looks like a blank flash.
+  bool _introReadySync = false;
 
   bool _orderLoading = false;
 
@@ -68,13 +73,13 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   }
 
   void _resolveIntro() {
-    final ImageStream stream =
-        _introImage.resolve(createLocalImageConfiguration(context));
+    final ImageStream stream = KioskIntroImage.provider
+        .resolve(createLocalImageConfiguration(context));
     if (stream.key == _introStream?.key) return;
     if (_introListener != null) _introStream?.removeListener(_introListener!);
 
     _introListener = ImageStreamListener(
-      (ImageInfo info, bool _) {
+      (ImageInfo info, bool synchronousCall) {
         final ui.Image image = info.image.clone();
         info.dispose();
         if (!mounted) {
@@ -84,6 +89,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
         setState(() {
           _intro?.dispose();
           _intro = image;
+          _introReadySync = synchronousCall;
         });
       },
       // Asset missing or failed to decode -> keep the solid background instead
@@ -266,10 +272,13 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   Widget _buildBackground() {
     final ui.Image? image = _intro;
     // Until the artwork is decoded the screen is the artwork's own edge colour,
-    // so the fade-in is a fade, not a swap between two different backgrounds.
+    // so a cold decode fades in rather than swapping two different colours.
+    // A pre-warmed (sync) hit paints immediately — no blank flash.
     return AnimatedOpacity(
       opacity: image == null ? 0 : 1,
-      duration: const Duration(milliseconds: 400),
+      duration: _introReadySync
+          ? Duration.zero
+          : const Duration(milliseconds: 400),
       child: image == null
           ? const SizedBox.shrink()
           : CustomPaint(painter: _IntroBackgroundPainter(image)),

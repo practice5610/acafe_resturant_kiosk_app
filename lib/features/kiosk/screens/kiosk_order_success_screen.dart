@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -95,6 +96,12 @@ class _KioskOrderSuccessScreenState extends State<KioskOrderSuccessScreen>
       ..forward();
     _thanks = AnimationController(vsync: this, duration: _kThanksEnter);
     _holdTimer = Timer(_kConfirmEnter + _kConfirmHold, _showThanks);
+    // Re-warm intro while the thank-you beat plays so a later return to the
+    // welcome screen (idle / next customer) is a cache hit — no extra RAM
+    // held beyond Flutter's image cache.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) KioskIntroImage.warm(context);
+    });
   }
 
   @override

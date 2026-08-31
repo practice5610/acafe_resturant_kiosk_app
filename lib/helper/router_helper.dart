@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/common/enums/data_source_enum.dart';
 import 'package:acafe_customer/features/force_update/screens/force_update_screen.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_welcome_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_bootstrap_screen.dart';
@@ -73,7 +74,26 @@ class RouterHelper {
   static String getSplashRoute({RouteAction? action}) => _navigateRoute(splashScreen, route: action);
   static String getKioskBootstrapRoute({RouteAction? action}) => _navigateRoute(kioskBootstrapScreen, route: action);
   static String getKioskLoginRoute({RouteAction? action}) => _navigateRoute(kioskLoginScreen, route: action);
-  static String getKioskWelcomeRoute({RouteAction? action}) => _navigateRoute(kioskWelcomeScreen, route: action);
+  /// Opens the intro / welcome screen after warming its full-screen artwork
+  /// into Flutter's image cache (bounded — never stalls navigation). Prefer
+  /// this over navigating to [kioskWelcomeScreen] directly so every entry
+  /// path (login, bootstrap, language, return after an order) paints without
+  /// a blank flash.
+  static Future<void> openKioskWelcome({
+    RouteAction? action,
+    BuildContext? context,
+  }) async {
+    final BuildContext? ctx = context ?? Get.context;
+    if (ctx != null && ctx.mounted) {
+      await KioskIntroImage.ensureReady(ctx);
+    }
+    _navigateRoute(kioskWelcomeScreen, route: action);
+  }
+
+  /// Synchronous navigate kept for call sites that cannot await (e.g. some
+  /// button `onTap` wiring). Prefer [openKioskWelcome] when possible.
+  static String getKioskWelcomeRoute({RouteAction? action}) =>
+      _navigateRoute(kioskWelcomeScreen, route: action);
   static String getKioskMenuRoute({RouteAction? action}) => _navigateRoute(kioskMenuScreen, route: action);
   static String getKioskCartRoute({RouteAction? action}) => _navigateRoute(kioskCartScreen, route: action);
   static String getKioskCouponRoute({double? orderAmount, RouteAction? action}) =>

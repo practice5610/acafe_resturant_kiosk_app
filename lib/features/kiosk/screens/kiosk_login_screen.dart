@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
@@ -72,6 +73,19 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
   // kiosk can be re-bound / signed in as a different device). We intentionally do
   // NOT auto-skip to the menu on a stored session.
 
+  bool _introWarmStarted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Decode the next screen's artwork while staff type credentials — no UI
+    // cost, and login → intro then hits Flutter's image cache.
+    if (!_introWarmStarted) {
+      _introWarmStarted = true;
+      KioskIntroImage.warm(context);
+    }
+  }
+
   @override
   void dispose() {
     _usernameController.dispose();
@@ -102,10 +116,12 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
     if (!mounted) return;
     if (response.isSuccess) {
       await context.read<CategoryProvider>().clearKioskMenu();
-      context.read<KioskDealProvider>().clearDeals();
       if (!mounted) return;
-      RouterHelper.getKioskWelcomeRoute(
-          action: RouteAction.pushNamedAndRemoveUntil);
+      context.read<KioskDealProvider>().clearDeals();
+      await RouterHelper.openKioskWelcome(
+        context: context,
+        action: RouteAction.pushNamedAndRemoveUntil,
+      );
     }
     // On failure the error is shown inline via the provider's loginError.
   }
