@@ -262,7 +262,33 @@ class ProductRealtimeController {
     return error is DioException && error.response?.statusCode == 404;
   }
 
+  /// Pull the device's Ordering Experience back in step after a socket gap.
+  ///
+  /// The menu is reconciled on reconnect (below) precisely because pushes sent
+  /// while the socket was down are lost; device settings need the same
+  /// treatment. Fire-and-forget and independently guarded, so a failure here
+  /// never blocks the menu sync that follows it.
+  Future<void> _refreshDeviceSettings() async {
+    final auth = _auth;
+    if (auth == null) {
+      return;
+    }
+    try {
+      final bool changed = await auth.refreshDeviceSettings();
+      if (kDebugMode && changed) {
+        debugPrint(
+          'ProductRealtimeController ordering experience reconciled on '
+          'reconnect -> ${auth.orderingExperience.apiValue}',
+        );
+      }
+    } catch (e) {
+      debugPrint('ProductRealtimeController device settings refresh failed: $e');
+    }
+  }
+
   Future<void> _onReconnect() async {
+    unawaited(_refreshDeviceSettings());
+
     final config = _config;
     final branchId = gateway.branchId;
     if (config == null || branchId == null) {

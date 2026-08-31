@@ -8,7 +8,7 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 double kioskLineTotal(CartModel cart) {
   final int qty = cart.quantity ?? 1;
   final double addons = _kioskLineAddOnsTotal(cart);
-  return ((cart.discountedPrice ?? 0) + addons) * qty;
+  return (_kioskUnitPayable(cart) + addons) * qty;
 }
 
 /// Payable price of a single unit of this line (discounted price + add-ons).
@@ -16,8 +16,17 @@ double kioskLineTotal(CartModel cart) {
 /// Stable as quantity changes — use this for the menu "latest item" card so
 /// the price under the name does not shrink when the customer taps "+".
 double kioskLineUnitPrice(CartModel cart) {
-  return (cart.discountedPrice ?? 0) + _kioskLineAddOnsTotal(cart);
+  return _kioskUnitPayable(cart) + _kioskLineAddOnsTotal(cart);
 }
+
+/// What one unit of this line costs after its own discount, excluding add-ons.
+///
+/// [CartModel.discountedPrice] is the single source of truth for what a unit
+/// costs; every screen that quotes a price goes through here, and the order
+/// summary's discount is measured back to it (see [kioskDiscountTotal]) so the
+/// two can never name different numbers for the same line.
+double _kioskUnitPayable(CartModel cart) =>
+    cart.discountedPrice ?? ((cart.price ?? 0) - (cart.discountAmount ?? 0));
 
 /// Line total BEFORE the product's own discount = (list unit price + add-ons)
 /// × qty.
@@ -32,7 +41,10 @@ double kioskLineOriginalTotal(CartModel cart) {
   return ((cart.price ?? 0) + addons) * qty;
 }
 
-/// Grand total across all cart lines.
+/// Sum of every line's own total, before tax and before any cart-level coupon.
+///
+/// Screens that quote the customer a total want [kioskPayableTotal] instead;
+/// this is the lines on their own.
 double kioskCartTotal(List<CartModel?> cartList) {
   double total = 0;
   for (final cart in cartList) {
@@ -78,12 +90,20 @@ double kioskItemsTotal(List<CartModel?> cartList) {
   return total;
 }
 
-/// Total discount across all lines.
+/// Total discount across all lines: what [kioskItemsTotal] has to come down by
+/// to reach what the lines are actually worth.
+///
+/// Measured as list price minus payable price rather than read from
+/// [CartModel.discountAmount], so `items - discount` is the sum of the line
+/// totals by construction. Reading the stored field instead let the cart
+/// screen's YOUR PAY drift away from the menu cart bar whenever the two
+/// disagreed — which they did for every line carrying a paid variation.
 double kioskDiscountTotal(List<CartModel?> cartList) {
   double total = 0;
   for (final cart in cartList) {
     if (cart == null) continue;
-    total += (cart.discountAmount ?? 0) * (cart.quantity ?? 1);
+    final double payable = _kioskUnitPayable(cart);
+    total += ((cart.price ?? payable) - payable) * (cart.quantity ?? 1);
   }
   return total;
 }

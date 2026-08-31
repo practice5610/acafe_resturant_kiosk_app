@@ -82,6 +82,38 @@ class _FakeReverb {
   }
 }
 
+
+/// Minimal stand-in for `GET /api/v1/kiosk/device/me`.
+class _FakeDeviceApi {
+  late final HttpServer _server;
+  int status = 200;
+  Map<String, dynamic>? device = <String, dynamic>{
+    'id': 1,
+    'name': 'kiosk@gmail.com',
+    'category': 'kiosk',
+    'ordering_experience': 'version_b',
+  };
+  int calls = 0;
+
+  String get baseUrl => 'http://127.0.0.1:${_server.port}';
+
+  Future<void> start() async {
+    _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    _server.listen((HttpRequest request) async {
+      calls++;
+      request.response.statusCode = status;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({
+        'branch': {'id': 1, 'name': 'Acafe/Amsterdam'},
+        if (device != null) 'device': device,
+      }));
+      await request.response.close();
+    });
+  }
+
+  Future<void> stop() => _server.close(force: true);
+}
+
 void main() {
   group('ProductRealtimeGateway ordering experience', () {
     late _FakeReverb server;
@@ -223,6 +255,90 @@ void main() {
       expect(changed, isTrue);
       expect(auth.deviceId, 7);
       expect(auth.orderingExperience, KioskOrderingExperience.versionB);
+    });
+  });
+
+  group('KioskAuthProvider.refreshDeviceSettings', () {
+    late _FakeDeviceApi api;
+    late SharedPreferences prefs;
+    late KioskAuthProvider auth;
+
+    Future<void> buildProvider() async {
+      prefs = await SharedPreferences.getInstance();
+      final dio = DioClient(
+        api.baseUrl,
+        null,
+        loggingInterceptor: LoggingInterceptor(),
+        sharedPreferences: prefs,
+      );
+      auth = KioskAuthProvider(
+        kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs),
+      );
+    }
+
+    setUp(() async {
+      api = _FakeDeviceApi();
+      await api.start();
+      SharedPreferences.setMockInitialValues({
+        AppConstants.token: 'tok',
+        AppConstants.branch: 1,
+        AppConstants.kioskDeviceId: 1,
+        AppConstants.kioskOrderingExperience: 'version_a',
+      });
+      await buildProvider();
+    });
+
+    tearDown(() => api.stop());
+
+    test('adopts the experience the server reports after a socket gap', () async {
+      var notified = 0;
+      auth.addListener(() => notified++);
+
+      final changed = await auth.refreshDeviceSettings();
+
+      expect(changed, isTrue);
+      expect(auth.orderingExperience, KioskOrderingExperience.versionB);
+      expect(prefs.getString(AppConstants.kioskOrderingExperience), 'version_b');
+      expect(notified, greaterThan(0));
+    });
+
+    test('is a no-op when the server already agrees', () async {
+      api.device!['ordering_experience'] = 'version_a';
+
+      expect(await auth.refreshDeviceSettings(), isFalse);
+      expect(auth.orderingExperience, KioskOrderingExperience.versionA);
+    });
+
+    test('keeps the session on a failed request', () async {
+      api.status = 500;
+
+      expect(await auth.refreshDeviceSettings(), isFalse);
+      // A reconnect is when transient failures are likeliest -- this path must
+      // never log the kiosk out the way validateSession() does.
+      expect(auth.isLoggedIn(), isTrue);
+      expect(prefs.getString(AppConstants.token), 'tok');
+    });
+
+    test('does not downgrade to Version A when the field is absent', () async {
+      SharedPreferences.setMockInitialValues({
+        AppConstants.token: 'tok',
+        AppConstants.branch: 1,
+        AppConstants.kioskDeviceId: 1,
+        AppConstants.kioskOrderingExperience: 'version_b',
+      });
+      await buildProvider();
+      api.device!.remove('ordering_experience');
+
+      expect(await auth.refreshDeviceSettings(), isFalse);
+      expect(auth.orderingExperience, KioskOrderingExperience.versionB);
+    });
+
+    test('skips the request entirely when no device is logged in', () async {
+      SharedPreferences.setMockInitialValues({});
+      await buildProvider();
+
+      expect(await auth.refreshDeviceSettings(), isFalse);
+      expect(api.calls, 0);
     });
   });
 }

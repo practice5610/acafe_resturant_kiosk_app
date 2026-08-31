@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_deal.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
@@ -194,8 +195,11 @@ class _KioskDealDetailScreenState extends State<KioskDealDetailScreen> {
               splash.baseUrls?.productImageUrl,
           filename: _deal.image,
         ),
-        totalLabel: PriceConverterHelper.convertPrice(
-            kioskGrandTotal(cartProvider.cartList)),
+        // Same payable the cart bar and cart screen show, coupon included —
+        // "your total has been updated" has to name the total they will see.
+        totalLabel: PriceConverterHelper.convertPrice(kioskPayableTotal(
+            cartProvider.cartList,
+            Provider.of<CouponProvider>(context, listen: false).discount ?? 0)),
       ),
     );
   }

@@ -9,6 +9,7 @@ import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
@@ -1105,10 +1106,14 @@ class _CartBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CartProvider>(
-      builder: (context, cartProvider, _) {
+    // The coupon is read here too: this bar quotes the customer the same
+    // number the cart screen and the payment screen will, and summing the
+    // lines on their own would quietly drop tax and any applied coupon.
+    return Consumer2<CartProvider, CouponProvider>(
+      builder: (context, cartProvider, couponProvider, _) {
         final cartList = cartProvider.cartList;
-        final double total = kioskCartTotal(cartList);
+        final double total =
+            kioskPayableTotal(cartList, couponProvider.discount ?? 0);
         final int count = kioskCartItemCount(cartList);
 
         return Padding(

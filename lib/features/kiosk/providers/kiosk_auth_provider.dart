@@ -64,6 +64,55 @@ class KioskAuthProvider extends ChangeNotifier {
     return true;
   }
 
+  /// Re-read this device's back-office settings from `/device/me` and apply the
+  /// Ordering Experience the server reports. Returns true when the cached value
+  /// actually changed.
+  ///
+  /// Called when the catalog socket reconnects. Reverb does not replay: a
+  /// `device.ordering_experience.changed` push sent while the kiosk was
+  /// disconnected -- Reverb restarted, wifi dropped, tablet asleep, or the
+  /// broadcast itself failed because the socket server was down -- is gone for
+  /// good. Without this, the only thing that refreshed the setting was a cold
+  /// boot, so an admin's switch appeared to do nothing until someone killed the
+  /// app.
+  ///
+  /// Deliberately never clears the session, unlike [validateSession]. A
+  /// reconnect is exactly when a transient failure is most likely, and logging
+  /// a kiosk out mid-service over one failed request would be far worse than
+  /// running a stale flow until the next attempt.
+  Future<bool> refreshDeviceSettings() async {
+    if (!kioskAuthRepo.isLoggedIn()) {
+      return false;
+    }
+
+    final ApiResponseModel apiResponse = await kioskAuthRepo.getMe();
+    if (apiResponse.response?.statusCode != 200) {
+      return false;
+    }
+    final dynamic data = apiResponse.response!.data;
+    final dynamic device = data is Map ? data['device'] : null;
+    if (device is! Map) {
+      return false;
+    }
+
+    // An absent/empty field means "this server build does not report it", not
+    // "reset to Version A" -- fromApi() would fall back and silently downgrade
+    // a Version B kiosk on every reconnect.
+    final String? experience = device['ordering_experience']?.toString();
+    if (experience == null || experience.isEmpty) {
+      return false;
+    }
+
+    final int deviceId = device['id'] is int
+        ? device['id'] as int
+        : int.tryParse('${device['id']}') ?? (kioskAuthRepo.getDeviceId() ?? 0);
+
+    return applyOrderingExperienceFromRealtime(
+      deviceId: deviceId,
+      orderingExperience: experience,
+    );
+  }
+
   /// One-time device login. On success persists token + bound branch and
   /// returns success; on failure returns the server message (wrong creds /
   /// inactive device).

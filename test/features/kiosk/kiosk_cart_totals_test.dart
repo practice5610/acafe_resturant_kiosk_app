@@ -25,11 +25,12 @@ CartModel _line({
   List<AddOn>? addOnIds,
 }) {
   final double unit = price ?? product.price ?? 0;
+  final double payable = discountedPrice ?? unit;
   return CartModel(
     unit,
-    discountedPrice ?? unit,
+    payable,
     const [],
-    0,
+    unit - payable,
     quantity,
     0,
     addOnIds ?? const [],
@@ -112,6 +113,55 @@ void main() {
       expect(kioskLineTotal(line), 35.00);
       expect(kioskLineOriginalTotal(line), 39.00);
       expect(kioskLineUnitPrice(line), 17.50);
+    });
+  });
+
+  group('one payable per line, everywhere it is shown', () {
+    // The bug this guards: `discounted_price` was written from the product's
+    // BASE price, so a +11.00 variation was missing from it. The menu cart bar
+    // (sum of line totals) then quoted 104.00 while the cart screen's YOUR PAY
+    // (items - discount + tax) quoted 115.00, and the cart line card struck
+    // 111.00 through to advertise a discount the product does not have.
+    final product = _product(id: 3, price: 100);
+
+    test('an undiscounted line reads the same on the bar and in the summary',
+        () {
+      // Large +10.00, two milks at +0.50 — priced into `price` by the
+      // customize screen.
+      final line = _line(product: product, price: 111, discountedPrice: 111);
+
+      expect(kioskLineTotal(line), 111);
+      expect(kioskLineOriginalTotal(line), 111,
+          reason: 'nothing to strike through: this product has no discount');
+      expect(kioskCartTotal([line]), kioskGrandTotal([line]));
+    });
+
+    test('a genuinely discounted line strikes through its own list price', () {
+      // 10% off 111.00.
+      final line = _line(product: product, price: 111, discountedPrice: 99.90);
+
+      expect(kioskLineTotal(line), closeTo(99.90, 0.001));
+      expect(kioskLineOriginalTotal(line), 111);
+      expect(kioskCartTotal([line]), closeTo(kioskGrandTotal([line]), 0.001));
+    });
+
+    test('a stored discount_amount cannot pull the two apart', () {
+      // The shape an older build persisted: variations reached `price` but not
+      // `discounted_price`, and `discount_amount` agreed with neither. The bar
+      // and the summary must still quote one number for it.
+      final stale = CartModel(
+        111, // price, variations included
+        100, // discounted_price, variations missing
+        const [],
+        0, // discount_amount, agreeing with neither
+        1,
+        0,
+        const [],
+        product,
+        const [],
+      );
+
+      expect(kioskCartTotal([stale]), kioskGrandTotal([stale]));
     });
   });
 }

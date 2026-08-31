@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:acafe_customer/features/coupon/domain/reposotories/coupon_repo.dart';
+import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
@@ -156,6 +158,9 @@ void main() {
             create: (_) => ProductProvider(
                 productRepo:
                     ProductRepo(dioClient: dio, sharedPreferences: prefs))),
+        // The cart bar quotes the payable total, coupon included.
+        ChangeNotifierProvider<CouponProvider>(
+            create: (_) => CouponProvider(couponRepo: CouponRepo(dioClient: dio))),
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,

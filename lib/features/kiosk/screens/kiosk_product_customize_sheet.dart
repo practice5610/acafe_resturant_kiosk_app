@@ -6,6 +6,7 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
@@ -601,8 +602,6 @@ CartModel buildKioskCartModel(BuildContext context, Product product,
 
   final double? discount = product.discount;
   final String? discountType = product.discountType;
-  final double priceWithDiscount =
-      PriceConverterHelper.convertWithDiscount(price, discount, discountType)!;
 
   final List<AddOn> addOnIdList = [];
   for (int index = 0; index < (product.addOns?.length ?? 0); index++) {
@@ -613,10 +612,18 @@ CartModel buildKioskCartModel(BuildContext context, Product product,
     }
   }
 
+  // The discount is taken off the price of the configuration the customer
+  // actually chose, so it has to be applied to the variation-inclusive price.
+  // Discounting the bare base price instead left `discountedPrice` blind to
+  // every variation picked (a +10.00 Large simply vanished from it), which is
+  // what made the Add to Cart button, the cart line and the menu cart bar
+  // disagree with the order summary — and, on an undiscounted product, made
+  // `price` > `discountedPrice`, which the cart line card then drew as a
+  // discount that does not exist.
   final double priceWithVariation = price + variationPrice;
-  final double discountAmount = priceWithVariation -
-      PriceConverterHelper.convertWithDiscount(
-          priceWithVariation, discount, discountType)!;
+  final double priceWithDiscount = PriceConverterHelper.convertWithDiscount(
+      priceWithVariation, discount, discountType)!;
+  final double discountAmount = priceWithVariation - priceWithDiscount;
 
   return CartModel(
     priceWithVariation,
@@ -824,8 +831,11 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
           product: product,
           productImageBaseUrl: splash.baseUrls?.productImageUrl,
         ),
-        totalLabel: PriceConverterHelper.convertPrice(
-            kioskGrandTotal(cartProvider.cartList)),
+        // Same payable the cart bar and cart screen show, coupon included —
+        // "your total has been updated" has to name the total they will see.
+        totalLabel: PriceConverterHelper.convertPrice(kioskPayableTotal(
+            cartProvider.cartList,
+            Provider.of<CouponProvider>(context, listen: false).discount ?? 0)),
       ),
     );
   }
