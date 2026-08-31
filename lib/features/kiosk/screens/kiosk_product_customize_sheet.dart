@@ -550,7 +550,29 @@ class _KioskCustomizeExperienceHostState
             categories.findCachedProduct(_product.id) ?? _product;
         final String signature = ProductHelper.catalogModifierSignature(latest);
         if (signature != _modifierSignature) {
+          // Structural change (a variation or add-on row moved / appeared /
+          // vanished). Keep drawing the snapshot we already have until the
+          // post-frame callback has re-seeded ProductProvider, or this frame
+          // would index selection lists that are still sized for the old
+          // product.
           _scheduleCatalogReinit(latest, signature);
+        } else if (!identical(latest, _product)) {
+          // Same modifiers, new object: the admin changed something that is
+          // purely presentational as far as this screen's selection state is
+          // concerned — allergen tags, name, description, image.
+          //
+          // This branch is the whole reason the screen can go stale. The
+          // signature is (id, updated_at, variations, add-ons), and an
+          // allergen edit touches NONE of them: allergens live on the
+          // product_tag pivot, so `products.updated_at` does not move (see
+          // ProductAllergenService::syncTags, which now also touches the
+          // product). Without this we kept rendering the snapshot taken when
+          // the screen opened, and the CONTAINS strip only caught up when the
+          // customer backed out and re-entered — while a price or name edit,
+          // which does move updated_at, appeared instantly through the branch
+          // above. Adopting the fresh object costs nothing here: identical
+          // modifiers means every selection index still points at the same row.
+          _product = latest;
         }
 
         final experience = auth.orderingExperience;
