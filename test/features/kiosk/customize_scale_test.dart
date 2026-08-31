@@ -385,5 +385,66 @@ void main() {
         artboard,
       );
     });
+
+    test('resolved hero matches a shorter target page on a tall stack', () {
+      // Version A budgets every panel; Version B budgets one step. The photo
+      // on A must still land at B's on-screen size.
+      const Size viewport = Size(1080, 1920);
+      final double fullStack = stacked();
+      final double step = kioskCustomizeArtboardHeight(
+        hasDescription: true,
+        variationPanels: 2,
+        hasAddOns: false,
+        hasVessel: false,
+      );
+      final double stepSplit = kioskCustomizeArtboardHeight(
+        hasDescription: true,
+        variationPanels: 2,
+        hasAddOns: false,
+        hasVessel: false,
+        landscape: true,
+      );
+      final double baseScale =
+          kioskCustomizeScale(viewport: viewport, artboardHeight: fullStack);
+      final double heroFactor = kioskCustomizeResolvedHeroFactor(
+        viewport: viewport,
+        artboardHeight: fullStack,
+        baseScale: baseScale,
+        hasDescription: true,
+        targetArtboardHeight: step,
+        targetSplitArtboardHeight: stepSplit,
+      );
+      expect(heroFactor, greaterThan(1.0));
+      expect(heroFactor, lessThanOrEqualTo(kKioskCustomizeHeroGrowthMax));
+
+      final double aScale = kioskCustomizeScale(
+        viewport: viewport,
+        artboardHeight: kioskCustomizeArtboardWithHero(
+          artboardHeight: fullStack,
+          heroFactor: heroFactor,
+        ),
+      );
+      final double bFactor = kioskCustomizeResolvedHeroFactor(
+        viewport: viewport,
+        artboardHeight: step,
+        baseScale:
+            kioskCustomizeScale(viewport: viewport, artboardHeight: step),
+        hasDescription: true,
+        targetArtboardHeight: step,
+        targetSplitArtboardHeight: stepSplit,
+      );
+      final double bScale = kioskCustomizeScale(
+        viewport: viewport,
+        artboardHeight: kioskCustomizeArtboardWithHero(
+          artboardHeight: step,
+          heroFactor: bFactor,
+        ),
+      );
+      expect(
+        aScale * heroFactor,
+        closeTo(bScale * bFactor, 0.01),
+        reason: 'Version A hero effective scale should match Version B',
+      );
+    });
   });
 }

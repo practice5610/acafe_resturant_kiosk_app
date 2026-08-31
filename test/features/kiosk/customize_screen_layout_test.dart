@@ -2,6 +2,7 @@ import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/reposotories/product_repo.dart';
+import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/auth/domain/reposotories/auth_repo.dart';
@@ -603,5 +604,26 @@ void main() {
     }
 
     await closeScreen(tester);
+  });
+
+  testWidgets(
+      'Version A hero matches Version B on a portrait kiosk', (tester) async {
+    // The single-screen page budgets every panel, so its scale used to shrink
+    // the product photo below Version B's. Both now resolve the hero against
+    // the same per-step target.
+    const Size kiosk = Size(1080, 1920);
+
+    await pumpScreen(tester, kiosk, stepFlow: false);
+    final Size heroA = tester.getSize(find.byType(CustomImageWidget).first);
+    await closeScreen(tester);
+
+    await pumpScreen(tester, kiosk, stepFlow: true);
+    final Size heroB = tester.getSize(find.byType(CustomImageWidget).first);
+    await closeScreen(tester);
+
+    expect(heroA.width, closeTo(heroB.width, 2.0),
+        reason: 'A=${heroA.width} B=${heroB.width}');
+    expect(heroA.height, closeTo(heroB.height, 2.0),
+        reason: 'A=${heroA.height} B=${heroB.height}');
   });
 }

@@ -346,7 +346,96 @@ double kioskCustomizeHeroFactor({
       .toDouble();
 }
 
-/// The page height once the hero has been shrunk by [heroFactor].
+/// Ceiling on how far the hero may grow above the design size when reclaiming
+/// the scale a shorter page budget would have given the photo. Past this a
+/// short window answers "the page is tiny" with "then the photo is the page".
+const double kKioskCustomizeHeroGrowthMax = 1.75;
+
+/// Hero factor that both Ordering Experiences share.
+///
+/// Shrinks below 1.0 via [kioskCustomizeHeroFactor] when the page does not
+/// fit. Otherwise grows the photo so its on-screen size matches what a page
+/// budgeted at [targetArtboardHeight] would draw — Version B's per-step
+/// height, which Version A also targets so a single-screen customize does not
+/// punish the product shot for stacking every panel at once.
+///
+/// [targetSplitArtboardHeight] is the old two-column budget for that same
+/// target page; it only ever raises the hero, never lowers it, matching the
+/// growth Version B already applied on its own step.
+double kioskCustomizeResolvedHeroFactor({
+  required Size viewport,
+  required double artboardHeight,
+  required double baseScale,
+  required bool hasDescription,
+  required double targetArtboardHeight,
+  required double targetSplitArtboardHeight,
+}) {
+  final double shrink = kioskCustomizeHeroFactor(
+    viewport: viewport,
+    artboardHeight: artboardHeight,
+    scale: baseScale,
+    hasDescription: hasDescription,
+  );
+  if (shrink < 1) return shrink;
+
+  final double floorScale = math.min(
+          viewport.width / KioskCustomizeSpec.artboardWidth, 1.0) *
+      kKioskCustomizeHeightPull;
+
+  double fitCapFor(double artboard) => floorScale <= 0
+      ? 1.0
+      : 1 +
+          (viewport.height / floorScale - artboard) /
+              KioskCustomizeSpec.heroBlock;
+
+  final double targetBase = kioskCustomizeScale(
+      viewport: viewport, artboardHeight: targetArtboardHeight);
+  final double targetSplit = kioskCustomizeScale(
+      viewport: viewport, artboardHeight: targetSplitArtboardHeight);
+  final double targetHeroFactor = math.max(
+    1.0,
+    math.min(
+      targetBase <= 0 ? 1.0 : targetSplit / targetBase,
+      math.min(kKioskCustomizeHeroGrowthMax, fitCapFor(targetArtboardHeight)),
+    ),
+  );
+  final double targetEffective = kioskCustomizeScale(
+        viewport: viewport,
+        artboardHeight: kioskCustomizeArtboardWithHero(
+          artboardHeight: targetArtboardHeight,
+          heroFactor: targetHeroFactor,
+        ),
+      ) *
+      targetHeroFactor;
+
+  // Largest factor on THIS page whose effective hero scale reaches the
+  // target without blowing the fit cap or the growth ceiling.
+  final double maxFactor =
+      math.min(kKioskCustomizeHeroGrowthMax, fitCapFor(artboardHeight));
+  if (maxFactor <= 1) return 1;
+
+  double lo = 1.0;
+  double hi = maxFactor;
+  for (int i = 0; i < 24; i++) {
+    final double mid = (lo + hi) / 2;
+    final double effective = kioskCustomizeScale(
+          viewport: viewport,
+          artboardHeight: kioskCustomizeArtboardWithHero(
+            artboardHeight: artboardHeight,
+            heroFactor: mid,
+          ),
+        ) *
+        mid;
+    if (effective < targetEffective) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  return (lo + hi) / 2;
+}
+
+/// The page height once the hero has been shrunk (or grown) by [heroFactor].
 double kioskCustomizeArtboardWithHero({
   required double artboardHeight,
   required double heroFactor,

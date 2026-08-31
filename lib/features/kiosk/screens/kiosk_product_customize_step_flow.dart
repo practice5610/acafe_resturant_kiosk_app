@@ -25,10 +25,6 @@ const Color _kStepUpcoming = Color(0xFFB9B5A6);
 const double _kStepProgressArtboardHeight =
     KioskCustomizeSpec.backButtonTop + 156;
 
-/// Ceiling on that growth, so a very short window cannot answer "the page is
-/// tiny" with "then the photo is the page".
-const double _kStepHeroGrowthMax = 1.75;
-
 /// The three questions Version B asks, in order.
 enum _CustomizeStep {
   milks,
@@ -328,58 +324,21 @@ class _KioskProductCustomizeStepScreenState
                 // allowed to give height back or take it.
                 final double baseScale = kioskCustomizeScale(
                     viewport: viewport, artboardHeight: artboard);
-                // A viewport too short for the stack buys height back from the
-                // hero photo rather than from the type — the same escape hatch
-                // Version A uses, which the split layout never needed.
-                final double heroShrink = kioskCustomizeHeroFactor(
+                // Shared with Version A: shrink when the step does not fit,
+                // otherwise grow the photo toward the old split-layout size
+                // so both Ordering Experiences draw the hero at the same
+                // on-screen size. See [kioskCustomizeResolvedHeroFactor].
+                final double splitArtboard = _steps
+                    .map((step) => stepArtboard(step, split: true))
+                    .reduce(math.max);
+                final double heroFactor = kioskCustomizeResolvedHeroFactor(
                   viewport: viewport,
                   artboardHeight: artboard,
-                  scale: baseScale,
+                  baseScale: baseScale,
                   hasDescription: hasDescription,
+                  targetArtboardHeight: artboard,
+                  targetSplitArtboardHeight: splitArtboard,
                 );
-                // And where the page DOES fit, the photo is drawn at the size
-                // the old split layout gave it.
-                //
-                // Stacking measures the page against its whole height — header
-                // AND panels AND bar — where the split measured it against the
-                // taller of two columns. `s` is smaller as a result, and the
-                // one element that reads as too small at the smaller scale is
-                // the product's own photo: type has the panel headings and the
-                // buttons to be judged against, the photo has only itself. So
-                // it keeps the split layout's scale as its own factor, while
-                // everything else stays on the page's — never below 1, so this
-                // can only ever give the hero back size, never take it.
-                final double splitScale = kioskCustomizeScale(
-                  viewport: viewport,
-                  artboardHeight: _steps
-                      .map((step) => stepArtboard(step, split: true))
-                      .reduce(math.max),
-                );
-                // …but only as far as the page can still be laid out in one
-                // screen. The scale rule will not shrink below
-                // [kKioskCustomizeHeightPull] of the width rule, so a page
-                // taller than the viewport at THAT scale is one the step's
-                // panels have to be scrolled for — and a photo big enough to
-                // push the questions under the action bar has stopped being an
-                // improvement. This is the largest hero that still fits.
-                final double floorScale = math.min(
-                        viewport.width / KioskCustomizeSpec.artboardWidth,
-                        1.0) *
-                    kKioskCustomizeHeightPull;
-                final double fitCap = floorScale <= 0
-                    ? 1.0
-                    : 1 +
-                        (viewport.height / floorScale - artboard) /
-                            KioskCustomizeSpec.heroBlock;
-                final double heroFactor = heroShrink < 1
-                    ? heroShrink
-                    : math.max(
-                        1.0,
-                        math.min(
-                          baseScale <= 0 ? 1.0 : splitScale / baseScale,
-                          math.min(_kStepHeroGrowthMax, fitCap),
-                        ),
-                      );
                 // The page is then re-measured WITH that hero, so the height
                 // the photo takes is height the page knew about: the rest of
                 // the screen gives up a few per cent of scale and the step's
