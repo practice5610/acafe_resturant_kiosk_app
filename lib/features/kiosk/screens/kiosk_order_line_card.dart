@@ -23,6 +23,11 @@ const Color kOrderPlusText = Color(0xFFF3F3DD);
 /// "price-row" group).
 const Color kOrderWasPriceColor = Color(0xFF888480);
 
+/// Figma's cart thumbnail is a 473×660 portrait crop. That crop is what makes
+/// a line card a third of a 16:9 viewport tall, so wide layouts pass 1.0 and
+/// get a square instead — the same trade the product grid already makes.
+const double kOrderLineImageAspect = 473 / 660;
+
 /// One cart line: product image, name, price, modifier lines and a qty stepper.
 /// Tapping the card opens the edit sheet; the stepper updates the cart live.
 ///
@@ -34,18 +39,24 @@ class KioskOrderLineCard extends StatelessWidget {
   final int index;
   final bool compact;
 
+  /// Width ÷ height of the thumbnail. Defaults to the Figma portrait crop;
+  /// see [kOrderLineImageAspect].
+  final double imageAspect;
+
   const KioskOrderLineCard({
     super.key,
     this.s,
     required this.cart,
     required this.index,
     this.compact = false,
+    this.imageAspect = kOrderLineImageAspect,
   }) : assert(compact || s != null, 'scaled layout requires s');
 
   @override
   Widget build(BuildContext context) {
     if (compact) return _CompactLineCard(cart: cart, index: index);
-    return _ScaledLineCard(s: s!, cart: cart, index: index);
+    return _ScaledLineCard(
+        s: s!, cart: cart, index: index, imageAspect: imageAspect);
   }
 }
 
@@ -170,8 +181,12 @@ class _ScaledLineCard extends StatelessWidget {
   final double s;
   final CartModel cart;
   final int index;
+  final double imageAspect;
   const _ScaledLineCard(
-      {required this.s, required this.cart, required this.index});
+      {required this.s,
+      required this.cart,
+      required this.index,
+      required this.imageAspect});
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +219,7 @@ class _ScaledLineCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(33 * s),
                       child: SizedBox(
                         width: 473 * s,
-                        height: 660 * s,
+                        height: (473 * s) / imageAspect,
                         child: CustomImageWidget(
                           placeholder: Images.placeholderImage,
                           image: KioskProductImageHelper.cartLineImageUrl(
