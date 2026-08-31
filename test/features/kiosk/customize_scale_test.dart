@@ -334,42 +334,45 @@ void main() {
       }
     });
 
-    test('a short landscape window shrinks the hero, never past the floor', () {
-      for (final Size viewport in [
-        const Size(1366, 768),
-        const Size(1512, 905),
-        const Size(1920, 1080),
-        const Size(2560, 1440),
-      ]) {
-        final double f = factorAt(viewport);
-        expect(f, lessThan(1.0),
-            reason: 'the stack does not fit ${viewport.width}x'
-                '${viewport.height}, so the photo has to give');
-        expect(f, greaterThanOrEqualTo(kKioskCustomizeHeroFloor));
-      }
+    test('a window too short for a bare header shrinks to the floor', () {
+      // Shrink is decided against the no-options target. A MacBook 14" browser
+      // still fits that target (f=1); only degenerate heights hit the floor.
+      const Size viewport = Size(1024, 400);
+      final double target =
+          kioskCustomizeHeroTargetArtboard(hasDescription: true);
+      final double s =
+          kioskCustomizeScale(viewport: viewport, artboardHeight: target);
+      expect(
+        kioskCustomizeFits(
+            viewport: viewport, artboardHeight: target, scale: s),
+        isFalse,
+      );
+      final double f = kioskCustomizeHeroFactor(
+        viewport: viewport,
+        artboardHeight: target,
+        scale: s,
+        hasDescription: true,
+      );
+      expect(f, lessThan(1.0));
+      expect(f, greaterThanOrEqualTo(kKioskCustomizeHeroFloor));
     });
 
-    test('the header lands inside its share of a landscape viewport', () {
-      // What the factor is FOR: the header — hero, name, blurb, stepper — stops
-      // at [kKioskCustomizeHeaderShare] of the screen, so the first question is
-      // above the fold rather than under a half-page product shot.
-      for (final Size viewport in [
-        const Size(1512, 905),
-        const Size(1920, 1080),
-        const Size(2560, 1440),
-      ]) {
-        final double artboard = stacked();
-        final double s = kioskCustomizeScale(
-            viewport: viewport, artboardHeight: artboard);
-        final double f = factorAt(viewport);
-        final double header =
-            KioskCustomizeSpec.headerHeight(hasDescription: true) -
-                KioskCustomizeSpec.heroBlock * (1 - f);
-        expect(header * s,
-            lessThanOrEqualTo(viewport.height * kKioskCustomizeHeaderShare + 1),
-            reason: 'header is ${header * s} of ${viewport.height} at '
-                '${viewport.width}x${viewport.height}');
-      }
+    test('a MacBook 14" window keeps the no-options hero at full size', () {
+      const Size viewport = Size(1512, 905);
+      final double target =
+          kioskCustomizeHeroTargetArtboard(hasDescription: true);
+      final double s =
+          kioskCustomizeScale(viewport: viewport, artboardHeight: target);
+      expect(
+        kioskCustomizeHeroFactor(
+          viewport: viewport,
+          artboardHeight: target,
+          scale: s,
+          hasDescription: true,
+        ),
+        1.0,
+      );
+      expect(KioskCustomizeSpec.heroWidth * s, greaterThan(200));
     });
 
     test('the page height drops by exactly what the hero gave up', () {
@@ -386,65 +389,63 @@ void main() {
       );
     });
 
-    test('resolved hero matches a shorter target page on a tall stack', () {
-      // Version A budgets every panel; Version B budgets one step. The photo
-      // on A must still land at B's on-screen size.
-      const Size viewport = Size(1080, 1920);
-      final double fullStack = stacked();
-      final double step = kioskCustomizeArtboardHeight(
-        hasDescription: true,
-        variationPanels: 2,
-        hasAddOns: false,
-        hasVessel: false,
-      );
-      final double stepSplit = kioskCustomizeArtboardHeight(
-        hasDescription: true,
-        variationPanels: 2,
-        hasAddOns: false,
-        hasVessel: false,
-        landscape: true,
-      );
-      final double baseScale =
-          kioskCustomizeScale(viewport: viewport, artboardHeight: fullStack);
-      final double heroFactor = kioskCustomizeResolvedHeroFactor(
-        viewport: viewport,
-        artboardHeight: fullStack,
-        baseScale: baseScale,
-        hasDescription: true,
-        targetArtboardHeight: step,
-        targetSplitArtboardHeight: stepSplit,
-      );
-      expect(heroFactor, greaterThan(1.0));
-      expect(heroFactor, lessThanOrEqualTo(kKioskCustomizeHeroGrowthMax));
-
-      final double aScale = kioskCustomizeScale(
-        viewport: viewport,
-        artboardHeight: kioskCustomizeArtboardWithHero(
+    test('resolved hero matches a no-options product on a tall stack', () {
+      // Add-ons must not shrink the photo: full stack and bare header land at
+      // the same on-screen hero size — including a MacBook Pro 14" window.
+      for (final Size viewport in [
+        const Size(1080, 1920),
+        const Size(1512, 905),
+      ]) {
+        final double fullStack = stacked();
+        final double target =
+            kioskCustomizeHeroTargetArtboard(hasDescription: true);
+        final double targetSplit = kioskCustomizeArtboardHeight(
+          hasDescription: true,
+          variationPanels: 0,
+          hasAddOns: false,
+          hasVessel: false,
+          landscape: true,
+        );
+        final double fullFactor = kioskCustomizeResolvedHeroFactor(
+          viewport: viewport,
           artboardHeight: fullStack,
-          heroFactor: heroFactor,
-        ),
-      );
-      final double bFactor = kioskCustomizeResolvedHeroFactor(
-        viewport: viewport,
-        artboardHeight: step,
-        baseScale:
-            kioskCustomizeScale(viewport: viewport, artboardHeight: step),
-        hasDescription: true,
-        targetArtboardHeight: step,
-        targetSplitArtboardHeight: stepSplit,
-      );
-      final double bScale = kioskCustomizeScale(
-        viewport: viewport,
-        artboardHeight: kioskCustomizeArtboardWithHero(
-          artboardHeight: step,
-          heroFactor: bFactor,
-        ),
-      );
-      expect(
-        aScale * heroFactor,
-        closeTo(bScale * bFactor, 0.01),
-        reason: 'Version A hero effective scale should match Version B',
-      );
+          hasDescription: true,
+          targetArtboardHeight: target,
+          targetSplitArtboardHeight: targetSplit,
+        );
+        final double bareFactor = kioskCustomizeResolvedHeroFactor(
+          viewport: viewport,
+          artboardHeight: target,
+          hasDescription: true,
+          targetArtboardHeight: target,
+          targetSplitArtboardHeight: targetSplit,
+        );
+        final double fullEff = kioskCustomizeScale(
+              viewport: viewport,
+              artboardHeight: kioskCustomizeArtboardWithHero(
+                artboardHeight: fullStack,
+                heroFactor: fullFactor,
+              ),
+            ) *
+            fullFactor;
+        final double bareEff = kioskCustomizeScale(
+              viewport: viewport,
+              artboardHeight: kioskCustomizeArtboardWithHero(
+                artboardHeight: target,
+                heroFactor: bareFactor,
+              ),
+            ) *
+            bareFactor;
+        expect(fullEff, closeTo(bareEff, 0.01),
+            reason: 'full-stack hero must match no-options at '
+                '${viewport.width}x${viewport.height}');
+        expect(
+          KioskCustomizeSpec.heroWidth * fullEff,
+          greaterThan(180),
+          reason: 'Mac/kiosk hero must stay large with add-ons at '
+              '${viewport.width}x${viewport.height}',
+        );
+      }
     });
   });
 }

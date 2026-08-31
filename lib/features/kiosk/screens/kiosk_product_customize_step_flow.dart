@@ -320,24 +320,24 @@ class _KioskProductCustomizeStepScreenState
                   ),
                 );
                 final Size viewport = Size(column, window.height);
-                // The page at the design's own hero, before the photo is
-                // allowed to give height back or take it.
-                final double baseScale = kioskCustomizeScale(
-                    viewport: viewport, artboardHeight: artboard);
-                // Shared with Version A: shrink when the step does not fit,
-                // otherwise grow the photo toward the old split-layout size
-                // so both Ordering Experiences draw the hero at the same
-                // on-screen size. See [kioskCustomizeResolvedHeroFactor].
-                final double splitArtboard = _steps
-                    .map((step) => stepArtboard(step, split: true))
-                    .reduce(math.max);
+                // Shared with Version A: the photo matches a no-options product
+                // on this window so a step with milks/add-ons does not shrink
+                // it. See [kioskCustomizeResolvedHeroFactor].
+                final double heroTarget =
+                    kioskCustomizeHeroTargetArtboard(
+                        hasDescription: hasDescription);
                 final double heroFactor = kioskCustomizeResolvedHeroFactor(
                   viewport: viewport,
                   artboardHeight: artboard,
-                  baseScale: baseScale,
                   hasDescription: hasDescription,
-                  targetArtboardHeight: artboard,
-                  targetSplitArtboardHeight: splitArtboard,
+                  targetArtboardHeight: heroTarget,
+                  targetSplitArtboardHeight: kioskCustomizeArtboardHeight(
+                    hasDescription: hasDescription,
+                    variationPanels: 0,
+                    hasAddOns: false,
+                    hasVessel: false,
+                    landscape: true,
+                  ),
                 );
                 // The page is then re-measured WITH that hero, so the height
                 // the photo takes is height the page knew about: the rest of

@@ -351,54 +351,76 @@ double kioskCustomizeHeroFactor({
 /// short window answers "the page is tiny" with "then the photo is the page".
 const double kKioskCustomizeHeroGrowthMax = 1.75;
 
+/// Artboard height of a product with no customisation questions — header,
+/// optional description, quantity stepper and the action bar.
+///
+/// This is the page that looks "right" on a MacBook browser window: the photo
+/// is large because nothing below it is competing for height. Both Ordering
+/// Experiences size the hero against this budget so adding Size / Milk /
+/// add-ons / cup-or-can does not shrink the product shot; those panels scroll
+/// instead.
+double kioskCustomizeHeroTargetArtboard({required bool hasDescription}) =>
+    kioskCustomizeArtboardHeight(
+      hasDescription: hasDescription,
+      variationPanels: 0,
+      hasAddOns: false,
+      hasVessel: false,
+    );
+
 /// Hero factor that both Ordering Experiences share.
 ///
-/// Shrinks below 1.0 via [kioskCustomizeHeroFactor] when the page does not
-/// fit. Otherwise grows the photo so its on-screen size matches what a page
-/// budgeted at [targetArtboardHeight] would draw — Version B's per-step
-/// height, which Version A also targets so a single-screen customize does not
-/// punish the product shot for stacking every panel at once.
+/// The photo is sized to match what [targetArtboardHeight] would draw on this
+/// viewport (by default the no-options page from
+/// [kioskCustomizeHeroTargetArtboard]) — grown via the old split-layout scale
+/// when that helps, shrunk only when even that shorter target page cannot fit.
+/// Extra panels on [artboardHeight] never punish the photo: the page scrolls.
 ///
-/// [targetSplitArtboardHeight] is the old two-column budget for that same
-/// target page; it only ever raises the hero, never lowers it, matching the
-/// growth Version B already applied on its own step.
+/// [targetSplitArtboardHeight] is the old two-column budget for the target
+/// page; it only ever raises the hero above 1.0.
 double kioskCustomizeResolvedHeroFactor({
   required Size viewport,
   required double artboardHeight,
-  required double baseScale,
   required bool hasDescription,
   required double targetArtboardHeight,
   required double targetSplitArtboardHeight,
 }) {
-  final double shrink = kioskCustomizeHeroFactor(
-    viewport: viewport,
-    artboardHeight: artboardHeight,
-    scale: baseScale,
-    hasDescription: hasDescription,
-  );
-  if (shrink < 1) return shrink;
-
-  final double floorScale = math.min(
-          viewport.width / KioskCustomizeSpec.artboardWidth, 1.0) *
-      kKioskCustomizeHeightPull;
-
-  double fitCapFor(double artboard) => floorScale <= 0
-      ? 1.0
-      : 1 +
-          (viewport.height / floorScale - artboard) /
-              KioskCustomizeSpec.heroBlock;
-
+  // Shrink/grow decisions are made against the TARGET page — the size the
+  // photo should read at — not against the full stacked page. A product with
+  // add-ons on a MacBook landscape window used to shrink the hero because the
+  // tall stack did not fit; the no-options product on the same window kept a
+  // large photo. Match that large photo and let the options scroll.
   final double targetBase = kioskCustomizeScale(
       viewport: viewport, artboardHeight: targetArtboardHeight);
-  final double targetSplit = kioskCustomizeScale(
-      viewport: viewport, artboardHeight: targetSplitArtboardHeight);
-  final double targetHeroFactor = math.max(
-    1.0,
-    math.min(
-      targetBase <= 0 ? 1.0 : targetSplit / targetBase,
-      math.min(kKioskCustomizeHeroGrowthMax, fitCapFor(targetArtboardHeight)),
-    ),
+  final double targetShrink = kioskCustomizeHeroFactor(
+    viewport: viewport,
+    artboardHeight: targetArtboardHeight,
+    scale: targetBase,
+    hasDescription: hasDescription,
   );
+
+  late final double targetHeroFactor;
+  if (targetShrink < 1) {
+    targetHeroFactor = targetShrink;
+  } else {
+    final double targetSplit = kioskCustomizeScale(
+        viewport: viewport, artboardHeight: targetSplitArtboardHeight);
+    final double floorScale = math.min(
+            viewport.width / KioskCustomizeSpec.artboardWidth, 1.0) *
+        kKioskCustomizeHeightPull;
+    final double targetFitCap = floorScale <= 0
+        ? kKioskCustomizeHeroGrowthMax
+        : 1 +
+            (viewport.height / floorScale - targetArtboardHeight) /
+                KioskCustomizeSpec.heroBlock;
+    targetHeroFactor = math.max(
+      1.0,
+      math.min(
+        targetBase <= 0 ? 1.0 : targetSplit / targetBase,
+        math.min(kKioskCustomizeHeroGrowthMax, targetFitCap),
+      ),
+    );
+  }
+
   final double targetEffective = kioskCustomizeScale(
         viewport: viewport,
         artboardHeight: kioskCustomizeArtboardWithHero(
@@ -408,15 +430,15 @@ double kioskCustomizeResolvedHeroFactor({
       ) *
       targetHeroFactor;
 
-  // Largest factor on THIS page whose effective hero scale reaches the
-  // target without blowing the fit cap or the growth ceiling.
-  final double maxFactor =
-      math.min(kKioskCustomizeHeroGrowthMax, fitCapFor(artboardHeight));
-  if (maxFactor <= 1) return 1;
-
-  double lo = 1.0;
-  double hi = maxFactor;
-  for (int i = 0; i < 24; i++) {
+  // Map that on-screen size onto THIS page's scale. Search the full legal
+  // range — including below 1 when the target itself shrank — and do not let
+  // a "page still fits" cap block matching: a tall stack on a short window is
+  // already scrolling, and a larger photo is what the customer asked for.
+  final double loBound = kKioskCustomizeHeroFloor;
+  final double hiBound = kKioskCustomizeHeroGrowthMax;
+  double lo = loBound;
+  double hi = hiBound;
+  for (int i = 0; i < 28; i++) {
     final double mid = (lo + hi) / 2;
     final double effective = kioskCustomizeScale(
           viewport: viewport,

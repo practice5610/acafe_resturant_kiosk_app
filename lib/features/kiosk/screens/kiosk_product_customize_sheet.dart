@@ -953,27 +953,41 @@ class _KioskProductCustomizeScreenState
                 // would under-budget the page and scale it up until the stack
                 // ran off the bottom. (Version B still splits, and still asks
                 // for the landscape height — see the step flow.)
+                final bool hasDescription =
+                    kioskProductDescription(product).isNotEmpty;
                 final double artboard = kioskCustomizeArtboardHeight(
-                  hasDescription: kioskProductDescription(product).isNotEmpty,
+                  hasDescription: hasDescription,
                   variationPanels: (sizeVariations.isEmpty ? 0 : 1) +
                       dietaryVariations.length,
                   hasAddOns: hasAddOns,
                   hasVessel: cupCanVariations.isNotEmpty,
                 );
-                // ONE scale for the whole screen, bounded by the viewport's
-                // width AND its height — see [kioskCustomizeScale].
-                final double s = kioskCustomizeScale(
-                    viewport: viewport, artboardHeight: artboard);
-                // A viewport too short for the stack buys height back from the
-                // hero photo rather than from the type: at the floored scale a
-                // landscape window would otherwise open on a half-screen
-                // product shot with the first question already below the fold.
-                // 1.0 — the design's own hero — everywhere the page fits.
-                final double heroFactor = kioskCustomizeHeroFactor(
+                // Page scale still budgets every panel. The hero alone is sized
+                // as a no-options product would draw it — so Size / Milk /
+                // add-ons never shrink the photo on a MacBook window; those
+                // panels scroll under a large product shot instead.
+                final double heroTarget =
+                    kioskCustomizeHeroTargetArtboard(
+                        hasDescription: hasDescription);
+                final double heroFactor = kioskCustomizeResolvedHeroFactor(
                   viewport: viewport,
                   artboardHeight: artboard,
-                  scale: s,
-                  hasDescription: kioskProductDescription(product).isNotEmpty,
+                  hasDescription: hasDescription,
+                  targetArtboardHeight: heroTarget,
+                  targetSplitArtboardHeight: kioskCustomizeArtboardHeight(
+                    hasDescription: hasDescription,
+                    variationPanels: 0,
+                    hasAddOns: false,
+                    hasVessel: false,
+                    landscape: true,
+                  ),
+                );
+                final double s = kioskCustomizeScale(
+                  viewport: viewport,
+                  artboardHeight: kioskCustomizeArtboardWithHero(
+                    artboardHeight: artboard,
+                    heroFactor: heroFactor,
+                  ),
                 );
                 final double pageHeight = kioskCustomizeArtboardWithHero(
                     artboardHeight: artboard, heroFactor: heroFactor);
@@ -1184,10 +1198,10 @@ class _Header extends StatelessWidget {
   final Product product;
   final ProductProvider productProvider;
 
-  /// How much of the hero block this viewport can afford — 1.0 on every screen
-  /// the page fits, less only where the photo has to give height back to the
-  /// questions below it. See [kioskCustomizeHeroFactor]. Type is never touched:
-  /// the name, the blurb and the stepper stay at `s` whatever happens.
+  /// How much of the hero block this viewport can afford. See
+  /// [kioskCustomizeResolvedHeroFactor]: sized like a no-options product so
+  /// add-ons never shrink the shot. Type is never touched — the name, the
+  /// blurb and the stepper stay at `s` whatever happens.
   final double heroFactor;
 
   /// Version B draws its own back button beside the progress bar, so it asks

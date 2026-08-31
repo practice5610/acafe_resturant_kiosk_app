@@ -256,18 +256,11 @@ void main() {
     await closeScreen(tester);
   });
 
-  testWidgets('the header never eats more than the design\'s share of height',
-      (tester) async {
-    // Figma spends 1291 of 5400 on the header — under a quarter of the page.
-    // The old compact header existed because the real one blew past that.
-    //
-    // Version A stacks the page in every orientation now, so this holds
-    // EVERYWHERE, landscape included: a landscape window is the same page with
-    // a third of the height, and at the scale the height-pull floor allows the
-    // design's own header would cover over half of it — the customer would meet
-    // a giant product shot with the first question already below the fold. The
-    // hero gives that height back instead (kioskCustomizeHeroFactor), which is
-    // what this bound pins.
+  testWidgets('the header never covers the action bar', (tester) async {
+    // Portrait keeps the header under half the screen so the first question
+    // stays above the fold. Landscape Mac windows intentionally keep a large
+    // product photo (matching a no-options product) and scroll the panels —
+    // so only the "does not paint over Cancel / Add" bound applies there.
     for (final viewport in viewports) {
       await pumpScreen(tester, viewport);
       final Rect stepper = tester.getRect(find.text('1'));
@@ -275,9 +268,11 @@ void main() {
       expect(stepper.bottom, lessThanOrEqualTo(bar.top),
           reason: 'header runs to ${stepper.bottom}, over a bar at '
               '${bar.top} at ${viewport.width}x${viewport.height}');
-      expect(stepper.bottom, lessThan(viewport.height * 0.45),
-          reason: 'header runs to ${stepper.bottom} of ${viewport.height} '
-              'at ${viewport.width}x${viewport.height}');
+      if (viewport.height >= viewport.width) {
+        expect(stepper.bottom, lessThan(viewport.height * 0.45),
+            reason: 'header runs to ${stepper.bottom} of ${viewport.height} '
+                'at ${viewport.width}x${viewport.height}');
+      }
     }
 
     await closeScreen(tester);
@@ -608,9 +603,6 @@ void main() {
 
   testWidgets(
       'Version A hero matches Version B on a portrait kiosk', (tester) async {
-    // The single-screen page budgets every panel, so its scale used to shrink
-    // the product photo below Version B's. Both now resolve the hero against
-    // the same per-step target.
     const Size kiosk = Size(1080, 1920);
 
     await pumpScreen(tester, kiosk, stepFlow: false);
@@ -625,5 +617,46 @@ void main() {
         reason: 'A=${heroA.width} B=${heroB.width}');
     expect(heroA.height, closeTo(heroB.height, 2.0),
         reason: 'A=${heroA.height} B=${heroB.height}');
+  });
+
+  testWidgets(
+      'add-ons do not shrink the hero on a MacBook Pro 14" window',
+      (tester) async {
+    // Regression: a full product used to draw an ~80px photo here while a
+    // no-options product kept ~220px. Both must stay large.
+    const Size mac14 = Size(1512, 905);
+
+    Product bare() {
+      final Product full = buildProduct();
+      return Product(
+        id: full.id,
+        name: full.name,
+        description: full.description,
+        image: '',
+        price: full.price,
+        tax: 0,
+        discount: 0,
+        discountType: 'amount',
+        taxType: 'amount',
+        addOns: const [],
+        addOnGroups: const [],
+        variations: const [],
+      );
+    }
+
+    await pumpScreen(tester, mac14, product: bare());
+    final Size heroBare =
+        tester.getSize(find.byType(CustomImageWidget).first);
+    await closeScreen(tester);
+
+    await pumpScreen(tester, mac14);
+    final Size heroFull =
+        tester.getSize(find.byType(CustomImageWidget).first);
+    await closeScreen(tester);
+
+    expect(heroFull.width, closeTo(heroBare.width, 4.0),
+        reason: 'full=${heroFull.width} bare=${heroBare.width}');
+    expect(heroFull.width, greaterThan(180),
+        reason: 'hero stayed small with add-ons: ${heroFull.width}');
   });
 }
