@@ -105,14 +105,16 @@ void main() {
 
   group('height is a ceiling, which is the actual fix', () {
     test('a viewport shorter than the artboard\'s shape scales DOWN', () {
-      // 1080x1920 portrait: width alone would say 0.42, but 1920px cannot carry
-      // 0.42 of a 4800px page.
-      const double w = 1080, h = 1920;
+      // Width alone would say byWidth, but a viewport shorter than
+      // artboard × byWidth must pull scale down so the page still fits.
+      const double w = 1080;
+      final double artboard = figmaProduct();
       final double byWidth = w / KioskCustomizeSpec.artboardWidth;
+      final double h = artboard * byWidth * 0.85;
       final double s = scaleAt(w, h);
       expect(s, lessThan(byWidth),
           reason: 'the old screen used byWidth here and overflowed');
-      expect(figmaProduct() * s, lessThanOrEqualTo(h + 0.5));
+      expect(artboard * s, lessThanOrEqualTo(h + 0.5));
     });
 
     test('the browser window the screen looked oversized in shrinks', () {

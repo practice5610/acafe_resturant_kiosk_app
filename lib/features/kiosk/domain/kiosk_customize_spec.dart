@@ -89,15 +89,17 @@ class KioskCustomizeSpec {
   // -- section panels ------------------------------------------------------
   /// `Rectangle 62`: #FBF8EF, 1px #B9B5A6, 30px radius.
   static const double panelRadius = 30;
-  static const double panelPadH = 96;
-  static const double panelPadTop = 74;
-  static const double panelPadBottom = 130;
+  /// Panel insets tightened vs Figma so Size / Milk / add-on cards sit closer
+  /// to the title and edges without looking sparse on large windows.
+  static const double panelPadH = 72;
+  static const double panelPadTop = 52;
+  static const double panelPadBottom = 80;
 
   /// `Choose your dietary` / `Add add-ons` / `Can or cup?` — Loew ExtraBold 72.
   static const double panelTitleSize = 72;
 
-  /// Title box (93.237 at line-height 100%) -> first card.
-  static const double panelTitleGap = 84;
+  /// Title box -> first card.
+  static const double panelTitleGap = 52;
 
   /// Gap between two stacked panels.
   static const double panelGap = 46;
@@ -114,10 +116,10 @@ class KioskCustomizeSpec {
   static const double optionCardRadius = 31.5;
   static const double optionCardBorder = 3.15;
   static const double optionCardBorderSelected = 5.25;
-  static const double optionPadTop = 50;
-  static const double optionPadH = 24;
-  static const double optionPadBottom = 46;
-  static const double optionImageGap = 20;
+  static const double optionPadTop = 40;
+  static const double optionPadH = 18;
+  static const double optionPadBottom = 36;
+  static const double optionImageGap = 14;
 
   /// Loew Medium 45.36, uppercase, centred.
   static const double optionLabelSize = 45.36;
@@ -135,10 +137,10 @@ class KioskCustomizeSpec {
   static const double addOnCardRadius = 31.5;
   static const double addOnCardBorder = 3.15;
   static const double addOnCardBorderSelected = 4;
-  static const double addOnPadTop = 40;
-  static const double addOnPadH = 24;
-  static const double addOnPadBottom = 24;
-  static const double addOnInnerGap = 16;
+  static const double addOnPadTop = 32;
+  static const double addOnPadH = 18;
+  static const double addOnPadBottom = 18;
+  static const double addOnInnerGap = 12;
   static const double addOnImageRadius = 8;
 
   /// Loew Medium 45 at line-height 1.2 / Swiss 721 Light 36.
@@ -161,9 +163,12 @@ class KioskCustomizeSpec {
   /// `Group 98` / `card-shot-espresso` measurements above, which still
   /// drive [kioskCustomizeArtboardHeight] so shrinking the tiles cannot
   /// inflate the rest of the page.
-  static const double choiceCardWidth = 320;
-  static const double choiceCardHeight = 340;
-  static const double choiceCardGap = 24;
+  ///
+  /// ~10% under the previous 320×340 box so cards read tighter on large
+  /// screens without changing how many fit across a row.
+  static const double choiceCardWidth = 288;
+  static const double choiceCardHeight = 306;
+  static const double choiceCardGap = 20;
 
   /// Max width/height edge for those tiles on compact windows (< 900px).
   /// A 2–3-up on a phone otherwise stretches Small/Addon1 across a third
