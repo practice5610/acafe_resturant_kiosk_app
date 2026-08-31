@@ -84,7 +84,7 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final usernameEmpty = _usernameController.text.trim().isEmpty;
-    final passwordEmpty = _passwordController.text.isEmpty;
+    final passwordEmpty = _passwordController.text.trim().isEmpty;
     if (usernameEmpty || passwordEmpty) {
       setState(() {
         _usernameError = usernameEmpty ? 'Username is required' : null;

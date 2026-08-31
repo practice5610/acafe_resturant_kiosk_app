@@ -35,7 +35,7 @@ enum _CustomizeStep {
   /// translation, matching how the rest of the kiosk handles missing keys.
   String label(BuildContext context) => switch (this) {
         _CustomizeStep.milks =>
-          kioskTranslate(context, 'milks', 'Milks').toUpperCase(),
+          kioskTranslate(context, 'variation', 'Variation').toUpperCase(),
         _CustomizeStep.addOns =>
           kioskTranslate(context, 'add_ons', 'Add-ons').toUpperCase(),
         _CustomizeStep.cupOrCan =>

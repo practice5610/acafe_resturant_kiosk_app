@@ -122,7 +122,7 @@ class KioskAuthProvider extends ChangeNotifier {
     notifyListeners();
 
     final ApiResponseModel apiResponse =
-        await kioskAuthRepo.login(username.trim(), password);
+        await kioskAuthRepo.login(username.trim(), password.trim());
     ResponseModel responseModel;
 
     if (apiResponse.response != null &&
