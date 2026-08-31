@@ -41,6 +41,14 @@ class KioskResponsive {
   static const double minScale = 0.24;
   static const double maxScale = 1.0;
 
+  /// A stacked kiosk screen — cart, order summary, checkout form — centres
+  /// its content in one reading column on a landscape window. Full width there
+  /// is a line card with a thumbnail at one end and a stepper at the other,
+  /// with a metre of empty beige between them.
+  static const double readingColumnFraction = 0.62;
+  static const double readingColumnMin = 720;
+  static const double readingColumnMax = 1600;
+
   /// Type reduction for the customize / add-on choice-card labels, whose
   /// Figma sizes overflow the card at real kiosk widths. The menu screen is
   /// deliberately NOT scaled by this — it renders type at full artboard size.
@@ -520,6 +528,79 @@ class KioskCategoryRailLayout {
   final double width;
   final double gap;
   const KioskCategoryRailLayout({required this.width, required this.gap});
+}
+
+/// Width of the centred reading column for a window of [width]. Portrait
+/// keeps the full width — there the artboard already *is* the column.
+double kioskReadingColumnWidth({
+  required double width,
+  required bool landscape,
+}) {
+  if (!landscape) return width;
+  // 62% of a medium landscape window can sit below the 720 floor, so this is
+  // bounded rather than clamped: the column shrinks instead of throwing.
+  return kioskBounded(
+    width * KioskResponsive.readingColumnFraction,
+    min: math.min(KioskResponsive.readingColumnMin, width),
+    max: math.min(KioskResponsive.readingColumnMax, width),
+  );
+}
+
+/// Horizontal insets that put a stacked screen's content on that column.
+///
+/// [left] / [right] are measured inside the centred artboard band, where the
+/// header and the scrolling body live. [pageLeft] / [pageRight] are the same
+/// column measured from the screen edge, for a full-bleed bar whose contents
+/// still have to line up with the body above it.
+///
+/// Portrait passes through the screen's own Figma gutters untouched, so the
+/// production 1080×1920 kiosk resolves to exactly the artboard numbers.
+class KioskReadingInsets {
+  final double left;
+  final double right;
+  final double pageLeft;
+  final double pageRight;
+
+  const KioskReadingInsets({
+    required this.left,
+    required this.right,
+    required this.pageLeft,
+    required this.pageRight,
+  });
+
+  factory KioskReadingInsets.resolve({
+    required double width,
+    required double band,
+    required bool landscape,
+    required double portraitLeft,
+    required double portraitRight,
+    required double minGutter,
+  }) {
+    final double bleed = math.max((width - band) / 2, 0);
+    double left = portraitLeft;
+    double right = portraitRight;
+    if (landscape) {
+      final double column =
+          kioskReadingColumnWidth(width: band, landscape: true);
+      final double side = math.max((band - column) / 2, minGutter);
+      left = side;
+      right = side;
+    }
+    return KioskReadingInsets(
+      left: left,
+      right: right,
+      pageLeft: bleed + left,
+      pageRight: bleed + right,
+    );
+  }
+
+  /// Insets for content inside the centred band.
+  EdgeInsets padded({double top = 0, double bottom = 0}) =>
+      EdgeInsets.fromLTRB(left, top, right, bottom);
+
+  /// Insets for a full-bleed bar, landing on the same column as [padded].
+  EdgeInsets pagePadded({double top = 0, double bottom = 0}) =>
+      EdgeInsets.fromLTRB(pageLeft, top, pageRight, bottom);
 }
 
 /// Caps content at [maxWidth] (default: the kiosk artboard) and centers it, so

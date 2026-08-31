@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
@@ -212,14 +210,9 @@ class KioskCheckoutScaffold extends StatelessWidget {
                   checkoutScale(constraints.maxWidth, constraints.maxHeight);
               final bool landscape =
                   constraints.maxWidth > constraints.maxHeight;
-              // 62% of a medium landscape window can sit below the 720 floor —
-              // use kioskBounded so the column shrinks instead of crashing.
               final double columnMax = landscape
-                  ? kioskBounded(
-                      constraints.maxWidth * 0.62,
-                      min: math.min(720.0, constraints.maxWidth),
-                      max: math.min(1600.0, constraints.maxWidth),
-                    )
+                  ? kioskReadingColumnWidth(
+                      width: constraints.maxWidth, landscape: true)
                   : KioskResponsive.designWidth;
               return KioskCenteredContent(
                 maxWidth: columnMax,
@@ -276,15 +269,28 @@ class KioskCheckoutScaffold extends StatelessWidget {
 class KioskCheckoutHeader extends StatelessWidget {
   final double s;
   final int activeStep;
-  const KioskCheckoutHeader(
-      {super.key, required this.s, required this.activeStep});
+
+  /// Artboard px. A stacked screen that centres its body in a reading column
+  /// passes that column's gutter here so the stepper lands on it, and trims
+  /// [verticalPadding] on a landscape window where height is the scarce axis.
+  final double horizontalPadding;
+  final double verticalPadding;
+
+  const KioskCheckoutHeader({
+    super.key,
+    required this.s,
+    required this.activeStep,
+    this.horizontalPadding = 107,
+    this.verticalPadding = 121,
+  });
 
   static const List<String> _steps = ['NAME', 'EMAIL', 'PAYMENT'];
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(107 * s, 121 * s, 107 * s, 20 * s),
+      padding: EdgeInsets.fromLTRB(horizontalPadding * s, verticalPadding * s,
+          horizontalPadding * s, 20 * s),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -489,6 +495,10 @@ class KioskCheckoutButton extends StatelessWidget {
   /// with the page, so snapping it to a fixed 60px control at the 1100px seam
   /// would break the design it sits in.
   final bool forceScaled;
+
+  /// Artboard px. Landscape summaries pass a shorter bar so the totals panel
+  /// does not take a third of a 16:9 viewport.
+  final double height;
   final VoidCallback? onTap;
   const KioskCheckoutButton({
     super.key,
@@ -497,6 +507,7 @@ class KioskCheckoutButton extends StatelessWidget {
     required this.filled,
     required this.onTap,
     this.fontSize = 72,
+    this.height = 252,
     this.forceScaled = false,
   });
 
@@ -512,7 +523,7 @@ class KioskCheckoutButton extends StatelessWidget {
         child: KioskTap(
           onTap: onTap,
           child: Container(
-            height: 252 * s,
+            height: height * s,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(30 * s),

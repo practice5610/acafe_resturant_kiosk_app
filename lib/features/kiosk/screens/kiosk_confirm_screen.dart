@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
@@ -143,70 +145,54 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
           builder: (context, constraints) {
             final double s = KioskMetrics.maybeOf(context)?.scale ??
                 checkoutScale(constraints.maxWidth, constraints.maxHeight);
-            final bool landscape =
-                constraints.maxWidth > constraints.maxHeight;
+            final _ConfirmLayout layout = _ConfirmLayout.resolve(
+              width: constraints.maxWidth,
+              // The shell centres content at the artboard width, so the
+              // column is measured against that band, not against 4K of glass.
+              band: math.min(constraints.maxWidth, kKioskContentMaxWidth),
+              landscape: constraints.maxWidth > constraints.maxHeight,
+              s: s,
+            );
             return Consumer2<CartProvider, CouponProvider>(
               builder: (context, cartProvider, couponProvider, _) {
                 final cartList = cartProvider.cartList;
                 final double couponDiscount = couponProvider.discount ?? 0;
                 return Stack(
                   children: [
-                    KioskCenteredContent(
-                      child: Column(
-                        children: [
-                          KioskCheckoutHeader(s: s, activeStep: 2),
-                          Expanded(
-                            child: landscape
-                                ? Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      Expanded(
-                                        flex: 3,
-                                        child: _ConfirmLineList(
-                                          s: s,
-                                          cartList: cartList,
-                                          landscape: true,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: SingleChildScrollView(
-                                          child: _SummaryFooter(
-                                            s: s,
-                                            cartList: cartList,
-                                            couponDiscount: couponDiscount,
-                                            coupon: couponProvider.coupon,
-                                            payEnabled: !_busy,
-                                            onPay: _onPay,
-                                            compact: true,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Column(
-                                    children: [
-                                      Expanded(
-                                        child: _ConfirmLineList(
-                                          s: s,
-                                          cartList: cartList,
-                                          landscape: false,
-                                        ),
-                                      ),
-                                      _SummaryFooter(
-                                        s: s,
-                                        cartList: cartList,
-                                        couponDiscount: couponDiscount,
-                                        coupon: couponProvider.coupon,
-                                        payEnabled: !_busy,
-                                        onPay: _onPay,
-                                      ),
-                                    ],
+                    Column(
+                      children: [
+                        // Stepper and items sit in the centred artboard band;
+                        // the totals bar below runs to the bezel so the page
+                        // ends on an edge, not on a floating panel.
+                        Expanded(
+                          child: KioskCenteredContent(
+                            child: Column(
+                              children: [
+                                KioskCheckoutHeader(
+                                  s: s,
+                                  activeStep: 2,
+                                  horizontalPadding: layout.headerGutterDesign,
+                                  verticalPadding: layout.headerPad,
+                                ),
+                                Expanded(
+                                  child: _ConfirmLineList(
+                                    layout: layout,
+                                    cartList: cartList,
                                   ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                        _SummaryFooter(
+                          layout: layout,
+                          cartList: cartList,
+                          couponDiscount: couponDiscount,
+                          coupon: couponProvider.coupon,
+                          payEnabled: !_busy,
+                          onPay: _onPay,
+                        ),
+                      ],
                     ),
                     if (_placing)
                       const Positioned.fill(child: _PlacingOverlay()),
@@ -221,6 +207,83 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
   }
 }
 
+/// The column the order summary sits in, and how tight its chrome is.
+///
+/// Same rule as the cart: portrait is the Figma artboard untouched, landscape
+/// keeps the identical stacked composition but centres a reading column and
+/// trims the vertical chrome. The three portrait gutters differ per band
+/// (the artboard indents the header, the list and the totals panel by
+/// different amounts), so each gets its own insets; in landscape they all
+/// collapse onto the one column.
+class _ConfirmLayout {
+  /// Figma artboard px → logical px.
+  final double s;
+  final bool landscape;
+  final KioskReadingInsets header;
+  final KioskReadingInsets list;
+  final KioskReadingInsets footer;
+
+  const _ConfirmLayout({
+    required this.s,
+    required this.landscape,
+    required this.header,
+    required this.list,
+    required this.footer,
+  });
+
+  /// Gutter floor in artboard px, so the column never touches the bezel on a
+  /// viewport too narrow for the column's own minimum.
+  static const double _minGutter = 48;
+
+  factory _ConfirmLayout.resolve({
+    required double width,
+    required double band,
+    required bool landscape,
+    required double s,
+  }) {
+    KioskReadingInsets band_(double left, double right) =>
+        KioskReadingInsets.resolve(
+          width: width,
+          band: band,
+          landscape: landscape,
+          portraitLeft: left * s,
+          portraitRight: right * s,
+          minGutter: _minGutter * s,
+        );
+    return _ConfirmLayout(
+      s: s,
+      landscape: landscape,
+      header: band_(107, 107),
+      list: band_(77, 115),
+      footer: band_(107, 57),
+    );
+  }
+
+  /// [KioskCheckoutHeader] takes artboard px, so the resolved gutter is
+  /// converted back through [s] to land on the same column as the body.
+  double get headerGutterDesign => header.left / s;
+
+  // Artboard px. Landscape values are denser: the same layout, less air.
+  double get headerPad => landscape ? 84 : 121;
+  double get listPad => landscape ? 20 : 40;
+  double get titleSize => landscape ? 88 : 128;
+  double get titleGap => landscape ? 32 : 50;
+  double get lineGap => landscape ? 32 : 50;
+  double get footerPadTop => landscape ? 48 : 69;
+  double get footerPadBottom => landscape ? 48 : 60;
+  double get rowLabelSize => landscape ? 52 : 64;
+  double get rowValueSize => landscape ? 76 : 100;
+  double get rowGap => landscape ? 14 : 18;
+  double get totalGap => landscape ? 32 : 50;
+  double get totalLabelSize => landscape ? 120 : 200;
+  double get totalValueSize => landscape ? 108 : 180;
+  double get payButtonHeight => landscape ? 180 : 252;
+
+  /// Square thumbnails on a wide screen: the Figma portrait crop makes a
+  /// single line a third of the viewport, so the next item never shows.
+  double get lineImageAspect => landscape ? 1 : kOrderLineImageAspect;
+}
+
 String _thankYouLabel(BuildContext context, String name) {
   final String trimmed = name.trim();
   if (trimmed.isEmpty) {
@@ -232,41 +295,40 @@ String _thankYouLabel(BuildContext context, String name) {
 }
 
 class _ConfirmLineList extends StatelessWidget {
-  final double s;
+  final _ConfirmLayout layout;
   final List<CartModel?> cartList;
-  final bool landscape;
 
-  const _ConfirmLineList({
-    required this.s,
-    required this.cartList,
-    required this.landscape,
-  });
+  const _ConfirmLineList({required this.layout, required this.cartList});
 
   @override
   Widget build(BuildContext context) {
+    final double s = layout.s;
     return ListView(
-      padding: EdgeInsets.fromLTRB(
-        landscape ? 48 * s : 77 * s,
-        landscape ? 16 * s : 40 * s,
-        landscape ? 32 * s : 115 * s,
-        landscape ? 16 * s : 40 * s,
+      padding: layout.list.padded(
+        top: layout.listPad * s,
+        bottom: layout.listPad * s,
       ),
       children: [
         Text(
           kioskTranslate(context, 'order_summary', 'Order summary'),
           textAlign: TextAlign.center,
           style: loewExtraBold.copyWith(
-            fontSize: landscape ? 72 * s : 128 * s,
+            fontSize: layout.titleSize * s,
             height: 1,
             color: Colors.black,
           ),
         ),
-        SizedBox(height: landscape ? 24 * s : 50 * s),
+        SizedBox(height: layout.titleGap * s),
         for (int i = 0; i < cartList.length; i++)
           if (cartList[i] != null)
             Padding(
-              padding: EdgeInsets.only(bottom: landscape ? 24 * s : 50 * s),
-              child: KioskOrderLineCard(s: s, cart: cartList[i]!, index: i),
+              padding: EdgeInsets.only(bottom: layout.lineGap * s),
+              child: KioskOrderLineCard(
+                s: s,
+                cart: cartList[i]!,
+                index: i,
+                imageAspect: layout.lineImageAspect,
+              ),
             ),
       ],
     );
@@ -298,8 +360,10 @@ class _PlacingOverlay extends StatelessWidget {
 }
 
 /// Totals breakdown (ITEMS TOTAL / DISCOUNT / TAX / TIP / TOTAL) + pay button.
+/// One full-bleed bar at every size: the total belongs under the items it
+/// totals, not in a panel beside them.
 class _SummaryFooter extends StatelessWidget {
-  final double s;
+  final _ConfirmLayout layout;
   final List<CartModel?> cartList;
   final double couponDiscount;
 
@@ -307,19 +371,18 @@ class _SummaryFooter extends StatelessWidget {
   final CouponModel? coupon;
   final bool payEnabled;
   final VoidCallback onPay;
-  final bool compact;
   const _SummaryFooter({
-    required this.s,
+    required this.layout,
     required this.cartList,
     required this.couponDiscount,
     required this.coupon,
     required this.payEnabled,
     required this.onPay,
-    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final double s = layout.s;
     final double items = kioskItemsTotal(cartList);
     final double discount = kioskDiscountTotal(cartList);
     final double tax = kioskTaxTotal(cartList);
@@ -332,69 +395,65 @@ class _SummaryFooter extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: kCheckoutFieldBg,
-        borderRadius: compact
-            ? BorderRadius.circular(30 * s)
-            : BorderRadius.vertical(top: Radius.circular(30 * s)),
-        boxShadow: compact
-            ? null
-            : [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 40 * s,
-                    offset: Offset(0, -10 * s)),
-              ],
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30 * s)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 40 * s,
+              offset: Offset(0, -10 * s)),
+        ],
       ),
-      padding: compact
-          ? EdgeInsets.fromLTRB(36 * s, 36 * s, 36 * s, 36 * s)
-          : EdgeInsets.fromLTRB(107 * s, 69 * s, 57 * s, 60 * s),
+      padding: layout.footer.pagePadded(
+        top: layout.footerPadTop * s,
+        bottom: layout.footerPadBottom * s,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _BreakdownRow(
-            s: s,
+            layout: layout,
             label: kioskTranslate(context, 'items_total', 'Items total')
                 .toUpperCase(),
             value: PriceConverterHelper.convertPrice(items),
           ),
           if (discount > 0) ...[
-            SizedBox(height: 18 * s),
+            SizedBox(height: layout.rowGap * s),
             _BreakdownRow(
-              s: s,
-              label: kioskTranslate(context, 'discount', 'Discount')
-                  .toUpperCase(),
+              layout: layout,
+              label:
+                  kioskTranslate(context, 'discount', 'Discount').toUpperCase(),
               value: '- ${PriceConverterHelper.convertPrice(discount)}',
             ),
           ],
           // The artboard puts the discount between ITEMS TOTAL and TAX, so the
           // coupon's own row sits with the other money coming off.
           if (couponDiscount > 0) ...[
-            SizedBox(height: 18 * s),
+            SizedBox(height: layout.rowGap * s),
             _BreakdownRow(
-              s: s,
+              layout: layout,
               label: kioskCouponRowLabel(
-                discountLabel:
-                    kioskTranslate(context, 'discount', 'Discount'),
+                discountLabel: kioskTranslate(context, 'discount', 'Discount'),
                 title: coupon?.title,
                 code: coupon?.code,
               ),
               value: '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
             ),
           ],
-          SizedBox(height: 18 * s),
+          SizedBox(height: layout.rowGap * s),
           _BreakdownRow(
-            s: s,
+            layout: layout,
             label: kioskTranslate(context, 'tax', 'Tax').toUpperCase(),
             value: PriceConverterHelper.convertPrice(tax),
           ),
           if (tip > 0) ...[
-            SizedBox(height: 18 * s),
+            SizedBox(height: layout.rowGap * s),
             _BreakdownRow(
-              s: s,
+              layout: layout,
               label: kioskTranslate(context, 'tip', 'Tip').toUpperCase(),
               value: PriceConverterHelper.convertPrice(tip),
             ),
           ],
-          SizedBox(height: 50 * s),
+          SizedBox(height: layout.totalGap * s),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -404,7 +463,7 @@ class _SummaryFooter extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text('TOTAL',
                       style: loewExtraBold.copyWith(
-                          fontSize: compact ? 80 * s : 200 * s,
+                          fontSize: layout.totalLabelSize * s,
                           height: 1,
                           color: Colors.black)),
                 ),
@@ -414,20 +473,21 @@ class _SummaryFooter extends StatelessWidget {
                 child: Text(
                   PriceConverterHelper.convertPrice(total),
                   style: loewRegular.copyWith(
-                      fontSize: compact ? 72 * s : 180 * s,
+                      fontSize: layout.totalValueSize * s,
                       height: 1,
                       color: Colors.black),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 50 * s),
+          SizedBox(height: layout.totalGap * s),
           KioskCheckoutButton(
             s: s,
-            label: kioskTranslate(context, 'complete_order_and_pay',
-                    'Complete order & pay')
+            label: kioskTranslate(
+                    context, 'complete_order_and_pay', 'Complete order & pay')
                 .toUpperCase(),
             filled: true,
+            height: layout.payButtonHeight,
             onTap: enabled ? onPay : null,
           ),
         ],
@@ -437,14 +497,15 @@ class _SummaryFooter extends StatelessWidget {
 }
 
 class _BreakdownRow extends StatelessWidget {
-  final double s;
+  final _ConfirmLayout layout;
   final String label;
   final String value;
   const _BreakdownRow(
-      {required this.s, required this.label, required this.value});
+      {required this.layout, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
+    final double s = layout.s;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -458,14 +519,16 @@ class _BreakdownRow extends StatelessWidget {
             child: Text(label,
                 maxLines: 1,
                 style: loewExtraBold.copyWith(
-                    fontSize: 64 * s, color: Colors.black)),
+                    fontSize: layout.rowLabelSize * s, color: Colors.black)),
           ),
         ),
         SizedBox(width: 24 * s),
         Text(value,
             textAlign: TextAlign.right,
             style: loewRegular.copyWith(
-                fontSize: 100 * s, height: 1, color: Colors.black)),
+                fontSize: layout.rowValueSize * s,
+                height: 1,
+                color: Colors.black)),
       ],
     );
   }

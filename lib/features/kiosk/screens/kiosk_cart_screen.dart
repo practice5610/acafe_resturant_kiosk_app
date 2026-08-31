@@ -97,36 +97,16 @@ class _CartLayout {
   /// Figma artboard px → logical px.
   final double s;
   final bool landscape;
-
-  /// Logical-px insets that centre the content column inside the artboard
-  /// band (what the header and the item list are laid out in).
-  final double left;
-  final double right;
-
-  /// The same insets measured from the edge of the *screen*, for the note
-  /// strip and the summary bar: those run full-bleed to the bezel, but their
-  /// contents still line up with the items above them.
-  final double pageLeft;
-  final double pageRight;
+  final KioskReadingInsets insets;
 
   const _CartLayout({
     required this.s,
     required this.landscape,
-    required this.left,
-    required this.right,
-    required this.pageLeft,
-    required this.pageRight,
+    required this.insets,
   });
 
-  /// Share of a landscape viewport the column takes, bounded so a small
-  /// tablet keeps a usable column and a large panel never stretches one cart
-  /// line into a thumbnail at one end and a stepper at the other.
-  static const double _columnFraction = 0.62;
-  static const double _columnMin = 640;
-  static const double _columnMax = 1600;
-
   /// Gutter floor in artboard px, so the column can never touch the bezel on
-  /// a viewport too narrow for [_columnMin].
+  /// a viewport too narrow for the column's own minimum.
   static const double _minGutter = 48;
 
   factory _CartLayout.resolve({
@@ -135,45 +115,33 @@ class _CartLayout {
     required bool landscape,
     required double s,
   }) {
-    final double bleed = math.max((width - band) / 2, 0);
-    double left;
-    double right;
-    if (landscape) {
-      final double column = kioskBounded(
-        band * _columnFraction,
-        min: math.min(band, _columnMin),
-        max: _columnMax,
-      );
-      final double side = math.max((band - column) / 2, _minGutter * s);
-      left = side;
-      right = side;
-    } else {
-      // Figma gutters: 132 left (the list's optical margin), 60 right.
-      left = 132 * s;
-      right = 60 * s;
-    }
     return _CartLayout(
       s: s,
       landscape: landscape,
-      left: left,
-      right: right,
-      pageLeft: bleed + left,
-      pageRight: bleed + right,
+      insets: KioskReadingInsets.resolve(
+        width: width,
+        band: band,
+        landscape: landscape,
+        // Figma gutters: 132 left (the list's optical margin), 60 right.
+        portraitLeft: 132 * s,
+        portraitRight: 60 * s,
+        minGutter: _minGutter * s,
+      ),
     );
   }
 
   /// Insets for content inside the centred band.
   EdgeInsets padded({double top = 0, double bottom = 0}) =>
-      EdgeInsets.fromLTRB(left, top, right, bottom);
+      insets.padded(top: top, bottom: bottom);
 
   /// Insets for a full-bleed bar, landing on the same column as [padded].
   EdgeInsets pagePadded({double top = 0, double bottom = 0}) =>
-      EdgeInsets.fromLTRB(pageLeft, top, pageRight, bottom);
+      insets.pagePadded(top: top, bottom: bottom);
 
   /// [KioskHeaderBar] takes artboard px, so the resolved gutter is converted
   /// back through [s] to keep the logo and its rule on the same column as
   /// everything below them.
-  double get headerGutterDesign => left / s;
+  double get headerGutterDesign => insets.left / s;
 
   // Artboard px. Landscape values are denser: the same layout, less air.
   double get headerPad => landscape ? 40 : 60;
