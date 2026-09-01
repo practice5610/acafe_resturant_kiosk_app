@@ -12,10 +12,15 @@ import 'package:acafe_customer/features/language/providers/localization_provider
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
 import 'package:acafe_customer/features/realtime/catalog_realtime_policy.dart';
 import 'package:acafe_customer/features/realtime/device_ordering_experience_event.dart';
+import 'package:acafe_customer/features/realtime/device_settings_event.dart';
+import 'package:acafe_customer/features/realtime/device_settings_policy.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_gateway.dart';
 import 'package:acafe_customer/features/realtime/websocket_config.dart';
+import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/main.dart' show Get;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 /// Applies catalog socket events to the kiosk menu cache. Transport stays in
 /// [ProductRealtimeGateway]; this class only decides refetch vs patch vs reload.
@@ -60,6 +65,7 @@ class ProductRealtimeController {
     gateway.onEvent = _onEvent;
     gateway.onDealEvent = _onDealEvent;
     gateway.onDeviceOrderingExperienceEvent = _onDeviceOrderingExperience;
+    gateway.onDeviceSettingsEvent = _onDeviceSettings;
     gateway.onReconnect = _onReconnect;
     await gateway.connect(
       config: config,
@@ -73,6 +79,109 @@ class ProductRealtimeController {
   void bindAuth(KioskAuthProvider auth) {
     _auth = auth;
     gateway.onDeviceOrderingExperienceEvent = _onDeviceOrderingExperience;
+    gateway.onDeviceSettingsEvent = _onDeviceSettings;
+  }
+
+  /// True once for a given event id, false for every repeat. Reverb can
+  /// deliver the same event twice -- the settings event is mirrored onto both
+  /// the device channel and the branch channel on purpose, so a kiosk
+  /// subscribed to both receives two copies of every push.
+  bool _firstSighting(String eventId) {
+    if (eventId.isEmpty) {
+      return true;
+    }
+    if (_seenEventIds.contains(eventId)) {
+      return false;
+    }
+    _seenEventIds.add(eventId);
+    while (_seenEventIds.length > _seenCap) {
+      _seenEventIds.removeFirst();
+    }
+    return true;
+  }
+
+  /// A `device.settings.changed` push: device type, status, name, branch, or
+  /// ordering experience changed in the back office.
+  Future<void> _onDeviceSettings(DeviceSettingsEvent event) async {
+    final auth = _auth;
+    if (auth == null) {
+      return;
+    }
+
+    final action = DeviceSettingsPolicy.decide(
+      event: event,
+      currentDeviceId: auth.deviceId,
+      currentBranchId: auth.branchId,
+      duplicateEventId:
+          event.eventId.isNotEmpty && _seenEventIds.contains(event.eventId),
+    );
+    if (action == DeviceSettingsClientAction.ignore) {
+      return;
+    }
+    // Only claim the id once the policy has accepted the event, so a frame for
+    // another device cannot poison the dedupe window for this one.
+    if (!_firstSighting(event.eventId)) {
+      return;
+    }
+
+    if (kDebugMode) {
+      debugPrint(
+        'ProductRealtimeController device settings $action '
+        'device=${event.deviceId} category=${event.category} '
+        'branch=${event.branchId} status=${event.status}',
+      );
+    }
+
+    final outcome = await auth.applyDeviceSettingsFromRealtime(
+      deviceId: event.deviceId,
+      branchId: event.branchId,
+      category: event.category,
+      status: event.status,
+      name: event.name,
+      orderingExperience: event.orderingExperience,
+      signOut: action == DeviceSettingsClientAction.signOut,
+    );
+
+    await _applyOutcome(outcome);
+  }
+
+  /// Shared tail for both push and reconnect-reconciliation paths.
+  Future<void> _applyOutcome(KioskDeviceSettingsOutcome outcome) async {
+    switch (outcome) {
+      case KioskDeviceSettingsOutcome.signedOut:
+        await _signOut();
+        return;
+      case KioskDeviceSettingsOutcome.reboundBranch:
+        // The branch-scoped caches were dropped with the session write; the
+        // cart belongs to the old branch's menu and cannot survive either.
+        _cart?.clearCartList();
+        _fullReload();
+        // ProductRealtimeScope watches the auth provider and re-opens the
+        // socket on the new branch's channel; nothing to do here for the
+        // subscription itself.
+        return;
+      case KioskDeviceSettingsOutcome.applied:
+      case KioskDeviceSettingsOutcome.ignored:
+        return;
+    }
+  }
+
+  /// Device deactivated or deleted: the token is already dead server-side.
+  /// Drop the socket and send the kiosk back to the device login screen.
+  Future<void> _signOut() async {
+    await gateway.disconnect();
+    _cart?.clearCartList();
+    // Re-read the navigator context after the awaits above, and confirm it is
+    // still mounted: a kiosk can be torn down mid-sign-out.
+    final BuildContext? context = Get.context;
+    if (context == null || !context.mounted) {
+      return;
+    }
+    if (ModalRoute.of(context)?.settings.name == RouterHelper.kioskLoginScreen) {
+      return;
+    }
+    RouterHelper.getKioskLoginRoute(
+        action: RouteAction.pushNamedAndRemoveUntil);
   }
 
   Future<void> stop() async {
@@ -274,16 +383,26 @@ class ProductRealtimeController {
       return;
     }
     try {
-      final bool changed = await auth.refreshDeviceSettings();
-      if (kDebugMode && changed) {
+      final outcome = await auth.refreshDeviceSettings();
+      if (kDebugMode && outcome != KioskDeviceSettingsOutcome.ignored) {
         debugPrint(
-          'ProductRealtimeController ordering experience reconciled on '
-          'reconnect -> ${auth.orderingExperience.apiValue}',
+          'ProductRealtimeController device settings reconciled on reconnect '
+          '-> $outcome (category=${auth.category}, '
+          'experience=${auth.orderingExperience.apiValue})',
         );
       }
+      await _applyOutcome(outcome);
     } catch (e) {
       debugPrint('ProductRealtimeController device settings refresh failed: $e');
     }
+  }
+
+  /// Public entry point for the app-lifecycle observer: the socket may have
+  /// died silently while the app was backgrounded, so on resume re-dial and
+  /// reconcile rather than trusting the connection.
+  Future<void> resume() async {
+    await gateway.reconnectNow();
+    await _refreshDeviceSettings();
   }
 
   Future<void> _onReconnect() async {

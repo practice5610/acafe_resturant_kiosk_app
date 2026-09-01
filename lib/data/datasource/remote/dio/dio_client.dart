@@ -59,6 +59,7 @@ class DioClient {
 
   Future<Response> get(String uri, {
     Map<String, dynamic>? queryParameters,
+    Options? options,
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
   }) async {
@@ -66,6 +67,7 @@ class DioClient {
       var response = await dio!.get(
         uri,
         queryParameters: queryParameters,
+        options: options,
         cancelToken: cancelToken,
         onReceiveProgress: onReceiveProgress,
       );

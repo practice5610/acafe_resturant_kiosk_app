@@ -283,6 +283,7 @@ void main() {
         AppConstants.token: 'tok',
         AppConstants.branch: 1,
         AppConstants.kioskDeviceId: 1,
+        AppConstants.kioskDeviceName: 'kiosk@gmail.com',
         AppConstants.kioskOrderingExperience: 'version_a',
       });
       await buildProvider();
@@ -294,9 +295,9 @@ void main() {
       var notified = 0;
       auth.addListener(() => notified++);
 
-      final changed = await auth.refreshDeviceSettings();
+      final outcome = await auth.refreshDeviceSettings();
 
-      expect(changed, isTrue);
+      expect(outcome, KioskDeviceSettingsOutcome.applied);
       expect(auth.orderingExperience, KioskOrderingExperience.versionB);
       expect(prefs.getString(AppConstants.kioskOrderingExperience), 'version_b');
       expect(notified, greaterThan(0));
@@ -305,14 +306,16 @@ void main() {
     test('is a no-op when the server already agrees', () async {
       api.device!['ordering_experience'] = 'version_a';
 
-      expect(await auth.refreshDeviceSettings(), isFalse);
+      expect(await auth.refreshDeviceSettings(),
+          KioskDeviceSettingsOutcome.ignored);
       expect(auth.orderingExperience, KioskOrderingExperience.versionA);
     });
 
     test('keeps the session on a failed request', () async {
       api.status = 500;
 
-      expect(await auth.refreshDeviceSettings(), isFalse);
+      expect(await auth.refreshDeviceSettings(),
+          KioskDeviceSettingsOutcome.ignored);
       // A reconnect is when transient failures are likeliest -- this path must
       // never log the kiosk out the way validateSession() does.
       expect(auth.isLoggedIn(), isTrue);
@@ -324,12 +327,14 @@ void main() {
         AppConstants.token: 'tok',
         AppConstants.branch: 1,
         AppConstants.kioskDeviceId: 1,
+        AppConstants.kioskDeviceName: 'kiosk@gmail.com',
         AppConstants.kioskOrderingExperience: 'version_b',
       });
       await buildProvider();
       api.device!.remove('ordering_experience');
 
-      expect(await auth.refreshDeviceSettings(), isFalse);
+      expect(await auth.refreshDeviceSettings(),
+          KioskDeviceSettingsOutcome.ignored);
       expect(auth.orderingExperience, KioskOrderingExperience.versionB);
     });
 
@@ -337,7 +342,8 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       await buildProvider();
 
-      expect(await auth.refreshDeviceSettings(), isFalse);
+      expect(await auth.refreshDeviceSettings(),
+          KioskDeviceSettingsOutcome.ignored);
       expect(api.calls, 0);
     });
   });

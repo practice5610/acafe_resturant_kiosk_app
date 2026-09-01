@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
@@ -19,7 +21,8 @@ class ProductRealtimeScope extends StatefulWidget {
   State<ProductRealtimeScope> createState() => _ProductRealtimeScopeState();
 }
 
-class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
+class _ProductRealtimeScopeState extends State<ProductRealtimeScope>
+    with WidgetsBindingObserver {
   int? _startedForBranch;
   int? _startedForDevice;
   String? _startedForEndpoint;
@@ -27,7 +30,28 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
   @override
   void initState() {
     super.initState();
+    // The kiosk had no lifecycle handling at all. A tablet that sleeps, or a
+    // browser tab left in the background, comes back holding a socket that is
+    // dead without ever having reported an error -- so every push sent in the
+    // meantime is silently lost.
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+    // Re-dial and reconcile rather than trusting the connection. Nothing here
+    // tears the socket down on pause: a kiosk that is briefly obscured should
+    // keep receiving, and a genuinely dead socket is caught by the gateway's
+    // own ping deadline.
+    if (_startedForBranch == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+      return;
+    }
+    unawaited(di.sl<ProductRealtimeController>().resume());
   }
 
   Future<void> _sync() async {
@@ -118,6 +142,7 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     di.sl<ProductRealtimeController>().stop();
     super.dispose();
   }

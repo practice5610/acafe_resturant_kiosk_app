@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/exception/api_error_handler.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
@@ -31,13 +33,22 @@ class KioskAuthRepo {
   }
 
   /// Validate the stored token on boot. Returns the branch+device payload, or
-  /// an error (401/403) if the token was revoked / device set inactive.
+  /// a 401/403 response if the token was revoked / device set inactive.
+  ///
+  /// `validateStatus` lets 4xx come back as ordinary responses instead of
+  /// throwing, and a genuine transport failure returns the DioException itself
+  /// rather than a translated string. Callers MUST be able to tell "the server
+  /// rejected this device" from "the server could not be reached": collapsing
+  /// both into one error message is what made an offline kiosk log itself out.
   Future<ApiResponseModel> getMe() async {
     try {
-      final response = await dioClient.get(AppConstants.kioskDeviceMeUri);
+      final response = await dioClient.get(
+        AppConstants.kioskDeviceMeUri,
+        options: Options(validateStatus: (_) => true),
+      );
       return ApiResponseModel.withSuccess(response);
     } catch (e) {
-      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+      return ApiResponseModel.withError(e);
     }
   }
 
