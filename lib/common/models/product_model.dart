@@ -540,8 +540,10 @@ class AddOns {
   String? _updatedAt;
   double? _tax; // percentage
   String? _image;
+  bool _isDefault = false;
 
-  AddOns({int? id, String? name, double? price, String? createdAt, String? updatedAt, double? tax, String? image}) {
+  AddOns({int? id, String? name, double? price, String? createdAt, String? updatedAt, double? tax, String? image,
+        bool isDefault = false}) {
     _id = id;
     _name = name;
     _price = price;
@@ -549,6 +551,7 @@ class AddOns {
     _updatedAt = updatedAt;
     _tax = tax;
     _image = image;
+    _isDefault = isDefault;
   }
 
   int? get id => _id;
@@ -560,6 +563,15 @@ class AddOns {
   String? get image => _image;
   bool get hasImage => _image != null && _image!.isNotEmpty && _image != 'def.png';
 
+  /// Comes with the product: auto-selected the moment the customize sheet
+  /// opens, never chargeable, and the customer cannot turn it off.
+  bool get isDefault => _isDefault;
+
+  /// What this add-on adds to the line. A default is included in the product
+  /// price, so it adds nothing — mirrors AddOn::effectivePrice() server-side,
+  /// which is what actually gets written to the order.
+  double get effectivePrice => _isDefault ? 0 : (_price ?? 0);
+
   AddOns.fromJson(Map<String, dynamic> json) {
     _id = json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}');
     _name = json['name']?.toString();
@@ -568,6 +580,9 @@ class AddOns {
     _updatedAt = json['updated_at']?.toString();
     _tax = double.tryParse('${json['tax']}');
     _image = json['image']?.toString();
+    // The API casts this to a real bool, but older payloads (and the local
+    // toJson round-trip below) can carry 1 / "1" — accept all three.
+    _isDefault = json['is_default'] == true || '${json['is_default']}' == '1';
   }
 
   Map<String, dynamic> toJson() {
@@ -579,6 +594,7 @@ class AddOns {
     data['updated_at'] = _updatedAt;
     data['tax'] = _tax;
     data['image'] = _image;
+    data['is_default'] = _isDefault;
     return data;
   }
 }

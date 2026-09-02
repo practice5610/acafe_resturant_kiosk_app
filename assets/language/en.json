@@ -922,5 +922,6 @@
   "allergen_contains": "CONTAINS",
   "allergen_info_title": "CONTAINS ALLERGENS",
   "allergen_info_body": "This item contains the following. Please let us know if you have any allergies.",
-  "allergen_info_dismiss": "GOT IT"
+  "allergen_info_dismiss": "GOT IT",
+  "included": "Included"
 }

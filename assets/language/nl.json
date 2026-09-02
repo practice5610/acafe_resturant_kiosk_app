@@ -922,5 +922,6 @@
   "allergen_contains": "BEVAT",
   "allergen_info_title": "BEVAT ALLERGENEN",
   "allergen_info_body": "Dit item bevat het volgende. Laat het ons weten als u allergieën heeft.",
-  "allergen_info_dismiss": "BEGREPEN"
+  "allergen_info_dismiss": "BEGREPEN",
+  "included": "Inbegrepen"
 }

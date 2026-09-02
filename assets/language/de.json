@@ -922,5 +922,6 @@
   "allergen_contains": "ENTHÄLT",
   "allergen_info_title": "ENTHÄLT ALLERGENE",
   "allergen_info_body": "Dieser Artikel enthält Folgendes. Bitte teilen Sie uns mit, wenn Sie Allergien haben.",
-  "allergen_info_dismiss": "VERSTANDEN"
+  "allergen_info_dismiss": "VERSTANDEN",
+  "included": "Inklusive"
 }

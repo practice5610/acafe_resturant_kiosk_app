@@ -243,7 +243,13 @@ class ProductProvider extends DataSyncProvider {
         addOnIdList.add(addOnId.id);
       }
       for (var addOn in product!.addOns!) {
-        if(addOnIdList.contains(addOn.id)) {
+        // A default add-on is on no matter what the saved line says. Editing an
+        // older line whose add-on was not default when it was saved must not be
+        // the one way a locked add-on can come back off.
+        if(addOn.isDefault) {
+          _addOnActiveList.add(true);
+          _addOnQtyList.add(1);
+        } else if(addOnIdList.contains(addOn.id)) {
           _addOnActiveList.add(true);
           _addOnQtyList.add(cart.addOnIds![addOnIdList.indexOf(addOn.id)].quantity);
         }else {
@@ -264,7 +270,8 @@ class ProductProvider extends DataSyncProvider {
 
       if(product.addOns != null){
         for (int i = 0; i < product.addOns!.length; i++) {
-          _addOnActiveList.add(false);
+          // Defaults come pre-selected — that is the whole point of the flag.
+          _addOnActiveList.add(product.addOns![i].isDefault);
           _addOnQtyList.add(1);
         }
       }
@@ -330,14 +337,32 @@ class ProductProvider extends DataSyncProvider {
     notifyListeners();
   }
 
+  /// Toggle one add-on within its group.
+  ///
+  /// [defaultIndexes] are the group's DEFAULT add-ons: included with the
+  /// product, always on, never chargeable, and not tappable. They sit outside
+  /// every rule below rather than participating in them:
+  ///
+  ///  * a tap on one is ignored, so the lock cannot be broken;
+  ///  * single-choice applies to the NON-default remainder only, so a group
+  ///    with three defaults gives the customer those three plus at most one
+  ///    extra pick (four selected), never one selection total;
+  ///  * they do not count toward [maxSelect], so a group cannot be filled to
+  ///    its cap by its own defaults and leave the customer nothing to choose.
   void toggleAddOnInGroup({
     required int index,
     required bool isSingle,
     required List<int> groupIndexes,
     required bool isRequired,
     int? maxSelect,
+    List<int> defaultIndexes = const [],
   }) {
     if (index < 0 || index >= _addOnActiveList.length) {
+      return;
+    }
+
+    // Locked: it came with the product, so no tap can turn it off.
+    if (defaultIndexes.contains(index)) {
       return;
     }
 
@@ -346,8 +371,10 @@ class ProductProvider extends DataSyncProvider {
       if (currentlyOn && !isRequired) {
         _addOnActiveList[index] = false;
       } else {
+        // Clear only the remainder. Sweeping the whole group here would turn
+        // the defaults off, which is exactly the lock this method enforces.
         for (final int i in groupIndexes) {
-          if (i >= 0 && i < _addOnActiveList.length) {
+          if (i >= 0 && i < _addOnActiveList.length && !defaultIndexes.contains(i)) {
             _addOnActiveList[i] = i == index;
           }
         }
@@ -360,7 +387,8 @@ class ProductProvider extends DataSyncProvider {
     if (turningOn && maxSelect != null) {
       int count = 0;
       for (final int i in groupIndexes) {
-        if (i >= 0 && i < _addOnActiveList.length && _addOnActiveList[i]) {
+        if (i >= 0 && i < _addOnActiveList.length && _addOnActiveList[i]
+            && !defaultIndexes.contains(i)) {
           count++;
         }
       }

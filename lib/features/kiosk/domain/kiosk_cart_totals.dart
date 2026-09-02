@@ -76,7 +76,10 @@ double _kioskAddOnsOn(CartModel cart) {
   for (final addOn in cart.addOnIds ?? []) {
     final qty = addOn.quantity ?? 1;
     final match = (cart.product?.addOns ?? []).where((a) => a.id == addOn.id);
-    if (match.isNotEmpty) total += (match.first.price ?? 0) * qty;
+    // effectivePrice, not price: a DEFAULT add-on is included with the product
+    // and adds nothing, which is also what the server writes to the order. A
+    // stale price left on a newly-flagged default must not reach a total.
+    if (match.isNotEmpty) total += match.first.effectivePrice * qty;
   }
   return total;
 }

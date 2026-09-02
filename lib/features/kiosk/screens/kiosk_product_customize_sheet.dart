@@ -72,6 +72,22 @@ const Color _kVesselIdleBorder = Color(0xFFE2D9C8);
 
 /// Selected outline + the design's near-black ink.
 const Color _kCardBorderSelected = Color(0xFF000000);
+/// Brand tan (BRAND_PALETTE `brand-accent`). Marks an add-on that is INCLUDED
+/// with the product rather than one the customer picked — see [_AddOnCard].
+const Color _kCardBorderIncluded = Color(0xFFC8A97E);
+const Color _kAddOnIncludedInk = Color(0xFF9C7C4C);
+
+/// Ground for an included card: the panel cream with a wash of the tan over
+/// it. Derived from the two tokens rather than hand-mixed, so it cannot drift
+/// if either is retuned. Blended to an OPAQUE colour on purpose — a
+/// translucent fill would let the card's own outline and whatever sits behind
+/// it show through, which reads as a smudge rather than a tint.
+final Color _kCardBgIncluded =
+    Color.alphaBlend(_kCardBorderIncluded.withValues(alpha: 0.10), _kPanelBg);
+
+/// The tan tick on an included card, in the artboard's units (card width 288).
+const double _kIncludedTickSize = 44;
+const double _kIncludedTickIcon = 27;
 const Color _kInkText = Color(0xFF0D0D0D);
 
 /// Cream used for glyphs on the filled (black) controls.
@@ -2427,6 +2443,15 @@ class _GroupedAddOnCards extends StatelessWidget {
         if (product.indexOfAddOn(addon.id) != null)
           product.indexOfAddOn(addon.id)!,
     ];
+    // The group's DEFAULT add-ons. They are already selected (the provider
+    // seeds them), they cannot be turned off, and single-choice / max apply to
+    // everything EXCEPT them — see [ProductProvider.toggleAddOnInGroup]. So a
+    // group with three defaults still leaves the customer one extra pick.
+    final List<int> defaultIndexes = [
+      for (final addon in group.addons)
+        if (addon.isDefault && product.indexOfAddOn(addon.id) != null)
+          product.indexOfAddOn(addon.id)!,
+    ];
 
     // Cards only — the heading and the panel chrome belong to _AddOnsSection,
     // so every group shares one panel and one scroller.
@@ -2469,17 +2494,21 @@ class _GroupedAddOnCards extends StatelessWidget {
                 final int quantity = index < productProvider.addOnQtyList.length
                     ? (productProvider.addOnQtyList[index] ?? 1)
                     : 1;
+                final bool isDefault = addon.isDefault;
                 return _AddOnCard(
                   width: cardWidth,
                   height: cardHeight,
                   name: addon.name ?? '',
-                  priceDelta: addon.price ?? 0,
+                  priceDelta: addon.effectivePrice,
                   image: _choiceImageUrl(_addonImageUrl(context, addon)),
                   showImage: showImage,
                   showPrice: showPrice,
                   selected: selected,
+                  isDefault: isDefault,
                   quantity: quantity,
-                  showQuantity: selected && !group.isSingle,
+                  // A locked add-on has no quantity to steer, so it never grows
+                  // a stepper — one is what comes with the product.
+                  showQuantity: selected && !group.isSingle && !isDefault,
                   reserveQuantity: reserveQuantity,
                   onIncrement: () =>
                       productProvider.setAddOnQuantity(true, index),
@@ -2494,10 +2523,15 @@ class _GroupedAddOnCards extends StatelessWidget {
                         groupIndexes: groupIndexes,
                         isRequired: group.isRequired,
                         maxSelect: group.max,
+                        defaultIndexes: defaultIndexes,
                       );
                     }
                   },
                   onTap: () {
+                    // Included with the product: the tap is swallowed here, so
+                    // it never reaches analytics either — a locked card is not
+                    // a selection the customer made.
+                    if (isDefault) return;
                     if (selected && !group.isSingle) return;
                     _trackAddOn(context, !selected, addon);
                     productProvider.toggleAddOnInGroup(
@@ -2506,6 +2540,7 @@ class _GroupedAddOnCards extends StatelessWidget {
                       groupIndexes: groupIndexes,
                       isRequired: group.isRequired,
                       maxSelect: group.max,
+                      defaultIndexes: defaultIndexes,
                     );
                   },
                 );
@@ -2534,6 +2569,11 @@ class _AddOnCard extends StatelessWidget {
   final bool showImage;
   final bool showPrice;
   final bool selected;
+
+  /// Included with the product: drawn as chosen from the moment the sheet
+  /// opens, labelled "Included" rather than priced, and inert to taps. The
+  /// tan edge is what separates it from a card the customer chose themselves.
+  final bool isDefault;
   final int quantity;
 
   /// Multi-select add-ons show − / qty / + once chosen. Single-choice groups
@@ -2555,6 +2595,7 @@ class _AddOnCard extends StatelessWidget {
     required this.showImage,
     required this.showPrice,
     required this.selected,
+    this.isDefault = false,
     this.quantity = 1,
     this.showQuantity = false,
     this.reserveQuantity = false,
@@ -2568,17 +2609,23 @@ class _AddOnCard extends StatelessWidget {
     final double k = width / KioskCustomizeSpec.choiceCardWidth;
     final double radius = KioskCustomizeSpec.addOnCardRadius * k;
     final double innerGap = KioskCustomizeSpec.addOnInnerGap * k;
-    final String priceLabel = _addonPriceLabel(priceDelta);
+    // "Included" reads as a property of the item, not a surcharge, so it
+    // stays in the normal price slot under the name rather than moving to the
+    // top-right badge position a chosen card's price takes.
+    final String priceLabel = isDefault
+        ? kioskTranslate(context, 'included', 'Included')
+        : _addonPriceLabel(priceDelta);
     // Figma: a chosen card with no stepper moves its price to the top-right
     // (`card-whipped-cream/Selected`); one WITH a stepper keeps the price
     // inline above it (`card-vanilla-syrup/Selected`).
-    final bool priceOnTop = selected && !showQuantity && priceLabel.isNotEmpty;
+    final bool priceOnTop =
+        !isDefault && selected && !showQuantity && priceLabel.isNotEmpty;
 
     final double nameSize = _choiceLabelSize(context, width);
     final TextStyle priceStyle = swiss721Light.copyWith(
       fontSize: nameSize * (42 / 45),
       height: 1.2,
-      color: Colors.black,
+      color: isDefault ? _kAddOnIncludedInk : Colors.black,
     );
     final Widget label = Text(
       name.toUpperCase(),
@@ -2602,11 +2649,23 @@ class _AddOnCard extends StatelessWidget {
       ],
       if (showImage) ...[
         Expanded(
-          child: ClipRRect(
-            borderRadius:
-                BorderRadius.circular(KioskCustomizeSpec.addOnImageRadius * k),
-            child: _OptionImageSlot(image: image, fit: BoxFit.contain),
-          ),
+          child: Stack(children: [
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(
+                    KioskCustomizeSpec.addOnImageRadius * k),
+                child: _OptionImageSlot(image: image, fit: BoxFit.contain),
+              ),
+            ),
+            // Laid OVER the artwork, so saying "this one comes with it" costs
+            // the card no height and cannot push a row out of alignment.
+            if (isDefault)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: _IncludedTick(k: k),
+              ),
+          ]),
         ),
         SizedBox(height: innerGap),
         label,
@@ -2640,8 +2699,13 @@ class _AddOnCard extends StatelessWidget {
       ],
     ];
 
+    // An included card sits on a tan-washed ground; every other card keeps the
+    // panel cream. Set on the Material as well as the container below it, so
+    // the antialiased corners blend to the right colour.
+    final Color ground = isDefault ? _kCardBgIncluded : _kPanelBg;
+
     return Material(
-      color: _kPanelBg,
+      color: ground,
       borderRadius: BorderRadius.circular(radius),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
@@ -2657,14 +2721,19 @@ class _AddOnCard extends StatelessWidget {
             // height, and a tween would spend 160ms at a value the contents
             // were never sized for — which is an overflow on every resize.
             decoration: BoxDecoration(
-              color: _kPanelBg,
+              color: ground,
               borderRadius: BorderRadius.circular(radius),
             ),
             // See [_DietaryCard]: painted over the card so it costs no height.
             foregroundDecoration: BoxDecoration(
               borderRadius: BorderRadius.circular(radius),
               border: Border.all(
-                color: selected ? _kCardBorderSelected : _kCardIdleBorder,
+                // Locked cards wear the brand tan; cards the customer chose
+                // keep the design's black outline, so the two never read as
+                // the same kind of "on".
+                color: isDefault
+                    ? _kCardBorderIncluded
+                    : (selected ? _kCardBorderSelected : _kCardIdleBorder),
                 width: _border(
                   selected
                       ? KioskCustomizeSpec.addOnCardBorderSelected
@@ -2687,6 +2756,44 @@ class _AddOnCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The tan tick on an INCLUDED add-on card: says "this one comes with it" at a
+/// glance, before the customer has read the word under the artwork.
+///
+/// Scaled by [k] like everything else on the card, so it holds its proportion
+/// from a phone-sized window up to a 4K portrait kiosk rather than becoming a
+/// speck or a blob.
+class _IncludedTick extends StatelessWidget {
+  /// The card's scale factor — its width over the artboard's 288.
+  final double k;
+  const _IncludedTick({required this.k});
+
+  @override
+  Widget build(BuildContext context) {
+    final double size = _kIncludedTickSize * k;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: _kCardBorderIncluded,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 2 * k,
+            offset: Offset(0, 1 * k),
+          ),
+        ],
+      ),
+      child: Icon(
+        Icons.check_rounded,
+        size: _kIncludedTickIcon * k,
+        color: Colors.white,
       ),
     );
   }
