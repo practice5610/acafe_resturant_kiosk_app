@@ -214,7 +214,7 @@ void main() {
         (tester) async {
       await pumpBar(tester);
       final lastPill = tester.getRect(find.byType(PosNavPill).at(4));
-      final scan = tester.getRect(find.byIcon(Icons.crop_free));
+      final scan = tester.getRect(find.byKey(PosNavBarSpec.scanButtonKey));
       final avatar = tester.getRect(find.byType(PosAvatar));
 
       expect(scan.left - lastPill.right, closeTo(16, 0.01));
@@ -223,7 +223,8 @@ void main() {
 
     testWidgets('scan is 36 and avatar is 40', (tester) async {
       await pumpBar(tester);
-      expect(tester.getSize(find.byIcon(Icons.crop_free)), const Size(36, 36));
+      expect(tester.getSize(find.byKey(PosNavBarSpec.scanButtonKey)),
+          const Size(36, 36));
       expect(tester.getSize(find.byType(PosAvatar)), const Size(40, 40));
     });
 
@@ -310,7 +311,8 @@ void main() {
     testWidgets('scan is inert — tapping it does nothing and does not throw',
         (tester) async {
       await pumpBar(tester);
-      await tester.tap(find.byIcon(Icons.crop_free), warnIfMissed: false);
+      await tester.tap(find.byKey(PosNavBarSpec.scanButtonKey),
+          warnIfMissed: false);
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);

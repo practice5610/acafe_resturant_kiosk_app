@@ -163,6 +163,61 @@ class PosHomeSpec {
   static const double customerInfoHeight = 73;
   static const double customerInfoPaddingBottom = 16;
 
+  // ── Cart-active order lines (Figma 1641:1968) ────────────────────────
+  static const Color itemDivider = Color(0xFFB9B5A6);
+  static const Color discountGreen = Color(0xFF2A8456);
+  static const Color plusLabel = Color(0xFFF3F3DD);
+
+  static const double lineThumbWidth = 52;
+  static const double lineThumbHeight = 62;
+  static const double lineThumbRadius = 12;
+  static const double linePaddingH = 16;
+  static const double linePaddingV = 12;
+  static const double lineGap = 12;
+  static const double lineDetailsGap = 4;
+  static const double lineNameSize = 14;
+  static const double lineNameHeight = 17 / 14;
+  static const double linePriceSize = 12;
+  static const double linePriceHeight = 14 / 12;
+  static const double lineNoteMarkSize = 12;
+  static const double lineNoteMarkHeight = 14 / 12;
+  static const double lineNoteSize = 11;
+  static const double lineNoteHeight = 13 / 11;
+  static const double lineNoteGap = 4;
+
+  static const double qtyControlHeight = 26;
+  static const double qtyTrashSize = 26;
+  /// Minus matches the plus chip so the stepper does not jump when qty
+  /// crosses 1 (trash is 26; we centre it inside this width).
+  static const double qtyMinusWidth = 31;
+  static const double qtyPlusWidth = 31;
+  static const double qtyPlusRadius = 6;
+  static const double qtyPlusBorder = 0.75;
+  static const double qtyGap = 8;
+  static const double qtyLabelSize = 20;
+  /// Room for a two-digit qty without expanding the actions column.
+  static const double qtyDigitWidth = 22;
+
+  /// Figma `qty-controls` (1641:2167): left control + gaps + digit + plus.
+  static const double lineActionsWidth =
+      qtyMinusWidth + qtyGap + qtyDigitWidth + qtyGap + qtyPlusWidth;
+
+  static const double editWidth = 51.09;
+  static const double editHeight = 16.77;
+  static const double editRadius = 16;
+  static const double editIconSize = 9.36;
+  static const double editLabelSize = 10;
+  static const double editGap = 4;
+  static const double editGapBelow = 5;
+
+  static const double payHeight = 56;
+  static const double payRadius = 28;
+  static const double payWidth = 390;
+  static const double payPaddingH = 16;
+  static const double payPaddingBottom = 24;
+  static const double payGapAbove = 9;
+  static const double payLabelSize = 18;
+
   static const double emptyStateGap = 12;
   static const double emptyHeadingSize = 16;
   static const double emptyHeadingHeight = 19 / 16;

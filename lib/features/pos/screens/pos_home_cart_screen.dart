@@ -6,12 +6,15 @@ import 'package:acafe_customer/features/category/providers/category_provider.dar
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
+import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_category_sidebar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_product_grid.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -19,16 +22,14 @@ import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 /// POS home — category sidebar, product grid, purchase receipt.
 ///
-/// Figma: `POS - Browse Products (Empty Cart)`, node **1642:1087**.
-///
-/// Every pane reads the same providers the kiosk uses: the branch menu comes
-/// from `CategoryProvider`'s cache, the sale from `CartProvider`, and the
-/// totals from the shared `kiosk_cart_totals` functions — so POS and kiosk can
-/// never quote different numbers for the same basket.
+/// Figma: empty cart **1642:1087**, cart-active **1641:1968**. Same three-pane
+/// screen; the receipt pane swaps empty-state chrome for order lines + PAY
+/// when [CartProvider] has items.
 class PosHomeCartScreen extends StatefulWidget {
   const PosHomeCartScreen({super.key});
 
@@ -125,6 +126,87 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     return products;
   }
 
+  List<CartModel?> get _cartLines =>
+      context.read<CartProvider>().cartList;
+
+  bool get _cartHasItems =>
+      _cartLines.any((line) => line != null);
+
+  void _incrementLine(int index) {
+    final CartProvider cart = context.read<CartProvider>();
+    final CartModel? line = cart.cartList[index];
+    if (line == null) return;
+    cart.setQuantity(
+      isIncrement: true,
+      cart: line,
+      fromProductView: false,
+    );
+  }
+
+  void _decrementLine(int index) {
+    final CartProvider cart = context.read<CartProvider>();
+    final CartModel? line = cart.cartList[index];
+    if (line == null) return;
+    if ((line.quantity ?? 1) <= 1) {
+      cart.removeFromCart(index);
+    } else {
+      cart.setQuantity(
+        isIncrement: false,
+        cart: line,
+        fromProductView: false,
+      );
+    }
+  }
+
+  void _editLine(int index) {
+    final CartModel? line = context.read<CartProvider>().cartList[index];
+    if (line == null) return;
+    openKioskCartLine(context, line, cartIndex: index);
+  }
+
+  void _pay() {
+    if (!_cartHasItems) return;
+    context.go(PosRoutes.payment);
+  }
+
+  PosReceiptPanel _receiptPanel({
+    required List<CartModel?> cartList,
+    required String? imageBaseUrl,
+    String? dealImageBaseUrl,
+    required double subtotal,
+    required double discount,
+    required double total,
+    double? width = PosHomeSpec.receiptWidth,
+    VoidCallback? onOrderTypeTick,
+  }) {
+    final bool hasItems = cartList.any((line) => line != null);
+
+    return PosReceiptPanel(
+      width: width,
+      orderType: _orderType,
+      onOrderTypeChanged: (t) {
+        setState(() => _orderType = t);
+        onOrderTypeTick?.call();
+      },
+      customerNameController: _customerName,
+      tableController: _table,
+      subtotal: subtotal,
+      discount: discount,
+      total: total,
+      orderList: hasItems
+          ? PosReceiptOrderList(
+              lines: cartList,
+              imageBaseUrl: imageBaseUrl,
+              dealImageBaseUrl: dealImageBaseUrl,
+              onIncrement: _incrementLine,
+              onDecrement: _decrementLine,
+              onEdit: _editLine,
+            )
+          : null,
+      onPay: hasItems ? _pay : null,
+    );
+  }
+
   void _openReceiptSheet({
     required double subtotal,
     required double discount,
@@ -137,20 +219,25 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final CartProvider cart = context.watch<CartProvider>();
+            final CouponProvider coupon = context.watch<CouponProvider>();
+            final double sheetDiscount = coupon.discount ?? 0;
+            final double sheetSubtotal = kioskCartTotal(cart.cartList);
+            final double sheetTotal =
+                kioskPayableTotal(cart.cartList, sheetDiscount);
             return SizedBox(
               height: MediaQuery.sizeOf(sheetContext).height * 0.92,
-              child: PosReceiptPanel(
+              child: _receiptPanel(
                 width: null,
-                orderType: _orderType,
-                onOrderTypeChanged: (t) {
-                  setState(() => _orderType = t);
-                  setSheetState(() {});
-                },
-                customerNameController: _customerName,
-                tableController: _table,
-                subtotal: subtotal,
-                discount: discount,
-                total: total,
+                cartList: cart.cartList,
+                imageBaseUrl:
+                    context.read<SplashProvider>().baseUrls?.productImageUrl,
+                dealImageBaseUrl:
+                    context.read<SplashProvider>().baseUrls?.dealImageUrl,
+                subtotal: sheetSubtotal,
+                discount: sheetDiscount,
+                total: sheetTotal,
+                onOrderTypeTick: () => setSheetState(() {}),
               ),
             );
           },
@@ -176,11 +263,10 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     final double subtotal = kioskCartTotal(cart.cartList);
     final double total = kioskPayableTotal(cart.cartList, discount);
 
-    final PosReceiptPanel receipt = PosReceiptPanel(
-      orderType: _orderType,
-      onOrderTypeChanged: (t) => setState(() => _orderType = t),
-      customerNameController: _customerName,
-      tableController: _table,
+    final PosReceiptPanel receipt = _receiptPanel(
+      cartList: cart.cartList,
+      imageBaseUrl: splash.baseUrls?.productImageUrl,
+      dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
       subtotal: subtotal,
       discount: discount,
       total: total,
@@ -215,7 +301,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
                     onProductTap: _addToCart,
                   ),
                 ),
-                if (sideReceipt) receipt,
+                if (sideReceipt)
+                  ClipRect(child: receipt),
               ],
             ),
           ),

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:acafe_customer/common/models/cart_model.dart';
+import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
@@ -167,6 +169,35 @@ void main() {
       find.widgetWithText(PosFilterPill, 'POPULAR'),
     );
     expect(popular.active, isFalse);
+  });
+
+  testWidgets('a filled cart paints the cart-active receipt chrome',
+      (tester) async {
+    await _pumpHome(tester);
+
+    final CartProvider cart = tester
+        .element(find.byType(PosHomeCartScreen))
+        .read<CartProvider>();
+    cart.replaceCartList([
+      CartModel(
+        5.5,
+        5.5,
+        const [],
+        0,
+        1,
+        0,
+        const [],
+        Product(id: 1, name: 'Oat Milk Matcha', price: 5.5),
+        const [],
+      ),
+    ]);
+    await tester.pump();
+
+    expect(find.text('No items'), findsNothing);
+    expect(find.text('Oat Milk Matcha'), findsOneWidget);
+    expect(find.text('EDIT'), findsOneWidget);
+    expect(find.textContaining('PAY /'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a compact window drops the side receipt for a bar',

@@ -27,6 +27,7 @@ class PosReceiptPanel extends StatelessWidget {
   /// Order lines, or null/empty to show the empty state.
   final Widget? orderList;
   final VoidCallback? onOptions;
+  final VoidCallback? onPay;
 
   /// When null, the panel expands to the parent's width (compact sheet).
   final double? width;
@@ -43,13 +44,23 @@ class PosReceiptPanel extends StatelessWidget {
     this.orderNumber,
     this.orderList,
     this.onOptions,
+    this.onPay,
     this.width = PosHomeSpec.receiptWidth,
   });
 
+  bool get _hasItems => orderList != null;
+
   @override
   Widget build(BuildContext context) {
+    final _CustomerInfo customer = _CustomerInfo(
+      nameController: customerNameController,
+      tableController: tableController,
+      showBottomHairline: !_hasItems,
+    );
+
     return Container(
       width: width,
+      clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(
         color: PosHomeSpec.panelBg,
         border: Border(
@@ -64,13 +75,18 @@ class PosReceiptPanel extends StatelessWidget {
             selected: orderType,
             onChanged: onOrderTypeChanged,
           ),
-          const _OrderListLabel(),
-          _CustomerInfo(
-            nameController: customerNameController,
-            tableController: tableController,
+          if (_hasItems) ...[
+            customer,
+            const _OrderListLabel(),
+          ] else ...[
+            const _OrderListLabel(),
+            customer,
+          ],
+          Expanded(
+            child: ClipRect(child: orderList ?? const _EmptyState()),
           ),
-          Expanded(child: orderList ?? const _EmptyState()),
           _Summary(subtotal: subtotal, discount: discount, total: total),
+          if (_hasItems) _PayButton(total: total, onPay: onPay),
         ],
       ),
     );
@@ -295,10 +311,12 @@ class _OrderListLabel extends StatelessWidget {
 class _CustomerInfo extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController tableController;
+  final bool showBottomHairline;
 
   const _CustomerInfo({
     required this.nameController,
     required this.tableController,
+    this.showBottomHairline = true,
   });
 
   @override
@@ -336,15 +354,16 @@ class _CustomerInfo extends StatelessWidget {
               ],
             ),
           ),
-          const Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ColoredBox(
-              color: PosHomeSpec.hairline,
-              child: SizedBox(height: 1, width: double.infinity),
+          if (showBottomHairline)
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: ColoredBox(
+                color: PosHomeSpec.hairline,
+                child: SizedBox(height: 1, width: double.infinity),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -487,10 +506,11 @@ class _Summary extends StatelessWidget {
             const SizedBox(height: PosHomeSpec.summaryGap),
             SizedBox(
               height: PosHomeSpec.summaryRowSize * PosHomeSpec.summaryRowHeight,
-              child: _SummaryRow(
-                label: 'Discount',
-                value: '- ${PosHomeSpec.formatPrice(discount)}',
-              ),
+            child: _SummaryRow(
+              label: 'Discount',
+              value: '- ${PosHomeSpec.formatPrice(discount)}',
+              color: PosHomeSpec.discountGreen,
+            ),
             ),
           ],
           const SizedBox(height: PosHomeSpec.summaryGap),
@@ -532,8 +552,13 @@ class _Summary extends StatelessWidget {
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
+  final Color? color;
 
-  const _SummaryRow({required this.label, required this.value});
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +569,7 @@ class _SummaryRow extends StatelessWidget {
           label,
           style: swiss721Light.copyWith(
             fontSize: PosHomeSpec.summaryRowSize,
-            color: PosHomeSpec.inkAlpha(0.6),
+            color: color ?? PosHomeSpec.inkAlpha(0.6),
             height: PosHomeSpec.summaryRowHeight,
           ),
         ),
@@ -552,11 +577,59 @@ class _SummaryRow extends StatelessWidget {
           value,
           style: swiss721Light.copyWith(
             fontSize: PosHomeSpec.summaryRowSize,
-            color: PosHomeSpec.ink,
+            color: color ?? PosHomeSpec.ink,
             height: PosHomeSpec.summaryRowHeight,
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PayButton extends StatelessWidget {
+  final double total;
+  final VoidCallback? onPay;
+
+  const _PayButton({required this.total, this.onPay});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        PosHomeSpec.payPaddingH,
+        PosHomeSpec.payGapAbove,
+        PosHomeSpec.payPaddingH,
+        PosHomeSpec.payPaddingBottom,
+      ),
+      child: Material(
+        color: PosHomeSpec.ink,
+        borderRadius: BorderRadius.circular(PosHomeSpec.payRadius),
+        child: InkWell(
+          onTap: onPay,
+          borderRadius: BorderRadius.circular(PosHomeSpec.payRadius),
+          child: SizedBox(
+            height: PosHomeSpec.payHeight,
+            width: double.infinity,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'PAY / ${PosHomeSpec.formatPrice(total)}',
+                    maxLines: 1,
+                    style: loewBold.copyWith(
+                      fontSize: PosHomeSpec.payLabelSize,
+                      color: Colors.white,
+                      height: 22 / 18,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -7,7 +7,9 @@ import 'package:acafe_customer/features/pos/widgets/pos_nav_pill.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_wordmark.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
+import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -44,6 +46,7 @@ class PosNavBarSpec {
 
   static const double scanSize = 36;
   static const double avatarSize = 40;
+  static const Key scanButtonKey = Key('pos-scan-button');
 
   /// Report is 18/10 in the frame; every other pill is 20/12.
   static const EdgeInsets reportPadding =
@@ -262,16 +265,22 @@ class _ScanButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
+      key: PosNavBarSpec.scanButtonKey,
       width: PosNavBarSpec.scanSize,
       height: PosNavBarSpec.scanSize,
-      // TODO: swap for famicons scan.svg once exported from Figma.
-      // Inert for now — there is no scanner package in this app (qr_flutter
-      // generates codes, it does not read them) and adding one is out of scope.
-      child: Icon(
-        Icons.crop_free,
-        size: PosNavBarSpec.scanSize,
-        color: PosUI.ink,
+      // Visual only — there is no scanner package in this app (qr_flutter
+      // generates codes, it does not read them).
+      child: SvgPicture.asset(
+        Images.posScanSvg,
+        width: PosNavBarSpec.scanSize,
+        height: PosNavBarSpec.scanSize,
+        fit: BoxFit.contain,
+        placeholderBuilder: (_) => const Icon(
+          Icons.crop_free,
+          size: PosNavBarSpec.scanSize,
+          color: PosUI.ink,
+        ),
       ),
     );
   }
