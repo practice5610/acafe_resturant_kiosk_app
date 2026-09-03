@@ -281,6 +281,14 @@ class Images {
   static const String posTrashSvg = 'assets/svg/pos_trash.svg';
   static const String posEditPng = 'assets/image/pos_edit.png';
   static const String posScanSvg = 'assets/svg/pos_scan.svg';
+  /// Settings dropdown chevron (Figma 1641:3961).
+  static const String posChevronDownSvg = 'assets/svg/pos_chevron_down.svg';
+  // POS payment selection (Figma 1641:2757)
+  static const String posArrowLeftSvg = 'assets/svg/pos_arrow_left.svg';
+  static const String posBanknoteSvg = 'assets/svg/pos_banknote.svg';
+  static const String posCreditCardSvg = 'assets/svg/pos_credit_card.svg';
+  static const String posRadioOffSvg = 'assets/svg/pos_radio_off.svg';
+  static const String posRadioOnSvg = 'assets/svg/pos_radio_on.svg';
 
   // POS receipt context menu — Figma node 1641:3570 (lightspeed-context-menu).
   static const String posMenuPercentSvg = 'assets/svg/pos_menu_percent.svg';

@@ -13,6 +13,7 @@ import 'package:acafe_customer/features/language/providers/localization_provider
 import 'package:acafe_customer/features/pos/domain/pos_mode.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/pos_router.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/screens/pos_login_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
@@ -181,7 +182,7 @@ void main() {
     }
   });
 
-  testWidgets('payment screens are full-screen, outside the nav chrome',
+  testWidgets('payment screens are full-screen, outside the shell',
       (tester) async {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;
@@ -201,8 +202,28 @@ void main() {
     ]) {
       RouterHelper.goRoutes.go(path);
       await tester.pumpAndSettle();
-      expect(find.byType(PosTopNavBar), findsNothing,
-          reason: '$path must not offer tab switching mid-payment');
+      // The invariant is the *shell*, not the bar: payment routes sit outside
+      // the ShellRoute so the chrome is never shared with the tab tree.
+      expect(find.byType(PosScaffold), findsNothing,
+          reason: '$path must be routed outside the POS shell');
+    }
+
+    // The payment-selection frame (Figma 1641:2757) draws the nav bar itself.
+    // It is mounted by the screen, not inherited, and PosTopNavBar.interactive
+    // is what stops tab switching while a charge is actually in flight.
+    RouterHelper.goRoutes.go(PosRoutes.payment);
+    await tester.pumpAndSettle();
+    expect(find.byType(PosTopNavBar), findsOneWidget);
+
+    // The remaining payment steps have no Figma chrome and mount none.
+    for (final path in [
+      PosRoutes.paymentCash,
+      PosRoutes.paymentWait,
+      PosRoutes.paymentSuccess,
+    ]) {
+      RouterHelper.goRoutes.go(path);
+      await tester.pumpAndSettle();
+      expect(find.byType(PosTopNavBar), findsNothing, reason: path);
     }
   });
 

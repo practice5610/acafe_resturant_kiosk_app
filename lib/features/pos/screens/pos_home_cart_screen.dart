@@ -10,10 +10,11 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dar
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_menu_actions.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/screens/pos_product_customize_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_category_sidebar.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_coupon_apply_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_product_grid.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
@@ -21,7 +22,6 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
-import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -46,10 +46,18 @@ class PosHomeCartScreen extends StatefulWidget {
 
 class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   final TextEditingController _search = TextEditingController();
-  final TextEditingController _customerName = TextEditingController();
-  final TextEditingController _table = TextEditingController();
 
-  PosOrderType _orderType = PosOrderType.dineIn;
+  /// Customer name and table belong to the sale, not to this screen: PAY routes
+  /// to `/pos-payment`, which is outside the shell and therefore disposes this
+  /// State. Owning the controllers here would blank both fields on the way to
+  /// the till. [PosSaleSession] holds them for the life of the terminal.
+  TextEditingController get _customerName =>
+      PosSaleSession.instance.customerName;
+  TextEditingController get _table => PosSaleSession.instance.table;
+
+  PosOrderType get _orderType => PosSaleSession.instance.orderType;
+  set _orderType(PosOrderType value) =>
+      PosSaleSession.instance.orderType = value;
   String _query = '';
 
   /// Figma paints POPULAR as the active pill on the empty-cart frame.
@@ -92,8 +100,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   @override
   void dispose() {
     _search.dispose();
-    _customerName.dispose();
-    _table.dispose();
+    // _customerName / _table are owned by PosSaleSession and outlive this
+    // screen — disposing them would break the payment screen still using them.
     super.dispose();
   }
 
@@ -272,47 +280,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
       anchorContext: anchorContext,
     );
     if (action == null || !mounted) return;
-    await _handleReceiptMenuAction(action);
-  }
-
-  Future<void> _handleReceiptMenuAction(PosReceiptMenuAction action) async {
-    final CouponProvider coupon = context.read<CouponProvider>();
-    final CartProvider cart = context.read<CartProvider>();
-    final double orderAmount = kioskOrderAmountBeforeCoupon(cart.cartList);
-
-    switch (action) {
-      case PosReceiptMenuAction.applyDiscount:
-        await showPosCouponApplyDialog(
-          context: context,
-          orderAmount: orderAmount,
-          title: 'Apply discount',
-        );
-      case PosReceiptMenuAction.applyCustomDiscount:
-        await showPosCouponApplyDialog(
-          context: context,
-          orderAmount: orderAmount,
-          title: 'Apply custom discount',
-        );
-      case PosReceiptMenuAction.removeDiscount:
-        if ((coupon.discount ?? 0) <= 0 && coupon.coupon == null) {
-          showCustomSnackBarHelper('No discount to remove', isError: false);
-          return;
-        }
-        coupon.removeCouponData(true);
-        showCustomSnackBarHelper('Discount removed', isError: false);
-      case PosReceiptMenuAction.priceOverride:
-      case PosReceiptMenuAction.taxExempt:
-      case PosReceiptMenuAction.compItem:
-      case PosReceiptMenuAction.moveTable:
-      case PosReceiptMenuAction.holdFire:
-      case PosReceiptMenuAction.sendKitchen:
-      case PosReceiptMenuAction.repeatItem:
-      case PosReceiptMenuAction.partialPayment:
-      case PosReceiptMenuAction.giftCard:
-      case PosReceiptMenuAction.loyaltyPoints:
-        // Menu chrome matches Figma; these actions have no POS backend yet.
-        break;
-    }
+    await handlePosReceiptMenuAction(context, action);
   }
 
   PosReceiptPanel _receiptPanel({

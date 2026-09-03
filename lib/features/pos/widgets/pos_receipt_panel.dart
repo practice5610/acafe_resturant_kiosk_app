@@ -1,14 +1,15 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// Whether the sale is eaten in or taken away.
-///
-/// Presentation only for now: every order this app places already carries
-/// `order_type: 'pos'`, and sending anything else is an API contract change.
-enum PosOrderType { dineIn, takeAway }
+/// [PosOrderType] moved to `domain/` so [PosSaleSession] can hold it without
+/// `domain/` depending on `widgets/`. Re-exported so every screen that already
+/// imports this file for the enum keeps working.
+export 'package:acafe_customer/features/pos/domain/pos_sale_session.dart'
+    show PosOrderType;
 
 /// Right pane: the sale in progress.
 ///
@@ -54,7 +55,7 @@ class PosReceiptPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final _CustomerInfo customer = _CustomerInfo(
+    final PosReceiptCustomerInfo customer = PosReceiptCustomerInfo(
       nameController: customerNameController,
       tableController: tableController,
       showBottomHairline: !_hasItems,
@@ -72,22 +73,22 @@ class PosReceiptPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Header(orderNumber: orderNumber, onOptions: onOptions),
+          PosReceiptHeader(orderNumber: orderNumber, onOptions: onOptions),
           _OrderTypeToggle(
             selected: orderType,
             onChanged: onOrderTypeChanged,
           ),
           if (_hasItems) ...[
             customer,
-            const _OrderListLabel(),
+            const PosReceiptOrderListLabel(),
           ] else ...[
-            const _OrderListLabel(),
+            const PosReceiptOrderListLabel(),
             customer,
           ],
           Expanded(
-            child: ClipRect(child: orderList ?? const _EmptyState()),
+            child: ClipRect(child: orderList ?? const PosReceiptEmptyState()),
           ),
-          _Summary(subtotal: subtotal, discount: discount, total: total),
+          PosReceiptSummary(subtotal: subtotal, discount: discount, total: total),
           if (_hasItems) _PayButton(total: total, onPay: onPay),
         ],
       ),
@@ -95,11 +96,11 @@ class PosReceiptPanel extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
+class PosReceiptHeader extends StatelessWidget {
   final String? orderNumber;
   final ValueChanged<BuildContext>? onOptions;
 
-  const _Header({this.orderNumber, this.onOptions});
+  const PosReceiptHeader({super.key, this.orderNumber, this.onOptions});
 
   @override
   Widget build(BuildContext context) {
@@ -286,8 +287,8 @@ class _OrderTypeButton extends StatelessWidget {
   }
 }
 
-class _OrderListLabel extends StatelessWidget {
-  const _OrderListLabel();
+class PosReceiptOrderListLabel extends StatelessWidget {
+  const PosReceiptOrderListLabel({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -316,12 +317,13 @@ class _OrderListLabel extends StatelessWidget {
   }
 }
 
-class _CustomerInfo extends StatelessWidget {
+class PosReceiptCustomerInfo extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController tableController;
   final bool showBottomHairline;
 
-  const _CustomerInfo({
+  const PosReceiptCustomerInfo({
+    super.key,
     required this.nameController,
     required this.tableController,
     this.showBottomHairline = true,
@@ -438,8 +440,8 @@ class _Field extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+class PosReceiptEmptyState extends StatelessWidget {
+  const PosReceiptEmptyState({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -473,34 +475,52 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _Summary extends StatelessWidget {
+/// Subtotal / discount / total block.
+///
+/// Shared by the counter receipt panel and the payment screen's
+/// `payment-details` (Figma 1641:2860): the two frames draw the same three
+/// rows with the same type, and differ only in the chrome around them — the
+/// panel pins the block to a fixed-height footer under a hairline, the payment
+/// card lets it size to its content.
+class PosReceiptSummary extends StatelessWidget {
   final double subtotal;
   final double discount;
   final double total;
 
-  const _Summary({
+  /// Footer variant: fixed height and a hairline above. False sizes to content
+  /// with no rule, as the payment card draws it.
+  final bool pinned;
+
+  const PosReceiptSummary({
+    super.key,
     required this.subtotal,
     required this.discount,
     required this.total,
+    this.pinned = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final bool showDiscount = discount > 0;
     return Container(
-      height: showDiscount
-          ? PosHomeSpec.summaryHeightWithDiscount
-          : PosHomeSpec.summaryHeight,
+      height: pinned
+          ? (showDiscount
+              ? PosHomeSpec.summaryHeightWithDiscount
+              : PosHomeSpec.summaryHeight)
+          : null,
       padding: const EdgeInsets.fromLTRB(
         PosHomeSpec.panelPaddingH,
         PosHomeSpec.summaryPaddingTop,
         PosHomeSpec.panelPaddingH,
         0,
       ),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: PosHomeSpec.hairline)),
-      ),
+      decoration: pinned
+          ? const BoxDecoration(
+              border: Border(top: BorderSide(color: PosHomeSpec.hairline)),
+            )
+          : null,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(

@@ -85,10 +85,21 @@ class PosTopNavBar extends StatefulWidget implements PreferredSizeWidget {
   /// waiting for one.
   final DateTime Function() now;
 
+  /// False freezes the bar: pills and the avatar menu stop responding while
+  /// still painting normally.
+  ///
+  /// Figma draws the full nav on the payment frame (1641:2757), but a terminal
+  /// that lets an operator jump tabs *while a card is being charged* is how you
+  /// end up with a charged card and no order. Rather than hide the chrome the
+  /// design asks for, the payment screen freezes it for the seconds the charge
+  /// is in flight.
+  final bool interactive;
+
   const PosTopNavBar({
     super.key,
     required this.currentPath,
     this.now = _systemNow,
+    this.interactive = true,
   });
 
   static DateTime _systemNow() => DateTime.now();
@@ -219,34 +230,59 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
             ),
           ),
           const SizedBox(width: PosNavBarSpec.groupGap),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final item in kPosNavItems) ...[
-                if (item != kPosNavItems.first)
-                  const SizedBox(width: PosNavBarSpec.pillGap),
-                PosNavPill(
-                  label: item.label,
-                  active: PosTopNavBar.isSelected(item, widget.currentPath),
-                  bold: item.path == PosRoutes.report,
-                  padding: item.path == PosRoutes.report
-                      ? PosNavBarSpec.reportPadding
-                      : PosNavPill.defaultPadding,
-                  onTap: () => context.go(item.path),
+          // Right cluster. Flexible, with the pill row scrolling inside it:
+          // five pills plus scan and avatar need roughly a 1000px window, so
+          // below that the tabs have to give way somehow. Scrolling keeps every
+          // tab reachable, where clipping or shrinking would hide Settings on a
+          // narrow staff tablet. At the design width nothing scrolls.
+          Flexible(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context)
+                        .copyWith(scrollbars: false),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final item in kPosNavItems) ...[
+                            if (item != kPosNavItems.first)
+                              const SizedBox(width: PosNavBarSpec.pillGap),
+                            PosNavPill(
+                              label: item.label,
+                              active: PosTopNavBar.isSelected(
+                                  item, widget.currentPath),
+                              bold: item.path == PosRoutes.report,
+                              padding: item.path == PosRoutes.report
+                                  ? PosNavBarSpec.reportPadding
+                                  : PosNavPill.defaultPadding,
+                              onTap: widget.interactive
+                                  ? () => context.go(item.path)
+                                  : null,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: PosNavBarSpec.groupGap),
+                const _ScanButton(),
+                const SizedBox(width: PosNavBarSpec.groupGap),
+                PosAvatar(
+                  // No staff identity exists: the terminal authenticates as a
+                  // device and the shift PIN is that device's
+                  // configuration_code, so there is no user record and no photo
+                  // to show. The initial names the till instead of inventing a
+                  // person.
+                  initial: _initialFor(auth),
+                  onTap: widget.interactive ? _openAvatarMenu : null,
                 ),
               ],
-              const SizedBox(width: PosNavBarSpec.groupGap),
-              const _ScanButton(),
-              const SizedBox(width: PosNavBarSpec.groupGap),
-              PosAvatar(
-                // No staff identity exists: the terminal authenticates as a
-                // device and the shift PIN is that device's configuration_code,
-                // so there is no user record and no photo to show. The initial
-                // names the till instead of inventing a person.
-                initial: _initialFor(auth),
-                onTap: _openAvatarMenu,
-              ),
-            ],
+            ),
           ),
         ],
       ),

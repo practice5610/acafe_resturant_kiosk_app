@@ -175,6 +175,8 @@ class AppConstants {
   static const String kioskMenuCacheKey = 'kiosk_menu_cache_v3';
   static const String kioskDealsCacheKey = 'kiosk_deals_cache_v1';
   static const String kioskManagerStockCacheKey = 'kiosk_manager_stock_cache_v2';
+  /// POS Settings → General form (local overlay on ConfigModel).
+  static const String posGeneralSettingsKey = 'pos_general_settings_v1';
   static const String currentAddress = 'current_address';
   static const String lastOrderPaymentMethod = 'last_order_payment_method';
   static const String appleLoginEmail = 'apple_login_email';

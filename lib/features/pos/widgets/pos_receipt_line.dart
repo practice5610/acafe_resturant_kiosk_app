@@ -16,7 +16,14 @@ class PosReceiptOrderList extends StatelessWidget {
   final String? dealImageBaseUrl;
   final ValueChanged<int> onIncrement;
   final ValueChanged<int> onDecrement;
-  final ValueChanged<int> onEdit;
+
+  /// Null hides the EDIT affordance on every row — the payment screen shows
+  /// the same lines but customisation belongs to the counter screen.
+  final ValueChanged<int>? onEdit;
+
+  /// True when the list is inside another scrollable (the stacked/compact
+  /// payment layout) and must size to its content instead of scrolling.
+  final bool shrinkWrap;
 
   const PosReceiptOrderList({
     super.key,
@@ -25,7 +32,8 @@ class PosReceiptOrderList extends StatelessWidget {
     this.dealImageBaseUrl,
     required this.onIncrement,
     required this.onDecrement,
-    required this.onEdit,
+    this.onEdit,
+    this.shrinkWrap = false,
   });
 
   @override
@@ -40,6 +48,9 @@ class PosReceiptOrderList extends StatelessWidget {
       child: ListView.builder(
         padding: EdgeInsets.zero,
         clipBehavior: Clip.hardEdge,
+        shrinkWrap: shrinkWrap,
+        physics:
+            shrinkWrap ? const NeverScrollableScrollPhysics() : null,
         itemCount: indices.length,
         itemBuilder: (context, i) {
           final int index = indices[i];
@@ -52,7 +63,7 @@ class PosReceiptOrderList extends StatelessWidget {
             ),
             onIncrement: () => onIncrement(index),
             onDecrement: () => onDecrement(index),
-            onEdit: () => onEdit(index),
+            onEdit: onEdit == null ? null : () => onEdit!(index),
           );
         },
       ),
@@ -71,7 +82,10 @@ class PosReceiptLine extends StatelessWidget {
   final String imageUrl;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
-  final VoidCallback onEdit;
+
+  /// Null drops the EDIT button and centres the qty cluster against the
+  /// details column, which is how the payment frame (1641:2784) draws a row.
+  final VoidCallback? onEdit;
 
   const PosReceiptLine({
     super.key,
@@ -79,7 +93,7 @@ class PosReceiptLine extends StatelessWidget {
     required this.imageUrl,
     required this.onIncrement,
     required this.onDecrement,
-    required this.onEdit,
+    this.onEdit,
   });
 
   @override
@@ -101,7 +115,9 @@ class PosReceiptLine extends StatelessWidget {
           vertical: PosHomeSpec.linePaddingV,
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: onEdit == null
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
           children: [
             _Thumb(imageUrl: imageUrl),
             const SizedBox(width: PosHomeSpec.lineGap),
@@ -141,10 +157,13 @@ class PosReceiptLine extends StatelessWidget {
             SizedBox(
               width: PosHomeSpec.lineActionsWidth,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  _EditButton(onTap: onEdit),
-                  const SizedBox(height: PosHomeSpec.editGapBelow),
+                  if (onEdit != null) ...[
+                    _EditButton(onTap: onEdit!),
+                    const SizedBox(height: PosHomeSpec.editGapBelow),
+                  ],
                   _QtyControls(
                     quantity: line.quantity ?? 1,
                     onIncrement: onIncrement,
