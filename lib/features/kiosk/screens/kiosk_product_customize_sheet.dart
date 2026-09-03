@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_option_layout.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
@@ -43,6 +44,8 @@ import 'package:provider/provider.dart';
 // the variation panels, the add-on grid, the cup/can cards — instead of
 // re-implementing them. Only the navigation shell differs between versions.
 part 'kiosk_product_customize_step_flow.dart';
+
+// Shared section split lives in [KioskCustomizeSections] so POS can reuse it.
 
 // ===========================================================================
 // KIOSK PRODUCT CUSTOMIZE — one full-screen page reproducing the Figma design
@@ -268,47 +271,9 @@ double _addOnCardHeight(
   return _choiceCardHeight(width);
 }
 
-/// Figma add-on price: "€ +1.50" when the currency sits on the left, otherwise
-/// "+ 1.50 €". [PriceConverterHelper.convertPrice] already includes the symbol.
-String _addonPriceLabel(double price) {
-  if (price <= 0) return '';
-  final String converted = PriceConverterHelper.convertPrice(price);
-  final Match? leading = RegExp(r'^([^\d\s]+)\s*(.*)').firstMatch(converted);
-  if (leading != null) {
-    final String symbol = leading.group(1)!.trim();
-    final String amount = leading.group(2)!.trim();
-    if (symbol.isNotEmpty && amount.isNotEmpty) {
-      return '$symbol +$amount';
-    }
-  }
-  return '+ $converted';
-}
+String _addonPriceLabel(double price) => kioskAddonPriceLabel(price);
 
-/// Local artwork for the "Can or cup?" vessels. That group is generated from the
-/// product's Cup/Can switch in the backend and carries no images of its own, so
-/// the kiosk matches an option to a bundled asset by name. Anything unrecognised
-/// falls back to the variation's own uploaded image.
-String? _localVesselAsset(String label) {
-  final String value = label.toLowerCase().trim();
-  if (value.contains('cup')) return Images.kioskCupImage;
-  if (value.contains('can')) return Images.kioskCanImage;
-  return null;
-}
-
-/// Size groups (Small / Medium / Large) are often stored as separate
-/// one-option variations. Render them as one addon-style horizontal card row.
-final RegExp _kSizePattern =
-    RegExp(r'(small|medium|large|\bsizes?\b)', caseSensitive: false);
-
-bool _isSizeVariation(Variation variation) {
-  final name = (variation.name ?? '').trim();
-  if (_kSizePattern.hasMatch(name)) return true;
-  final values = variation.variationValues ?? [];
-  if (values.length == 1) {
-    return _kSizePattern.hasMatch((values.first.level ?? '').trim());
-  }
-  return false;
-}
+String? _localVesselAsset(String label) => kioskLocalVesselAsset(label);
 
 String _addonImageUrl(BuildContext context, AddOns addon) {
   if (!addon.hasImage) return '';
@@ -321,48 +286,6 @@ String _addonGroupTitle(BuildContext context, AddOnGroup group) {
       ? group.name!
       : (getTranslated('add_add_ons', context) ?? 'Add add-ons');
   return group.isRequired ? '$name *' : name;
-}
-
-/// The three logical groups a product's variations fall into, in the order the
-/// customer meets them. Version A stacks all three on one screen; Version B
-/// puts each behind its own step — so the split has to be identical for both,
-/// and lives here rather than inside either screen.
-class _CustomizeSections {
-  /// Small / Medium / Large, rendered as one horizontal card row.
-  final List<MapEntry<int, Variation>> size;
-
-  /// Milk / dietary choices — one panel each.
-  final List<MapEntry<int, Variation>> dietary;
-
-  /// Cup or can, rendered as the big two-card selector.
-  final List<MapEntry<int, Variation>> cupCan;
-
-  const _CustomizeSections({
-    required this.size,
-    required this.dietary,
-    required this.cupCan,
-  });
-
-  factory _CustomizeSections.of(Product product) {
-    final variations = ProductHelper.effectiveVariations(product) ?? [];
-    final indexed =
-        List.generate(variations.length, (i) => MapEntry(i, variations[i]));
-    bool isCupCan(MapEntry<int, Variation> e) =>
-        kioskCupCanPattern.hasMatch(e.value.name ?? '');
-
-    return _CustomizeSections(
-      cupCan: indexed.where(isCupCan).toList(),
-      size: indexed
-          .where((e) => !isCupCan(e) && _isSizeVariation(e.value))
-          .toList(),
-      dietary: indexed
-          .where((e) => !isCupCan(e) && !_isSizeVariation(e.value))
-          .toList(),
-    );
-  }
-
-  /// Everything Version B's first step ("Milks") covers.
-  bool get hasMilkStep => size.isNotEmpty || dietary.isNotEmpty;
 }
 
 /// Entry point: tap a product in the kiosk menu -> open the customization screen.
@@ -961,8 +884,8 @@ class _KioskProductCustomizeScreenState
     // no longer reach a provider.
     _lastExperience = experienceOf(context);
     // Cup/can splits out so it renders with the big two-card style; the same
-    // split drives Version B's steps (see [_CustomizeSections]).
-    final sections = _CustomizeSections.of(product);
+    // split drives Version B's steps (see [KioskCustomizeSections]).
+    final sections = KioskCustomizeSections.of(product);
     final cupCanVariations = sections.cupCan;
     final sizeVariations = sections.size;
     final dietaryVariations = sections.dietary;

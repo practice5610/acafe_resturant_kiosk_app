@@ -121,6 +121,7 @@ class _PosPinCardState extends State<PosPinCard>
   String _code = '';
   bool _submitting = false;
   late final AnimationController _shake;
+  late final FocusNode _focus;
 
   @override
   void initState() {
@@ -132,10 +133,17 @@ class _PosPinCardState extends State<PosPinCard>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+    _focus = FocusNode(debugLabel: 'pos-pin-card');
+    // Desktop / browser: grab keyboard as soon as the card mounts so staff
+    // can type digits without tapping the on-screen keypad first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
   }
 
   @override
   void dispose() {
+    _focus.dispose();
     _shake.dispose();
     super.dispose();
   }
@@ -167,6 +175,78 @@ class _PosPinCardState extends State<PosPinCard>
     await _shake.forward(from: 0);
     if (!mounted) return;
     setState(() => _code = '');
+    _focus.requestFocus();
+  }
+
+  /// Hardware keyboard: digits 0–9, Backspace/Delete, Enter/NumpadEnter.
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (_submitting) return KeyEventResult.ignored;
+
+    final LogicalKeyboardKey key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.backspace ||
+        key == LogicalKeyboardKey.delete) {
+      _onBackspace();
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (_complete) {
+        _submit();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
+    final String? digit = _digitFromKey(key, event.character);
+    if (digit != null) {
+      _onDigit(digit);
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  /// Accepts top-row digits, numpad digits, and the character fallback for
+  /// layouts that don't map cleanly to [LogicalKeyboardKey.digit0]–`9`.
+  static String? _digitFromKey(LogicalKeyboardKey key, String? character) {
+    final Map<LogicalKeyboardKey, String> keys = <LogicalKeyboardKey, String>{
+      LogicalKeyboardKey.digit0: '0',
+      LogicalKeyboardKey.digit1: '1',
+      LogicalKeyboardKey.digit2: '2',
+      LogicalKeyboardKey.digit3: '3',
+      LogicalKeyboardKey.digit4: '4',
+      LogicalKeyboardKey.digit5: '5',
+      LogicalKeyboardKey.digit6: '6',
+      LogicalKeyboardKey.digit7: '7',
+      LogicalKeyboardKey.digit8: '8',
+      LogicalKeyboardKey.digit9: '9',
+      LogicalKeyboardKey.numpad0: '0',
+      LogicalKeyboardKey.numpad1: '1',
+      LogicalKeyboardKey.numpad2: '2',
+      LogicalKeyboardKey.numpad3: '3',
+      LogicalKeyboardKey.numpad4: '4',
+      LogicalKeyboardKey.numpad5: '5',
+      LogicalKeyboardKey.numpad6: '6',
+      LogicalKeyboardKey.numpad7: '7',
+      LogicalKeyboardKey.numpad8: '8',
+      LogicalKeyboardKey.numpad9: '9',
+    };
+    final String? fromKey = keys[key];
+    if (fromKey != null) return fromKey;
+
+    final String? ch = character?.trim();
+    if (ch != null &&
+        ch.length == 1 &&
+        ch.compareTo('0') >= 0 &&
+        ch.compareTo('9') <= 0) {
+      return ch;
+    }
+    return null;
   }
 
   /// Damped oscillation: six half-cycles decaying to nothing over the run.
@@ -174,31 +254,40 @@ class _PosPinCardState extends State<PosPinCard>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // The card is its own artboard. It renders at exactly the Figma size
-        // wherever there is room, and scales down proportionally where there
-        // is not — never up, so it stays a card rather than becoming a page.
-        final double available = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : PosPinSpec.board;
-        final double cardWidth = math.min(available, PosPinSpec.board);
-        final double s = cardWidth / PosPinSpec.board;
+    return Focus(
+      focusNode: _focus,
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => _focus.requestFocus(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // The card is its own artboard. It renders at exactly the Figma size
+            // wherever there is room, and scales down proportionally where there
+            // is not — never up, so it stays a card rather than becoming a page.
+            final double available = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : PosPinSpec.board;
+            final double cardWidth = math.min(available, PosPinSpec.board);
+            final double s = cardWidth / PosPinSpec.board;
 
-        // Centred inside whatever box the host gives, so a parent that hands
-        // down a TIGHT width (an Expanded, a stretched Column child) cannot
-        // override the card's own width and blow past the 460 board.
-        return Center(
-          child: AnimatedBuilder(
-            animation: _shake,
-            builder: (context, child) => Transform.translate(
-              offset: Offset(_shakeOffset(_shake.value), 0),
-              child: child,
-            ),
-            child: _card(s, cardWidth),
-          ),
-        );
-      },
+            // Centred inside whatever box the host gives, so a parent that hands
+            // down a TIGHT width (an Expanded, a stretched Column child) cannot
+            // override the card's own width and blow past the 460 board.
+            return Center(
+              child: AnimatedBuilder(
+                animation: _shake,
+                builder: (context, child) => Transform.translate(
+                  offset: Offset(_shakeOffset(_shake.value), 0),
+                  child: child,
+                ),
+                child: _card(s, cardWidth),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 

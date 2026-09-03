@@ -238,6 +238,36 @@ class PosHomeSpec {
   static const double summaryTotalSize = 24;
   static const double summaryTotalHeight = 29 / 24;
 
+  // ── Receipt context menu (Figma 1641:3570) ───────────────────────────
+  static const Color contextMenuBorder = Color(0xFFEAE5D5);
+  static const Color contextMenuDanger = Color(0xFFD9383A);
+  static const Color contextMenuBackdrop = Color(0x45000000); // 27% black
+  static const double contextMenuWidth = 240;
+  static const double contextMenuRadius = 12;
+  static const double contextMenuPadding = 8;
+  static const double contextMenuBorderWidth = 1;
+  static const double contextMenuShadowBlur = 12;
+  static const Offset contextMenuShadowOffset = Offset(0, 8);
+  static const double contextMenuShadowOpacity = 0.08;
+  static const double contextMenuHeaderHeight = 27;
+  static const double contextMenuHeaderPaddingTop = 6;
+  static const double contextMenuHeaderPaddingBottom = 8;
+  static const double contextMenuHeaderPaddingH = 12;
+  static const double contextMenuHeaderSize = 11;
+  static const double contextMenuItemHeight = 40;
+  static const double contextMenuItemRadius = 6;
+  static const double contextMenuItemPaddingH = 12;
+  static const double contextMenuItemPaddingV = 10;
+  static const double contextMenuItemGap = 12;
+  static const double contextMenuItemLabelSize = 14;
+  static const double contextMenuItemLabelHeight = 17 / 14;
+  static const double contextMenuIconBox = 20;
+  static const double contextMenuIconSize = 16;
+  static const double contextMenuDividerHeight = 12;
+  /// Right edge of the options button → right edge of the menu (Figma:
+  /// button right 1340, menu right 1340).
+  static const double contextMenuAnchorGap = 0;
+
   /// Figma prices are `€ 6.00` / `€ 00.00` — a space after the symbol, and
   /// two digits before the decimal when the amount is zero.
   static String formatPrice(double amount) {

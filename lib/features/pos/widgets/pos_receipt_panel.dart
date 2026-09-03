@@ -26,7 +26,9 @@ class PosReceiptPanel extends StatelessWidget {
 
   /// Order lines, or null/empty to show the empty state.
   final Widget? orderList;
-  final VoidCallback? onOptions;
+
+  /// Fired with the ⋯ button's [BuildContext] so the caller can anchor a menu.
+  final ValueChanged<BuildContext>? onOptions;
   final VoidCallback? onPay;
 
   /// When null, the panel expands to the parent's width (compact sheet).
@@ -95,7 +97,7 @@ class PosReceiptPanel extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   final String? orderNumber;
-  final VoidCallback? onOptions;
+  final ValueChanged<BuildContext>? onOptions;
 
   const _Header({this.orderNumber, this.onOptions});
 
@@ -147,37 +149,43 @@ class _Header extends StatelessWidget {
                     ),
                   ],
                 ),
-                Material(
-                  color: PosHomeSpec.ink,
-                  borderRadius:
-                      BorderRadius.circular(PosHomeSpec.optionsButtonRadius),
-                  child: InkWell(
-                    onTap: onOptions,
-                    borderRadius:
-                        BorderRadius.circular(PosHomeSpec.optionsButtonRadius),
-                    child: Container(
-                      width: PosHomeSpec.optionsButtonSize,
-                      height: PosHomeSpec.optionsButtonSize,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
+                Builder(
+                  builder: (buttonContext) {
+                    return Material(
+                      color: PosHomeSpec.ink,
+                      borderRadius: BorderRadius.circular(
+                          PosHomeSpec.optionsButtonRadius),
+                      child: InkWell(
+                        onTap: onOptions == null
+                            ? null
+                            : () => onOptions!(buttonContext),
                         borderRadius: BorderRadius.circular(
                             PosHomeSpec.optionsButtonRadius),
-                        border: Border.all(color: PosHomeSpec.hairline),
-                      ),
-                      child: RotatedBox(
-                        quarterTurns: 1,
-                        child: SvgPicture.asset(
-                          Images.posMoreVertSvg,
-                          width: PosHomeSpec.optionsIconSize,
-                          height: PosHomeSpec.optionsIconSize,
-                          colorFilter: const ColorFilter.mode(
-                            Colors.white,
-                            BlendMode.srcIn,
+                        child: Container(
+                          width: PosHomeSpec.optionsButtonSize,
+                          height: PosHomeSpec.optionsButtonSize,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                                PosHomeSpec.optionsButtonRadius),
+                            border: Border.all(color: PosHomeSpec.hairline),
+                          ),
+                          child: RotatedBox(
+                            quarterTurns: 1,
+                            child: SvgPicture.asset(
+                              Images.posMoreVertSvg,
+                              width: PosHomeSpec.optionsIconSize,
+                              height: PosHomeSpec.optionsIconSize,
+                              colorFilter: const ColorFilter.mode(
+                                Colors.white,
+                                BlendMode.srcIn,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ],
             ),

@@ -282,6 +282,22 @@ class Images {
   static const String posEditPng = 'assets/image/pos_edit.png';
   static const String posScanSvg = 'assets/svg/pos_scan.svg';
 
+  // POS receipt context menu — Figma node 1641:3570 (lightspeed-context-menu).
+  static const String posMenuPercentSvg = 'assets/svg/pos_menu_percent.svg';
+  static const String posMenuEditSvg = 'assets/svg/pos_menu_edit.svg';
+  static const String posMenuTrashSvg = 'assets/svg/pos_menu_trash.svg';
+  static const String posMenuTagSvg = 'assets/svg/pos_menu_tag.svg';
+  static const String posMenuShieldCheckSvg =
+      'assets/svg/pos_menu_shield_check.svg';
+  static const String posMenuGiftSvg = 'assets/svg/pos_menu_gift.svg';
+  static const String posMenuMoveSvg = 'assets/svg/pos_menu_move.svg';
+  static const String posMenuPauseSvg = 'assets/svg/pos_menu_pause.svg';
+  static const String posMenuSendSvg = 'assets/svg/pos_menu_send.svg';
+  static const String posMenuRepeatSvg = 'assets/svg/pos_menu_repeat.svg';
+  static const String posMenuCreditCardSvg =
+      'assets/svg/pos_menu_credit_card.svg';
+  static const String posMenuStarSvg = 'assets/svg/pos_menu_star.svg';
+
   static String getImageUrl(imageName) => 'assets/image/$imageName.png';
   static String getPaymentImage(String name) => 'assets/payment/$name.png';
   static String getShareIcon(String name) => 'assets/icon/$name.png';

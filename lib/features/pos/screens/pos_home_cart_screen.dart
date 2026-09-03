@@ -6,20 +6,22 @@ import 'package:acafe_customer/features/category/providers/category_provider.dar
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/screens/pos_product_customize_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_category_sidebar.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_coupon_apply_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_product_grid.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
-import 'package:acafe_customer/helper/price_converter_helper.dart';
-import 'package:acafe_customer/helper/product_helper.dart';
+import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -27,9 +29,14 @@ import 'package:provider/provider.dart';
 
 /// POS home — category sidebar, product grid, purchase receipt.
 ///
-/// Figma: empty cart **1642:1087**, cart-active **1641:1968**. Same three-pane
-/// screen; the receipt pane swaps empty-state chrome for order lines + PAY
-/// when [CartProvider] has items.
+/// Figma: empty cart **1642:1087**, cart-active **1641:1968**, context menu
+/// **1641:3376**. Same three-pane screen; the receipt pane swaps empty-state
+/// chrome for order lines + PAY when [CartProvider] has items. The receipt ⋯
+/// button opens [showPosReceiptContextMenu].
+///
+/// Menu data is warmed on the PIN screen (disk → network → first-category
+/// images) so this route usually paints from cache. Category switches mirror
+/// the kiosk: highlight the rail, warm images, then swap the grid.
 class PosHomeCartScreen extends StatefulWidget {
   const PosHomeCartScreen({super.key});
 
@@ -48,9 +55,37 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   /// Figma paints POPULAR as the active pill on the empty-cart frame.
   String? _selectedTag = PosHomeSpec.filterPillLabels.first;
 
+  /// Category id driving the product grid. Kept separate from the rail
+  /// highlight so we can warm images before swapping products (kiosk pattern).
+  String? _gridCategoryId;
+
+  /// False only on the cold/deep-link path while [CategoryProvider] is still
+  /// fetching — after PIN unlock this is almost always true on first frame.
+  bool _menuReady = false;
+
+  bool _categorySwitching = false;
+  bool _didBootstrap = false;
+
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didBootstrap) return;
+    _didBootstrap = true;
+
+    // If the PIN screen already warmed the catalog, paint from cache on the
+    // first frame — do not wait a post-frame callback to flip `_menuReady`.
+    final category = context.read<CategoryProvider>();
+    final locale = context.read<LocalizationProvider>().locale.languageCode;
+    if (category.isKioskMenuReadyFor(locale)) {
+      _menuReady = true;
+      _gridCategoryId = category.selectedSubCategoryId;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadMenu());
   }
 
@@ -65,44 +100,98 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   Future<void> _loadMenu() async {
     if (!mounted) return;
     final category = context.read<CategoryProvider>();
+    final splash = context.read<SplashProvider>();
     final locale = context.read<LocalizationProvider>().locale.languageCode;
-    await category.ensureKioskMenuReady(localeCode: locale);
+
+    // Prefetched on the PIN screen — render from cache, warm neighbours only.
+    if (category.isKioskMenuReadyFor(locale)) {
+      setState(() {
+        _menuReady = true;
+        _gridCategoryId = category.selectedSubCategoryId;
+      });
+      KioskMenuImageHelper.precacheAroundSelected(context, category, splash);
+      return;
+    }
+
+    // Edge case: deep-linked to /pos-home without visiting PIN first.
+    try {
+      await category.ensureKioskMenuReady(localeCode: locale);
+    } catch (_) {}
+    if (!mounted) return;
+
+    try {
+      await KioskMenuImageHelper.precacheAroundSelected(
+        context,
+        category,
+        splash,
+        awaitVisible: true,
+      ).timeout(const Duration(seconds: 3), onTimeout: () {});
+    } catch (_) {}
+    if (!mounted) return;
+
+    setState(() {
+      _menuReady = true;
+      _gridCategoryId = category.selectedSubCategoryId;
+    });
   }
 
-  void _selectCategory(CategoryModel category) {
-    context.read<CategoryProvider>().selectKioskCategory('${category.id}');
+  Future<void> _selectCategory(CategoryModel categoryModel) async {
+    final String id = '${categoryModel.id}';
+    if (_categorySwitching || id == _gridCategoryId) return;
+
+    final category = context.read<CategoryProvider>();
+    final splash = context.read<SplashProvider>();
+
+    _categorySwitching = true;
+    // 1) Highlight the rail immediately; keep the current grid painted.
+    category.setSelectedCategoryHighlight(id);
+
+    // 2) Warm the target category's images before swapping the grid.
+    final int? numericId = categoryModel.id;
+    final targetProducts = numericId == null
+        ? const <Product>[]
+        : category.kioskProductsForCategoryIds([numericId]);
+    try {
+      await KioskMenuImageHelper.precacheProducts(
+        context,
+        splash,
+        targetProducts,
+        awaitAll: true,
+      ).timeout(const Duration(milliseconds: 1200), onTimeout: () {});
+    } catch (_) {}
+    if (!mounted) {
+      _categorySwitching = false;
+      return;
+    }
+
+    // 3) Swap grid + provider bucket together.
+    await category.selectKioskCategory(id);
+    if (!mounted) {
+      _categorySwitching = false;
+      return;
+    }
+    setState(() => _gridCategoryId = id);
+    _categorySwitching = false;
+
+    // 4) Warm neighbours for the next tap.
+    KioskMenuImageHelper.precacheAroundSelected(context, category, splash);
   }
 
   void _addToCart(Product product) {
-    final branch = ProductHelper.getBranchProductVariationWithPrice(product);
-    final double price = branch.price ?? product.price ?? 0;
-    final double discounted = PriceConverterHelper.convertWithDiscount(
-          price,
-          product.discount,
-          product.discountType,
-        ) ??
-        price;
-    context.read<CartProvider>().addToCart(
-          CartModel(
-            price,
-            discounted,
-            const [],
-            price - discounted,
-            1,
-            0,
-            const [],
-            product,
-            const [],
-          ),
-          null,
-          showMessage: false,
-        );
+    openPosCustomize(
+      context,
+      product,
+      customerNameController: _customerName,
+      tableController: _table,
+      orderType: _orderType,
+      onOrderTypeChanged: (t) => setState(() => _orderType = t),
+    );
   }
 
-  /// Products for the selected category, narrowed by the active tag pill and
+  /// Products for the grid category, narrowed by the active tag pill and
   /// the search box.
   List<Product> _visibleProducts(CategoryProvider category) {
-    final String? selectedId = category.selectedSubCategoryId;
+    final String? selectedId = _gridCategoryId ?? category.selectedSubCategoryId;
     if (selectedId == null) return const [];
 
     List<Product> products = category
@@ -161,12 +250,69 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   void _editLine(int index) {
     final CartModel? line = context.read<CartProvider>().cartList[index];
     if (line == null) return;
-    openKioskCartLine(context, line, cartIndex: index);
+    openPosCartLine(
+      context,
+      line,
+      cartIndex: index,
+      customerNameController: _customerName,
+      tableController: _table,
+      orderType: _orderType,
+      onOrderTypeChanged: (t) => setState(() => _orderType = t),
+    );
   }
 
   void _pay() {
     if (!_cartHasItems) return;
     context.go(PosRoutes.payment);
+  }
+
+  Future<void> _openReceiptOptions(BuildContext anchorContext) async {
+    final PosReceiptMenuAction? action = await showPosReceiptContextMenu(
+      context: context,
+      anchorContext: anchorContext,
+    );
+    if (action == null || !mounted) return;
+    await _handleReceiptMenuAction(action);
+  }
+
+  Future<void> _handleReceiptMenuAction(PosReceiptMenuAction action) async {
+    final CouponProvider coupon = context.read<CouponProvider>();
+    final CartProvider cart = context.read<CartProvider>();
+    final double orderAmount = kioskOrderAmountBeforeCoupon(cart.cartList);
+
+    switch (action) {
+      case PosReceiptMenuAction.applyDiscount:
+        await showPosCouponApplyDialog(
+          context: context,
+          orderAmount: orderAmount,
+          title: 'Apply discount',
+        );
+      case PosReceiptMenuAction.applyCustomDiscount:
+        await showPosCouponApplyDialog(
+          context: context,
+          orderAmount: orderAmount,
+          title: 'Apply custom discount',
+        );
+      case PosReceiptMenuAction.removeDiscount:
+        if ((coupon.discount ?? 0) <= 0 && coupon.coupon == null) {
+          showCustomSnackBarHelper('No discount to remove', isError: false);
+          return;
+        }
+        coupon.removeCouponData(true);
+        showCustomSnackBarHelper('Discount removed', isError: false);
+      case PosReceiptMenuAction.priceOverride:
+      case PosReceiptMenuAction.taxExempt:
+      case PosReceiptMenuAction.compItem:
+      case PosReceiptMenuAction.moveTable:
+      case PosReceiptMenuAction.holdFire:
+      case PosReceiptMenuAction.sendKitchen:
+      case PosReceiptMenuAction.repeatItem:
+      case PosReceiptMenuAction.partialPayment:
+      case PosReceiptMenuAction.giftCard:
+      case PosReceiptMenuAction.loyaltyPoints:
+        // Menu chrome matches Figma; these actions have no POS backend yet.
+        break;
+    }
   }
 
   PosReceiptPanel _receiptPanel({
@@ -203,6 +349,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
               onEdit: _editLine,
             )
           : null,
+      onOptions: _openReceiptOptions,
       onPay: hasItems ? _pay : null,
     );
   }
@@ -294,8 +441,9 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
                     onTagSelected: (label) => setState(() =>
                         _selectedTag = _selectedTag == label ? null : label),
                     products: products,
-                    isLoading: category.isKioskMenuPrefetching &&
-                        categories.isEmpty,
+                    isLoading: !_menuReady &&
+                        (category.isKioskMenuPrefetching ||
+                            categories.isEmpty),
                     imageBaseUrl: splash.baseUrls?.productImageUrl,
                     cartQuantityOf: cart.getCartProductQuantityCount,
                     onProductTap: _addToCart,

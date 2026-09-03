@@ -1,5 +1,7 @@
 import 'package:acafe_customer/features/pos/widgets/pos_pin_card.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget host({
@@ -73,9 +75,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(filledDots(tester), 2);
 
-    // Backspace is the only icon key.
-    await tester.tap(find.byType(GestureDetector).last);
+    // Backspace is the only keypad key that renders an SVG icon.
+    await tester.tap(find.byType(SvgPicture).last);
     await tester.pumpAndSettle();
+    expect(filledDots(tester), 1);
   });
 
   testWidgets('confirm is disabled until the PIN is complete', (tester) async {
@@ -159,6 +162,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(filledDots(tester), 4, reason: 'host navigates away; card holds');
+  });
+
+  testWidgets('hardware keyboard digits, backspace, and enter work',
+      (tester) async {
+    final submitted = <String>[];
+    await pumpCard(tester, onSubmit: (pin) async {
+      submitted.add(pin);
+      return true;
+    });
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad3);
+    await tester.pump();
+    expect(filledDots(tester), 3);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(filledDots(tester), 2);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit4);
+    await tester.pump();
+    expect(filledDots(tester), 4);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(submitted, ['1234']);
   });
 
   testWidgets('the row-4 spacer is present but not interactive',

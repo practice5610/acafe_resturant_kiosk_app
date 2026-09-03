@@ -87,7 +87,7 @@ class _KioskProductCustomizeStepScreenState
   /// be shown an empty "Add-ons" step, so the flow is built from the product
   /// rather than assuming all three.
   late final List<_CustomizeStep> _steps;
-  late final _CustomizeSections _sections;
+  late final KioskCustomizeSections _sections;
 
   /// Current step index, as a notifier rather than setState: moving between
   /// steps must repaint the progress bar, the step body and the action bar —
@@ -117,7 +117,7 @@ class _KioskProductCustomizeStepScreenState
     final String initial = widget.initialInstruction?.trim() ?? '';
     _instruction = initial.isEmpty ? null : initial;
 
-    _sections = _CustomizeSections.of(product);
+    _sections = KioskCustomizeSections.of(product);
     _steps = [
       if (_sections.hasMilkStep) _CustomizeStep.milks,
       if (product.effectiveAddOnGroups.isNotEmpty) _CustomizeStep.addOns,
