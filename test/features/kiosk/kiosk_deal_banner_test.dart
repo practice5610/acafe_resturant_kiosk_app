@@ -30,6 +30,19 @@ KioskDeal _deal(int id, String image) => KioskDeal(
       items: const [],
     );
 
+KioskDeal _staticDeal(int id, String image) => KioskDeal(
+      id: id,
+      dealType: KioskDeal.typeStaticImage,
+      title: 'Static $id',
+      image: image,
+      bundlePrice: 0,
+      originalPrice: 0,
+      savings: 0,
+      savingsPercent: 0,
+      available: true,
+      items: const [],
+    );
+
 /// Renders the banner inside the real kiosk shell, in a column the width of a
 /// product area, and returns the slot's size. The artwork cards inside it are
 /// read with [_cards].
@@ -287,6 +300,83 @@ void main() {
       expect(card.width / card.height,
           closeTo(KioskResponsive.dealBannerDefaultAspect, 0.01));
       expect(box.height, closeTo(card.height, 0.5));
+    });
+  });
+
+  group('static image deals', () {
+    testWidgets('a static image banner has no tap target', (tester) async {
+      await _pumpBanner(
+        tester,
+        const Size(1080, 1920),
+        [_staticDeal(1, 'wide.png')],
+        providers: providers,
+      );
+
+      // The artwork still lays out exactly as a bundle banner does...
+      expect(_cards(tester).length, 1);
+      // ...but nothing in the card can be tapped.
+      expect(
+        find.descendant(
+          of: find.byKey(kKioskDealBannerCardKey),
+          matching: find.byType(GestureDetector),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('a product bundle banner keeps its tap target', (tester) async {
+      await _pumpBanner(
+        tester,
+        const Size(1080, 1920),
+        [_deal(1, 'wide.png')],
+        providers: providers,
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(kKioskDealBannerCardKey),
+          matching: find.byType(GestureDetector),
+        ),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('a mixed carousel taps only the bundle', (tester) async {
+      await _pumpBanner(
+        tester,
+        const Size(1080, 1920),
+        [_staticDeal(1, 'wide.png'), _deal(2, 'narrow.png')],
+        providers: providers,
+      );
+
+      // PageView builds one page at a time, so the visible card is the static
+      // one — it must be inert while the bundle behind it stays tappable.
+      expect(
+        find.descendant(
+          of: find.byKey(kKioskDealBannerCardKey),
+          matching: find.byType(GestureDetector),
+        ),
+        findsNothing,
+      );
+    });
+
+    test('deal_type round-trips through the cache payload', () {
+      final KioskDeal parsed = KioskDeal.fromJson(
+        _staticDeal(7, 'wide.png').toJson(),
+      );
+      expect(parsed.isStaticImage, isTrue);
+      expect(parsed.dealType, KioskDeal.typeStaticImage);
+    });
+
+    test('a payload with no deal_type reads as a product bundle', () {
+      final KioskDeal parsed = KioskDeal.fromJson(<String, dynamic>{
+        'id': 3,
+        'title': 'Legacy',
+        'bundle_price': 5,
+        'items': <dynamic>[],
+      });
+      expect(parsed.isStaticImage, isFalse);
+      expect(parsed.dealType, KioskDeal.typeProductBundle);
     });
   });
 

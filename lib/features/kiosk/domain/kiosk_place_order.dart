@@ -42,6 +42,20 @@ String kioskOrderNote({
   return buffer.toString();
 }
 
+/// The `order_type` an order placed from this app carries.
+///
+/// The app is the same binary on both a self-service kiosk and a staffed
+/// counter terminal, so the only thing that distinguishes the two is the
+/// device row's `category`. Tagging the order here is what lets the backend
+/// report it in the right channel; previously every order was hardcoded to
+/// `take_away`, which made a POS terminal indistinguishable from a kiosk.
+///
+/// Fulfilment is unaffected: everything this app sells is collected at the
+/// counter, and ZReportService::classifyFulfillment() maps `pos` to take-away
+/// for exactly that reason.
+String kioskOrderType(KioskAuthProvider kioskAuthProvider) =>
+    kioskAuthProvider.isPosDevice ? 'pos' : 'take_away';
+
 /// Places the current cart as a guest kiosk order via the SAME path as the user
 /// web app (OrderProvider.placeOrder → /api/v1/customer/order/place), so it
 /// lands in the orders table and kitchen app identically.
@@ -105,10 +119,12 @@ Future<KioskPlaceResult> placeKioskOrder(
     tipAmount: tipAmount > 0 ? tipAmount : null,
     deliveryAddressId: 0,
     deliveryAddress: null,
-    orderType: 'take_away',
+    orderType: kioskOrderType(kioskAuthProvider),
     paymentMethod: 'cash_on_delivery',
     branchId: branchId,
     deviceId: kioskAuthProvider.deviceId,
+    customerEmail: KioskSession.instance.customerEmail,
+    customerName: KioskSession.instance.customerName,
     deliveryTime: 'now',
     deliveryDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
     orderNote: kioskOrderNote(

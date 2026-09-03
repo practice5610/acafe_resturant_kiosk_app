@@ -119,55 +119,15 @@ class _SalesOverviewBody extends StatefulWidget {
 }
 
 class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
-  late final TextEditingController _openingController;
-  final TextEditingController _closingController = TextEditingController();
   final TextEditingController _commentController = TextEditingController();
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    final previous = (widget.data['previous_closing_cash'] as num?)?.toDouble();
-    _openingController = TextEditingController(
-        text: previous != null ? previous.toStringAsFixed(2) : '');
-    _openingController.addListener(_onCashChanged);
-    _closingController.addListener(_onCashChanged);
-  }
 
   @override
   void dispose() {
-    _openingController.removeListener(_onCashChanged);
-    _closingController.removeListener(_onCashChanged);
-    _openingController.dispose();
-    _closingController.dispose();
     _commentController.dispose();
     super.dispose();
   }
 
-  void _onCashChanged() => setState(() {});
-
-  double get _expectedCashSales =>
-      ((widget.data['cash'] as Map?)?['expected_cash_sales'] as num?)
-          ?.toDouble() ??
-      0;
-  double get _openingCash =>
-      double.tryParse(_openingController.text.trim()) ?? 0;
-  double get _closingCash =>
-      double.tryParse(_closingController.text.trim()) ?? 0;
-  double get _expectedCash => _openingCash + _expectedCashSales;
-  double get _variance =>
-      double.parse((_closingCash - _expectedCash).toStringAsFixed(2));
-
   Future<void> _closeDay(KioskManagerProvider provider) async {
-    final opening = double.tryParse(_openingController.text.trim());
-    final closing = double.tryParse(_closingController.text.trim());
-    if (opening == null || closing == null) {
-      setState(
-          () => _error = 'Enter valid amounts for opening and closing cash');
-      return;
-    }
-    setState(() => _error = null);
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => _CloseDayConfirmDialog(s: widget.s),
@@ -177,8 +137,6 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
 
     await provider.closeZReport(
       reportDate: '${widget.data['report_date']}',
-      openingCash: opening,
-      closingCashCounted: closing,
       comment: _commentController.text.trim().isEmpty
           ? null
           : _commentController.text.trim(),
@@ -202,6 +160,11 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
     final List payments = paymentMethods['methods'] ?? [];
     final channelBreakdown = _asMap(data['channel_breakdown']);
     final List channelBuckets = channelBreakdown['buckets'] ?? [];
+    final deviceBreakdown = _asMap(data['device_breakdown']);
+    final List deviceRows = deviceBreakdown['rows'] ?? [];
+    // Days closed before per-device capture existed report recorded:false --
+    // say so rather than showing an empty list that reads as "no sales".
+    final bool devicesRecorded = deviceBreakdown['recorded'] != false;
     final double? approxRefundValue = _money(voided['approx_refund_value']);
 
     return ListView(
@@ -339,20 +302,28 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
             ),
         ]),
         SizedBox(height: 32 * s),
+        _SectionCard(s: s, title: 'Devices', children: [
+          if (!devicesRecorded)
+            _StatRow(s: s, label: 'Not recorded for this day', value: '')
+          else if (deviceRows.isEmpty)
+            _StatRow(s: s, label: 'No devices registered', value: '')
+          else
+            for (final row in deviceRows)
+              _StatRow(
+                s: s,
+                label:
+                    '${row['device_name']} · ${row['category_label']} (${row['order_count'] ?? 0})',
+                value: PriceConverterHelper.convertPrice(_money(row['amount'])),
+              ),
+        ]),
+        SizedBox(height: 32 * s),
         if (closed)
-          _CashReconciliationCard(
-              s: s,
-              data: _asMap(data['cash_reconciliation']),
-              comment: data['closing_comment'] as String?)
+          _ClosingCommentCard(
+              s: s, comment: data['closing_comment'] as String?)
         else
           _CloseDaySection(
             s: s,
-            openingController: _openingController,
-            closingController: _closingController,
             commentController: _commentController,
-            expectedCash: _expectedCash,
-            variance: _variance,
-            error: _error,
             loading: provider.closingRegister,
             onCloseDay: () => _closeDay(provider),
           ),
@@ -461,143 +432,55 @@ class _StatRow extends StatelessWidget {
   }
 }
 
-class _CashReconciliationCard extends StatelessWidget {
+/// Shown in place of the Close Day form once the day is finalized: the only
+/// thing left to surface is the note whoever closed it left behind.
+class _ClosingCommentCard extends StatelessWidget {
   final double s;
-  final Map<String, dynamic> data;
   final String? comment;
-  const _CashReconciliationCard(
-      {required this.s, required this.data, this.comment});
+  const _ClosingCommentCard({required this.s, this.comment});
 
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(s: s, title: 'Cash reconciliation', children: [
-      _StatRow(
-          s: s,
-          label: 'Opening cash',
-          value:
-              PriceConverterHelper.convertPrice(_money(data['opening_cash']))),
-      _StatRow(
-          s: s,
-          label: 'Expected cash',
-          value:
-              PriceConverterHelper.convertPrice(_money(data['expected_cash']))),
-      _StatRow(
-          s: s,
-          label: 'Closing cash counted',
-          value: PriceConverterHelper.convertPrice(
-              _money(data['closing_cash_counted']))),
-      _StatRow(
-          s: s,
-          label: 'Variance',
-          value:
-              PriceConverterHelper.convertPrice(_money(data['cash_variance']))),
-      if (comment != null && comment!.trim().isNotEmpty) ...[
-        SizedBox(height: 8 * s),
-        Text('Comment',
-            style:
-                loewRegular.copyWith(fontSize: 28 * s, color: Colors.black45)),
-        SizedBox(height: 4 * s),
-        Text(comment!,
-            style:
-                loewRegular.copyWith(fontSize: 32 * s, color: Colors.black87)),
-      ],
+    final String text = (comment ?? '').trim();
+
+    return _SectionCard(s: s, title: 'Closing comment', children: [
+      Text(
+        text.isEmpty ? 'No comment was left for this day.' : text,
+        style: loewRegular.copyWith(
+            fontSize: 32 * s,
+            color: text.isEmpty ? Colors.black45 : Colors.black87),
+      ),
     ]);
   }
 }
 
-/// Inline "Close Day" form -- opening cash / closing cash counted / optional
-/// comment plus the CLOSE DAY action, merged directly into the Sales
-/// Overview page (no separate popup/sheet).
+/// Inline "Close Day" action: an optional comment plus the CLOSE DAY button,
+/// merged directly into the Sales Overview page (no separate popup/sheet).
+///
+/// Cash reconciliation used to live here. It was removed deliberately: every
+/// order's amount is already recorded when it is placed, so asking a manager
+/// to count and key in opening/closing cash added a manual step that told the
+/// system nothing it did not already know.
 class _CloseDaySection extends StatelessWidget {
   final double s;
-  final TextEditingController openingController;
-  final TextEditingController closingController;
   final TextEditingController commentController;
-  final double expectedCash;
-  final double variance;
-  final String? error;
   final bool loading;
   final VoidCallback onCloseDay;
 
   const _CloseDaySection({
     required this.s,
-    required this.openingController,
-    required this.closingController,
     required this.commentController,
-    required this.expectedCash,
-    required this.variance,
-    required this.error,
     required this.loading,
     required this.onCloseDay,
   });
 
-  Color _varianceColor() {
-    if (variance > 0) return const Color(0xFF2E7D32);
-    if (variance < 0) return const Color(0xFF8A2E2E);
-    return Colors.black;
-  }
-
-  String _varianceText() {
-    final sign = variance > 0 ? '+' : (variance < 0 ? '-' : '');
-    return '$sign${PriceConverterHelper.convertPrice(variance.abs())}';
-  }
-
   @override
   Widget build(BuildContext context) {
     return _SectionCard(s: s, title: 'Close day', children: [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: _CashInputField(
-              s: s,
-              label: 'Opening cash',
-              controller: openingController,
-            ),
-          ),
-          SizedBox(width: 32 * s),
-          Expanded(
-            child: _CashReadout(
-                s: s,
-                label: 'Expected cash',
-                value: PriceConverterHelper.convertPrice(expectedCash)),
-          ),
-        ],
-      ),
-      SizedBox(height: 24 * s),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: _CashInputField(
-              s: s,
-              label: 'Closing cash counted',
-              controller: closingController,
-              hasError: error != null,
-            ),
-          ),
-          SizedBox(width: 32 * s),
-          Expanded(
-            child: _CashReadout(
-                s: s,
-                label: 'Variance',
-                value: _varianceText(),
-                color: _varianceColor()),
-          ),
-        ],
-      ),
-      if (error != null) ...[
-        SizedBox(height: 12 * s),
-        Text(error!,
-            style: loewRegular.copyWith(
-                fontSize: 28 * s, color: const Color(0xFFEF4444))),
-      ],
-      SizedBox(height: 24 * s),
-      _CashInputField(
+      _CommentField(
         s: s,
         label: 'Comment (optional)',
         controller: commentController,
-        isNumeric: false,
       ),
       SizedBox(height: 36 * s),
       KioskPrimaryButton(
@@ -616,18 +499,17 @@ class _CloseDaySection extends StatelessWidget {
   }
 }
 
-class _CashInputField extends StatelessWidget {
+/// The single free-text input left on this screen: the optional note attached
+/// to a Close Day. (Was _CashInputField, which also served the numeric cash
+/// inputs before cash reconciliation was removed.)
+class _CommentField extends StatelessWidget {
   final double s;
   final String label;
   final TextEditingController controller;
-  final bool isNumeric;
-  final bool hasError;
-  const _CashInputField({
+  const _CommentField({
     required this.s,
     required this.label,
     required this.controller,
-    this.isNumeric = true,
-    this.hasError = false,
   });
 
   @override
@@ -645,56 +527,20 @@ class _CashInputField extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFFBF8EF),
             borderRadius: BorderRadius.circular(16 * s),
-            border: Border.all(
-              color:
-                  hasError ? const Color(0xFFEF4444) : const Color(0xFFB9B5A6),
-              width: 2 * s,
-            ),
+            border: Border.all(color: const Color(0xFFB9B5A6), width: 2 * s),
           ),
           alignment: Alignment.centerLeft,
           child: TextField(
             controller: controller,
-            keyboardType: isNumeric
-                ? const TextInputType.numberWithOptions(decimal: true)
-                : TextInputType.text,
             style: loewRegular.copyWith(fontSize: 32 * s, color: Colors.black),
             decoration: InputDecoration(
               isCollapsed: true,
               border: InputBorder.none,
-              hintText: isNumeric ? '0.00' : 'Notes for this close',
+              hintText: 'Notes for this close',
               hintStyle: loewRegular.copyWith(
                   fontSize: 32 * s, color: const Color(0xFFB9B5A6)),
             ),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CashReadout extends StatelessWidget {
-  final double s;
-  final String label;
-  final String value;
-  final Color? color;
-  const _CashReadout(
-      {required this.s, required this.label, required this.value, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style:
-                loewRegular.copyWith(fontSize: 28 * s, color: Colors.black54)),
-        SizedBox(height: 10 * s),
-        Container(
-          height: 84 * s,
-          alignment: Alignment.centerLeft,
-          child: Text(value,
-              style: loewBold.copyWith(
-                  fontSize: 34 * s, color: color ?? Colors.black)),
         ),
       ],
     );

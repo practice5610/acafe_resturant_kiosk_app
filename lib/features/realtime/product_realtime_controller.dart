@@ -7,6 +7,7 @@ import 'package:acafe_customer/common/reposotories/product_repo.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/realtime/catalog_event.dart';
@@ -42,6 +43,7 @@ class ProductRealtimeController {
   CartProvider? _cart;
   LocalizationProvider? _localization;
   KioskDealProvider? _deals;
+  CouponProvider? _coupons;
   KioskAuthProvider? _auth;
   WebsocketConfig? _config;
 
@@ -52,6 +54,7 @@ class ProductRealtimeController {
     required CartProvider cart,
     required LocalizationProvider localization,
     required KioskDealProvider deals,
+    required CouponProvider coupons,
     required KioskAuthProvider auth,
     int? deviceId,
   }) async {
@@ -60,10 +63,12 @@ class ProductRealtimeController {
     _cart = cart;
     _localization = localization;
     _deals = deals;
+    _coupons = coupons;
     bindAuth(auth);
 
     gateway.onEvent = _onEvent;
     gateway.onDealEvent = _onDealEvent;
+    gateway.onCouponEvent = _onCouponEvent;
     gateway.onDeviceOrderingExperienceEvent = _onDeviceOrderingExperience;
     gateway.onDeviceSettingsEvent = _onDeviceSettings;
     gateway.onReconnect = _onReconnect;
@@ -347,6 +352,39 @@ class ProductRealtimeController {
       _dealDebounce = null;
       _deals?.fetchDeals();
     });
+  }
+
+  /// A coupon was created, edited or removed for this branch.
+  ///
+  /// There is no cached coupon list on the kiosk — codes are typed and checked
+  /// against the server on every entry — so nothing needs refetching. What does
+  /// need handling is a discount already applied to the open cart: if that
+  /// coupon is the one that changed, it is dropped rather than carried into
+  /// checkout at a rate head office may just have changed or revoked.
+  void _onCouponEvent(CatalogEvent event) {
+    if (kDebugMode) {
+      debugPrint(
+        'ProductRealtimeController coupon action=${event.action} '
+        'coupon=${event.couponId}',
+      );
+    }
+    final bool duplicate = event.eventId.isNotEmpty &&
+        _seenEventIds.contains(event.eventId);
+    if (duplicate) {
+      return;
+    }
+    if (event.eventId.isNotEmpty) {
+      _seenEventIds.add(event.eventId);
+      while (_seenEventIds.length > _seenCap) {
+        _seenEventIds.removeFirst();
+      }
+    }
+
+    final int id = event.couponId;
+    if (id <= 0) {
+      return;
+    }
+    _coupons?.applyRealtimeChange(id);
   }
 
   void _applyRemoved(int productId) {

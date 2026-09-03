@@ -4,6 +4,7 @@ import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
@@ -99,6 +100,7 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope>
     final cart = context.read<CartProvider>();
     final localization = context.read<LocalizationProvider>();
     final deals = context.read<KioskDealProvider>();
+    final coupons = context.read<CouponProvider>();
 
     // Claim the slot before any await. _sync() runs from a post-frame callback
     // on every rebuild, so a concurrent call must early-return rather than open
@@ -126,6 +128,7 @@ class _ProductRealtimeScopeState extends State<ProductRealtimeScope>
       cart: cart,
       localization: localization,
       deals: deals,
+      coupons: coupons,
       auth: auth,
     );
   }

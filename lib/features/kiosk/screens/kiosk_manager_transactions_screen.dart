@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_search_field.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
@@ -23,21 +26,57 @@ class KioskManagerTransactionsScreen extends StatefulWidget {
 class _KioskManagerTransactionsScreenState
     extends State<KioskManagerTransactionsScreen> {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
+  /// Each keystroke would otherwise be a branch-wide query. Long enough that
+  /// typing a receipt number fires once, short enough to feel immediate.
+  static const Duration _debounce = Duration(milliseconds: 350);
+  Timer? _debounceTimer;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<KioskManagerProvider>().loadTransactions();
+      // The provider is a lazy singleton, so an earlier visit's query can
+      // outlive the screen -- entering always starts from an empty search to
+      // match the empty field.
+      context.read<KioskManagerProvider>().loadTransactions(search: '');
     });
+    _searchController.addListener(_onQueryChanged);
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.removeListener(_onQueryChanged);
+    _searchController.dispose();
+    _searchFocus.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    final next = _searchController.text.trim();
+    if (next == _query) return;
+    setState(() => _query = next);
+
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounce, () {
+      if (!mounted) return;
+      context.read<KioskManagerProvider>().searchTransactions(next);
+      // A new result set starts at the top, so an old scroll offset would
+      // otherwise immediately trigger the next-page fetch.
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _searchFocus.requestFocus();
   }
 
   void _onScroll() {
@@ -61,10 +100,31 @@ class _KioskManagerTransactionsScreenState
             return KioskCenteredContent(
               child: Column(
                 children: [
-                  KioskHeaderBar(
-                    s: s,
-                    title: 'TRANSACTIONS',
-                    fallback: RouterHelper.getKioskManagerDashboardRoute,
+                  Consumer<KioskManagerProvider>(
+                    builder: (context, provider, _) {
+                      return KioskHeaderBar(
+                        s: s,
+                        title: 'TRANSACTIONS',
+                        fallback: RouterHelper.getKioskManagerDashboardRoute,
+                        trailing: _CountChip(
+                          s: s,
+                          value: '${provider.transactionsTotal}',
+                          label: _query.isEmpty ? 'orders' : 'matches',
+                        ),
+                      );
+                    },
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(132 * s, 0, 132 * s, 40 * s),
+                    child: KioskSearchField(
+                      s: s,
+                      height: 92 * s,
+                      controller: _searchController,
+                      focusNode: _searchFocus,
+                      hasQuery: _query.isNotEmpty,
+                      onClear: _clearSearch,
+                      hintText: 'Search order # or payment method',
+                    ),
                   ),
                   Expanded(
                     child: Consumer<KioskManagerProvider>(
@@ -76,8 +136,17 @@ class _KioskManagerTransactionsScreenState
                         }
                         if (provider.transactions.isEmpty) {
                           return Center(
-                            child: Text('No orders yet today',
-                                style: loewMedium.copyWith(fontSize: 44 * s)),
+                            child: Padding(
+                              padding:
+                                  EdgeInsets.symmetric(horizontal: 132 * s),
+                              child: Text(
+                                _query.isEmpty
+                                    ? 'No orders yet today'
+                                    : 'No order today matches \u201C$_query\u201D',
+                                textAlign: TextAlign.center,
+                                style: loewMedium.copyWith(fontSize: 44 * s),
+                              ),
+                            ),
                           );
                         }
                         return ListView.separated(
@@ -107,6 +176,41 @@ class _KioskManagerTransactionsScreenState
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// Result count beside the title -- with search on, it is the only signal
+/// that the list has been narrowed and by how much.
+class _CountChip extends StatelessWidget {
+  final double s;
+  final String value;
+  final String label;
+
+  const _CountChip({required this.s, required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 24 * s, vertical: 12 * s),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30 * s),
+        border:
+            Border.all(color: kKioskHairline, width: kioskStroke(1.5, s)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value,
+              style:
+                  loewExtraBold.copyWith(fontSize: 28 * s, color: KioskUI.dark)),
+          SizedBox(width: 8 * s),
+          Text(label,
+              style: loewMedium.copyWith(
+                  fontSize: 24 * s, color: kKioskMutedFg)),
+        ],
       ),
     );
   }

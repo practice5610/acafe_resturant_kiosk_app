@@ -136,6 +136,35 @@ class CouponProvider extends ChangeNotifier {
     return null;
   }
 
+  /// Test seam: put the provider in the "coupon applied" state without a
+  /// network round trip.
+  @visibleForTesting
+  void debugSetAppliedCoupon(CouponModel coupon, double discount) {
+    _coupon = coupon;
+    _code = coupon.code;
+    _discount = discount;
+  }
+
+  /// A coupon changed server-side. If it is the one currently applied to this
+  /// cart, drop it.
+  ///
+  /// The kiosk has no browsable coupon list to refresh — codes are typed and
+  /// validated live — so the only thing that can go stale here is a discount
+  /// already sitting on the cart. Clearing is deliberate for an edit as well as
+  /// a delete: the discount, minimum spend or targeting may all have moved, and
+  /// re-entering the code re-validates it against the server in one step.
+  ///
+  /// Returns true when something was actually cleared.
+  bool applyRealtimeChange(int couponId) {
+    if (couponId <= 0 || _coupon == null || _coupon!.id != couponId) {
+      return false;
+    }
+
+    removeCouponData(true);
+
+    return true;
+  }
+
   void removeCouponData(bool notify) {
     _coupon = null;
     _isLoading = false;

@@ -106,9 +106,11 @@ class KioskDealProvider extends ChangeNotifier {
         } else {
           continue;
         }
-        // A deal with zero parseable items cannot be ordered — skip it so the
-        // banner never opens a broken detail screen.
-        if (deal.items.isEmpty) {
+        // A product bundle with zero parseable items cannot be ordered — skip
+        // it so the banner never opens a broken detail screen. A static image
+        // has no items by definition and is not orderable in the first place,
+        // so this guard must not swallow it.
+        if (!deal.isStaticImage && deal.items.isEmpty) {
           debugPrint('KioskDealProvider: skipping deal ${deal.id} (no items)');
           continue;
         }

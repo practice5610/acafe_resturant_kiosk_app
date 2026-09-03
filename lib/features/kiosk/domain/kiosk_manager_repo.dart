@@ -52,8 +52,6 @@ class KioskManagerRepo {
 
   Future<ApiResponseModel> closeZReport({
     required String reportDate,
-    required double openingCash,
-    required double closingCashCounted,
     String? comment,
   }) async {
     try {
@@ -61,8 +59,6 @@ class KioskManagerRepo {
         '/api/v1/kiosk/manager/z-report/close',
         data: {
           'report_date': reportDate,
-          'opening_cash': openingCash,
-          'closing_cash_counted': closingCashCounted,
           'closing_comment': comment,
         },
       );
@@ -74,6 +70,7 @@ class KioskManagerRepo {
 
   Future<ApiResponseModel> getTransactions({
     String? reportDate,
+    String? search,
     int limit = 25,
     int offset = 1,
   }) async {
@@ -82,6 +79,7 @@ class KioskManagerRepo {
         '/api/v1/kiosk/manager/transactions',
         queryParameters: {
           if (reportDate != null) 'report_date': reportDate,
+          if (search != null && search.isNotEmpty) 'search': search,
           'limit': limit,
           'offset': offset,
         },

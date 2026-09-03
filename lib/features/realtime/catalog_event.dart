@@ -4,6 +4,7 @@ class CatalogEvent {
   final String action;
   final int productId;
   final int dealId;
+  final int couponId;
   final int branchId;
   final int revision;
   final String? occurredAt;
@@ -16,6 +17,7 @@ class CatalogEvent {
     required this.branchId,
     required this.revision,
     this.dealId = 0,
+    this.couponId = 0,
     this.occurredAt,
   });
 
@@ -24,6 +26,8 @@ class CatalogEvent {
   bool get isAvailability => action == 'availability';
   bool get isDeal => dealId > 0;
 
+  bool get isCoupon => couponId > 0;
+
   factory CatalogEvent.fromJson(Map<String, dynamic> json) {
     return CatalogEvent(
       version: int.tryParse('${json['v']}') ?? 1,
@@ -31,6 +35,7 @@ class CatalogEvent {
       action: json['action']?.toString() ?? 'updated',
       productId: int.tryParse('${json['product_id']}') ?? 0,
       dealId: int.tryParse('${json['deal_id']}') ?? 0,
+      couponId: int.tryParse('${json['coupon_id']}') ?? 0,
       branchId: int.tryParse('${json['branch_id']}') ?? 0,
       revision: int.tryParse('${json['revision']}') ?? 0,
       occurredAt: json['occurred_at']?.toString(),

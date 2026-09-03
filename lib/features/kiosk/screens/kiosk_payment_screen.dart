@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
@@ -167,6 +168,8 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
         ((branches != null && branches.isNotEmpty) ? branches.first?.id : null);
 
     final couponProvider = Provider.of<CouponProvider>(context, listen: false);
+    final kioskAuthProvider =
+        Provider.of<KioskAuthProvider>(context, listen: false);
     final String? couponCode = kioskOrderCouponCode(couponProvider);
     final name = KioskSession.instance.customerName;
     final double tipAmount = kioskTipAmount(
@@ -185,9 +188,10 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
       tipAmount: tipAmount > 0 ? tipAmount : null,
       deliveryAddressId: 0,
       deliveryAddress: null,
-      orderType: 'take_away',
+      orderType: kioskOrderType(kioskAuthProvider),
       paymentMethod: 'cash_on_delivery',
       branchId: branchId,
+      deviceId: kioskAuthProvider.deviceId,
       deliveryTime: 'now',
       deliveryDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
       orderNote: kioskOrderNote(

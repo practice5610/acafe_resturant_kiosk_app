@@ -23,6 +23,8 @@ class PlaceOrderBody {
   String? _isCutleryRequired;
   int? _selectedDeliveryArea;
   int? _deviceId;
+  String? _customerEmail;
+  String? _customerName;
 
   PlaceOrderBody copyWith({String? paymentMethod, String? transactionReference}) {
     _paymentMethod = paymentMethod;
@@ -53,6 +55,8 @@ class PlaceOrderBody {
         double? tipAmount,
         dynamic deliveryAddress,
         int? deviceId,
+        String? customerEmail,
+        String? customerName,
       }) {
     _cart = cart;
     _couponDiscountAmount = couponDiscountAmount;
@@ -76,6 +80,8 @@ class PlaceOrderBody {
     _selectedDeliveryArea = selectedDeliveryArea;
     _bringChangeAmount = bringChangeAmount;
     _deviceId = deviceId;
+    _customerEmail = customerEmail;
+    _customerName = customerName;
   }
 
   List<Cart>? get cart => _cart;
@@ -100,6 +106,8 @@ class PlaceOrderBody {
   int? get selectedDeliveryArea => _selectedDeliveryArea;
   double? get bringChangeAmount => _bringChangeAmount;
   int? get deviceId => _deviceId;
+  String? get customerEmail => _customerEmail;
+  String? get customerName => _customerName;
 
   PlaceOrderBody.fromJson(Map<String, dynamic> json) {
     if (json['cart'] != null) {
@@ -130,6 +138,8 @@ class PlaceOrderBody {
     _isCutleryRequired = json['is_cutlery_required'];
     _bringChangeAmount = json['bring_change_amount'];
     _deviceId = json['device_id'];
+    _customerEmail = json['customer_email'];
+    _customerName = json['customer_name'];
   }
 
   Map<String, dynamic> toJson() {
@@ -165,6 +175,15 @@ class PlaceOrderBody {
     data['is_partial'] = _isPartial;
     data['is_cutlery_required'] = _isCutleryRequired;
     data['bring_change_amount'] = _bringChangeAmount;
+    // Sent only when the customer actually typed one at the receipt step; the
+    // backend turns it into a customer record so walk-ins reach the customer
+    // list. An empty string must not be sent — it would fail `nullable|email`.
+    if (_customerEmail != null && _customerEmail!.isNotEmpty) {
+      data['customer_email'] = _customerEmail;
+    }
+    if (_customerName != null && _customerName!.isNotEmpty) {
+      data['customer_name'] = _customerName;
+    }
     if (_deviceId != null) {
       data['device_id'] = _deviceId;
     }

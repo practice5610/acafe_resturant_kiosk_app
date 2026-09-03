@@ -92,8 +92,6 @@ class KioskManagerProvider extends ChangeNotifier {
 
   Future<bool> closeZReport({
     required String reportDate,
-    required double openingCash,
-    required double closingCashCounted,
     String? comment,
   }) async {
     _closingRegister = true;
@@ -101,8 +99,6 @@ class KioskManagerProvider extends ChangeNotifier {
 
     final apiResponse = await kioskManagerRepo.closeZReport(
       reportDate: reportDate,
-      openingCash: openingCash,
-      closingCashCounted: closingCashCounted,
       comment: comment,
     );
 
@@ -132,21 +128,44 @@ class KioskManagerProvider extends ChangeNotifier {
   int _transactionsOffset = 1;
   static const int _transactionsLimit = 25;
 
+  /// Current server-side query. Unlike the stock screen -- which holds the
+  /// whole catalog in memory and filters locally -- transactions stay
+  /// paginated, so searching has to happen on the API or it would only ever
+  /// match the pages already scrolled into view.
+  String _transactionsSearch = '';
+  String get transactionsSearch => _transactionsSearch;
+
+  /// Guards against a slow page for an old query landing after a newer one
+  /// and appending unrelated rows to the list on screen.
+  int _transactionsRequestId = 0;
+
   bool get hasMoreTransactions => _transactions.length < _transactionsTotal;
 
-  Future<void> loadTransactions({bool reset = true, String? reportDate}) async {
+  Future<void> loadTransactions({
+    bool reset = true,
+    String? reportDate,
+    String? search,
+  }) async {
     if (reset) {
       _transactionsOffset = 1;
       _transactions = [];
+      _transactionsTotal = 0;
+      if (search != null) _transactionsSearch = search.trim();
     }
+    final int requestId = ++_transactionsRequestId;
     _transactionsLoading = true;
     notifyListeners();
 
     final apiResponse = await kioskManagerRepo.getTransactions(
       reportDate: reportDate,
+      search: _transactionsSearch,
       limit: _transactionsLimit,
       offset: _transactionsOffset,
     );
+
+    // A newer query (or a reset) started while this page was in flight -- its
+    // results own the list now, so this response is dropped entirely.
+    if (requestId != _transactionsRequestId) return;
 
     if (apiResponse.response != null &&
         apiResponse.response!.statusCode == 200) {
@@ -164,6 +183,15 @@ class KioskManagerProvider extends ChangeNotifier {
 
     _transactionsLoading = false;
     notifyListeners();
+  }
+
+  /// Re-runs transaction history for [query] from page one. Passing the same
+  /// query again is a no-op so a debounced keystroke that ends where it
+  /// started never re-fetches.
+  Future<void> searchTransactions(String query) async {
+    final next = query.trim();
+    if (next == _transactionsSearch) return;
+    await loadTransactions(search: next);
   }
 
   // ---- Mark out of stock -------------------------------------------------

@@ -86,6 +86,28 @@ class CatalogSocketFrame {
     }
   }
 
+  static CatalogEvent? couponChanged(dynamic message) {
+    try {
+      final payload = _asMap(message);
+      if (payload == null) {
+        return null;
+      }
+      final name = payload['event']?.toString() ?? '';
+      if (!_isNamed(name, 'coupon.changed')) {
+        return null;
+      }
+      final dynamic raw = payload['data'] is String
+          ? jsonDecode(payload['data'] as String)
+          : payload['data'];
+      if (raw is! Map) {
+        return null;
+      }
+      return CatalogEvent.fromJson(Map<String, dynamic>.from(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
   static CatalogEvent? dealChanged(dynamic message) {
     try {
       final payload = _asMap(message);

@@ -1,7 +1,19 @@
 import 'package:acafe_customer/common/models/product_model.dart';
 
 class KioskDeal {
+  /// A bundle of products at one price. Tappable; opens the detail sheet.
+  static const String typeProductBundle = 'product_bundle';
+
+  /// Banner-only promo: no products, no price, no tap target.
+  static const String typeStaticImage = 'static_image';
+
   final int id;
+
+  /// One of [typeProductBundle] / [typeStaticImage]. A payload from a backend
+  /// that predates deal types has no `deal_type`, so it reads as a bundle —
+  /// the only thing that existed then.
+  final String dealType;
+
   final String title;
   final String? badgeText;
   final String? subtitle;
@@ -16,6 +28,7 @@ class KioskDeal {
 
   const KioskDeal({
     required this.id,
+    this.dealType = typeProductBundle,
     required this.title,
     this.badgeText,
     this.subtitle,
@@ -28,6 +41,9 @@ class KioskDeal {
     required this.available,
     required this.items,
   });
+
+  /// Banner artwork only — nothing to configure, nothing to add to a cart.
+  bool get isStaticImage => dealType == typeStaticImage;
 
   /// One product slot per quantity, so two espressos become two configure rows.
   List<Product> get slots {
@@ -56,8 +72,10 @@ class KioskDeal {
         }
       }
     }
+    final String rawType = '${json['deal_type'] ?? typeProductBundle}';
     return KioskDeal(
       id: int.tryParse('${json['id']}') ?? 0,
+      dealType: rawType == typeStaticImage ? typeStaticImage : typeProductBundle,
       title: '${json['title'] ?? ''}',
       badgeText: json['badge_text']?.toString(),
       subtitle: json['subtitle']?.toString(),
@@ -75,6 +93,7 @@ class KioskDeal {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'deal_type': dealType,
       'title': title,
       'badge_text': badgeText,
       'subtitle': subtitle,

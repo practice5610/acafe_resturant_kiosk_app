@@ -173,30 +173,33 @@ Widget _dealBannerCard({
   // than `centerLeft` so an RTL locale aligns to its own reading edge.
   // Vertically it stays centred, which keeps a short banner in the middle of a
   // taller carousel slot.
+  final Widget artwork = ClipRRect(
+    borderRadius: BorderRadius.circular(radius),
+    child: imageUrl.isEmpty
+        ? fallback
+        : CustomImageWidget(
+            placeholder: Images.placeholderImage,
+            image: imageUrl,
+            width: box.width,
+            height: box.height,
+            // The box is the image's own shape, so cover neither crops
+            // nor stretches; it only guards the clamped edge cases
+            // (a near-square or ultra-wide upload).
+            fit: BoxFit.cover,
+          ),
+  );
+
   return Align(
     alignment: AlignmentDirectional.centerStart,
     child: SizedBox(
       key: kKioskDealBannerCardKey,
       width: box.width,
       height: box.height,
-      child: KioskTap(
-        onTap: onTap ?? () {},
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(radius),
-          child: imageUrl.isEmpty
-              ? fallback
-              : CustomImageWidget(
-                  placeholder: Images.placeholderImage,
-                  image: imageUrl,
-                  width: box.width,
-                  height: box.height,
-                  // The box is the image's own shape, so cover neither crops
-                  // nor stretches; it only guards the clamped edge cases
-                  // (a near-square or ultra-wide upload).
-                  fit: BoxFit.cover,
-                ),
-        ),
-      ),
+      // A static image deal passes no onTap. It gets the bare artwork rather
+      // than a no-op KioskTap: the previous `onTap ?? () {}` still built an
+      // opaque GestureDetector, which swallowed the tap instead of leaving the
+      // banner inert.
+      child: onTap == null ? artwork : KioskTap(onTap: onTap, child: artwork),
     ),
   );
 }
@@ -335,7 +338,9 @@ class _DealBannerTile extends StatelessWidget {
           ),
         ),
       ),
-      onTap: () => openKioskDealDetail(context, deal),
+      // Product bundles open the detail sheet exactly as before. A static
+      // image is artwork with nothing behind it, so it gets no tap target.
+      onTap: deal.isStaticImage ? null : () => openKioskDealDetail(context, deal),
     );
   }
 }

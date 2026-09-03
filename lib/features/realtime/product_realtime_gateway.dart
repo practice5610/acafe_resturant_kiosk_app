@@ -60,6 +60,7 @@ class ProductRealtimeGateway {
 
   void Function(CatalogEvent event)? onEvent;
   void Function(CatalogEvent event)? onDealEvent;
+  void Function(CatalogEvent event)? onCouponEvent;
   void Function(DeviceOrderingExperienceEvent event)?
       onDeviceOrderingExperienceEvent;
   void Function(DeviceSettingsEvent event)? onDeviceSettingsEvent;
@@ -208,6 +209,17 @@ class ProductRealtimeGateway {
         );
       }
       onDeviceSettingsEvent?.call(settingsEvent);
+      return;
+    }
+    final couponEvent = CatalogSocketFrame.couponChanged(message);
+    if (couponEvent != null) {
+      if (kDebugMode) {
+        debugPrint(
+          'ProductRealtimeGateway coupon.changed '
+          'id=${couponEvent.couponId} action=${couponEvent.action}',
+        );
+      }
+      onCouponEvent?.call(couponEvent);
       return;
     }
     final dealEvent = CatalogSocketFrame.dealChanged(message);

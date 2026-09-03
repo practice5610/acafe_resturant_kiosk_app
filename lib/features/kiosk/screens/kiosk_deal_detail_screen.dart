@@ -29,6 +29,12 @@ void openKioskDealDetail(
   CartModel? cart,
   int? cartIndex,
 }) {
+  // A static image has no products, so the detail screen has no slots to
+  // configure. The banner already passes no onTap for one; this is the
+  // backstop for any other caller.
+  if (deal.isStaticImage) {
+    return;
+  }
   Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => KioskDealDetailScreen(
