@@ -17,8 +17,10 @@ class PosUI {
   // ── Colour ───────────────────────────────────────────────────────────
   // Brand: #F5F1EA page, #2B2B2B ink, #C8A97E accent. No dark surfaces.
 
-  /// Page background. The brand's warm off-white.
-  static const Color pageBg = Color(0xFFF5F1EA);
+  /// Page background. Taken from the POS Figma frames (`#F7F1DE`), not from
+  /// the general brand palette — the design file is the authority for POS and
+  /// names a warmer value than `BrandColors.background`.
+  static const Color pageBg = Color(0xFFF7F1DE);
 
   /// Raised surfaces: product tiles, the receipt panel, nav bar.
   static const Color surface = Colors.white;
@@ -26,11 +28,14 @@ class PosUI {
   /// Recessed surfaces: input wells, the numeric pad face.
   static const Color surfaceSunken = Color(0xFFEDE7DC);
 
-  static const Color ink = BrandColors.primary; // #2B2B2B
+  /// `#241F20` per the POS design file. Close to, but not the same as,
+  /// `BrandColors.primary` (`#2B2B2B`) — the difference is visible against the
+  /// warm page colour, so POS follows the design file.
+  static const Color ink = Color(0xFF241F20);
   static const Color inkMuted = Color(0xFF6E6A63);
   static const Color accent = BrandColors.secondary; // #C8A97E
   static const Color border = Color(0xFFDED9C7);
-  static const Color onAccent = Color(0xFF2B2B2B);
+  static const Color onAccent = ink;
 
   /// Status colours. Muted to sit inside a warm palette rather than shout.
   static const Color success = Color(0xFF3F7A45);

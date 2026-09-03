@@ -104,21 +104,28 @@ class PosScaffold extends StatelessWidget {
     required this.child,
   });
 
+  /// Home (and browse, the same layout) is edge-to-edge under the nav —
+  /// Figma 1642:1087 is 192 + 753 + 421 with no outer gutter. Other tabs keep
+  /// the original padded placeholder frame.
+  static bool _isEdgeToEdge(String path) =>
+      path == PosRoutes.home || path == PosRoutes.browse;
+
   @override
   Widget build(BuildContext context) {
     final double s = PosMetrics.maybeOf(context)?.scale ?? 1.0;
+    final Widget body = _isEdgeToEdge(currentPath)
+        ? child
+        : Padding(
+            padding: EdgeInsets.all(PosUI.gutter * s),
+            child: child,
+          );
     return Scaffold(
       backgroundColor: PosUI.pageBg,
       body: SafeArea(
         child: Column(
           children: [
             PosTopNavBar(currentPath: currentPath),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(PosUI.gutter * s),
-                child: child,
-              ),
-            ),
+            Expanded(child: body),
           ],
         ),
       ),

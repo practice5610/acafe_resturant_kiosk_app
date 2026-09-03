@@ -52,7 +52,7 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
-  void addToCart(CartModel cartModel, int? index) {
+  void addToCart(CartModel cartModel, int? index, {bool showMessage = true}) {
     final bool isUpdate = index != null && index != -1;
 
     if (isUpdate) {
@@ -71,8 +71,10 @@ class CartProvider extends ChangeNotifier {
     }
     cartRepo!.addToCartList(_cartList);
     setCartUpdate(false);
-    showCustomSnackBarHelper(getTranslated(isUpdate ?
-    'cart_updated' : 'added_in_cart', Get.context!), isToast: true, isError: false);
+    if (showMessage) {
+      showCustomSnackBarHelper(getTranslated(isUpdate ?
+      'cart_updated' : 'added_in_cart', Get.context!), isToast: true, isError: false);
+    }
 
     notifyListeners();
   }

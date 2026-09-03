@@ -274,6 +274,10 @@ class Images {
 
 
 
+  // POS — exported from the Figma POS file (nodes 1642:1091, 1642:1259).
+  static const String posSearchSvg = 'assets/svg/pos_search.svg';
+  static const String posMoreVertSvg = 'assets/svg/pos_more_vert.svg';
+
   static String getImageUrl(imageName) => 'assets/image/$imageName.png';
   static String getPaymentImage(String name) => 'assets/payment/$name.png';
   static String getShareIcon(String name) => 'assets/icon/$name.png';

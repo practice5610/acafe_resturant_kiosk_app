@@ -43,6 +43,7 @@ class CategoryModel {
   String? _name;
   int? _parentId;
   int? _position;
+  List<CategoryModel>? _childes;
   int? _status;
   String? _createdAt;
   String? _updatedAt;
@@ -81,6 +82,14 @@ class CategoryModel {
   String? get image => _image;
   String? get bannerImage => _bannerImage;
 
+  /// Sub-categories, as returned by `Category::with('childes')`.
+  ///
+  /// The kiosk endpoint has always sent these; the model simply dropped them
+  /// on parse. POS renders them as the filter pills above the product grid.
+  /// Additive: nothing that existed before reads this, so an older cached
+  /// payload without the key just yields an empty list.
+  List<CategoryModel> get childes => _childes ?? const [];
+
   CategoryModel.fromJson(Map<String, dynamic> json) {
     _id = json['id'] ?? 0;
     _name = json['name'] ?? '';
@@ -91,6 +100,13 @@ class CategoryModel {
     _updatedAt = json['updated_at'];
     _image = json['image'] ?? '';
     _bannerImage = json['banner_image'] ?? '';
+    final dynamic rawChildes = json['childes'];
+    if (rawChildes is List) {
+      _childes = rawChildes
+          .whereType<Map<String, dynamic>>()
+          .map(CategoryModel.fromJson)
+          .toList();
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -104,6 +120,9 @@ class CategoryModel {
     data['updated_at'] = _updatedAt;
     data['image'] = _image;
     data['banner_image'] = _bannerImage;
+    if (_childes != null) {
+      data['childes'] = _childes!.map((c) => c.toJson()).toList();
+    }
     return data;
   }
 }

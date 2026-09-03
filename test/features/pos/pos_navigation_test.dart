@@ -1,23 +1,31 @@
 import 'package:acafe_customer/common/responsive/kiosk_shell.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
+import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
+import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
+import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_mode.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
-import 'package:acafe_customer/features/pos/pos_router.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/screens/pos_login_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
+import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
+import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/kiosk_layout_harness.dart';
 
 /// Drives the *real* GoRouter — the same `RouterHelper.goRoutes` the app runs —
 /// so this exercises the route splice, the guard branch and the shell swap
@@ -40,7 +48,13 @@ class _UnlockedManagerProvider extends KioskManagerProvider {
   }
 }
 
-Future<({KioskAuthProvider auth, _UnlockedManagerProvider manager})> _providers({
+Future<
+    ({
+      KioskAuthProvider auth,
+      _UnlockedManagerProvider manager,
+      SharedPreferences prefs,
+      DioClient dio,
+    })> _providers({
   required String category,
   bool loggedIn = true,
 }) async {
@@ -63,6 +77,8 @@ Future<({KioskAuthProvider auth, _UnlockedManagerProvider manager})> _providers(
         kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs)),
     manager: _UnlockedManagerProvider(
         KioskManagerRepo(dioClient: dio, sharedPreferences: prefs)),
+    prefs: prefs,
+    dio: dio,
   );
 }
 
@@ -70,11 +86,34 @@ Future<({KioskAuthProvider auth, _UnlockedManagerProvider manager})> _providers(
 Widget _app({
   required KioskAuthProvider auth,
   required KioskManagerProvider manager,
+  required SharedPreferences prefs,
+  required DioClient dio,
 }) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<KioskAuthProvider>.value(value: auth),
       ChangeNotifierProvider<KioskManagerProvider>.value(value: manager),
+      ChangeNotifierProvider<SplashProvider>(
+        create: (_) => KioskStubSplashProvider(
+          splashRepo: SplashRepo(dioClient: dio, sharedPreferences: prefs),
+        ),
+      ),
+      ChangeNotifierProvider<CartProvider>(
+        create: (_) =>
+            CartProvider(cartRepo: CartRepo(sharedPreferences: prefs)),
+      ),
+      ChangeNotifierProvider<CouponProvider>(
+        create: (_) => CouponProvider(couponRepo: null),
+      ),
+      ChangeNotifierProvider<CategoryProvider>(
+        create: (_) => CategoryProvider(categoryRepo: null),
+      ),
+      ChangeNotifierProvider<LocalizationProvider>(
+        create: (_) => LocalizationProvider(
+          sharedPreferences: prefs,
+          dioClient: dio,
+        ),
+      ),
     ],
     child: MaterialApp.router(
       routerConfig: RouterHelper.goRoutes,
@@ -102,7 +141,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     final p = await _providers(category: 'pos');
-    await tester.pumpWidget(_app(auth: p.auth, manager: p.manager));
+    await tester.pumpWidget(_app(
+        auth: p.auth, manager: p.manager, prefs: p.prefs, dio: p.dio));
     await tester.pumpAndSettle();
 
     expect(find.byType(PosLoginScreen), findsOneWidget);
@@ -119,7 +159,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     final p = await _providers(category: 'pos');
-    await tester.pumpWidget(_app(auth: p.auth, manager: p.manager));
+    await tester.pumpWidget(_app(
+        auth: p.auth, manager: p.manager, prefs: p.prefs, dio: p.dio));
     await tester.pumpAndSettle();
 
     p.manager.unlock();
@@ -147,7 +188,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     final p = await _providers(category: 'pos');
-    await tester.pumpWidget(_app(auth: p.auth, manager: p.manager));
+    await tester.pumpWidget(_app(
+        auth: p.auth, manager: p.manager, prefs: p.prefs, dio: p.dio));
     p.manager.unlock();
     await tester.pumpAndSettle();
 
@@ -247,7 +289,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     final p = await _providers(category: 'pos');
-    await tester.pumpWidget(_app(auth: p.auth, manager: p.manager));
+    await tester.pumpWidget(_app(
+        auth: p.auth, manager: p.manager, prefs: p.prefs, dio: p.dio));
     p.manager.unlock();
     RouterHelper.goRoutes.go(PosRoutes.home);
     await tester.pumpAndSettle();
