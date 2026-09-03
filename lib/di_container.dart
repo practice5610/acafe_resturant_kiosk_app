@@ -8,6 +8,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_deal_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_repo.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -58,6 +59,12 @@ Future<void> init() async {
   sl.registerLazySingleton(() => KioskOrderRepo(dioClient: sl()));
   sl.registerLazySingleton(() => KioskManagerRepo(dioClient: sl(), sharedPreferences: sl()));
   sl.registerLazySingleton(() => KioskDealRepo(dioClient: sl(), sharedPreferences: sl()));
+  // Card terminal. Still the simulator — there is no Mollie integration in this
+  // repo yet (kiosk_payment_service.dart is an interface plus a fake). Registered
+  // here so POS resolves the same instance the real one will replace; the kiosk
+  // payment screen keeps its own inline instance and is untouched.
+  sl.registerLazySingleton<KioskPaymentService>(
+      () => SimulatedKioskPaymentService());
 
   // Provider
   sl.registerLazySingleton(() => DataSyncProvider());

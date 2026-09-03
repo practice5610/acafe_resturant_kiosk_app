@@ -22,6 +22,7 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_dashboard_sc
 import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_sales_overview_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_transactions_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_stock_screen.dart';
+import 'package:acafe_customer/features/pos/pos_router.dart';
 import 'package:acafe_customer/features/maintenance/screens/maintenance_screen.dart';
 import 'package:acafe_customer/features/search/screens/search_result_screen.dart';
 import 'package:acafe_customer/features/search/screens/search_screen.dart';
@@ -225,6 +226,11 @@ class RouterHelper {
       GoRoute(path: searchResultScreen, builder: (context, state) => _routeHandler(
         context, path: _getPath(state), SearchResultScreen(searchString: SearchFlowHelper.decodeSearchQuery(state.uri.queryParameters['text'])), isBranchCheck: true,
       )),
+      // POS mode. A separate route family under the `/pos-` prefix, owned by
+      // `features/pos/pos_router.dart` and reached only by a device whose
+      // back-office category is 'pos' (see KioskRouteGuard). Additive: no kiosk
+      // route above is altered, and a kiosk device never resolves one of these.
+      ...PosRouter.routes(),
     ],
   );
 }

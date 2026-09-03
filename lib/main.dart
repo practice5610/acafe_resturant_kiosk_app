@@ -15,6 +15,8 @@ import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_mode.dart';
+import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_scope.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -272,9 +274,20 @@ class _MyAppState extends State<MyApp> {
           builder: (context, _) {
             final String path =
                 RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
+            final Widget content = child ?? const KioskLoginScreen();
+
+            // The one place the two interfaces diverge. POS gets its own shell
+            // because the kiosk's caps the tree at the 2572px kiosk artboard
+            // and rewrites MediaQuery.size to match — correct for a kiosk,
+            // wrong for a counter terminal that should lay out against the
+            // real window.
+            if (PosMode.of(context).isPos) {
+              return PosShell(child: content);
+            }
+
             return KioskShell(
               fullBleed: path == RouterHelper.kioskWelcomeScreen,
-              child: child ?? const KioskLoginScreen(),
+              child: content,
             );
           },
         );
