@@ -1,4 +1,6 @@
 import 'package:acafe_customer/common/models/config_model.dart';
+import 'package:acafe_customer/common/models/language_model.dart';
+import 'package:acafe_customer/utill/app_constants.dart';
 
 /// One selectable option in a General settings dropdown.
 class PosSettingsOption {
@@ -18,13 +20,14 @@ class PosSettingsOption {
   int get hashCode => value.hashCode;
 }
 
-/// Editable General settings snapshot — store identity + regional prefs.
+/// Editable General settings snapshot — store identity + locale prefs.
 class PosGeneralSettings {
   final String storeName;
   final String address;
   final String contactPhone;
   final String contactEmail;
   final String website;
+  final String language;
   final String currency;
   final String taxModel;
   final String dateFormat;
@@ -35,13 +38,32 @@ class PosGeneralSettings {
     required this.contactPhone,
     required this.contactEmail,
     required this.website,
+    required this.language,
     required this.currency,
     required this.taxModel,
     required this.dateFormat,
   });
 
+  static const String defaultLanguage = 'nl';
   static const String defaultTaxModel = 'include';
   static const String defaultDateFormat = 'dd/MM/yyyy';
+
+  /// POS Settings offers the venue trio only (Dutch / English / French).
+  /// German stays available on the kiosk guest picker via [AppConstants.languages].
+  static const List<String> posLanguageCodes = ['nl', 'en', 'fr'];
+
+  static List<PosSettingsOption> get languageOptions {
+    final List<PosSettingsOption> out = [];
+    for (final LanguageModel lang in AppConstants.languages) {
+      final String code = lang.languageCode ?? '';
+      if (!posLanguageCodes.contains(code)) continue;
+      out.add(PosSettingsOption(
+        value: code,
+        label: lang.languageName ?? code.toUpperCase(),
+      ));
+    }
+    return out;
+  }
 
   static const List<PosSettingsOption> taxModelOptions = [
     PosSettingsOption(value: 'include', label: 'Prices include tax'),
@@ -54,19 +76,34 @@ class PosGeneralSettings {
     PosSettingsOption(value: 'yyyy-MM-dd', label: 'YYYY-MM-DD'),
   ];
 
-  /// Common restaurant currencies. Labels match the Figma select style
-  /// (`EUR (€)`). The active value is matched from [ConfigModel.currencySymbol]
-  /// when hydrating.
+  /// Currencies for the POS language markets only:
+  /// Dutch/French → EUR, English → GBP + USD.
   static const List<PosSettingsOption> currencyOptions = [
     PosSettingsOption(value: 'EUR', label: 'EUR (€)'),
-    PosSettingsOption(value: 'USD', label: 'USD (\$)'),
     PosSettingsOption(value: 'GBP', label: 'GBP (£)'),
-    PosSettingsOption(value: 'CHF', label: 'CHF (Fr)'),
-    PosSettingsOption(value: 'AED', label: 'AED (د.إ)'),
-    PosSettingsOption(value: 'SAR', label: 'SAR (﷼)'),
-    PosSettingsOption(value: 'TRY', label: 'TRY (₺)'),
-    PosSettingsOption(value: 'INR', label: 'INR (₹)'),
+    PosSettingsOption(value: 'USD', label: 'USD (\$)'),
   ];
+
+  /// Locale defaults when the operator picks a terminal language.
+  static ({String currency, String dateFormat}) localeDefaultsFor(
+    String languageCode,
+  ) {
+    switch (languageCode) {
+      case 'en':
+        return (currency: 'GBP', dateFormat: 'dd/MM/yyyy');
+      case 'fr':
+        return (currency: 'EUR', dateFormat: 'dd/MM/yyyy');
+      case 'nl':
+      default:
+        return (currency: 'EUR', dateFormat: 'dd/MM/yyyy');
+    }
+  }
+
+  static String currencyForLanguage(String languageCode) =>
+      localeDefaultsFor(languageCode).currency;
+
+  static String dateFormatForLanguage(String languageCode) =>
+      localeDefaultsFor(languageCode).dateFormat;
 
   PosGeneralSettings copyWith({
     String? storeName,
@@ -74,6 +111,7 @@ class PosGeneralSettings {
     String? contactPhone,
     String? contactEmail,
     String? website,
+    String? language,
     String? currency,
     String? taxModel,
     String? dateFormat,
@@ -84,6 +122,7 @@ class PosGeneralSettings {
       contactPhone: contactPhone ?? this.contactPhone,
       contactEmail: contactEmail ?? this.contactEmail,
       website: website ?? this.website,
+      language: language ?? this.language,
       currency: currency ?? this.currency,
       taxModel: taxModel ?? this.taxModel,
       dateFormat: dateFormat ?? this.dateFormat,
@@ -96,37 +135,69 @@ class PosGeneralSettings {
         'contact_phone': contactPhone,
         'contact_email': contactEmail,
         'website': website,
+        'language': language,
         'currency': currency,
         'tax_model': taxModel,
         'date_format': dateFormat,
       };
 
   factory PosGeneralSettings.fromJson(Map<String, dynamic> json) {
+    final String language = _normalizeLanguage(
+      (json['language'] as String?)?.trim(),
+    );
     return PosGeneralSettings(
       storeName: (json['store_name'] as String?)?.trim() ?? '',
       address: (json['address'] as String?)?.trim() ?? '',
       contactPhone: (json['contact_phone'] as String?)?.trim() ?? '',
       contactEmail: (json['contact_email'] as String?)?.trim() ?? '',
       website: (json['website'] as String?)?.trim() ?? '',
-      currency: (json['currency'] as String?)?.trim() ?? 'EUR',
+      language: language,
+      currency: _normalizeCurrency(
+        (json['currency'] as String?)?.trim(),
+        fallbackLanguage: language,
+      ),
       taxModel: (json['tax_model'] as String?)?.trim() ?? defaultTaxModel,
       dateFormat: (json['date_format'] as String?)?.trim() ?? defaultDateFormat,
     );
   }
 
-  /// Seed from live restaurant config. Local prefs (if any) overlay later.
-  factory PosGeneralSettings.fromConfig(ConfigModel? config) {
+  /// Seed from live restaurant config + optional active locale.
+  factory PosGeneralSettings.fromConfig(
+    ConfigModel? config, {
+    String? languageCode,
+  }) {
+    final String language = _normalizeLanguage(languageCode);
     final String symbol = (config?.currencySymbol ?? '€').trim();
+    final String fromSymbol = currencyCodeForSymbol(symbol);
     return PosGeneralSettings(
       storeName: (config?.restaurantName ?? '').trim(),
       address: (config?.restaurantAddress ?? '').trim(),
       contactPhone: (config?.restaurantPhone ?? '').trim(),
       contactEmail: (config?.restaurantEmail ?? '').trim(),
       website: _websiteFromConfig(config),
-      currency: currencyCodeForSymbol(symbol),
+      language: language,
+      currency: _normalizeCurrency(fromSymbol, fallbackLanguage: language),
       taxModel: defaultTaxModel,
-      dateFormat: dateFormatForCountry(config?.countryCode),
+      dateFormat: dateFormatForCountry(config?.countryCode) ??
+          dateFormatForLanguage(language),
     );
+  }
+
+  static String _normalizeLanguage(String? code) {
+    final String c = (code ?? '').toLowerCase();
+    if (posLanguageCodes.contains(c)) return c;
+    return defaultLanguage;
+  }
+
+  static String _normalizeCurrency(
+    String? code, {
+    required String fallbackLanguage,
+  }) {
+    final String c = (code ?? '').toUpperCase();
+    for (final PosSettingsOption o in currencyOptions) {
+      if (o.value == c) return c;
+    }
+    return currencyForLanguage(fallbackLanguage);
   }
 
   static String _websiteFromConfig(ConfigModel? config) {
@@ -160,17 +231,6 @@ class PosGeneralSettings {
         return 'USD';
       case '£':
         return 'GBP';
-      case 'Fr':
-      case 'CHF':
-        return 'CHF';
-      case 'د.إ':
-        return 'AED';
-      case '﷼':
-        return 'SAR';
-      case '₺':
-        return 'TRY';
-      case '₹':
-        return 'INR';
       default:
         for (final PosSettingsOption o in currencyOptions) {
           if (o.label.contains(symbol)) return o.value;
@@ -179,10 +239,27 @@ class PosGeneralSettings {
     }
   }
 
-  static String dateFormatForCountry(String? countryCode) {
+  static String? dateFormatForCountry(String? countryCode) {
     final String code = (countryCode ?? '').toUpperCase();
+    if (code.isEmpty) return null;
     if (code == 'US') return 'MM/dd/yyyy';
     return defaultDateFormat;
+  }
+
+  static String countryCodeForLanguage(String languageCode) {
+    for (final LanguageModel lang in AppConstants.languages) {
+      if (lang.languageCode == languageCode) {
+        return lang.countryCode ?? 'NL';
+      }
+    }
+    return 'NL';
+  }
+
+  static String labelForLanguage(String value) {
+    for (final PosSettingsOption o in languageOptions) {
+      if (o.value == value) return o.label;
+    }
+    return value;
   }
 
   static String labelForCurrency(String value) {
@@ -212,12 +289,13 @@ class PosGeneralSettings {
       contactPhone == other.contactPhone &&
       contactEmail == other.contactEmail &&
       website == other.website &&
+      language == other.language &&
       currency == other.currency &&
       taxModel == other.taxModel &&
       dateFormat == other.dateFormat;
 }
 
-/// Field-level validation for the General form. Returns null when valid.
+/// Field-level validation for the General form.
 class PosGeneralSettingsValidation {
   PosGeneralSettingsValidation._();
 
@@ -225,7 +303,6 @@ class PosGeneralSettingsValidation {
     r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
   );
 
-  /// Loose phone: digits, spaces, +, -, (), at least 7 digits.
   static final RegExp _phone = RegExp(r'^\+?[\d\s\-().]{7,}$');
 
   static final RegExp _website = RegExp(

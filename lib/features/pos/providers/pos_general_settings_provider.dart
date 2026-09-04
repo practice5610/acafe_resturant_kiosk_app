@@ -4,10 +4,6 @@ import 'package:acafe_customer/features/pos/domain/pos_general_settings_repo.dar
 import 'package:flutter/foundation.dart';
 
 /// Form state for Settings → General.
-///
-/// Hydrates from [ConfigModel] (server) with an optional SharedPreferences
-/// overlay for values the POS has saved. Typing only mutates local draft
-/// state — no network until [save].
 class PosGeneralSettingsProvider extends ChangeNotifier {
   final PosGeneralSettingsRepo repo;
 
@@ -19,6 +15,7 @@ class PosGeneralSettingsProvider extends ChangeNotifier {
     contactPhone: '',
     contactEmail: '',
     website: '',
+    language: PosGeneralSettings.defaultLanguage,
     currency: 'EUR',
     taxModel: PosGeneralSettings.defaultTaxModel,
     dateFormat: PosGeneralSettings.defaultDateFormat,
@@ -29,6 +26,7 @@ class PosGeneralSettingsProvider extends ChangeNotifier {
     contactPhone: '',
     contactEmail: '',
     website: '',
+    language: PosGeneralSettings.defaultLanguage,
     currency: 'EUR',
     taxModel: PosGeneralSettings.defaultTaxModel,
     dateFormat: PosGeneralSettings.defaultDateFormat,
@@ -43,10 +41,13 @@ class PosGeneralSettingsProvider extends ChangeNotifier {
   Map<String, String> get errors => _errors;
   bool get isSaving => _saving;
   bool get isDirty => !_draft.sameAs(_saved);
+  bool get isHydrated => _hydrated;
 
-  void hydrate(ConfigModel? config) {
-    final PosGeneralSettings fromConfig =
-        PosGeneralSettings.fromConfig(config);
+  void hydrate(ConfigModel? config, {String? languageCode}) {
+    final PosGeneralSettings fromConfig = PosGeneralSettings.fromConfig(
+      config,
+      languageCode: languageCode,
+    );
     final PosGeneralSettings? local = repo.loadSaved();
     final PosGeneralSettings initial = local ?? fromConfig;
     _draft = initial;
@@ -55,8 +56,6 @@ class PosGeneralSettingsProvider extends ChangeNotifier {
     _hydrated = true;
     notifyListeners();
   }
-
-  bool get isHydrated => _hydrated;
 
   void setStoreName(String v) => _patch(storeName: v);
   void setAddress(String v) => _patch(address: v);
@@ -67,12 +66,23 @@ class PosGeneralSettingsProvider extends ChangeNotifier {
   void setTaxModel(String v) => _patch(taxModel: v);
   void setDateFormat(String v) => _patch(dateFormat: v);
 
+  /// Changing language also aligns currency + date format for that locale.
+  void setLanguage(String languageCode) {
+    final defaults = PosGeneralSettings.localeDefaultsFor(languageCode);
+    _patch(
+      language: languageCode,
+      currency: defaults.currency,
+      dateFormat: defaults.dateFormat,
+    );
+  }
+
   void _patch({
     String? storeName,
     String? address,
     String? contactPhone,
     String? contactEmail,
     String? website,
+    String? language,
     String? currency,
     String? taxModel,
     String? dateFormat,
@@ -83,11 +93,11 @@ class PosGeneralSettingsProvider extends ChangeNotifier {
       contactPhone: contactPhone,
       contactEmail: contactEmail,
       website: website,
+      language: language,
       currency: currency,
       taxModel: taxModel,
       dateFormat: dateFormat,
     );
-    // Clear field error as the user edits that field.
     if (storeName != null) _errors.remove('storeName');
     if (address != null) _errors.remove('address');
     if (contactPhone != null) _errors.remove('contactPhone');
@@ -96,7 +106,6 @@ class PosGeneralSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Validates and persists. Returns true on success.
   Future<bool> save() async {
     final Map<String, String> next =
         PosGeneralSettingsValidation.validate(_draft);
@@ -116,6 +125,7 @@ class PosGeneralSettingsProvider extends ChangeNotifier {
       contactPhone: _draft.contactPhone.trim(),
       contactEmail: _draft.contactEmail.trim(),
       website: _draft.website.trim(),
+      language: _draft.language,
       currency: _draft.currency,
       taxModel: _draft.taxModel,
       dateFormat: _draft.dateFormat,

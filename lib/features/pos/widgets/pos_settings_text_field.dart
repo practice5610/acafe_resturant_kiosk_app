@@ -3,8 +3,8 @@ import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Labeled text field matching Figma Settings inputs (1641:3933).
-class PosSettingsTextField extends StatelessWidget {
+/// Labeled text field for Settings forms — focus ink ring + soft lift.
+class PosSettingsTextField extends StatefulWidget {
   final String label;
   final String? optionalLabel;
   final TextEditingController controller;
@@ -29,8 +29,29 @@ class PosSettingsTextField extends StatelessWidget {
   });
 
   @override
+  State<PosSettingsTextField> createState() => _PosSettingsTextFieldState();
+}
+
+class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
+  late final FocusNode _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus = FocusNode()..addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bool hasError = errorText != null && errorText!.isNotEmpty;
+    final bool hasError =
+        widget.errorText != null && widget.errorText!.isNotEmpty;
+    final bool focused = _focus.hasFocus;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,26 +59,29 @@ class PosSettingsTextField extends StatelessWidget {
         Row(
           children: [
             Text(
-              label,
+              widget.label.toUpperCase(),
               style: loewBold.copyWith(
                 fontSize: PosSettingsSpec.labelSize,
+                letterSpacing: PosSettingsSpec.labelTracking,
                 color: PosSettingsSpec.ink,
               ),
             ),
-            if (optionalLabel != null) ...[
+            if (widget.optionalLabel != null) ...[
               const SizedBox(width: 6),
               Text(
-                optionalLabel!,
-                style: loewBold.copyWith(
+                widget.optionalLabel!,
+                style: loewMedium.copyWith(
                   fontSize: PosSettingsSpec.labelSize,
-                  color: PosSettingsSpec.inkMuted(),
+                  color: PosSettingsSpec.inkMuted(0.45),
                 ),
               ),
             ],
           ],
         ),
         const SizedBox(height: PosSettingsSpec.labelGap),
-        DecoratedBox(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
           decoration: BoxDecoration(
             color: PosSettingsSpec.fieldFill,
             borderRadius:
@@ -65,19 +89,25 @@ class PosSettingsTextField extends StatelessWidget {
             border: Border.all(
               color: hasError
                   ? const Color(0xFFB4544A)
-                  : PosSettingsSpec.fieldBorder,
-              width: PosSettingsSpec.fieldBorderWidth,
+                  : focused
+                      ? PosSettingsSpec.fieldBorderFocus
+                      : PosSettingsSpec.fieldBorder,
+              width: focused || hasError
+                  ? PosSettingsSpec.fieldBorderFocusWidth
+                  : PosSettingsSpec.fieldBorderWidth,
             ),
+            boxShadow: focused ? PosSettingsSpec.fieldFocusShadow : null,
           ),
           child: Padding(
             padding: PosSettingsSpec.fieldPadding,
             child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              keyboardType: keyboardType,
-              inputFormatters: inputFormatters,
-              textInputAction: textInputAction,
-              maxLines: maxLines,
+              controller: widget.controller,
+              focusNode: _focus,
+              onChanged: widget.onChanged,
+              keyboardType: widget.keyboardType,
+              inputFormatters: widget.inputFormatters,
+              textInputAction: widget.textInputAction,
+              maxLines: widget.maxLines,
               cursorColor: PosSettingsSpec.ink,
               style: loewBold.copyWith(
                 fontSize: PosSettingsSpec.fieldTextSize,
@@ -94,7 +124,7 @@ class PosSettingsTextField extends StatelessWidget {
         if (hasError) ...[
           const SizedBox(height: 6),
           Text(
-            errorText!,
+            widget.errorText!,
             style: loewRegular.copyWith(
               fontSize: 12,
               color: const Color(0xFFB4544A),

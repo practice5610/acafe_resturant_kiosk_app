@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
+import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_general_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_general_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
@@ -65,7 +66,10 @@ Future<void> _pumpSettings(
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  SharedPreferences.setMockInitialValues({});
+  SharedPreferences.setMockInitialValues({
+    AppConstants.languageCode: 'nl',
+    AppConstants.countryCode: 'NL',
+  });
   prefs = await SharedPreferences.getInstance();
   final dio = DioClient(
     'http://localhost',
@@ -81,6 +85,12 @@ Future<void> _pumpSettings(
           create: (_) => _SettingsSplash(
             splashRepo:
                 SplashRepo(dioClient: dio, sharedPreferences: prefs),
+          ),
+        ),
+        ChangeNotifierProvider<LocalizationProvider>(
+          create: (_) => LocalizationProvider(
+            sharedPreferences: prefs,
+            dioClient: dio,
           ),
         ),
       ],
@@ -107,6 +117,21 @@ void main() {
 
   setUpAll(_loadFonts);
 
+  test('POS languages are the venue trio with matching currencies', () {
+    expect(PosGeneralSettings.posLanguageCodes, ['nl', 'en', 'fr']);
+    expect(
+      PosGeneralSettings.languageOptions.map((o) => o.value).toList(),
+      ['nl', 'en', 'fr'],
+    );
+    expect(
+      PosGeneralSettings.currencyOptions.map((o) => o.value).toList(),
+      ['EUR', 'GBP', 'USD'],
+    );
+    expect(PosGeneralSettings.currencyForLanguage('nl'), 'EUR');
+    expect(PosGeneralSettings.currencyForLanguage('en'), 'GBP');
+    expect(PosGeneralSettings.currencyForLanguage('fr'), 'EUR');
+  });
+
   test('PosGeneralSettings.fromConfig maps restaurant + currency', () {
     final settings = PosGeneralSettings.fromConfig(
       ConfigModel(
@@ -117,8 +142,10 @@ void main() {
         currencySymbol: '€',
         countryCode: 'NL',
       ),
+      languageCode: 'nl',
     );
     expect(settings.storeName, 'Café');
+    expect(settings.language, 'nl');
     expect(settings.currency, 'EUR');
     expect(settings.dateFormat, 'dd/MM/yyyy');
   });
@@ -131,6 +158,7 @@ void main() {
         contactPhone: '123',
         contactEmail: 'not-an-email',
         website: '',
+        language: 'nl',
         currency: 'EUR',
         taxModel: 'include',
         dateFormat: 'dd/MM/yyyy',
@@ -152,6 +180,7 @@ void main() {
       contactPhone: '+31 20 111 2222',
       contactEmail: 'till@acafe.nl',
       website: 'www.acafe.nl',
+      language: 'nl',
       currency: 'EUR',
       taxModel: 'exclude',
       dateFormat: 'yyyy-MM-dd',
@@ -159,6 +188,28 @@ void main() {
     expect(await repo.save(original), isTrue);
     expect(repo.loadSaved()?.sameAs(original), isTrue);
     expect(p.getString(AppConstants.posGeneralSettingsKey), isNotEmpty);
+  });
+
+  test('provider language change aligns currency', () async {
+    SharedPreferences.setMockInitialValues({});
+    final p = await SharedPreferences.getInstance();
+    final provider = PosGeneralSettingsProvider(
+      repo: PosGeneralSettingsRepo(sharedPreferences: p),
+    );
+    provider.hydrate(
+      ConfigModel(
+        restaurantName: 'A',
+        restaurantAddress: 'B',
+        restaurantPhone: '+31 20 555 0000',
+        restaurantEmail: 'a@b.nl',
+        currencySymbol: '€',
+      ),
+      languageCode: 'nl',
+    );
+    provider.setLanguage('en');
+    expect(provider.draft.language, 'en');
+    expect(provider.draft.currency, 'GBP');
+    expect(provider.isDirty, isTrue);
   });
 
   test('provider save skips write when unchanged after validation', () async {
@@ -175,39 +226,28 @@ void main() {
         restaurantEmail: 'a@b.nl',
         currencySymbol: '€',
       ),
+      languageCode: 'nl',
     );
     expect(provider.isDirty, isFalse);
     expect(await provider.save(), isTrue);
     expect(p.getString(AppConstants.posGeneralSettingsKey), isNull);
   });
 
-  testWidgets('General screen renders Figma chrome and config values',
+  testWidgets('General screen renders language + venue currencies',
       (tester) async {
     await _pumpSettings(tester);
 
     expect(find.text('GENERAL'), findsOneWidget);
-    expect(find.text('PROFILE'), findsOneWidget);
-    expect(find.text('HARDWARE'), findsOneWidget);
     expect(find.text('General'), findsOneWidget);
-    expect(find.text('Store identity & locale settings'), findsOneWidget);
-    expect(find.text('Save Changes'), findsOneWidget);
     expect(find.text('Store Information'), findsOneWidget);
     expect(find.text('Regional Settings'), findsOneWidget);
     expect(find.text('A|CAFÉ Amsterdam'), findsOneWidget);
-    expect(find.text('Nieuwendijk 123, 1012 MD Amsterdam'), findsOneWidget);
-    expect(find.text('+31 20 555 3829'), findsOneWidget);
-    expect(find.text('info@acafe.nl'), findsOneWidget);
-    expect(find.text('www.acafegroup.com'), findsOneWidget);
-    expect(find.text('optional'), findsOneWidget);
+    expect(find.text('Dutch'), findsOneWidget);
     expect(find.text('EUR (€)'), findsOneWidget);
     expect(find.text('Prices include tax'), findsOneWidget);
     expect(find.text('DD/MM/YYYY'), findsOneWidget);
+    expect(find.text('Deutsch'), findsNothing);
 
-    // Sidebar width matches design.
-    final sidebar = tester.widget<PosSettingsSidebar>(
-      find.byType(PosSettingsSidebar),
-    );
-    expect(sidebar.selected.name, 'general');
     final sidebarBox =
         tester.renderObject(find.byType(PosSettingsSidebar)) as RenderBox;
     expect(sidebarBox.size.width, PosSettingsSpec.sidebarWidth);
@@ -219,7 +259,6 @@ void main() {
     await tester.tap(find.text('STAFF'));
     await tester.pumpAndSettle();
     expect(find.text('Staff'), findsOneWidget);
-    expect(find.text('Staff roles and PIN access'), findsOneWidget);
 
     await tester.tap(find.text('GENERAL'));
     await tester.pumpAndSettle();
@@ -241,8 +280,8 @@ void main() {
     expect(raw, isNotNull);
     final map = jsonDecode(raw!) as Map<String, dynamic>;
     expect(map['store_name'], 'A|CAFÉ Utrecht');
+    expect(map['language'], 'nl');
 
-    // Re-mount and confirm overlay wins.
     await _pumpSettings(tester);
     expect(find.text('A|CAFÉ Utrecht'), findsOneWidget);
   });

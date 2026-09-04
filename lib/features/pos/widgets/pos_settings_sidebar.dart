@@ -86,6 +86,7 @@ class PosSettingsSidebarItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: loewBold.copyWith(
                       fontSize: PosSettingsSpec.sidebarLabelSize,
+                      letterSpacing: PosSettingsSpec.sidebarLabelTracking,
                       color: selected ? Colors.white : PosSettingsSpec.ink,
                     ),
                   ),

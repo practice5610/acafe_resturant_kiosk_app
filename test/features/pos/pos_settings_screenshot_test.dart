@@ -3,11 +3,13 @@ import 'dart:io';
 import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
+import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/screens/pos_settings_screen.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
+import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,7 +61,10 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      AppConstants.languageCode: 'nl',
+      AppConstants.countryCode: 'NL',
+    });
     final prefs = await SharedPreferences.getInstance();
     final dio = DioClient(
       'http://localhost',
@@ -75,6 +80,12 @@ void main() {
             create: (_) => _SettingsSplash(
               splashRepo:
                   SplashRepo(dioClient: dio, sharedPreferences: prefs),
+            ),
+          ),
+          ChangeNotifierProvider<LocalizationProvider>(
+            create: (_) => LocalizationProvider(
+              sharedPreferences: prefs,
+              dioClient: dio,
             ),
           ),
         ],

@@ -5,7 +5,7 @@ import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// Settings select control (Figma 1641:3959) — white field + chevron.
+/// Settings select — ink focus ring, checkmark for the active option.
 class PosSettingsDropdown extends StatelessWidget {
   final String label;
   final String value;
@@ -35,14 +35,15 @@ class PosSettingsDropdown extends StatelessWidget {
     final String? picked = await showMenu<String>(
       context: context,
       color: PosSettingsSpec.fieldFill,
-      elevation: 8,
+      elevation: 12,
+      shadowColor: const Color(0x33241F20),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(PosSettingsSpec.fieldRadius),
         side: const BorderSide(color: PosSettingsSpec.fieldBorder),
       ),
       position: RelativeRect.fromLTRB(
         origin.dx,
-        origin.dy + size.height + 4,
+        origin.dy + size.height + 6,
         origin.dx + size.width,
         origin.dy,
       ),
@@ -54,12 +55,25 @@ class PosSettingsDropdown extends StatelessWidget {
         for (final PosSettingsOption option in options)
           PopupMenuItem<String>(
             value: option.value,
-            child: Text(
-              option.label,
-              style: loewBold.copyWith(
-                fontSize: PosSettingsSpec.fieldTextSize,
-                color: PosSettingsSpec.ink,
-              ),
+            height: 44,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    option.label,
+                    style: loewBold.copyWith(
+                      fontSize: PosSettingsSpec.fieldTextSize,
+                      color: PosSettingsSpec.ink,
+                    ),
+                  ),
+                ),
+                if (option.value == value)
+                  const Icon(
+                    Icons.check_rounded,
+                    size: 18,
+                    color: PosSettingsSpec.ink,
+                  ),
+              ],
             ),
           ),
       ],
@@ -76,9 +90,10 @@ class PosSettingsDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          label.toUpperCase(),
           style: loewBold.copyWith(
             fontSize: PosSettingsSpec.labelSize,
+            letterSpacing: PosSettingsSpec.labelTracking,
             color: PosSettingsSpec.ink,
           ),
         ),

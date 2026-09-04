@@ -1,4 +1,5 @@
 import 'package:acafe_customer/di_container.dart' as di;
+import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_general_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_section.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
@@ -74,7 +75,11 @@ class _GeneralSectionHost extends StatelessWidget {
                 sharedPreferences ?? di.sl<SharedPreferences>(),
           ),
         );
-        provider.hydrate(context.read<SplashProvider>().configModel);
+        provider.hydrate(
+          context.read<SplashProvider>().configModel,
+          languageCode:
+              context.read<LocalizationProvider>().locale.languageCode,
+        );
         return provider;
       },
       child: const PosGeneralSettingsPanel(),
