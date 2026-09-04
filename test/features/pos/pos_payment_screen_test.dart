@@ -14,6 +14,8 @@ import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
@@ -260,5 +262,210 @@ void main() {
       ).first,
     );
     expect(button.height, PosPaymentSpec.confirmHeight);
+  });
+
+  // ── Cash payment method (Figma 1641:3751) ──────────────────────────────
+
+  Future<void> selectCash(WidgetTester tester) async {
+    await tester.tap(find.text('Cash'));
+    await tester.pump();
+  }
+
+  Future<void> tapKey(WidgetTester tester, String label) async {
+    await tester.tap(find.descendant(
+      of: find.byType(PosKeypad),
+      matching: find.text(label),
+    ));
+    await tester.pump();
+  }
+
+  bool confirmEnabled(WidgetTester tester) =>
+      tester
+          .widget<InkWell>(find.ancestor(
+            of: find.text('Confirm Payment'),
+            matching: find.byType(InkWell),
+          ))
+          .onTap !=
+      null;
+
+  group('cash', () {
+    testWidgets('the panel appears only for Cash', (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+
+      expect(find.byType(PosCashPanel), findsNothing,
+          reason: 'Card is the default method and has no tender panel');
+
+      await selectCash(tester);
+
+      expect(find.byType(PosCashPanel), findsOneWidget);
+      expect(find.text('Amount Tendered'), findsOneWidget);
+      expect(find.text('Change Due'), findsOneWidget);
+      expect(find.byType(PosKeypad), findsOneWidget);
+      for (final String key in const ['1', '5', '9', '0', ',']) {
+        expect(find.descendant(
+          of: find.byType(PosKeypad),
+          matching: find.text(key),
+        ), findsOneWidget, reason: 'key $key');
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the keypad builds up the tendered amount', (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+
+      expect(find.text(PosHomeSpec.formatPrice(0, padZero: false)),
+          findsWidgets);
+
+      await tapKey(tester, '2');
+      await tapKey(tester, '0');
+      expect(find.text(PosHomeSpec.formatPrice(20, padZero: false)),
+          findsOneWidget);
+
+      await tapKey(tester, ',');
+      await tapKey(tester, '5');
+      expect(find.text(PosHomeSpec.formatPrice(20.5, padZero: false)),
+          findsOneWidget);
+    });
+
+    testWidgets('a quick chip sets the amount and lights up', (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+
+      await tester.tap(find.text('€ 20'));
+      await tester.pump();
+
+      expect(find.text(PosHomeSpec.formatPrice(20, padZero: false)),
+          findsOneWidget);
+      expect(
+        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+            .selectedDenomination,
+        const PosCashDenomination.note(2000),
+      );
+    });
+
+    testWidgets('Exact tenders the total and leaves no change',
+        (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6.5)]);
+      await selectCash(tester);
+
+      await tester.tap(find.text('Exact'));
+      await tester.pump();
+
+      expect(find.text(PosHomeSpec.formatPrice(6.5, padZero: false)),
+          findsWidgets);
+      // Change Due reads zero, and confirmation is open.
+      expect(confirmEnabled(tester), isTrue);
+    });
+
+    testWidgets('only one chip is active, and typing clears the selection',
+        (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+
+      await tester.tap(find.text('€ 20'));
+      await tester.pump();
+      await tester.tap(find.text('€ 50'));
+      await tester.pump();
+
+      expect(
+        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+            .selectedDenomination,
+        const PosCashDenomination.note(5000),
+        reason: 'the later chip wins; both must not be lit',
+      );
+
+      await tapKey(tester, '7');
+      expect(
+        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+            .selectedDenomination,
+        isNull,
+        reason: 'manual entry clears the chip highlight',
+      );
+    });
+
+    testWidgets('confirmation is blocked until the tender covers the total',
+        (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+
+      expect(confirmEnabled(tester), isFalse, reason: 'nothing tendered');
+
+      await tapKey(tester, '5');
+      expect(confirmEnabled(tester), isFalse, reason: '€5 against a €6 total');
+
+      await tapKey(tester, '0');
+      expect(confirmEnabled(tester), isTrue, reason: '€50 covers it');
+    });
+
+    testWidgets('change due never shows a negative value', (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+
+      await tapKey(tester, '2');
+      // €2 against a €6 total.
+      expect(find.text(PosHomeSpec.formatPrice(0, padZero: false)),
+          findsWidgets);
+      expect(find.textContaining('-'), findsNothing);
+    });
+
+    testWidgets('change due is exact for the classic float case',
+        (tester) async {
+      // 25.00 - 16.70; in doubles that is 8.299999999999999.
+      await _pump(tester, lines: [_line('Matcha', 16.70)]);
+      await selectCash(tester);
+
+      await tester.tap(find.text('€ 20'));
+      await tester.pump();
+
+      expect(find.text(PosHomeSpec.formatPrice(3.30, padZero: false)),
+          findsOneWidget);
+    });
+
+    testWidgets('switching back to Card drops the tender', (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+      await tester.tap(find.text('€ 20'));
+      await tester.pump();
+
+      await tester.tap(find.text('Card'));
+      await tester.pump();
+      await selectCash(tester);
+
+      expect(
+        tester.widget<PosCashPanel>(find.byType(PosCashPanel)).entry.isEmpty,
+        isTrue,
+      );
+      expect(confirmEnabled(tester), isFalse);
+    });
+
+    testWidgets('the field clear button wipes the amount', (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+      await tester.tap(find.text('€ 20'));
+      await tester.pump();
+      expect(confirmEnabled(tester), isTrue);
+
+      await tester.tap(find.bySemanticsLabel('Clear amount tendered'));
+      await tester.pump();
+
+      expect(
+        tester.widget<PosCashPanel>(find.byType(PosCashPanel)).entry.isEmpty,
+        isTrue,
+      );
+      expect(confirmEnabled(tester), isFalse);
+    });
+
+    testWidgets('the cash panel fits without overflow at 1366 and narrow',
+        (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+      expect(tester.takeException(), isNull);
+
+      await _pump(tester,
+          size: const Size(820, 1180), lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

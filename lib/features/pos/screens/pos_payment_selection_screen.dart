@@ -2,12 +2,14 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
+import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_checkout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_menu_actions.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
@@ -49,7 +51,29 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   bool _confirming = false;
 
+  /// Cash tender, held here rather than in [PosSaleSession]: it belongs to this
+  /// payment attempt, not to the ticket, and must not survive a trip back to
+  /// the counter screen the way the customer name does.
+  PosCashEntry _cash = const PosCashEntry();
+
+  /// Null after any keypad entry — a chip stays lit only while it is what the
+  /// operator actually chose. See [_onCashKey].
+  PosCashDenomination? _denomination;
+
   PosSaleSession get _sale => PosSaleSession.instance;
+
+  bool get _isCash => _sale.paymentMethod == PosPaymentMethod.cash;
+
+  /// Currency precision from the same config the price formatter reads, so the
+  /// keypad accepts exactly as many decimals as the display can show.
+  int _decimals(BuildContext context) =>
+      context.read<SplashProvider>().configModel?.decimalPointSettings ?? 2;
+
+  int _totalCents(double total) =>
+      posMoneyToCents(total, decimals: _cash.decimals);
+
+  /// Cash cannot be confirmed until the drawer has the money.
+  bool _cashCovers(double total) => _cash.cents >= _totalCents(total);
 
   void _back() {
     // The cart lives in CartProvider and the ticket in PosSaleSession, so
@@ -63,7 +87,46 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   void _selectMethod(PosPaymentMethod method) {
     if (_sale.paymentMethod == method) return;
-    setState(() => _sale.paymentMethod = method);
+    setState(() {
+      _sale.paymentMethod = method;
+      // Switching away from cash abandons the tender. Leaving a stale amount
+      // behind would let an operator key €50, switch to card, switch back and
+      // confirm against a figure they had already moved on from.
+      _cash = _cash.clear();
+      _denomination = null;
+    });
+  }
+
+  void _onCashKey(String token) {
+    setState(() {
+      _cash = _cash.key(token);
+      // Manual entry drops the chip highlight, even if the value still happens
+      // to match — the chip reflects a choice, not a coincidence.
+      _denomination = null;
+    });
+  }
+
+  void _onCashBackspace() {
+    setState(() {
+      _cash = _cash.backspace();
+      _denomination = null;
+    });
+  }
+
+  void _onCashClear() {
+    setState(() {
+      _cash = _cash.clear();
+      _denomination = null;
+    });
+  }
+
+  void _onDenomination(PosCashDenomination denomination, double total) {
+    setState(() {
+      _cash = _cash.withCents(
+        denomination.exact ? _totalCents(total) : denomination.cents!,
+      );
+      _denomination = denomination;
+    });
   }
 
   void _incrementLine(int index) {
@@ -93,22 +156,32 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     await handlePosReceiptMenuAction(context, action);
   }
 
-  Future<void> _confirm() async {
+  Future<void> _confirm(double total) async {
     if (_confirming) return;
     final CartProvider cart = context.read<CartProvider>();
     if (!cart.cartList.any((line) => line != null)) return;
+    // Belt and braces: the button is already disabled in this state, but a
+    // short tender must never reach order placement.
+    if (_isCash && !_cashCovers(total)) return;
 
     setState(() => _confirming = true);
     final PosCheckoutResult result = await posConfirmPayment(
       context,
       method: _sale.paymentMethod,
       idempotencyKey: _idempotencyKey,
+      // Recorded on the order as `bring_change_amount`, which the backend
+      // persists only for cash_on_delivery — exactly what POS sends. Change is
+      // derivable from it and the total, so the tender is the figure to keep.
+      tenderedAmount:
+          _isCash ? posCentsToMoney(_cash.cents, decimals: _cash.decimals) : null,
     );
     if (!mounted) return;
     setState(() => _confirming = false);
 
     switch (result.status) {
       case PosCheckoutStatus.placed:
+        _cash = _cash.clear();
+        _denomination = null;
         showCustomSnackBarHelper(
           result.orderId == null
               ? 'Order placed'
@@ -135,6 +208,13 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     final CouponProvider coupon = context.watch<CouponProvider>();
     final SplashProvider splash = context.read<SplashProvider>();
 
+    // Precision can only change when config loads; adopting it here keeps the
+    // buffer and the formatter agreeing without a second source of truth.
+    final int decimals = _decimals(context);
+    if (decimals != _cash.decimals) {
+      _cash = PosCashEntry(raw: _cash.raw, decimals: decimals);
+    }
+
     final List<CartModel?> lines = cart.cartList;
     final bool hasItems = lines.any((line) => line != null);
     final double discount = coupon.discount ?? 0;
@@ -155,10 +235,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
             ),
             _BackRow(onBack: _back),
             Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: _Content(
+              child: _Content(
                       lines: lines,
                       hasItems: hasItems,
                       imageBaseUrl: splash.baseUrls?.productImageUrl,
@@ -171,22 +248,32 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                       discount: discount,
                       total: total,
                       onSelectMethod: _selectMethod,
+                      cash: _cash,
+                      denomination: _denomination,
+                      totalCents: _totalCents(total),
+                      onCashKey: _onCashKey,
+                      onCashBackspace: _onCashBackspace,
+                      onCashClear: _onCashClear,
+                      onDenomination: (d) => _onDenomination(d, total),
                       onIncrement: _incrementLine,
                       onDecrement: _decrementLine,
-                      onOptions: _openReceiptOptions,
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _ConfirmBar(
-                      busy: _confirming,
-                      onConfirm: hasItems && !_confirming ? _confirm : null,
-                    ),
-                  ),
-                ],
+                onOptions: _openReceiptOptions,
               ),
+            ),
+            // `sticky-bottom-bar` is a flex sibling in 1641:3751, not an
+            // overlay: with the tender keypad on screen there is no spare
+            // height to float it over.
+            _ConfirmBar(
+              busy: _confirming,
+              // Cash adds one more gate on top of "there is a sale": the
+              // tendered amount has to cover the total. The button component
+              // is untouched — a null callback is the state it already renders
+              // as disabled.
+              onConfirm: hasItems &&
+                      !_confirming &&
+                      (!_isCash || _cashCovers(total))
+                  ? () => _confirm(total)
+                  : null,
             ),
           ],
         ),
@@ -267,6 +354,13 @@ class _Content extends StatelessWidget {
   final double discount;
   final double total;
   final ValueChanged<PosPaymentMethod> onSelectMethod;
+  final PosCashEntry cash;
+  final PosCashDenomination? denomination;
+  final int totalCents;
+  final ValueChanged<String> onCashKey;
+  final VoidCallback onCashBackspace;
+  final VoidCallback onCashClear;
+  final ValueChanged<PosCashDenomination> onDenomination;
   final ValueChanged<int> onIncrement;
   final ValueChanged<int> onDecrement;
   final ValueChanged<BuildContext> onOptions;
@@ -284,6 +378,13 @@ class _Content extends StatelessWidget {
     required this.discount,
     required this.total,
     required this.onSelectMethod,
+    required this.cash,
+    required this.denomination,
+    required this.totalCents,
+    required this.onCashKey,
+    required this.onCashBackspace,
+    required this.onCashClear,
+    required this.onDenomination,
     required this.onIncrement,
     required this.onDecrement,
     required this.onOptions,
@@ -329,7 +430,10 @@ class _Content extends StatelessWidget {
 
   Widget _paymentCard() {
     return _Card(
-      padding: const EdgeInsets.all(PosPaymentSpec.paymentCardPadding),
+      padding: const EdgeInsets.symmetric(
+        horizontal: PosPaymentSpec.paymentCardPaddingH,
+        vertical: PosPaymentSpec.paymentCardPaddingV,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -368,6 +472,21 @@ class _Content extends StatelessWidget {
               ),
             ],
           ),
+          // `cash-payment-panel` (1641:3830) only exists in the cash frame;
+          // the card frame (1641:2757) goes straight from the method row to
+          // the totals.
+          if (method == PosPaymentMethod.cash) ...[
+            const SizedBox(height: PosPaymentSpec.paymentCardGap),
+            PosCashPanel(
+              entry: cash,
+              totalCents: totalCents,
+              selectedDenomination: denomination,
+              onDenomination: onDenomination,
+              onKey: onCashKey,
+              onBackspace: onCashBackspace,
+              onClear: onCashClear,
+            ),
+          ],
           const SizedBox(height: PosPaymentSpec.paymentCardGap),
           PosReceiptSummary(
             subtotal: subtotal,
@@ -388,11 +507,14 @@ class _Content extends StatelessWidget {
             constraints.maxWidth >= PosPaymentSpec.stackedBelowWidth &&
                 constraints.maxHeight >= PosPaymentSpec.stackedBelowHeight;
 
-        // Reserve the sticky bar so nothing ends up underneath it.
-        final EdgeInsets padding = const EdgeInsets.all(
+        // `content-area` in 1641:3751 is `pb-32 px-32` — no top inset. The
+        // back row above it already provides the breathing room, and the 32px
+        // this frees is what lets the totals stay on screen under the keypad.
+        const EdgeInsets padding = EdgeInsets.fromLTRB(
           PosPaymentSpec.contentPadding,
-        ).copyWith(
-          bottom: PosPaymentSpec.contentPadding + PosPaymentSpec.barHeight,
+          0,
+          PosPaymentSpec.contentPadding,
+          PosPaymentSpec.contentPadding,
         );
 
         if (!sideBySide) {

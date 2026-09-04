@@ -22,14 +22,15 @@ class PosPaymentSpec {
   static const double contentPadding = 32;
   static const double contentGap = 32;
 
-  /// `purchase-receipt-sidebar` is a fixed 720 in a 1366 frame; the payment
-  /// card takes the remaining 550. Held as a ratio rather than two fixed
-  /// widths so the pair keeps its proportions on a narrower window, and
-  /// capped by [contentMaxWidth] so a 4K terminal does not stretch a receipt
-  /// to a metre wide.
-  static const int receiptFlex = 720;
-  static const int paymentFlex = 550;
-  static const double contentMaxWidth = 1302; // 720 + 32 + 550
+  /// Node **1641:3751** (cash entry) re-proportions the pair to two equal
+  /// 634px columns, up from the 720/550 of the card-only frame — the tender
+  /// keypad needs the room. Held as a ratio rather than fixed widths so the
+  /// pair keeps its proportions on a narrower window, and capped by
+  /// [contentMaxWidth] so a 4K terminal does not stretch a receipt to a metre
+  /// wide.
+  static const int receiptFlex = 634;
+  static const int paymentFlex = 634;
+  static const double contentMaxWidth = 1300; // 634 + 32 + 634
 
   /// Below either of these the cards stack and the page scrolls instead.
   static const double stackedBelowWidth = 900;
@@ -39,9 +40,14 @@ class PosPaymentSpec {
   static const double cardRadius = 16;
   static const double cardBorder = 1.5;
 
-  // ── processing-card body (1641:2838) ─────────────────────────────────
-  static const double paymentCardPadding = 24;
-  static const double paymentCardGap = 24;
+  // ── processing-card body (1641:2838, respaced by 1641:3808) ──────────
+  /// The cash frame tightens the card to `px-24 py-16` with 16px between
+  /// sections, down from the card-only frame's 24 everywhere. That is not
+  /// cosmetic: the tender keypad adds ~440px, and at 24 the totals fall off
+  /// the bottom of a 1024-tall terminal.
+  static const double paymentCardPaddingH = 24;
+  static const double paymentCardPaddingV = 16;
+  static const double paymentCardGap = 16;
   static const double sectionLabelSize = 14;
   static const double sectionLabelHeight = 17 / 14;
   static const double sectionLabelTracking = 1;
@@ -69,6 +75,39 @@ class PosPaymentSpec {
   /// `#241F20` ink used everywhere else. Kept as drawn.
   static const Color methodSelectedBorder = Colors.black;
 
+  // ── cash-payment-panel (1641:3830) ───────────────────────────────────
+  /// Gap between the tender field, the chip row and the keypad.
+  static const double cashPanelGap = 12;
+  static const double cashFieldLabelGap = 8;
+  static const double cashFieldLabelSize = 13;
+  static const double cashFieldLabelHeight = 16 / 13;
+  static const double cashFieldLabelOpacity = 0.53;
+  static const double cashFieldPadding = 16;
+  static const double cashFieldRadius = 12;
+  static const double cashFieldBorder = 2;
+  static const double cashAmountSize = 22;
+  static const double cashAmountHeight = 27 / 22;
+  static const double cashClearIconSize = 20;
+
+  static const double denomGap = 8;
+  static const double denomRadius = 10;
+  static const double denomBorder = 1.5;
+  static const double denomLabelSize = 14;
+  static const double denomLabelHeight = 17 / 14;
+  static const EdgeInsets denomPadding =
+      EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+
+  static const double changeBannerPadding = 16;
+  static const double changeBannerRadius = 12;
+  static const double changeBannerBorder = 1;
+  static const double changeLabelSize = 15;
+  static const double changeLabelHeight = 18 / 15;
+  static const double changeValueSize = 20;
+  static const double changeValueHeight = 24 / 20;
+  /// `#EBF9F1` — the tint behind `change-due-banner`, paired with
+  /// `PosHomeSpec.discountGreen` for its border and type.
+  static const Color changeBannerFill = Color(0xFFEBF9F1);
+
   // ── payment-details (1641:2860) ──────────────────────────────────────
   static const double summaryPaddingTop = 16;
   static const double summaryPaddingH = 24;
@@ -86,7 +125,7 @@ class PosPaymentSpec {
   static const Offset barShadowOffset = Offset(0, -6);
   static const Color barShadow = Color(0x14241F20); // 8% ink
 
-  /// Total height the bar occupies, so the scrolling content can reserve it.
+  /// Total height the bar occupies.
   static const double barHeight =
       barBorderTop + barPaddingTop + confirmHeight + barPaddingBottom;
 }

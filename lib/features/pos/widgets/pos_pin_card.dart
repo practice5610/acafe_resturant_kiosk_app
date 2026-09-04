@@ -1,11 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_wordmark.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 /// Design tokens for the POS PIN card, taken literally from the Figma frame
 /// (POS file, `pin-login-column` **1641:8339**).
@@ -323,10 +323,16 @@ class _PosPinCardState extends State<PosPinCard>
           SizedBox(height: PosPinSpec.sectionGap * s),
           _pinInstructions(s),
           SizedBox(height: PosPinSpec.sectionGap * s),
-          _Keypad(
+          PosKeypad(
+            // Row 4 leads with a spacer. Figma keeps a `key-comma` placeholder
+            // there purely so the grid stays 3 columns wide; it renders
+            // invisible in the design and is not interactive here. The cash
+            // pad puts a live decimal key in the same cell.
+            rows: PosKeypad.digitRows(),
+            style: _pinKeypadStyle,
             scale: s,
             enabled: !_submitting,
-            onDigit: _onDigit,
+            onKey: _onDigit,
             onBackspace: _onBackspace,
           ),
           SizedBox(height: PosPinSpec.sectionGap * s),
@@ -476,154 +482,6 @@ class PosPinDot extends StatelessWidget {
   }
 }
 
-/// 4x3 keypad. Keys flex equally across the content width rather than carrying
-/// fixed pixel widths, so the grid stays correct at any card size.
-class _Keypad extends StatelessWidget {
-  final double scale;
-  final bool enabled;
-  final ValueChanged<String> onDigit;
-  final VoidCallback onBackspace;
-
-  const _Keypad({
-    required this.scale,
-    required this.enabled,
-    required this.onDigit,
-    required this.onBackspace,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const List<List<String>> rows = [
-      ['1', '2', '3'],
-      ['4', '5', '6'],
-      ['7', '8', '9'],
-      // Row 4 leads with an invisible key. Figma keeps a `key-comma`
-      // placeholder there purely so the grid stays 3 columns wide; it renders
-      // invisible in the design and is not interactive here.
-      ['', '0', '<'],
-    ];
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (int r = 0; r < rows.length; r++) ...[
-          if (r > 0) SizedBox(height: PosPinSpec.keyGap * scale),
-          Row(
-            children: [
-              for (int c = 0; c < rows[r].length; c++) ...[
-                if (c > 0) SizedBox(width: PosPinSpec.keyGap * scale),
-                Expanded(
-                  child: _Key(
-                    token: rows[r][c],
-                    scale: scale,
-                    enabled: enabled,
-                    onDigit: onDigit,
-                    onBackspace: onBackspace,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _Key extends StatefulWidget {
-  final String token;
-  final double scale;
-  final bool enabled;
-  final ValueChanged<String> onDigit;
-  final VoidCallback onBackspace;
-
-  const _Key({
-    required this.token,
-    required this.scale,
-    required this.enabled,
-    required this.onDigit,
-    required this.onBackspace,
-  });
-
-  @override
-  State<_Key> createState() => _KeyState();
-}
-
-class _KeyState extends State<_Key> {
-  bool _pressed = false;
-
-  bool get _isSpacer => widget.token.isEmpty;
-
-  void _fire() {
-    if (widget.token == '<') {
-      widget.onBackspace();
-    } else {
-      widget.onDigit(widget.token);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final double s = widget.scale;
-
-    final Widget face = AnimatedScale(
-      scale: _pressed ? 0.94 : 1.0,
-      duration: const Duration(milliseconds: 90),
-      curve: Curves.easeOut,
-      child: Container(
-        height: PosPinSpec.keyHeight * s,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: PosPinSpec.keyFill,
-          borderRadius: BorderRadius.circular(PosPinSpec.keyRadius * s),
-          border: Border.all(color: PosPinSpec.inkAlpha(0.09)),
-          boxShadow: [
-            BoxShadow(
-              color: PosPinSpec.inkAlpha(0.04),
-              offset: Offset(0, 1 * s),
-              blurRadius: 2 * s,
-            ),
-          ],
-        ),
-        child: widget.token == '<'
-            ? SvgPicture.asset(
-                Images.kioskKeyBackspaceSvg,
-                width: PosPinSpec.keyIconSize * s,
-                height: PosPinSpec.keyIconSize * s,
-                fit: BoxFit.contain,
-                colorFilter: const ColorFilter.mode(
-                  PosPinSpec.ink,
-                  BlendMode.srcIn,
-                ),
-              )
-            : Text(
-                widget.token,
-                style: loewBold.copyWith(
-                  fontSize: PosPinSpec.keyLabelSize * s,
-                  color: PosPinSpec.ink,
-                  height: 26 / 22, // Figma line box: 26px at 22px type.
-                ),
-              ),
-      ),
-    );
-
-    if (_isSpacer) {
-      // Occupies the grid cell and nothing else.
-      return IgnorePointer(child: Opacity(opacity: 0, child: face));
-    }
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.enabled ? (_) => setState(() => _pressed = true) : null,
-      onTapCancel:
-          widget.enabled ? () => setState(() => _pressed = false) : null,
-      onTapUp: widget.enabled ? (_) => setState(() => _pressed = false) : null,
-      onTap: widget.enabled ? _fire : null,
-      child: face,
-    );
-  }
-}
-
 class _ConfirmButton extends StatelessWidget {
   final double scale;
   final bool enabled;
@@ -701,3 +559,29 @@ class _ConfirmButton extends StatelessWidget {
     );
   }
 }
+
+/// Shift-PIN pad paint. Held here rather than in `pos_keypad.dart` because
+/// these are PIN-card values — the keypad widget itself is style-agnostic.
+final PosKeypadStyle _pinKeypadStyle = PosKeypadStyle(
+  keyHeight: PosPinSpec.keyHeight,
+  keyRadius: PosPinSpec.keyRadius,
+  columnGap: PosPinSpec.keyGap,
+  rowGap: PosPinSpec.keyGap,
+  labelSize: PosPinSpec.keyLabelSize,
+  labelHeight: 26 / 22, // Figma line box: 26px at 22px type.
+  labelStyle: loewBold,
+  fill: PosPinSpec.keyFill,
+  borderColor: PosPinSpec.inkAlpha(0.09),
+  borderWidth: 1,
+  labelColor: PosPinSpec.ink,
+  iconSize: PosPinSpec.keyIconSize,
+  iconColor: PosPinSpec.ink,
+  backspaceAsset: Images.kioskKeyBackspaceSvg,
+  shadow: [
+    BoxShadow(
+      color: PosPinSpec.inkAlpha(0.04),
+      offset: const Offset(0, 1),
+      blurRadius: 2,
+    ),
+  ],
+);

@@ -270,9 +270,13 @@ class PosHomeSpec {
 
   /// Figma prices are `€ 6.00` / `€ 00.00` — a space after the symbol, and
   /// two digits before the decimal when the amount is zero.
-  static String formatPrice(double amount) {
+  ///
+  /// [padZero] is that last rule, which comes from the empty-cart receipt frame
+  /// and is wrong for a cash tender field: an untouched Amount Tendered should
+  /// read `€ 0.00`, not `€ 00.00`. Pass false there.
+  static String formatPrice(double amount, {bool padZero = true}) {
     final String raw = PriceConverterHelper.convertPrice(amount);
-    if (amount == 0) {
+    if (padZero && amount == 0) {
       return raw.replaceFirst(RegExp(r'0+[.,]00'), '00.00').replaceFirstMapped(
             RegExp(r'^([^\d\s.,-]+)(\d)'),
             (m) => '${m[1]} ${m[2]}',

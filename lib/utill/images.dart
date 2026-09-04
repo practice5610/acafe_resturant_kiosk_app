@@ -289,6 +289,9 @@ class Images {
   static const String posCreditCardSvg = 'assets/svg/pos_credit_card.svg';
   static const String posRadioOffSvg = 'assets/svg/pos_radio_off.svg';
   static const String posRadioOnSvg = 'assets/svg/pos_radio_on.svg';
+  // POS cash payment entry (Figma 1641:3751)
+  static const String posFieldClearSvg = 'assets/svg/pos_field_clear.svg';
+  static const String posKeyBackspaceSvg = 'assets/svg/pos_key_backspace.svg';
 
   // POS receipt context menu — Figma node 1641:3570 (lightspeed-context-menu).
   static const String posMenuPercentSvg = 'assets/svg/pos_menu_percent.svg';

@@ -51,6 +51,10 @@ class PosCheckoutResult {
 ///
 /// Cash needs no terminal round-trip: the drawer took the money before the
 /// operator pressed Confirm, so the sale goes straight to the order post.
+/// [tenderedAmount] is what the customer handed over — passed through to the
+/// order's `bring_change_amount`, an existing field the backend already
+/// persists for `cash_on_delivery`. Change is derivable from it and the total,
+/// so the tender is the figure worth keeping.
 ///
 /// The wire `payment_method` is left as the kiosk sends it. `OrderController`
 /// branches on that string — anything other than `cash_on_delivery` posts the
@@ -61,6 +65,7 @@ Future<PosCheckoutResult> posConfirmPayment(
   BuildContext context, {
   required PosPaymentMethod method,
   required String idempotencyKey,
+  double? tenderedAmount,
 }) async {
   final CartProvider cart = context.read<CartProvider>();
   final CouponProvider coupon = context.read<CouponProvider>();
@@ -99,6 +104,7 @@ Future<PosCheckoutResult> posConfirmPayment(
     context,
     amount: amount,
     paymentRef: paymentRef,
+    bringChangeAmount: tenderedAmount,
   );
 
   if (!placed.success) {

@@ -66,6 +66,7 @@ Future<KioskPlaceResult> placeKioskOrder(
   BuildContext context, {
   required double amount,
   String? paymentRef,
+  double? bringChangeAmount,
 }) async {
   final cartProvider = Provider.of<CartProvider>(context, listen: false);
   final orderProvider = Provider.of<OrderProvider>(context, listen: false);
@@ -137,7 +138,12 @@ Future<KioskPlaceResult> placeKioskOrder(
     isPartial: '0',
     isCutleryRequired: '0',
     transactionReference: paymentRef,
-    bringChangeAmount: 0,
+    // What the customer handed over, for a cash sale. `OrderController` stores
+    // this only when payment_method is `cash_on_delivery`, which is what every
+    // order from this app sends — so a POS cash tender lands on the order with
+    // no API change. Defaults to the kiosk's 0: a self-service sale has no
+    // cash drawer.
+    bringChangeAmount: bringChangeAmount ?? 0,
   );
 
   final completer = Completer<KioskPlaceResult>();
