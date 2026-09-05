@@ -32,8 +32,10 @@ extension PosSettingsSectionX on PosSettingsSection {
 
   String get subtitle => switch (this) {
         PosSettingsSection.general => 'Store identity & locale settings',
-        PosSettingsSection.profile => 'Account and terminal profile',
-        PosSettingsSection.staff => 'Staff roles and PIN access',
+        PosSettingsSection.profile =>
+          'Personal account settings and preferences',
+        PosSettingsSection.staff =>
+          'Manage team members, roles and permissions',
         PosSettingsSection.products => 'Catalogue and menu visibility',
         PosSettingsSection.addOns => 'Modifiers and extras',
         PosSettingsSection.payments => 'Tenders and payment terminals',

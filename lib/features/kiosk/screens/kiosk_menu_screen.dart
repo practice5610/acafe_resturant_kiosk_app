@@ -19,11 +19,15 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_deal.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
-import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+// Used only by the commented-out manager-access lock below (ownership
+// moved to POS Settings). Restore together with that block.
+// import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_pin_entry_sheet.dart';
+// Used only by the commented-out manager-access lock below (ownership
+// moved to POS Settings). Restore together with that block.
+// import 'package:acafe_customer/features/kiosk/widgets/kiosk_pin_entry_sheet.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -330,13 +334,29 @@ class _KioskTopBar extends StatelessWidget {
           ),
           const Spacer(),
           // Right-aligned action icons.
-          if (context.watch<KioskAuthProvider>().isPosDevice) ...[
-            _CircleIconButton(
-                s: s,
-                assetPath: Images.managerAccessSvg,
-                onTap: () => openKioskManagerAccess(context)),
-            SizedBox(width: 38 * s),
-          ],
+          // OWNERSHIP MOVED TO POS SETTINGS (2026-09-04).
+          //
+          // This lock opened Kiosk manager access, whose Mark-Out-of-Stock
+          // screen was the primary place `product_by_branches.is_available`
+          // got toggled. That flag is now owned by POS Settings -> Products
+          // (and the equivalent Add-ons screen), so the Kiosk lock UI is
+          // disabled pending removal. Commented out rather than deleted so the
+          // entry point is easy to restore if the decision is revisited.
+          //
+          // NOTE: this lock gated the WHOLE Kiosk manager area, not just the
+          // stock screen — sales overview, Z-report close, and transactions
+          // are also unreachable from the Kiosk main screen while it is off.
+          // Everything behind it still exists and still works; only this
+          // entry point is hidden. See KioskManagerProvider and
+          // kiosk_manager_*_screen.dart.
+          //
+          // if (context.watch<KioskAuthProvider>().isPosDevice) ...[
+          //   _CircleIconButton(
+          //       s: s,
+          //       assetPath: Images.managerAccessSvg,
+          //       onTap: () => openKioskManagerAccess(context)),
+          //   SizedBox(width: 38 * s),
+          // ],
           _CircleIconButton(
               s: s,
               assetPath: Images.searchSvg,

@@ -113,6 +113,57 @@ class PosPaymentSpec {
   static const double summaryPaddingH = 24;
   static const double summaryGap = 8;
 
+  // ── waiting-card (1641:4203 / 1641:4204) ─────────────────────────────
+  static const double waitCardWidth = 560;
+  static const double waitCardRadius = 24;
+  static const double waitCardBorder = 1.5;
+  static const double waitCardPaddingTop = 48;
+  static const double waitCardPaddingBottom = 40;
+  static const double waitCardPaddingH = 40;
+  /// Between the dots, the heading, the amount box, the rule and the button.
+  static const double waitCardGap = 36;
+  static const double waitCardShadowBlur = 16;
+  static const Offset waitCardShadowOffset = Offset(0, 12);
+  static const Color waitCardShadow = Color(0x0A241F20); // 4% ink
+  /// `#EAE5D5` — a warmer hairline than the receipt panel's `#F0EBD8`, and the
+  /// same one the receipt context menu already uses.
+  static const Color waitCardBorderColor = Color(0xFFEAE5D5);
+
+  static const double waitDotSize = 10;
+  static const double waitDotGap = 6; // 42 wide total: 3x10 + 2x6
+  /// The dot green is its own value in the file — close to, but not,
+  /// `PosHomeSpec.discountGreen` (#2A8456). Kept as drawn.
+  static const Color waitDotColor = Color(0xFF496052);
+  static const List<double> waitDotOpacities = [1.0, 0.6, 0.3];
+
+  static const double waitHeadingSize = 28;
+  static const double waitHeadingHeight = 34 / 28;
+
+  static const double waitAmountBoxRadius = 16;
+  static const double waitAmountBoxBorder = 1;
+  static const double waitAmountBoxPaddingH = 32;
+  static const double waitAmountBoxPaddingV = 20;
+  static const double waitAmountLabelGap = 4;
+  static const double waitAmountLabelSize = 13;
+  static const double waitAmountLabelHeight = 16 / 13;
+  static const double waitAmountLabelTracking = 1;
+  static const double waitAmountLabelOpacity = 0.53;
+  static const double waitAmountSize = 36;
+  static const double waitAmountHeight = 43 / 36;
+
+  static const double waitCancelRadius = 14;
+  static const double waitCancelBorder = 1.5;
+  static const double waitCancelPaddingV = 16;
+  static const double waitCancelLabelSize = 16;
+  static const double waitCancelLabelHeight = 19 / 16;
+
+  // ── declined-card (1641:4218 / 1641:4221) ────────────────────────────
+  /// The declined card is the waiting card with a different top element and a
+  /// second button: same 560/r24/1.5 shell, same gaps, same amount box. Only
+  /// the values below are new.
+  static const double declinedIconSize = 80.84;
+  static const double declinedActionsGap = 12;
+
   // ── sticky-bottom-bar (1641:2871) ────────────────────────────────────
   static const double barBorderTop = 2;
   static const double barPaddingTop = 16;

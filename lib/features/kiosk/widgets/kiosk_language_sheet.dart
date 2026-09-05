@@ -5,7 +5,7 @@ import 'package:acafe_customer/features/category/providers/category_provider.dar
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
-import 'package:acafe_customer/utill/app_constants.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_language_offering.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
@@ -217,6 +217,10 @@ class KioskLanguageCard extends StatelessWidget {
         final double maxW = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : _kCardWidth * s;
+        // Same offering the guest-facing picker uses — Settings → Hardware →
+        // Kiosk Languages, falling back to every installed locale.
+        final List<LanguageModel> languages =
+            KioskLanguageOffering.forThisDevice();
         return Container(
       width: (_kCardWidth * s).clamp(280.0, maxW),
       // Height is content-driven rather than the Figma frame's fixed 1356: that
@@ -281,14 +285,14 @@ class KioskLanguageCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: _kCardGap * s),
-          for (int i = 0; i < AppConstants.languages.length; i++) ...[
+          for (int i = 0; i < languages.length; i++) ...[
             if (i > 0) SizedBox(height: _kRowGap * s),
             _LanguageRow(
               s: s,
-              language: AppConstants.languages[i],
-              selected: AppConstants.languages[i].languageCode == current,
+              language: languages[i],
+              selected: languages[i].languageCode == current,
               enabled: !saving,
-              onTap: () => onSelect(AppConstants.languages[i]),
+              onTap: () => onSelect(languages[i]),
             ),
           ],
         ],

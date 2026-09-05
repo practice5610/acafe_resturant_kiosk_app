@@ -57,6 +57,9 @@ class KioskAuthRepo {
     required String token,
     required int branchId,
     String? branchName,
+    String? branchPhone,
+    String? branchEmail,
+    String? branchImage,
     String? deviceName,
     String? username,
     int? deviceId,
@@ -74,6 +77,18 @@ class KioskAuthRepo {
     if (branchName != null) {
       await sharedPreferences.setString(
           AppConstants.kioskBranchName, branchName);
+    }
+    if (branchPhone != null) {
+      await sharedPreferences.setString(
+          AppConstants.kioskBranchPhone, branchPhone);
+    }
+    if (branchEmail != null) {
+      await sharedPreferences.setString(
+          AppConstants.kioskBranchEmail, branchEmail);
+    }
+    if (branchImage != null) {
+      await sharedPreferences.setString(
+          AppConstants.kioskBranchImage, branchImage);
     }
     if (deviceName != null) {
       await sharedPreferences.setString(
@@ -104,8 +119,20 @@ class KioskAuthRepo {
   String getBranchName() =>
       sharedPreferences.getString(AppConstants.kioskBranchName) ?? '';
 
+  String getBranchPhone() =>
+      sharedPreferences.getString(AppConstants.kioskBranchPhone) ?? '';
+
+  String getBranchEmail() =>
+      sharedPreferences.getString(AppConstants.kioskBranchEmail) ?? '';
+
+  String getBranchImage() =>
+      sharedPreferences.getString(AppConstants.kioskBranchImage) ?? '';
+
   String getDeviceName() =>
       sharedPreferences.getString(AppConstants.kioskDeviceName) ?? '';
+
+  String getUsername() =>
+      sharedPreferences.getString(AppConstants.kioskUsername) ?? '';
 
   int? getBranchId() => sharedPreferences.containsKey(AppConstants.branch)
       ? sharedPreferences.getInt(AppConstants.branch)
@@ -145,6 +172,9 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.token);
     await sharedPreferences.remove(AppConstants.branch);
     await sharedPreferences.remove(AppConstants.kioskBranchName);
+    await sharedPreferences.remove(AppConstants.kioskBranchPhone);
+    await sharedPreferences.remove(AppConstants.kioskBranchEmail);
+    await sharedPreferences.remove(AppConstants.kioskBranchImage);
     await sharedPreferences.remove(AppConstants.kioskDeviceName);
     await sharedPreferences.remove(AppConstants.kioskUsername);
     await sharedPreferences.remove(AppConstants.kioskDeviceId);

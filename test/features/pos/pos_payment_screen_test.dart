@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:io';
 
 import 'package:acafe_customer/common/models/cart_model.dart';
@@ -6,7 +8,9 @@ import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/di_container.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
@@ -19,8 +23,11 @@ import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
+import 'package:acafe_customer/main.dart' show navigatorKey;
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -110,9 +117,13 @@ Future<CartProvider> _pump(
       child: MediaQuery(
         data: MediaQueryData(size: size),
         child: PosShell(
-          child: const MaterialApp(
+          child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            home: PosPaymentSelectionScreen(),
+            // The app's global key, so `Get.context` resolves and
+            // showCustomSnackBarHelper can find a ScaffoldMessenger — the
+            // outcome switch calls it on every non-success branch.
+            navigatorKey: navigatorKey,
+            home: const PosPaymentSelectionScreen(),
           ),
         ),
       ),
@@ -468,4 +479,342 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  // ── Waiting for payment (Figma 1641:4203) ──────────────────────────────
+
+  group('waiting for payment', () {
+    late _FakeTerminal terminal;
+
+    setUp(() {
+      terminal = _FakeTerminal();
+      if (sl.isRegistered<KioskPaymentService>()) {
+        sl.unregister<KioskPaymentService>();
+      }
+      sl.registerSingleton<KioskPaymentService>(terminal);
+    });
+
+    tearDown(() {
+      if (sl.isRegistered<KioskPaymentService>()) {
+        sl.unregister<KioskPaymentService>();
+      }
+    });
+
+    /// Resolves the terminal and lets the outcome reach the widget tree.
+    ///
+    /// `pumpAndSettle` is unusable here — the dot indicator's ticker repeats
+    /// forever, so the tree never quiesces. And a plain `pump` is not enough
+    /// either: completing the payment future starts a chain of awaits
+    /// (`pay` -> `posConfirmPayment` -> `_confirm` -> `setState`) that only
+    /// unwinds on a real async turn.
+    Future<void> settleTerminal(
+        WidgetTester tester, void Function() complete) async {
+      await tester.runAsync(() async {
+        complete();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      // Two frames: the first drains the fake-zone continuations the real-zone
+      // completion queued, the second renders what they changed.
+      await tester.pump();
+      await tester.pump();
+    }
+
+    /// Confirms a card payment and stops on the waiting state — the fake
+    /// terminal holds its future open until the test decides otherwise.
+    Future<CartProvider> startCardPayment(WidgetTester tester,
+        {Size size = const Size(1366, 1024)}) async {
+      final CartProvider cart = await _pump(
+        tester,
+        size: size,
+        lines: [_line('Oat Milk Matcha', 6), _line('Mango Matcha', 7, id: 2)],
+      );
+      await tester.tap(find.text('Confirm Payment'));
+      await tester.pump();
+      return cart;
+    }
+
+    testWidgets('the waiting card replaces the selector on Card confirm',
+        (tester) async {
+      await startCardPayment(tester);
+
+      expect(find.byType(PosWaitingCard), findsOneWidget);
+      expect(find.text('Waiting for payment...'), findsOneWidget);
+      expect(find.text('AMOUNT DUE'), findsOneWidget);
+      expect(find.text('Cancel Transaction'), findsOneWidget);
+
+      // The selector and the sticky bar step aside; the header stays.
+      expect(find.text('SELECT PAYMENT METHOD'), findsNothing);
+      expect(find.text('Confirm Payment'), findsNothing);
+      expect(find.byType(PosTopNavBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Amount Due is the real order total', (tester) async {
+      await startCardPayment(tester);
+
+      // €6 + €7, read from the cart rather than recomputed.
+      expect(
+        tester.widget<PosWaitingCard>(find.byType(PosWaitingCard)).amountDue,
+        13,
+      );
+      expect(find.text(PosHomeSpec.formatPrice(13, padZero: false)),
+          findsOneWidget);
+    });
+
+    testWidgets('the dots animate without disturbing the rest of the screen',
+        (tester) async {
+      await startCardPayment(tester);
+
+      expect(find.byType(PosWaitingDots), findsOneWidget);
+      // The ticker keeps running; pumping frames must not throw or settle.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+      expect(find.byType(PosWaitingCard), findsOneWidget);
+    });
+
+    testWidgets('back is withheld while the terminal has the payment',
+        (tester) async {
+      await startCardPayment(tester);
+
+      expect(
+        tester
+            .widgetList<InkWell>(find.byType(InkWell))
+            .where((w) => w.onTap != null)
+            .length,
+        1,
+        reason: 'Cancel Transaction is the only live control',
+      );
+    });
+
+    testWidgets('Cancel asks the terminal and shows it is working',
+        (tester) async {
+      await startCardPayment(tester);
+
+      await tester.tap(find.text('Cancel Transaction'));
+      await tester.pump();
+
+      expect(terminal.cancelCalls, 1);
+      expect(find.text('Cancelling...'), findsOneWidget);
+      expect(
+        tester.widget<PosWaitingCard>(find.byType(PosWaitingCard)).onCancel,
+        isNull,
+        reason: 'a second cancel must not reach the terminal',
+      );
+    });
+
+    testWidgets('a cancelled payment returns to the selector, cart intact',
+        (tester) async {
+      final CartProvider cart = await startCardPayment(tester);
+
+      await tester.tap(find.text('Cancel Transaction'));
+      await tester.pump();
+      expect(terminal.cancelCalls, 1);
+
+      // The terminal answers the cancel, which is what actually ends the wait.
+      await settleTerminal(tester, terminal.completeCanceled);
+
+      expect(find.byType(PosWaitingCard), findsNothing);
+      expect(find.text('SELECT PAYMENT METHOD'), findsOneWidget);
+      expect(find.text('Confirm Payment'), findsOneWidget);
+      expect(cart.cartList.where((l) => l != null).length, 2,
+          reason: 'cancelling must not clear the sale');
+      expect(find.text('Oat Milk Matcha'), findsOneWidget);
+    });
+
+    testWidgets('a declined payment hands over to the declined card',
+        (tester) async {
+      await startCardPayment(tester);
+
+      await settleTerminal(tester, terminal.completeFailed);
+
+      expect(find.byType(PosWaitingCard), findsNothing);
+      expect(find.byType(PosDeclinedCard), findsOneWidget);
+      // The selector stays out of the way until the operator decides.
+      expect(find.text('SELECT PAYMENT METHOD'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    // ── Payment declined (Figma 1641:4218) ─────────────────────────────
+
+    /// Drives a card payment all the way to the declined card.
+    Future<CartProvider> reachDeclined(WidgetTester tester,
+        {Size size = const Size(1366, 1024)}) async {
+      final CartProvider cart = await startCardPayment(tester, size: size);
+      await settleTerminal(tester, terminal.completeFailed);
+      return cart;
+    }
+
+    testWidgets('the declined card shows the design and both actions',
+        (tester) async {
+      await reachDeclined(tester);
+
+      expect(find.text('Payment Declined'), findsOneWidget);
+      expect(find.text('AMOUNT DUE'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Try Again'), findsOneWidget);
+      // Header survives; the sticky bar does not.
+      expect(find.byType(PosTopNavBar), findsOneWidget);
+      expect(find.text('Confirm Payment'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Amount Due matches what the waiting card quoted',
+        (tester) async {
+      await startCardPayment(tester);
+      final double quoted =
+          tester.widget<PosWaitingCard>(find.byType(PosWaitingCard)).amountDue;
+
+      await settleTerminal(tester, terminal.completeFailed);
+
+      expect(
+        tester.widget<PosDeclinedCard>(find.byType(PosDeclinedCard)).amountDue,
+        quoted,
+        reason: 'the customer must not be quoted two different figures',
+      );
+      expect(quoted, 13);
+    });
+
+    testWidgets('Cancel returns to the selector with the sale intact',
+        (tester) async {
+      final CartProvider cart = await reachDeclined(tester);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pump();
+
+      expect(find.byType(PosDeclinedCard), findsNothing);
+      expect(find.text('SELECT PAYMENT METHOD'), findsOneWidget);
+      expect(find.text('Confirm Payment'), findsOneWidget);
+      expect(cart.cartList.where((l) => l != null).length, 2,
+          reason: 'a decline must not clear the sale');
+      expect(find.text('Oat Milk Matcha'), findsOneWidget);
+    });
+
+    testWidgets('Try Again starts one new attempt on the same key',
+        (tester) async {
+      await reachDeclined(tester);
+      expect(terminal.payCalls, 1);
+
+      await tester.tap(find.text('Try Again'));
+      await tester.pump();
+
+      // Straight back into the waiting state, not a fresh order.
+      expect(find.byType(PosDeclinedCard), findsNothing);
+      expect(find.byType(PosWaitingCard), findsOneWidget);
+      expect(terminal.payCalls, 2, reason: 'exactly one more attempt');
+      expect(terminal.keys.toSet().length, 1,
+          reason: 'a retry is the same checkout attempt, so one key');
+    });
+
+    testWidgets('Try Again cannot be double-tapped into two attempts',
+        (tester) async {
+      await reachDeclined(tester);
+
+      await tester.tap(find.text('Try Again'));
+      await tester.pump();
+      // The button is gone with the card; confirm the guard holds anyway.
+      expect(terminal.payCalls, 2);
+      await settleTerminal(tester, terminal.completeFailed);
+      expect(terminal.payCalls, 2);
+    });
+
+    testWidgets('a retry that succeeds leaves the declined card behind',
+        (tester) async {
+      await reachDeclined(tester);
+      await tester.tap(find.text('Try Again'));
+      await tester.pump();
+
+      expect(find.byType(PosWaitingCard), findsOneWidget);
+      expect(find.byType(PosDeclinedCard), findsNothing);
+    });
+
+    testWidgets('back is withheld, but both card actions are live',
+        (tester) async {
+      await reachDeclined(tester);
+
+      // The back arrow greys out: leaving by the chrome would strand the
+      // operator on the counter screen mid-decision. The nav tabs stay live —
+      // no payment is in flight, and the sale survives in CartProvider either
+      // way.
+      expect(
+        tester
+            .widgetList<Opacity>(find.byType(Opacity))
+            .where((o) => o.opacity == 0.4),
+        isNotEmpty,
+        reason: 'back button is greyed while the decline is on screen',
+      );
+
+      final PosDeclinedCard card =
+          tester.widget<PosDeclinedCard>(find.byType(PosDeclinedCard));
+      expect(card.onCancel, isNotNull);
+      expect(card.onTryAgain, isNotNull);
+    });
+
+    testWidgets('the declined card stays whole on a short window',
+        (tester) async {
+      await reachDeclined(tester, size: const Size(820, 700));
+
+      expect(find.text('Payment Declined'), findsOneWidget);
+      expect(find.text('Try Again'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    // Note: "cash confirm never touches the terminal" is not asserted here.
+    // Driving a cash confirm runs straight into `placeKioskOrder`, which needs
+    // the whole order/auth/branch provider graph and a live Dio client — a
+    // network stack this layout harness has no business owning. The guard is a
+    // single `if (method == PosPaymentMethod.card)` in posConfirmPayment, and
+    // the cash group above covers the panel it gates.
+
+    testWidgets('the card stays whole on a short window', (tester) async {
+      await startCardPayment(tester, size: const Size(820, 700));
+
+      expect(find.text('Waiting for payment...'), findsOneWidget);
+      expect(find.text('Cancel Transaction'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+}
+
+/// A terminal whose result the test decides, standing in for the registered
+/// [KioskPaymentService]. `pay()` hangs until the test completes it, which is
+/// what holds the screen on the waiting state.
+class _FakeTerminal implements KioskPaymentService {
+  /// One completer per attempt, so a retry can be resolved independently of
+  /// the attempt it followed.
+  final List<Completer<KioskPaymentResult>> _attempts = [];
+
+  /// Every idempotency key the screen has handed over, in order. Retrying the
+  /// same checkout attempt must not mint a new one.
+  final List<String> keys = [];
+
+  int cancelCalls = 0;
+
+  int get payCalls => _attempts.length;
+
+  @override
+  Future<KioskPaymentResult> pay({
+    required double amount,
+    required String idempotencyKey,
+  }) {
+    keys.add(idempotencyKey);
+    final completer = Completer<KioskPaymentResult>();
+    _attempts.add(completer);
+    return completer.future;
+  }
+
+  @override
+  Future<void> cancel() async {
+    cancelCalls++;
+  }
+
+  void _resolve(KioskPaymentResult result) {
+    final pending = _attempts.lastWhere((c) => !c.isCompleted);
+    pending.complete(result);
+  }
+
+  void completeCanceled() =>
+      _resolve(const KioskPaymentResult(KioskPaymentStatus.canceled));
+
+  void completeFailed() => _resolve(
+      const KioskPaymentResult(KioskPaymentStatus.failed, message: 'Declined'));
 }

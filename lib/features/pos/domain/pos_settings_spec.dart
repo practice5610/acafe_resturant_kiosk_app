@@ -47,6 +47,9 @@ class PosSettingsSpec {
   static const double labelTracking = 0.3;
   static const double fieldTextSize = 14;
 
+  /// Muted trailing label inside a field (Payments' "VAT Standard").
+  static const double suffixTextSize = 12;
+
   static const double fieldRadius = 12;
   static const double fieldBorderWidth = 1;
   static const double fieldBorderFocusWidth = 1.5;

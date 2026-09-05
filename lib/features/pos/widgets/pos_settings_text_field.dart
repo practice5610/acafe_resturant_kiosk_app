@@ -14,6 +14,17 @@ class PosSettingsTextField extends StatefulWidget {
   final List<TextInputFormatter>? inputFormatters;
   final TextInputAction? textInputAction;
   final int maxLines;
+  final bool readOnly;
+
+  /// Muted label pinned to the right inside the field — Payments' "VAT
+  /// Standard" next to the tax rate (Figma 1641:4325). Optional and `null` by
+  /// default, so every existing consumer renders exactly as before.
+  final String? suffixText;
+
+  /// Optional control pinned to the right of the label row — Hardware's
+  /// "Use store name" toggle sits there. Additive: existing callers that pass
+  /// nothing render exactly as before.
+  final Widget? trailing;
 
   const PosSettingsTextField({
     super.key,
@@ -26,6 +37,9 @@ class PosSettingsTextField extends StatefulWidget {
     this.inputFormatters,
     this.textInputAction,
     this.maxLines = 1,
+    this.readOnly = false,
+    this.suffixText,
+    this.trailing,
   });
 
   @override
@@ -47,6 +61,29 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
     super.dispose();
   }
 
+  /// Identity when no [PosSettingsTextField.suffixText] is given, so fields
+  /// that do not use one keep the exact widget tree they had before.
+  Widget _withSuffix(Widget field) {
+    final String? suffix = widget.suffixText;
+    if (suffix == null || suffix.isEmpty) return field;
+    return Row(
+      children: [
+        Expanded(child: field),
+        const SizedBox(width: 12),
+        Text(
+          suffix,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: loewRegular.copyWith(
+            fontSize: PosSettingsSpec.suffixTextSize,
+            color: PosSettingsSpec.inkMuted(),
+            height: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool hasError =
@@ -58,12 +95,16 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
       children: [
         Row(
           children: [
-            Text(
-              widget.label.toUpperCase(),
-              style: loewBold.copyWith(
-                fontSize: PosSettingsSpec.labelSize,
-                letterSpacing: PosSettingsSpec.labelTracking,
-                color: PosSettingsSpec.ink,
+            Flexible(
+              child: Text(
+                widget.label.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: loewBold.copyWith(
+                  fontSize: PosSettingsSpec.labelSize,
+                  letterSpacing: PosSettingsSpec.labelTracking,
+                  color: PosSettingsSpec.ink,
+                ),
               ),
             ),
             if (widget.optionalLabel != null) ...[
@@ -75,6 +116,10 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
                   color: PosSettingsSpec.inkMuted(0.45),
                 ),
               ),
+            ],
+            if (widget.trailing != null) ...[
+              const Spacer(),
+              widget.trailing!,
             ],
           ],
         ),
@@ -100,7 +145,7 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
           ),
           child: Padding(
             padding: PosSettingsSpec.fieldPadding,
-            child: TextField(
+            child: _withSuffix(TextField(
               controller: widget.controller,
               focusNode: _focus,
               onChanged: widget.onChanged,
@@ -108,17 +153,21 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
               inputFormatters: widget.inputFormatters,
               textInputAction: widget.textInputAction,
               maxLines: widget.maxLines,
+              readOnly: widget.readOnly,
+              enableInteractiveSelection: !widget.readOnly,
               cursorColor: PosSettingsSpec.ink,
               style: loewBold.copyWith(
                 fontSize: PosSettingsSpec.fieldTextSize,
-                color: PosSettingsSpec.ink,
+                color: PosSettingsSpec.ink.withValues(
+                  alpha: widget.readOnly ? 0.72 : 1,
+                ),
                 height: 1.2,
               ),
               decoration: const InputDecoration(
                 isCollapsed: true,
                 border: InputBorder.none,
               ),
-            ),
+            )),
           ),
         ),
         if (hasError) ...[

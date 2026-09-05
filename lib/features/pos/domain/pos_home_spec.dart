@@ -195,6 +195,12 @@ class PosHomeSpec {
   static const double qtyPlusBorder = 0.75;
   static const double qtyGap = 8;
   static const double qtyLabelSize = 20;
+
+  /// Read-only quantity badge (Figma `qty-controls` 1641:3326): a filled disc
+  /// carrying the count, drawn instead of the −/+ stepper on a historical
+  /// receipt where the quantity is a fact rather than a control.
+  static const double qtyStaticBadgeSize = 26;
+  static const double qtyStaticBadgeLabelSize = 13;
   /// Room for a two-digit qty without expanding the actions column.
   static const double qtyDigitWidth = 22;
 

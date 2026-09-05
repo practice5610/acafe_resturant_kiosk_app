@@ -70,7 +70,13 @@ class KioskManagerRepo {
 
   Future<ApiResponseModel> getTransactions({
     String? reportDate,
+    String? dateFrom,
+    String? dateTo,
     String? search,
+    String? status,
+    String? channel,
+    double? amountMin,
+    double? amountMax,
     int limit = 25,
     int offset = 1,
   }) async {
@@ -79,11 +85,28 @@ class KioskManagerRepo {
         '/api/v1/kiosk/manager/transactions',
         queryParameters: {
           if (reportDate != null) 'report_date': reportDate,
+          if (dateFrom != null) 'date_from': dateFrom,
+          if (dateTo != null) 'date_to': dateTo,
           if (search != null && search.isNotEmpty) 'search': search,
+          if (status != null && status.isNotEmpty) 'status': status,
+          if (channel != null && channel.isNotEmpty) 'channel': channel,
+          if (amountMin != null) 'amount_min': amountMin,
+          if (amountMax != null) 'amount_max': amountMax,
           'limit': limit,
           'offset': offset,
         },
       );
+      return ApiResponseModel.withSuccess(response);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
+
+  /// Full receipt for the POS Receipts detail pane. Branch-scoped server-side.
+  Future<ApiResponseModel> getTransactionDetail(int id) async {
+    try {
+      final response =
+          await dioClient.get('/api/v1/kiosk/manager/transactions/$id');
       return ApiResponseModel.withSuccess(response);
     } catch (e) {
       return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
@@ -121,5 +144,64 @@ class KioskManagerRepo {
     } catch (e) {
       return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
     }
+  }
+
+  /// Add-ons this terminal's branch may manage, for POS Settings -> Add-Ons.
+  /// Branch scoping is server-side, from the device token -- nothing here
+  /// says which branch.
+  Future<ApiResponseModel> getAddons({
+    String? search,
+    int limit = 100,
+    int offset = 1,
+  }) async {
+    try {
+      final response = await dioClient.get(
+        '/api/v1/kiosk/manager/addons',
+        queryParameters: {
+          if (search != null && search.isNotEmpty) 'search': search,
+          'limit': limit,
+          'offset': offset,
+        },
+      );
+      return ApiResponseModel.withSuccess(response);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
+
+  /// Flip an add-on's kiosk visibility.
+  ///
+  /// Returns the raw DioException on failure rather than a formatted string,
+  /// because the caller needs to tell a *refusal* (422 required-group, which
+  /// carries a message worth showing inline) apart from an ordinary network
+  /// error. [addonStatusError] does that extraction.
+  Future<ApiResponseModel> setAddonStatus(
+      {required int id, required bool status}) async {
+    try {
+      final response = await dioClient.post(
+        '/api/v1/kiosk/manager/addons/status',
+        data: {'id': id, 'status': status ? 1 : 0},
+      );
+      return ApiResponseModel.withSuccess(response);
+    } on DioException catch (e) {
+      return ApiResponseModel.withError(e);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
+
+  /// The server's own refusal message, when it sent one. Null for transport
+  /// failures, which the caller reports generically instead.
+  static String? addonStatusError(dynamic error) {
+    final dynamic data = error is DioException ? error.response?.data : null;
+    if (data is! Map) return null;
+
+    final dynamic errors = data['errors'];
+    if (errors is! List || errors.isEmpty) return null;
+
+    final dynamic first = errors.first;
+    final dynamic message = first is Map ? first['message'] : null;
+
+    return message is String && message.isNotEmpty ? message : null;
   }
 }

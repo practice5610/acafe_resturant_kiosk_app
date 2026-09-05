@@ -41,7 +41,11 @@ class KioskAuthProvider extends ChangeNotifier {
   bool isLoggedIn() => kioskAuthRepo.isLoggedIn();
 
   String get branchName => kioskAuthRepo.getBranchName();
+  String get branchPhone => kioskAuthRepo.getBranchPhone();
+  String get branchEmail => kioskAuthRepo.getBranchEmail();
+  String get branchImageUrl => kioskAuthRepo.getBranchImage();
   String get deviceName => kioskAuthRepo.getDeviceName();
+  String get username => kioskAuthRepo.getUsername();
   int? get deviceId => kioskAuthRepo.getDeviceId();
   int? get branchId => kioskAuthRepo.getBranchId();
 
@@ -263,6 +267,9 @@ class KioskAuthProvider extends ChangeNotifier {
             ? branch['id']
             : int.tryParse('${branch['id']}') ?? -1,
         branchName: branch['name']?.toString(),
+        branchPhone: branch['phone']?.toString(),
+        branchEmail: branch['email']?.toString(),
+        branchImage: (branch['image_full_path'] ?? branch['image'])?.toString(),
         deviceName: device['name']?.toString(),
         username: device['username']?.toString(),
         deviceId: device['id'] is int
@@ -304,6 +311,10 @@ class KioskAuthProvider extends ChangeNotifier {
               ? branch['id']
               : int.tryParse('${branch['id']}') ?? -1,
           branchName: branch['name']?.toString(),
+          branchPhone: branch['phone']?.toString(),
+          branchEmail: branch['email']?.toString(),
+          branchImage:
+              (branch['image_full_path'] ?? branch['image'])?.toString(),
           deviceName: device['name']?.toString(),
           username: device['username']?.toString(),
           deviceId: device['id'] is int

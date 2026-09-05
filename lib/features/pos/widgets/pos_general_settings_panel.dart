@@ -2,6 +2,8 @@ import 'package:acafe_customer/features/pos/domain/pos_general_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/pos/providers/pos_general_settings_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_dropdown.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_settings_save_button.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_settings_section_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_text_field.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -127,7 +129,7 @@ class _PosGeneralSettingsPanelState extends State<PosGeneralSettingsPanel> {
               ),
             ),
             const SizedBox(width: 16),
-            _SaveChangesButton(
+            PosSettingsSaveButton(
               loading: provider.isSaving,
               dirty: provider.isDirty,
               onPressed: _onSave,
@@ -145,7 +147,7 @@ class _PosGeneralSettingsPanelState extends State<PosGeneralSettingsPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _SettingsSection(
+                    PosSettingsSectionCard(
                       title: 'Store Information',
                       child: Column(
                         children: [
@@ -226,7 +228,7 @@ class _PosGeneralSettingsPanelState extends State<PosGeneralSettingsPanel> {
                       ),
                     ),
                     const SizedBox(height: PosSettingsSpec.sectionGap),
-                    _SettingsSection(
+                    PosSettingsSectionCard(
                       title: 'Regional Settings',
                       child: Column(
                         children: [
@@ -324,124 +326,6 @@ class _PosGeneralSettingsPanelState extends State<PosGeneralSettingsPanel> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SettingsSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _SettingsSection({required this.title, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: PosSettingsSpec.panelBg,
-        borderRadius:
-            BorderRadius.circular(PosSettingsSpec.sectionBlockRadius),
-        border: Border.all(color: PosSettingsSpec.fieldBorder),
-      ),
-      child: Padding(
-        padding: PosSettingsSpec.sectionBlockPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 3,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: PosSettingsSpec.ink,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: loewBold.copyWith(
-                    fontSize: PosSettingsSpec.sectionTitleSize,
-                    letterSpacing: PosSettingsSpec.sectionTitleTracking,
-                    color: PosSettingsSpec.ink,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SaveChangesButton extends StatefulWidget {
-  final bool loading;
-  final bool dirty;
-  final VoidCallback onPressed;
-
-  const _SaveChangesButton({
-    required this.loading,
-    required this.dirty,
-    required this.onPressed,
-  });
-
-  @override
-  State<_SaveChangesButton> createState() => _SaveChangesButtonState();
-}
-
-class _SaveChangesButtonState extends State<_SaveChangesButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.loading ? null : widget.onPressed,
-        child: AnimatedScale(
-          scale: _pressed ? 0.97 : 1,
-          duration: const Duration(milliseconds: 90),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 160),
-            opacity: widget.dirty || widget.loading ? 1 : 0.72,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: PosSettingsSpec.ink,
-                borderRadius:
-                    BorderRadius.circular(PosSettingsSpec.saveRadius),
-                boxShadow: PosSettingsSpec.saveShadow,
-              ),
-              child: Padding(
-                padding: PosSettingsSpec.savePadding,
-                child: widget.loading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: PosSettingsSpec.pageBg,
-                        ),
-                      )
-                    : Text(
-                        'Save Changes',
-                        style: loewBold.copyWith(
-                          fontSize: PosSettingsSpec.saveLabelSize,
-                          color: PosSettingsSpec.pageBg,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

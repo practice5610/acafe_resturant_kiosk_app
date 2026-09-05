@@ -92,6 +92,17 @@ flutter:
         - asset: assets/fonts/Roboto-Regular.ttf
           weight: 400
 
+    # Receipt preview (POS Settings -> Hardware). The thermal ticket look needs a
+    # real monospace face: Flutter Web/CanvasKit will not resolve a generic
+    # `monospace` family from the host, so it has to be bundled. SIL OFL 1.1 --
+    # see assets/fonts/RobotoMono-OFL.txt.
+    - family: RobotoMono
+      fonts:
+        - asset: assets/fonts/RobotoMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/RobotoMono-Bold.ttf
+          weight: 700
+
     - family: Loew
       fonts:
         - asset: assets/fonts/Loew-Regular.ttf

@@ -10,6 +10,22 @@ import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
+/// Where a confirm attempt has got to.
+///
+/// The two halves of a card sale look identical from outside — both are "an
+/// await" — but they are not the same to an operator. Waiting on the terminal
+/// is the customer's turn and can be cancelled; posting the order is the
+/// server's turn and cannot. The screen needs to tell them apart to render
+/// Figma 1641:4203, so [posConfirmPayment] reports the boundary rather than
+/// making the caller infer it from timing.
+enum PosCheckoutPhase {
+  /// Card only: the terminal has the amount and the customer is presenting.
+  awaitingTerminal,
+
+  /// Payment settled (or was never needed); the order is being posted.
+  placingOrder,
+}
+
 /// What happened when the operator hit Confirm Payment.
 enum PosCheckoutStatus {
   /// Charged (where a charge applies) and the order posted.
@@ -56,6 +72,11 @@ class PosCheckoutResult {
 /// persists for `cash_on_delivery`. Change is derivable from it and the total,
 /// so the tender is the figure worth keeping.
 ///
+/// Cancelling is deliberately *not* a parameter here. A cancel arrives while
+/// this future is already in flight, so it goes straight to the service —
+/// [posCancelTerminalPayment] — and surfaces as a `canceled` result on the
+/// same future. That keeps one path through payment rather than two.
+///
 /// The wire `payment_method` is left as the kiosk sends it. `OrderController`
 /// branches on that string — anything other than `cash_on_delivery` posts the
 /// order as already `paid` and `preparing`, skipping the `new` state the
@@ -66,6 +87,7 @@ Future<PosCheckoutResult> posConfirmPayment(
   required PosPaymentMethod method,
   required String idempotencyKey,
   double? tenderedAmount,
+  ValueChanged<PosCheckoutPhase>? onPhase,
 }) async {
   final CartProvider cart = context.read<CartProvider>();
   final CouponProvider coupon = context.read<CouponProvider>();
@@ -81,6 +103,7 @@ Future<PosCheckoutResult> posConfirmPayment(
 
   String? paymentRef;
   if (method == PosPaymentMethod.card) {
+    onPhase?.call(PosCheckoutPhase.awaitingTerminal);
     final KioskPaymentResult payment = await sl<KioskPaymentService>().pay(
       amount: amount,
       idempotencyKey: idempotencyKey,
@@ -100,6 +123,7 @@ Future<PosCheckoutResult> posConfirmPayment(
     return const PosCheckoutResult(PosCheckoutStatus.orderFailed);
   }
 
+  onPhase?.call(PosCheckoutPhase.placingOrder);
   final KioskPlaceResult placed = await placeKioskOrder(
     context,
     amount: amount,
@@ -124,3 +148,16 @@ Future<PosCheckoutResult> posConfirmPayment(
 
   return PosCheckoutResult(PosCheckoutStatus.placed, orderId: placed.orderId);
 }
+
+/// Asks the terminal to abandon the payment in flight.
+///
+/// Routes to the same [KioskPaymentService] singleton the payment is running
+/// on, so the pending `pay()` future resolves `canceled` rather than being
+/// orphaned. Deliberately thin: the service owns what cancelling means.
+///
+/// Note for whoever wires a real terminal — today's
+/// `SimulatedKioskPaymentService.cancel()` only sets a flag; the `pay()` future
+/// still waits out its remaining delay before reporting `canceled`. A real
+/// implementation should complete the future promptly, or the operator watches
+/// a disabled button for as long as the terminal takes to notice.
+Future<void> posCancelTerminalPayment() => sl<KioskPaymentService>().cancel();

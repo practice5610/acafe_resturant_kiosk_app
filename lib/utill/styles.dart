@@ -92,3 +92,18 @@ const scotchDisplayCondLight = TextStyle(
   fontSize: Dimensions.fontSizeDefault,
   fontWeight: FontWeight.w300,
 );
+
+/// Monospace — receipt/ticket rendering only (POS Settings → Hardware preview).
+/// Bundled rather than borrowed from the host: CanvasKit does not resolve a
+/// generic `monospace` family on the web.
+const robotoMonoRegular = TextStyle(
+  fontFamily: 'RobotoMono',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w400,
+);
+
+const robotoMonoBold = TextStyle(
+  fontFamily: 'RobotoMono',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w700,
+);

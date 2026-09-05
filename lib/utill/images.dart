@@ -292,6 +292,14 @@ class Images {
   // POS cash payment entry (Figma 1641:3751)
   static const String posFieldClearSvg = 'assets/svg/pos_field_clear.svg';
   static const String posKeyBackspaceSvg = 'assets/svg/pos_key_backspace.svg';
+  // POS payment declined (Figma 1641:4218)
+  static const String posErrorCircleSvg = 'assets/svg/pos_error_circle.svg';
+
+  // POS Settings → Payments (Figma 1641:4235)
+  static const String posPayCashSvg = 'assets/svg/pos_pay_cash.svg';
+  static const String posPayCardSvg = 'assets/svg/pos_pay_card.svg';
+  static const String posPayMobileSvg = 'assets/svg/pos_pay_mobile.svg';
+  static const String posPayGiftSvg = 'assets/svg/pos_pay_gift.svg';
 
   // POS receipt context menu — Figma node 1641:3570 (lightspeed-context-menu).
   static const String posMenuPercentSvg = 'assets/svg/pos_menu_percent.svg';

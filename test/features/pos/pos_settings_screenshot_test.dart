@@ -115,4 +115,66 @@ void main() {
       matchesGoldenFile('goldens/pos_settings_general_1366.png'),
     );
   }, skip: !Platform.isMacOS && !Platform.isLinux);
+
+  testWidgets('Settings Payments golden at 1366x1024', (tester) async {
+    const Size size = Size(1366, 1024);
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    SharedPreferences.setMockInitialValues({
+      AppConstants.languageCode: 'nl',
+      AppConstants.countryCode: 'NL',
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final dio = DioClient(
+      'http://localhost',
+      null,
+      loggingInterceptor: LoggingInterceptor(),
+      sharedPreferences: prefs,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SplashProvider>(
+            create: (_) => _SettingsSplash(
+              splashRepo:
+                  SplashRepo(dioClient: dio, sharedPreferences: prefs),
+            ),
+          ),
+          ChangeNotifierProvider<LocalizationProvider>(
+            create: (_) => LocalizationProvider(
+              sharedPreferences: prefs,
+              dioClient: dio,
+            ),
+          ),
+        ],
+        child: MediaQuery(
+          data: const MediaQueryData(size: size),
+          child: PosShell(
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              home: Scaffold(
+                backgroundColor: PosSettingsSpec.pageBg,
+                body: PosSettingsScreen(sharedPreferences: prefs),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PAYMENTS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Payments'), findsOneWidget);
+    expect(find.text('PAYMENT METHODS'), findsOneWidget);
+    expect(find.text('TRANSACTION SETTINGS'), findsOneWidget);
+
+    await expectLater(
+      find.byType(PosSettingsScreen),
+      matchesGoldenFile('goldens/pos_settings_payments_1366.png'),
+    );
+  }, skip: !Platform.isMacOS && !Platform.isLinux);
 }

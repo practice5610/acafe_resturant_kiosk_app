@@ -80,20 +80,31 @@ class PosReceiptOrderList extends StatelessWidget {
 class PosReceiptLine extends StatelessWidget {
   final CartModel line;
   final String imageUrl;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
+
+  /// Null wherever [quantityOnly] is true — a settled receipt has no stepper
+  /// for them to drive. Required in practice on the live-sale screens, which
+  /// pass both.
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
 
   /// Null drops the EDIT button and centres the qty cluster against the
   /// details column, which is how the payment frame (1641:2784) draws a row.
   final VoidCallback? onEdit;
 
+  /// True swaps the −/+/trash cluster for a static count badge (Figma
+  /// 1641:3326). The quantity on a historical receipt is a record of what was
+  /// sold, not a control: editing it would have nothing to write to. Defaults
+  /// false, so the counter and payment rows keep their stepper.
+  final bool quantityOnly;
+
   const PosReceiptLine({
     super.key,
     required this.line,
     required this.imageUrl,
-    required this.onIncrement,
-    required this.onDecrement,
+    this.onIncrement,
+    this.onDecrement,
     this.onEdit,
+    this.quantityOnly = false,
   });
 
   @override
@@ -164,11 +175,14 @@ class PosReceiptLine extends StatelessWidget {
                     _EditButton(onTap: onEdit!),
                     const SizedBox(height: PosHomeSpec.editGapBelow),
                   ],
-                  _QtyControls(
-                    quantity: line.quantity ?? 1,
-                    onIncrement: onIncrement,
-                    onDecrement: onDecrement,
-                  ),
+                  if (quantityOnly)
+                    _QtyBadge(quantity: line.quantity ?? 1)
+                  else
+                    _QtyControls(
+                      quantity: line.quantity ?? 1,
+                      onIncrement: onIncrement ?? () {},
+                      onDecrement: onDecrement ?? () {},
+                    ),
                 ],
               ),
             ),
@@ -291,6 +305,37 @@ class _EditButton extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Static count for a settled receipt: a filled disc carrying the quantity,
+/// drawn where the live-sale rows put their stepper (Figma 1641:3326).
+class _QtyBadge extends StatelessWidget {
+  final int quantity;
+
+  const _QtyBadge({required this.quantity});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('pos-qty-badge'),
+      width: PosHomeSpec.qtyStaticBadgeSize,
+      height: PosHomeSpec.qtyStaticBadgeSize,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: PosHomeSpec.ink,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        '$quantity',
+        maxLines: 1,
+        style: loewExtraBold.copyWith(
+          fontSize: PosHomeSpec.qtyStaticBadgeLabelSize,
+          color: PosHomeSpec.plusLabel,
+          height: 1.0,
         ),
       ),
     );

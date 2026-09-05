@@ -135,30 +135,85 @@ class KioskManagerProvider extends ChangeNotifier {
   String _transactionsSearch = '';
   String get transactionsSearch => _transactionsSearch;
 
+  String? _transactionsReportDate;
+  String? _transactionsDateFrom;
+  String? _transactionsDateTo;
+  String? _transactionsStatus;
+  String? _transactionsChannel;
+  double? _transactionsAmountMin;
+  double? _transactionsAmountMax;
+
+  String? get transactionsDateFrom => _transactionsDateFrom;
+  String? get transactionsDateTo => _transactionsDateTo;
+
   /// Guards against a slow page for an old query landing after a newer one
   /// and appending unrelated rows to the list on screen.
   int _transactionsRequestId = 0;
 
   bool get hasMoreTransactions => _transactions.length < _transactionsTotal;
 
+  /// [replaceFilters] lets the Receipts screen overwrite every filter field
+  /// (including clearing with null). The manager Transaction History screen
+  /// leaves it false so only search / report_date change and the rest stay
+  /// untouched — same behaviour as before the Receipts filters existed.
   Future<void> loadTransactions({
     bool reset = true,
     String? reportDate,
+    String? dateFrom,
+    String? dateTo,
     String? search,
+    String? status,
+    String? channel,
+    double? amountMin,
+    double? amountMax,
+    bool replaceFilters = false,
   }) async {
     if (reset) {
       _transactionsOffset = 1;
       _transactions = [];
       _transactionsTotal = 0;
       if (search != null) _transactionsSearch = search.trim();
+      if (replaceFilters) {
+        _transactionsReportDate = reportDate;
+        _transactionsDateFrom = dateFrom;
+        _transactionsDateTo = dateTo;
+        _transactionsStatus = status;
+        _transactionsChannel = channel;
+        _transactionsAmountMin = amountMin;
+        _transactionsAmountMax = amountMax;
+      } else {
+        // Straight through, exactly as the parameter was used before these
+        // fields existed: a caller that does not pass a date gets the
+        // endpoint's own default (today).
+        _transactionsReportDate = reportDate;
+        // This provider is a lazy singleton shared with the POS Receipts
+        // screen, so a caller that does not manage these filters must not
+        // inherit whatever Receipts last set — otherwise the manager
+        // Transaction History screen silently shows, say, kiosk-only rows
+        // because someone filtered by channel on the other screen. Clearing
+        // here is what keeps that caller behaving exactly as it did before
+        // these filters existed.
+        _transactionsDateFrom = null;
+        _transactionsDateTo = null;
+        _transactionsStatus = null;
+        _transactionsChannel = null;
+        _transactionsAmountMin = null;
+        _transactionsAmountMax = null;
+      }
     }
     final int requestId = ++_transactionsRequestId;
     _transactionsLoading = true;
     notifyListeners();
 
     final apiResponse = await kioskManagerRepo.getTransactions(
-      reportDate: reportDate,
+      reportDate: _transactionsReportDate,
+      dateFrom: _transactionsDateFrom,
+      dateTo: _transactionsDateTo,
       search: _transactionsSearch,
+      status: _transactionsStatus,
+      channel: _transactionsChannel,
+      amountMin: _transactionsAmountMin,
+      amountMax: _transactionsAmountMax,
       limit: _transactionsLimit,
       offset: _transactionsOffset,
     );
@@ -192,6 +247,66 @@ class KioskManagerProvider extends ChangeNotifier {
     final next = query.trim();
     if (next == _transactionsSearch) return;
     await loadTransactions(search: next);
+  }
+
+  /// Pulls every remaining page for the active filter so Export covers the
+  /// full filtered result set, not only the rows already scrolled into view.
+  Future<void> loadAllTransactionsForExport() async {
+    while (hasMoreTransactions && !_transactionsLoading) {
+      await loadTransactions(reset: false);
+    }
+  }
+
+  // ---- Receipt detail (POS Receipts pane) --------------------------------
+  bool _receiptDetailLoading = false;
+  bool get receiptDetailLoading => _receiptDetailLoading;
+
+  Map<String, dynamic>? _receiptDetail;
+  Map<String, dynamic>? get receiptDetail => _receiptDetail;
+
+  int? _receiptDetailId;
+  int? get receiptDetailId => _receiptDetailId;
+
+  /// Same staleness pattern as the list: a fast second row tap must never
+  /// paint the first row's response.
+  int _receiptDetailRequestId = 0;
+
+  Future<void> loadReceiptDetail(int id) async {
+    if (_receiptDetailId == id &&
+        _receiptDetail != null &&
+        !_receiptDetailLoading) {
+      return;
+    }
+    final int requestId = ++_receiptDetailRequestId;
+    _receiptDetailId = id;
+    _receiptDetailLoading = true;
+    // Drop the previous receipt immediately so a slow prior response cannot
+    // flash under the new selection.
+    _receiptDetail = null;
+    notifyListeners();
+
+    final apiResponse = await kioskManagerRepo.getTransactionDetail(id);
+    if (requestId != _receiptDetailRequestId) return;
+
+    if (apiResponse.response != null &&
+        apiResponse.response!.statusCode == 200) {
+      _receiptDetail =
+          Map<String, dynamic>.from(apiResponse.response!.data as Map);
+    } else {
+      _receiptDetail = null;
+      ApiCheckerHelper.checkApi(apiResponse);
+    }
+
+    _receiptDetailLoading = false;
+    notifyListeners();
+  }
+
+  void clearReceiptDetail() {
+    _receiptDetailRequestId++;
+    _receiptDetail = null;
+    _receiptDetailId = null;
+    _receiptDetailLoading = false;
+    notifyListeners();
   }
 
   // ---- Mark out of stock -------------------------------------------------
@@ -315,6 +430,143 @@ class KioskManagerProvider extends ChangeNotifier {
     } catch (_) {
       // Best-effort persistence -- in-memory list still works this session.
     }
+  }
+
+  // ---- Settings -> Add-Ons ----------------------------------------------
+  // Mirrors the product block above (optimistic write, revert on failure).
+  // Deliberately a separate set of fields rather than a generalisation of the
+  // product ones: the two lists load independently and a shared cursor would
+  // couple two screens that have no reason to move together.
+
+  bool _addonsLoading = false;
+  bool get addonsLoading => _addonsLoading;
+
+  List<Map<String, dynamic>> _addons = [];
+  List<Map<String, dynamic>> get addons => _addons;
+
+  int _addonsTotal = 0;
+  int _addonsOffset = 1;
+  static const int _addonsLimit = 100;
+
+  bool get hasMoreAddons => _addons.length < _addonsTotal;
+
+  final Set<int> _togglingAddonIds = {};
+  bool isTogglingAddon(int id) => _togglingAddonIds.contains(id);
+
+  Future<void> loadAddons({bool reset = true}) async {
+    if (reset) {
+      _addonsOffset = 1;
+      _addons = [];
+    }
+    _addonsLoading = true;
+    notifyListeners();
+
+    final apiResponse = await kioskManagerRepo.getAddons(
+      limit: _addonsLimit,
+      offset: _addonsOffset,
+    );
+
+    if (apiResponse.response != null &&
+        apiResponse.response!.statusCode == 200) {
+      final data = apiResponse.response!.data;
+      _addonsTotal = data['total_size'] ?? 0;
+      final List items = data['addons'] ?? [];
+      _addons = [
+        ..._addons,
+        ...items.map((a) => Map<String, dynamic>.from(a)),
+      ];
+      _addonsOffset++;
+    } else {
+      ApiCheckerHelper.checkApi(apiResponse);
+    }
+
+    _addonsLoading = false;
+    notifyListeners();
+  }
+
+  /// Pulls every page, so search filters the whole catalog rather than just
+  /// the first page -- the Add-Ons screen filters client-side.
+  Future<void> loadAllAddons() async {
+    await loadAddons();
+    while (hasMoreAddons) {
+      await loadAddons(reset: false);
+    }
+  }
+
+  /// Screen-entry load. Re-validates whenever a list is already in memory so
+  /// re-entering the tab cannot show a stale toggle state. No disk cache: the
+  /// add-on catalog is small and, unlike stock, is not worth showing stale
+  /// after a cold start.
+  Future<void> loadAllAddonsWithCache() async {
+    if (_addons.isNotEmpty) {
+      unawaited(_refreshAllAddonsSilently());
+      return;
+    }
+    await loadAllAddons();
+  }
+
+  Future<void> _refreshAllAddonsSilently() async {
+    final List<Map<String, dynamic>> fresh = [];
+    int offset = 1;
+    int total = 0;
+    do {
+      final apiResponse = await kioskManagerRepo.getAddons(
+        limit: _addonsLimit,
+        offset: offset,
+      );
+      if (apiResponse.response == null ||
+          apiResponse.response!.statusCode != 200) {
+        return;
+      }
+      final data = apiResponse.response!.data;
+      total = data['total_size'] ?? 0;
+      final List items = data['addons'] ?? [];
+      fresh.addAll(items.map((a) => Map<String, dynamic>.from(a)));
+      offset++;
+    } while (fresh.length < total);
+
+    _addons = fresh;
+    _addonsTotal = total;
+    notifyListeners();
+  }
+
+  /// Flip one add-on's kiosk visibility.
+  ///
+  /// Returns null on success, or the server's refusal message when it refused
+  /// (a required group that would be left unsatisfiable), so the screen can
+  /// show it inline. Transport failures fall through to the usual toast and
+  /// return null -- there is nothing screen-specific to say about them.
+  Future<String?> toggleAddonAvailability(int addonId, bool nextStatus) async {
+    if (_togglingAddonIds.contains(addonId)) return null;
+
+    final index = _addons.indexWhere((a) => a['id'] == addonId);
+    if (index == -1) return null;
+
+    // Optimistic update.
+    final previous = _addons[index]['is_available'];
+    _addons[index] = {..._addons[index], 'is_available': nextStatus};
+    _togglingAddonIds.add(addonId);
+    notifyListeners();
+
+    final apiResponse =
+        await kioskManagerRepo.setAddonStatus(id: addonId, status: nextStatus);
+    final success =
+        apiResponse.response != null && apiResponse.response!.statusCode == 200;
+
+    String? refusal;
+    if (!success) {
+      // Revert on failure.
+      _addons[index] = {..._addons[index], 'is_available': previous};
+      refusal = KioskManagerRepo.addonStatusError(apiResponse.error);
+      if (refusal == null) {
+        ApiCheckerHelper.checkApi(apiResponse);
+      }
+    }
+
+    _togglingAddonIds.remove(addonId);
+    notifyListeners();
+
+    return refusal;
   }
 
   /// Re-pulls the full product list without ever clearing what's already on

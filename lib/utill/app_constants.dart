@@ -167,6 +167,9 @@ class AppConstants {
   static const String walletToken = 'wallet_token';
   // Kiosk device session keys
   static const String kioskBranchName = 'kiosk_branch_name';
+  static const String kioskBranchPhone = 'kiosk_branch_phone';
+  static const String kioskBranchEmail = 'kiosk_branch_email';
+  static const String kioskBranchImage = 'kiosk_branch_image';
   static const String kioskDeviceName = 'kiosk_device_name';
   static const String kioskUsername = 'kiosk_username';
   static const String kioskDeviceId = 'kiosk_device_id';
@@ -177,6 +180,10 @@ class AppConstants {
   static const String kioskManagerStockCacheKey = 'kiosk_manager_stock_cache_v2';
   /// POS Settings → General form (local overlay on ConfigModel).
   static const String posGeneralSettingsKey = 'pos_general_settings_v1';
+
+  /// POS Settings → Hardware form (printer prefs + receipt format).
+  static const String posHardwareSettingsKey = 'pos_hardware_settings_v1';
+  static const String posPaymentSettingsKey = 'pos_payment_settings_v1';
   static const String currentAddress = 'current_address';
   static const String lastOrderPaymentMethod = 'last_order_payment_method';
   static const String appleLoginEmail = 'apple_login_email';

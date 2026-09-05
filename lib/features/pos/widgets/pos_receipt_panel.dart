@@ -100,7 +100,18 @@ class PosReceiptHeader extends StatelessWidget {
   final String? orderNumber;
   final ValueChanged<BuildContext>? onOptions;
 
-  const PosReceiptHeader({super.key, this.orderNumber, this.onOptions});
+  /// False drops the ⋯ button entirely rather than disabling it. A historical
+  /// receipt (Figma 1641:3301) has no ⋯ at all — every action behind that menu
+  /// edits a sale in progress, so on a settled one there is nothing to offer.
+  /// Defaults true so the counter and payment screens are unchanged.
+  final bool showOptions;
+
+  const PosReceiptHeader({
+    super.key,
+    this.orderNumber,
+    this.onOptions,
+    this.showOptions = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +161,8 @@ class PosReceiptHeader extends StatelessWidget {
                     ),
                   ],
                 ),
-                Builder(
+                if (showOptions)
+                  Builder(
                   builder: (buttonContext) {
                     return Material(
                       color: PosHomeSpec.ink,
@@ -322,11 +334,19 @@ class PosReceiptCustomerInfo extends StatelessWidget {
   final TextEditingController tableController;
   final bool showBottomHairline;
 
+  /// True renders both fields as display-only: same border, label and type as
+  /// the editable pair, but no caret and no keyboard. A receipt in the history
+  /// is a record — retyping the name on it would change nothing, so the field
+  /// must not invite the attempt. Defaults false, so the live-sale screens keep
+  /// their editable fields.
+  final bool readOnly;
+
   const PosReceiptCustomerInfo({
     super.key,
     required this.nameController,
     required this.tableController,
     this.showBottomHairline = true,
+    this.readOnly = false,
   });
 
   @override
@@ -350,6 +370,7 @@ class PosReceiptCustomerInfo extends StatelessWidget {
                     label: 'Customer name',
                     controller: nameController,
                     borderColor: PosHomeSpec.ink,
+                    readOnly: readOnly,
                   ),
                 ),
                 const SizedBox(width: PosHomeSpec.fieldGap),
@@ -359,6 +380,7 @@ class PosReceiptCustomerInfo extends StatelessWidget {
                     label: 'Table',
                     controller: tableController,
                     borderColor: PosHomeSpec.tableFieldBorder,
+                    readOnly: readOnly,
                   ),
                 ),
               ],
@@ -384,11 +406,13 @@ class _Field extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final Color borderColor;
+  final bool readOnly;
 
   const _Field({
     required this.label,
     required this.controller,
     required this.borderColor,
+    this.readOnly = false,
   });
 
   @override
@@ -422,6 +446,12 @@ class _Field extends StatelessWidget {
           ),
           child: TextField(
             controller: controller,
+            readOnly: readOnly,
+            // A read-only field that still takes focus shows a caret the
+            // operator cannot use; skipping it also keeps the field out of the
+            // tab order on a keyboard-driven terminal.
+            enableInteractiveSelection: !readOnly,
+            focusNode: readOnly ? AlwaysDisabledFocusNode() : null,
             cursorColor: PosHomeSpec.ink,
             textAlignVertical: TextAlignVertical.center,
             style: loewMedium.copyWith(
@@ -660,4 +690,14 @@ class _PayButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Never accepts focus — used by [PosReceiptCustomerInfo] in read-only mode so
+/// a historical receipt's fields cannot show a caret.
+class AlwaysDisabledFocusNode extends FocusNode {
+  @override
+  bool get hasFocus => false;
+
+  @override
+  bool get canRequestFocus => false;
 }

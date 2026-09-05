@@ -1,13 +1,22 @@
 import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_general_settings_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_hardware_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_section.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/pos/providers/pos_general_settings_provider.dart';
+import 'package:acafe_customer/features/pos/providers/pos_hardware_settings_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_general_settings_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_hardware_settings_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_addons_settings_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_products_settings_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_profile_settings_panel.dart';
+import 'package:acafe_customer/features/pos/domain/pos_payment_settings_repo.dart';
+import 'package:acafe_customer/features/pos/providers/pos_payment_settings_provider.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payments_settings_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_sidebar.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_staff_settings_panel.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
-import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,11 +54,21 @@ class _PosSettingsScreenState extends State<PosSettingsScreen> {
             color: PosSettingsSpec.pageBg,
             child: Padding(
               padding: PosSettingsSpec.panelPadding,
-              child: _section == PosSettingsSection.general
-                  ? _GeneralSectionHost(
-                      sharedPreferences: widget.sharedPreferences,
-                    )
-                  : _UpcomingSectionPanel(section: _section),
+              child: switch (_section) {
+                PosSettingsSection.general => _GeneralSectionHost(
+                    sharedPreferences: widget.sharedPreferences,
+                  ),
+                PosSettingsSection.profile => const PosProfileSettingsPanel(),
+                PosSettingsSection.staff => const PosStaffSettingsPanel(),
+                PosSettingsSection.products => const PosProductsSettingsPanel(),
+                PosSettingsSection.addOns => const PosAddonsSettingsPanel(),
+                PosSettingsSection.payments => _PaymentsSectionHost(
+                    sharedPreferences: widget.sharedPreferences,
+                  ),
+                PosSettingsSection.hardware => _HardwareSectionHost(
+                    sharedPreferences: widget.sharedPreferences,
+                  ),
+              },
             ),
           ),
         ),
@@ -71,8 +90,7 @@ class _GeneralSectionHost extends StatelessWidget {
       create: (context) {
         final provider = PosGeneralSettingsProvider(
           repo: PosGeneralSettingsRepo(
-            sharedPreferences:
-                sharedPreferences ?? di.sl<SharedPreferences>(),
+            sharedPreferences: sharedPreferences ?? di.sl<SharedPreferences>(),
           ),
         );
         provider.hydrate(
@@ -87,42 +105,68 @@ class _GeneralSectionHost extends StatelessWidget {
   }
 }
 
-/// Stub for sections that do not have Figma frames wired yet — keeps sidebar
-/// navigation real without inventing fake business UI.
-class _UpcomingSectionPanel extends StatelessWidget {
-  final PosSettingsSection section;
+/// Scopes the Hardware form provider to this tab, exactly as General does, and
+/// hydrates once from live config + prefs. General's repo is passed in read-only
+/// so the store name and locale reach the receipt preview without Hardware
+/// keeping a second copy of them.
+class _HardwareSectionHost extends StatelessWidget {
+  final SharedPreferences? sharedPreferences;
 
-  const _UpcomingSectionPanel({required this.section});
+  const _HardwareSectionHost({this.sharedPreferences});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          section.title,
-          style: loewExtraBold.copyWith(
-            fontSize: PosSettingsSpec.titleSize,
-            color: PosSettingsSpec.ink,
-          ),
-        ),
-        const SizedBox(height: PosSettingsSpec.headerGap),
-        Text(
-          section.subtitle,
-          style: loewRegular.copyWith(
-            fontSize: PosSettingsSpec.subtitleSize,
-            color: PosSettingsSpec.inkMuted(),
-          ),
-        ),
-        const SizedBox(height: PosSettingsSpec.sectionGap),
-        Text(
-          'This section is not available on this terminal yet.',
-          style: loewRegular.copyWith(
-            fontSize: PosSettingsSpec.subtitleSize,
-            color: PosSettingsSpec.inkMuted(0.45),
-          ),
-        ),
-      ],
+    return ChangeNotifierProvider<PosHardwareSettingsProvider>(
+      create: (context) {
+        final SharedPreferences prefs =
+            sharedPreferences ?? di.sl<SharedPreferences>();
+        final provider = PosHardwareSettingsProvider(
+          repo: PosHardwareSettingsRepo(sharedPreferences: prefs),
+          generalRepo: PosGeneralSettingsRepo(sharedPreferences: prefs),
+        );
+        provider.hydrate(
+          context.read<SplashProvider>().configModel,
+          languageCode:
+              context.read<LocalizationProvider>().locale.languageCode,
+        );
+        return provider;
+      },
+      child: const PosHardwareSettingsPanel(),
     );
   }
 }
+
+/// Scopes the Payments provider to this tab, as General and Hardware do.
+///
+/// Payments is the one section that shares records with its siblings, so both
+/// neighbouring repos are passed in: General's holds the currency this screen
+/// edits, and Hardware's holds the auto-print flag. Neither is copied — the
+/// same record is read and written, so the screens cannot disagree.
+class _PaymentsSectionHost extends StatelessWidget {
+  final SharedPreferences? sharedPreferences;
+
+  const _PaymentsSectionHost({this.sharedPreferences});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider<PosPaymentSettingsProvider>(
+      create: (context) {
+        final SharedPreferences prefs =
+            sharedPreferences ?? di.sl<SharedPreferences>();
+        final provider = PosPaymentSettingsProvider(
+          repo: PosPaymentSettingsRepo(sharedPreferences: prefs),
+          generalRepo: PosGeneralSettingsRepo(sharedPreferences: prefs),
+          hardwareRepo: PosHardwareSettingsRepo(sharedPreferences: prefs),
+        );
+        provider.hydrate(
+          context.read<SplashProvider>().configModel,
+          languageCode:
+              context.read<LocalizationProvider>().locale.languageCode,
+        );
+        return provider;
+      },
+      child: const PosPaymentsSettingsPanel(),
+    );
+  }
+}
+

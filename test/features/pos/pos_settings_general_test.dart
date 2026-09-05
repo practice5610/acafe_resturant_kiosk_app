@@ -258,7 +258,7 @@ void main() {
     await _pumpSettings(tester);
     await tester.tap(find.text('STAFF'));
     await tester.pumpAndSettle();
-    expect(find.text('Staff'), findsOneWidget);
+    expect(find.text('TEAM OF THE DAY'), findsOneWidget);
 
     await tester.tap(find.text('GENERAL'));
     await tester.pumpAndSettle();

@@ -8,7 +8,8 @@ import 'package:acafe_customer/features/language/providers/localization_provider
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
-import 'package:acafe_customer/utill/app_constants.dart';
+import 'package:acafe_customer/common/models/language_model.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_language_offering.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -23,6 +24,12 @@ class KioskLanguageScreen extends StatefulWidget {
 }
 
 class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
+  /// The offering configured in Settings → Hardware, resolved once so every
+  /// index in this screen refers to one stable list. Falls back to the full
+  /// [_languages] when nothing is configured.
+  late final List<LanguageModel> _languages =
+      KioskLanguageOffering.forThisDevice();
+
   int? _selectedIndex;
   bool _saving = false;
   bool _introWarmStarted = false;
@@ -33,7 +40,7 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
     final code = Provider.of<LocalizationProvider>(context, listen: false)
         .locale
         .languageCode;
-    _selectedIndex = AppConstants.languages.indexWhere(
+    _selectedIndex = _languages.indexWhere(
       (l) => l.languageCode == code,
     );
     if (_selectedIndex! < 0) _selectedIndex = 0;
@@ -54,7 +61,7 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
       return;
     }
 
-    final selected = AppConstants.languages[_selectedIndex!];
+    final selected = _languages[_selectedIndex!];
     final locale = Locale(selected.languageCode!, selected.countryCode);
 
     setState(() => _saving = true);
@@ -163,10 +170,10 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                                 mainAxisSpacing: 16 * s,
                                 mainAxisExtent: 108 * s,
                               ),
-                              itemCount: AppConstants.languages.length,
+                              itemCount: _languages.length,
                               itemBuilder: (context, index) {
                                 final language =
-                                    AppConstants.languages[index];
+                                    _languages[index];
                                 return KioskSelectableRow(
                                   s: s,
                                   label: language.languageName ?? '',
@@ -179,10 +186,10 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                             )
                           : ListView.separated(
                         padding: EdgeInsets.fromLTRB(side, 0, side, 24 * s),
-                        itemCount: AppConstants.languages.length,
+                        itemCount: _languages.length,
                         separatorBuilder: (_, __) => SizedBox(height: 16 * s),
                         itemBuilder: (context, index) {
-                          final language = AppConstants.languages[index];
+                          final language = _languages[index];
                           return KioskSelectableRow(
                             s: s,
                             label: language.languageName ?? '',
