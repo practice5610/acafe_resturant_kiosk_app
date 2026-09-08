@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:acafe_customer/di_container.dart' as di;
+import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_advance_outcome.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
@@ -13,6 +15,8 @@ import 'package:acafe_customer/features/pos/widgets/pos_filter_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_card_tile.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_date_range_bar.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/realtime/order_changed_event.dart';
@@ -129,9 +133,43 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     super.dispose();
   }
 
-  Future<void> _advance(PosOrderCard order) async {
+  /// The one place an order is advanced from, for every POS surface.
+  ///
+  /// The board card calls it directly and the detail overlay is handed it (see
+  /// [_openDetail]) rather than the provider method underneath, so the
+  /// confirmation below cannot be present on one surface and missing on the
+  /// other — there is nowhere else for a completion to go.
+  ///
+  /// Only the terminal rung is gated. `preparing -> item_to_collect` and
+  /// `on_hold -> preparing` advance straight through: they are recoverable,
+  /// and Figma specifies a confirmation for completion alone.
+  ///
+  /// Returns the outcome rather than raising its own snackbar, because the two
+  /// surfaces report failure differently — the board floats one over the
+  /// grid, the overlay shows it without closing.
+  Future<PosAdvanceResult> _advance(PosOrderCard order) async {
+    final String? target = PosOrderGrouping.nextStatusFor(order.orderStatus);
+    if (target == null) return const PosAdvanceResult.cancelled();
+
+    if (target == 'completed') {
+      final bool? confirmed =
+          await PosCompleteConfirmationDialog.show(context);
+      // Cancel, a tap outside and Escape all land here. Nothing is sent.
+      if (confirmed != true || !mounted) {
+        return const PosAdvanceResult.cancelled();
+      }
+    }
+
     final String? message = await _provider.advance(order);
-    if (!mounted || message == null) return;
+
+    return message == null
+        ? const PosAdvanceResult.advanced()
+        : PosAdvanceResult.failed(message);
+  }
+
+  /// The board's own way of reporting a rejected transition.
+  void _showAdvanceError(PosOrderCard order, String message) {
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -144,15 +182,33 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
       );
   }
 
-  /// Figma's `card-actions more-vertical`. The menu shell is real chrome — the
-  /// same `showMenu` configuration every other POS select uses — but it has no
-  /// wired actions yet: what belongs in it (reprint, refund, cancel, open
-  /// detail) is a separate, separately-scoped screen. Shown disabled rather
-  /// than omitted so the card matches the spec, and rather than faked so
-  /// nothing here pretends to do something it does not.
+  /// Figma's `card-actions more-vertical`. "Open detail" is now wired — it
+  /// opens [PosOrderDetailOverlay] over the board. The remaining entries
+  /// (reprint, refund, cancel) are still separately-scoped work and stay
+  /// disabled rather than faked, so nothing here pretends to do something it
+  /// does not.
   Future<void> _openCardMenu(BuildContext anchor, PosOrderCard order) async {
-    final RenderBox box = anchor.findRenderObject() as RenderBox;
-    final Offset origin = box.localToGlobal(Offset.zero);
+    final RenderBox? box = anchor.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+
+    final RenderBox? overlay =
+        Overlay.of(anchor).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    // Measured against the overlay, because that is the box RelativeRect is
+    // resolved against below.
+    final Offset origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+    final Size overlaySize = overlay.size;
+
+    // Figma anchors the menu's right edge to the button's right edge, which is
+    // also what keeps it on screen: these buttons sit at the right of a card in
+    // the rightmost column, so a left-anchored menu runs off the board. Clamped
+    // to the overlay either way.
+    const double menuWidth = PosHomeSpec.contextMenuWidth;
+    final double maxLeft = (overlaySize.width - menuWidth - 8).clamp(8.0, double.infinity);
+    final double left =
+        (origin.dx + box.size.width - menuWidth).clamp(8.0, maxLeft);
+    final double top = origin.dy + box.size.height + 6;
 
     await showMenu<void>(
       context: anchor,
@@ -163,13 +219,23 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
         borderRadius: BorderRadius.circular(PosSettingsSpec.fieldRadius),
         side: const BorderSide(color: PosSettingsSpec.fieldBorder),
       ),
+      // RelativeRect.fromLTRB takes *insets from each edge of the overlay*,
+      // not absolute coordinates. Passing an absolute x as `right` (and an
+      // absolute y as `bottom`) produced a rect wider than the screen, so the
+      // menu was laid out against a degenerate box and landed down-and-left of
+      // the button, on top of the cards below it.
       position: RelativeRect.fromLTRB(
-        origin.dx,
-        origin.dy + box.size.height + 6,
-        origin.dx + box.size.width,
-        origin.dy,
+        left,
+        top,
+        overlaySize.width - left - menuWidth,
+        overlaySize.height - top,
       ),
-      constraints: const BoxConstraints(minWidth: 200),
+      // Fixed, not just a minimum: the longest entry would otherwise stretch
+      // the menu across several card columns.
+      constraints: const BoxConstraints(
+        minWidth: menuWidth,
+        maxWidth: menuWidth,
+      ),
       items: [
         PopupMenuItem<void>(
           enabled: false,
@@ -183,10 +249,21 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
           ),
         ),
         PopupMenuItem<void>(
+          height: PosReceiptsSpec.filterMenuItemHeight,
+          onTap: () => _openDetail(order),
+          child: Text(
+            'Open detail',
+            style: loewRegular.copyWith(
+              fontSize: PosSettingsSpec.fieldTextSize,
+              color: PosSettingsSpec.ink,
+            ),
+          ),
+        ),
+        PopupMenuItem<void>(
           enabled: false,
           height: PosReceiptsSpec.filterMenuItemHeight,
           child: Text(
-            'No actions available yet',
+            'No other actions yet',
             style: loewRegular.copyWith(
               fontSize: PosSettingsSpec.fieldTextSize,
               color: PosHomeSpec.inkAlpha(0.5),
@@ -194,6 +271,33 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Open the detail overlay for one card.
+  ///
+  /// The overlay is handed [PosOrdersProvider.advance] rather than its own
+  /// transition call, so the modal's action and the card's own button run the
+  /// identical optimistic-update-and-reconcile path and can never disagree
+  /// about an order's next step.
+  ///
+  /// `useRootNavigator: false` keeps the route inside the POS shell, and the
+  /// board underneath is never rebuilt or reset by opening it — its scroll
+  /// offset, filters and live subscription all survive, because the board is
+  /// not torn down to show a route on top of it.
+  Future<void> _openDetail(PosOrderCard order) async {
+    if (!di.sl.isRegistered<KioskManagerRepo>()) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.transparent,
+      barrierDismissible: true,
+      useRootNavigator: false,
+      builder: (_) => PosOrderDetailOverlay(
+        order: order,
+        repo: di.sl<KioskManagerRepo>(),
+        onAdvance: _advance,
+      ),
     );
   }
 
@@ -452,7 +556,12 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
                       order: order,
                       now: _now,
                       pending: provider.isPending(order.id),
-                      onAdvance: () => _advance(order),
+                      onAdvance: () async {
+                        final PosAdvanceResult result = await _advance(order);
+                        if (result.isFailed) {
+                          _showAdvanceError(order, result.message!);
+                        }
+                      },
                       onMenu: () => _openCardMenu(cardContext, order),
                     ),
                   ),

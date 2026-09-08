@@ -290,6 +290,13 @@ class _AmountDue extends StatelessWidget {
 /// One widget for both treatments because the frames draw one box: identical
 /// padding, radius and 1.5px border, with [filled] swapping the fill and the
 /// label colour. A null [onTap] renders the disabled state.
+///
+/// The metric overrides below exist so the Orders complete-confirmation dialog
+/// (Figma 1641:5119) can use this same button at its own, much larger scale —
+/// radius 40, 3px border, 26pt label — rather than forking a second
+/// outlined/filled pair that would then drift from this one. Every override is
+/// null by default and falls back to the Payment-screen value, so the three
+/// existing call sites render exactly as before.
 class PosPaymentCardButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
@@ -298,46 +305,84 @@ class PosPaymentCardButton extends StatelessWidget {
   /// (`Cancel` / `Cancel Transaction`).
   final bool filled;
 
+  /// Corner radius. Defaults to [PosPaymentSpec.waitCancelRadius] (14).
+  final double? radius;
+
+  /// Border width. Defaults to [PosPaymentSpec.waitCancelBorder] (1.5).
+  final double? borderWidth;
+
+  /// Box padding. Defaults to the Payment card's vertical-only 16.
+  final EdgeInsetsGeometry? padding;
+
+  /// Label size. Defaults to [PosPaymentSpec.waitCancelLabelSize] (16).
+  final double? fontSize;
+
+  /// Label colour when [filled]. Defaults to white; the Orders dialog draws
+  /// its Complete label in cream.
+  final Color? filledLabelColor;
+
+  /// Renders the filled label in ExtraBold rather than Bold, which is how the
+  /// Orders dialog weights its primary action.
+  final bool emphasiseFilledLabel;
+
   const PosPaymentCardButton({
     super.key,
     required this.label,
     required this.onTap,
     this.filled = false,
+    this.radius,
+    this.borderWidth,
+    this.padding,
+    this.fontSize,
+    this.filledLabelColor,
+    this.emphasiseFilledLabel = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final BorderRadius radius =
-        BorderRadius.circular(PosPaymentSpec.waitCancelRadius);
+    final BorderRadius shape = BorderRadius.circular(
+      radius ?? PosPaymentSpec.waitCancelRadius,
+    );
     final bool enabled = onTap != null;
+    final double labelSize = fontSize ?? PosPaymentSpec.waitCancelLabelSize;
+    final TextStyle base =
+        (filled && emphasiseFilledLabel) ? loewExtraBold : loewBold;
 
     return Opacity(
       opacity: enabled ? 1 : 0.5,
       child: Material(
         color: filled ? PosHomeSpec.ink : PosHomeSpec.tileBg,
-        borderRadius: radius,
+        borderRadius: shape,
         child: InkWell(
           onTap: onTap,
-          borderRadius: radius,
+          borderRadius: shape,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-                vertical: PosPaymentSpec.waitCancelPaddingV),
+            padding: padding ??
+                const EdgeInsets.symmetric(
+                    vertical: PosPaymentSpec.waitCancelPaddingV),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: radius,
+              borderRadius: shape,
               border: Border.all(
                 color: PosHomeSpec.ink,
-                width: PosPaymentSpec.waitCancelBorder,
+                width: borderWidth ?? PosPaymentSpec.waitCancelBorder,
               ),
             ),
             child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: loewBold.copyWith(
-                fontSize: PosPaymentSpec.waitCancelLabelSize,
-                height: PosPaymentSpec.waitCancelLabelHeight,
-                color: filled ? Colors.white : PosHomeSpec.ink,
+              style: base.copyWith(
+                fontSize: labelSize,
+                // The Payment card pins an exact 19/16 line box; at any other
+                // size that ratio is meaningless, so it only applies to the
+                // default scale.
+                height: fontSize == null
+                    ? PosPaymentSpec.waitCancelLabelHeight
+                    : null,
+                color: filled
+                    ? (filledLabelColor ?? Colors.white)
+                    : PosHomeSpec.ink,
               ),
             ),
           ),
