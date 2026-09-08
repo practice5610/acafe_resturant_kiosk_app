@@ -15,6 +15,7 @@ import 'package:acafe_customer/features/realtime/catalog_realtime_policy.dart';
 import 'package:acafe_customer/features/realtime/device_ordering_experience_event.dart';
 import 'package:acafe_customer/features/realtime/device_settings_event.dart';
 import 'package:acafe_customer/features/realtime/device_settings_policy.dart';
+import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_gateway.dart';
 import 'package:acafe_customer/features/realtime/websocket_config.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
@@ -47,6 +48,54 @@ class ProductRealtimeController {
   KioskAuthProvider? _auth;
   WebsocketConfig? _config;
 
+  /// Subscribers to the branch order board. Kept as a plain callback registry
+  /// rather than injecting PosOrdersProvider here: this controller reconciles
+  /// the *catalog*, and it should not have to know that a POS Orders screen
+  /// exists. The board registers while it is mounted and unregisters on
+  /// dispose, so an unmounted screen costs nothing.
+  final Set<void Function(OrderChangedEvent event)> _orderListeners =
+      <void Function(OrderChangedEvent event)>{};
+
+  /// Subscribers that need a full refetch after a dropped socket. A gap in the
+  /// order stream cannot be reconciled from the events themselves -- the ones
+  /// missed while offline are simply gone -- so the only correct move is to
+  /// re-pull the board.
+  final Set<void Function()> _reconnectListeners = <void Function()>{};
+
+  void addOrderListener(void Function(OrderChangedEvent event) listener) =>
+      _orderListeners.add(listener);
+
+  void removeOrderListener(void Function(OrderChangedEvent event) listener) =>
+      _orderListeners.remove(listener);
+
+  void addReconnectListener(void Function() listener) =>
+      _reconnectListeners.add(listener);
+
+  void removeReconnectListener(void Function() listener) =>
+      _reconnectListeners.remove(listener);
+
+  void _onOrderEvent(OrderChangedEvent event) {
+    // Reverb can deliver the same event twice; the board's refetch is
+    // idempotent, but deduping keeps a burst of repeats from queueing a burst
+    // of requests.
+    if (!_firstSighting(event.eventId)) {
+      return;
+    }
+    for (final listener in _orderListeners.toList(growable: false)) {
+      try {
+        listener(event);
+      } catch (_) {}
+    }
+  }
+
+  void _notifyReconnectListeners() {
+    for (final listener in _reconnectListeners.toList(growable: false)) {
+      try {
+        listener();
+      } catch (_) {}
+    }
+  }
+
   Future<void> start({
     required WebsocketConfig config,
     required int branchId,
@@ -71,6 +120,7 @@ class ProductRealtimeController {
     gateway.onCouponEvent = _onCouponEvent;
     gateway.onDeviceOrderingExperienceEvent = _onDeviceOrderingExperience;
     gateway.onDeviceSettingsEvent = _onDeviceSettings;
+    gateway.onOrderEvent = _onOrderEvent;
     gateway.onReconnect = _onReconnect;
     await gateway.connect(
       config: config,
@@ -85,6 +135,10 @@ class ProductRealtimeController {
     _auth = auth;
     gateway.onDeviceOrderingExperienceEvent = _onDeviceOrderingExperience;
     gateway.onDeviceSettingsEvent = _onDeviceSettings;
+    // Re-bound here too: the already-connected path in ProductRealtimeScope
+    // returns through bindAuth() without calling start(), and an order board
+    // that quietly stopped receiving would look identical to an idle branch.
+    gateway.onOrderEvent = _onOrderEvent;
   }
 
   /// True once for a given event id, false for every repeat. Reverb can
@@ -445,6 +499,9 @@ class ProductRealtimeController {
 
   Future<void> _onReconnect() async {
     unawaited(_refreshDeviceSettings());
+    // Before the catalog work below, and unconditionally: a board left showing
+    // a queue from before the gap is worse than one that flickers.
+    _notifyReconnectListeners();
 
     final config = _config;
     final branchId = gateway.branchId;

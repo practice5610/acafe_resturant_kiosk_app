@@ -14,7 +14,7 @@ class BranchProvider extends DataSyncProvider {
   int? _selectedBranchId;
 
   int? get selectedBranchId => _selectedBranchId;
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   bool get isLoading => _isLoading;
   int _branchTabIndex = 0;

@@ -70,18 +70,42 @@ class KioskManagerProvider extends ChangeNotifier {
   Map<String, dynamic>? _salesData;
   Map<String, dynamic>? get salesData => _salesData;
 
+  /// The `report_date` [salesData] actually describes, or null when it is the
+  /// implicit "today" the manager screen asks for.
+  ///
+  /// Exposed because a request-id guard alone is not enough for the POS Report
+  /// screen: dropping a superseded response still leaves the *previous* day's
+  /// figures on screen under the newly-selected date's heading. The screen
+  /// compares this against the day it is showing and refuses to render a
+  /// mismatch, so stepping through dates quickly can never label one day's
+  /// numbers with another day's name.
+  String? _salesDataDate;
+  String? get salesDataDate => _salesDataDate;
+
   bool _closingRegister = false;
   bool get closingRegister => _closingRegister;
 
+  /// Guards against out-of-order responses when dates are stepped faster than
+  /// the network answers. Mirrors _transactionsRequestId below.
+  int _salesRequestId = 0;
+
   Future<void> loadSalesOverview({String? reportDate}) async {
+    final int requestId = ++_salesRequestId;
     _salesLoading = true;
     notifyListeners();
 
     final apiResponse =
         await kioskManagerRepo.getSalesOverview(reportDate: reportDate);
+
+    // A newer day (or a close) started while this was in flight -- that request
+    // owns the screen now, so this response is dropped entirely rather than
+    // overwriting fresher data with older data.
+    if (requestId != _salesRequestId) return;
+
     if (apiResponse.response != null &&
         apiResponse.response!.statusCode == 200) {
       _salesData = Map<String, dynamic>.from(apiResponse.response!.data);
+      _salesDataDate = reportDate;
     } else {
       ApiCheckerHelper.checkApi(apiResponse);
     }
@@ -107,7 +131,15 @@ class KioskManagerProvider extends ChangeNotifier {
         apiResponse.response != null && apiResponse.response!.statusCode == 200;
     if (success) {
       final data = apiResponse.response!.data['data'];
-      _salesData = data != null ? Map<String, dynamic>.from(data) : _salesData;
+      if (data != null) {
+        // The close response IS the freshest view of that day, so it supersedes
+        // any overview load still in flight -- otherwise a slow request started
+        // before the close could land afterwards and show the day as open again.
+        _salesRequestId++;
+        _salesData = Map<String, dynamic>.from(data);
+        _salesDataDate = reportDate;
+        _salesLoading = false;
+      }
     } else {
       ApiCheckerHelper.checkApi(apiResponse);
     }

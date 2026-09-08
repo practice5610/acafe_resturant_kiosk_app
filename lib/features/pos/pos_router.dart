@@ -104,12 +104,13 @@ class PosScaffold extends StatelessWidget {
     required this.child,
   });
 
-  /// Home / browse / receipts / settings are edge-to-edge under the nav — Figma
-  /// frames for those tabs include their own rails and panel padding. Other
-  /// tabs keep the original padded placeholder frame.
+  /// Home / browse / orders / receipts / settings are edge-to-edge under the
+  /// nav — Figma frames for those tabs include their own rails and panel
+  /// padding. Other tabs keep the original padded placeholder frame.
   static bool _isEdgeToEdge(String path) =>
       path == PosRoutes.home ||
       path == PosRoutes.browse ||
+      path == PosRoutes.orders ||
       path == PosRoutes.receipts ||
       path == PosRoutes.settings;
 

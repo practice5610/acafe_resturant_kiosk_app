@@ -1,15 +1,522 @@
-import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_placeholder.dart';
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-/// Device-auth transaction list via KioskManagerProvider.loadTransactions. Summary rows only; the customer order-list endpoint is unusable here because POS orders are guest orders.
+import 'package:acafe_customer/di_container.dart' as di;
+import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
+import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
+import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
+import 'package:acafe_customer/features/pos/providers/pos_orders_provider.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_filter_dropdown.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_order_card_tile.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_order_date_range_bar.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
+import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
+import 'package:acafe_customer/features/realtime/order_changed_event.dart';
+import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
+import 'package:acafe_customer/utill/styles.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+/// The POS Orders board (Figma **1641:2874**).
+///
+/// One vertical scroll of three stacked sections, each a header with a live
+/// count and a wrapping grid of cards — *not* three side-by-side columns. The
+/// Figma frame draws every section at the full 1318px content width.
+///
+/// The provider is scoped to this screen rather than registered globally, in
+/// the same way the POS Settings tabs scope theirs: the board's filters are
+/// screen state, and the realtime subscription should not outlive the screen.
 class PosOrdersListScreen extends StatelessWidget {
-  const PosOrdersListScreen({super.key});
+  /// Injectable for tests, which build the POS tree without a populated
+  /// service locator. Production leaves it null and resolves the registered
+  /// singleton.
+  final PosOrdersRepo? repo;
+
+  /// Time source for the elapsed labels. Injectable so a screenshot test can
+  /// freeze it — a golden that bakes `DateTime.now()` differs on every run and
+  /// is worthless as a regression guard. Production leaves it null.
+  final DateTime Function()? clock;
+
+  const PosOrdersListScreen({super.key, this.repo, this.clock});
 
   @override
-  Widget build(BuildContext context) => const PosPlaceholder(
-        title: 'Orders',
-        route: PosRoutes.orders,
-        note: 'Device-auth transaction list via KioskManagerProvider.loadTransactions. Summary rows only; the customer order-list endpoint is unusable here because POS orders are guest orders.',
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider<PosOrdersProvider>(
+      create: (_) => PosOrdersProvider(
+        posOrdersRepo: repo ?? di.sl<PosOrdersRepo>(),
+      ),
+      child: _PosOrdersBoard(clock: clock),
+    );
+  }
+}
+
+class _PosOrdersBoard extends StatefulWidget {
+  final DateTime Function()? clock;
+
+  const _PosOrdersBoard({this.clock});
+
+  @override
+  State<_PosOrdersBoard> createState() => _PosOrdersBoardState();
+}
+
+class _PosOrdersBoardState extends State<_PosOrdersBoard> {
+  final TextEditingController _searchController = TextEditingController();
+
+  /// One clock for the whole board. Every card reads `_now` rather than owning
+  /// a timer, so a hundred open orders still cost one tick per second.
+  Timer? _clock;
+  late DateTime _now = _read();
+
+  DateTime _read() => (widget.clock ?? DateTime.now)();
+
+  late final PosOrdersProvider _provider;
+  ProductRealtimeController? _realtime;
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = context.read<PosOrdersProvider>();
+
+    // Deferred past the first frame so the initial notifyListeners() does not
+    // land during build. load(), not setNow(true): the provider already starts
+    // in NOW mode, and setNow would early-return on the unchanged value and
+    // leave the board empty.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_provider.load());
+    });
+
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _now = _read());
+    });
+
+    // Live board. The socket, its reconnect handling and its lifecycle already
+    // exist and are already mounted app-wide by ProductRealtimeScope; this
+    // screen only registers interest in the branch order channel while it is
+    // on screen.
+    //
+    // Guarded: a widget test builds the POS tree without a populated service
+    // locator, and the board is still worth exercising there — it just does not
+    // receive pushes.
+    if (di.sl.isRegistered<ProductRealtimeController>()) {
+      _realtime = di.sl<ProductRealtimeController>();
+      _realtime?.addOrderListener(_onOrderEvent);
+      _realtime?.addReconnectListener(_onRealtimeReconnect);
+    }
+  }
+
+  void _onOrderEvent(OrderChangedEvent event) {
+    if (!mounted) return;
+    _provider.onRealtimeChange();
+  }
+
+  void _onRealtimeReconnect() {
+    if (!mounted) return;
+    _provider.onRealtimeReconnect();
+  }
+
+  @override
+  void dispose() {
+    _realtime?.removeOrderListener(_onOrderEvent);
+    _realtime?.removeReconnectListener(_onRealtimeReconnect);
+    _clock?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _advance(PosOrderCard order) async {
+    final String? message = await _provider.advance(order);
+    if (!mounted || message == null) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Order #${order.id}: $message'),
+          backgroundColor: PosHomeSpec.ink,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
+  }
+
+  /// Figma's `card-actions more-vertical`. The menu shell is real chrome — the
+  /// same `showMenu` configuration every other POS select uses — but it has no
+  /// wired actions yet: what belongs in it (reprint, refund, cancel, open
+  /// detail) is a separate, separately-scoped screen. Shown disabled rather
+  /// than omitted so the card matches the spec, and rather than faked so
+  /// nothing here pretends to do something it does not.
+  Future<void> _openCardMenu(BuildContext anchor, PosOrderCard order) async {
+    final RenderBox box = anchor.findRenderObject() as RenderBox;
+    final Offset origin = box.localToGlobal(Offset.zero);
+
+    await showMenu<void>(
+      context: anchor,
+      color: PosSettingsSpec.fieldFill,
+      elevation: 12,
+      shadowColor: const Color(0x33241F20),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(PosSettingsSpec.fieldRadius),
+        side: const BorderSide(color: PosSettingsSpec.fieldBorder),
+      ),
+      position: RelativeRect.fromLTRB(
+        origin.dx,
+        origin.dy + box.size.height + 6,
+        origin.dx + box.size.width,
+        origin.dy,
+      ),
+      constraints: const BoxConstraints(minWidth: 200),
+      items: [
+        PopupMenuItem<void>(
+          enabled: false,
+          height: PosReceiptsSpec.filterMenuItemHeight,
+          child: Text(
+            'Order #${order.id}',
+            style: loewBold.copyWith(
+              fontSize: PosSettingsSpec.fieldTextSize,
+              color: PosSettingsSpec.ink,
+            ),
+          ),
+        ),
+        PopupMenuItem<void>(
+          enabled: false,
+          height: PosReceiptsSpec.filterMenuItemHeight,
+          child: Text(
+            'No actions available yet',
+            style: loewRegular.copyWith(
+              fontSize: PosSettingsSpec.fieldTextSize,
+              color: PosHomeSpec.inkAlpha(0.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<PosOrdersProvider>(
+      builder: (context, provider, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _filters(provider),
+            Expanded(child: _board(provider)),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── Filter bar ───────────────────────────────────────────────────────
+  Widget _filters(PosOrdersProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        PosOrdersSpec.pagePadding,
+        14,
+        PosOrdersSpec.pagePadding,
+        PosOrdersSpec.filtersBottomGap,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final bool wrap =
+                  constraints.maxWidth < PosOrdersSpec.filtersWrapBelowWidth;
+
+              final Widget range = PosOrderDateRangeBar(
+                from: provider.from,
+                to: provider.to,
+                now: provider.now,
+                onNow: provider.setNow,
+                onFrom: (value) => provider.setRange(
+                  from: value,
+                  to: provider.to,
+                  now: false,
+                ),
+                onTo: (value) => provider.setRange(
+                  from: provider.from,
+                  to: value,
+                  now: false,
+                ),
+              );
+
+              final Widget search = PosSearchField(
+                controller: _searchController,
+                hintText: 'Search in orders...',
+                style: PosSearchFieldStyle.settings,
+                onChanged: provider.setSearch,
+              );
+
+              // Below the break the search bar cannot share a row with the
+              // date fields without either being squeezed to nothing.
+              if (wrap) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    range,
+                    const SizedBox(height: PosOrdersSpec.filterRowGap),
+                    search,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  range,
+                  const SizedBox(width: PosOrdersSpec.dropdownGap),
+                  Expanded(child: search),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: PosOrdersSpec.filterRowGap),
+          Wrap(
+            spacing: PosOrdersSpec.dropdownGap,
+            runSpacing: PosOrdersSpec.dropdownGap,
+            children: [
+              PosFilterDropdown<String?>(
+                label: 'All sources',
+                options: PosOrderFilters.sources,
+                value: provider.source,
+                onChanged: provider.setSource,
+              ),
+              PosFilterDropdown<String?>(
+                label: 'All types',
+                options: PosOrderFilters.types,
+                value: provider.type,
+                onChanged: provider.setType,
+              ),
+              PosFilterDropdown<String?>(
+                label: 'All payment methods',
+                options: PosOrderFilters.methods,
+                value: provider.method,
+                onChanged: provider.setMethod,
+              ),
+              PosFilterDropdown<String?>(
+                label: 'Any status',
+                options: PosOrderFilters.statuses,
+                value: provider.status,
+                onChanged: provider.setStatus,
+              ),
+            ],
+          ),
+          const SizedBox(height: PosOrdersSpec.filterRowGap),
+          // A horizontal scroller, not a Wrap, and for a specific reason:
+          // PosFilterPill's Container carries an `alignment` and no width, so
+          // under the bounded constraints a Wrap hands out it expands to the
+          // full row. The product grid already mounts these pills this way —
+          // unbounded width is what makes them shrink-wrap — and it doubles as
+          // the overflow behaviour on a narrow terminal.
+          ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _sectionPill(provider, null, 'All', provider.totalCount),
+                  const SizedBox(width: PosOrdersSpec.pillGap),
+                  _sectionPill(
+                    provider,
+                    PosOrderSection.newOrders,
+                    'New',
+                    provider.countOf(PosOrderSection.newOrders),
+                  ),
+                  const SizedBox(width: PosOrdersSpec.pillGap),
+                  _sectionPill(
+                    provider,
+                    PosOrderSection.inProgress,
+                    'In progress',
+                    provider.countOf(PosOrderSection.inProgress),
+                  ),
+                  const SizedBox(width: PosOrdersSpec.pillGap),
+                  _sectionPill(
+                    provider,
+                    PosOrderSection.finished,
+                    'Finished',
+                    provider.countOf(PosOrderSection.finished),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionPill(
+    PosOrdersProvider provider,
+    PosOrderSection? section,
+    String label,
+    int count,
+  ) {
+    return PosFilterPill(
+      label: count > 0 ? '$label  $count' : label,
+      active: provider.section == section,
+      onTap: () => provider.setSection(section),
+    );
+  }
+
+  // ── Board ────────────────────────────────────────────────────────────
+  Widget _board(PosOrdersProvider provider) {
+    if (provider.initialLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(PosHomeSpec.ink),
+        ),
+      );
+    }
+
+    // A filter can legitimately empty a section but not the board; an entirely
+    // empty board with an error behind it is the case worth naming.
+    if (provider.orders.isEmpty) {
+      return _EmptyBoard(message: provider.error);
+    }
+
+    final List<PosOrderSection> sections = provider.section == null
+        ? const [
+            PosOrderSection.newOrders,
+            PosOrderSection.inProgress,
+            PosOrderSection.finished,
+          ]
+        : <PosOrderSection>[provider.section!];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double available =
+            constraints.maxWidth - PosOrdersSpec.pagePadding * 2;
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(
+            PosOrdersSpec.pagePadding,
+            0,
+            PosOrdersSpec.pagePadding,
+            PosOrdersSpec.pagePadding,
+          ),
+          children: [
+            for (final PosOrderSection section in sections) ...[
+              _section(provider, section, available),
+              const SizedBox(height: PosOrdersSpec.sectionGap),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _section(
+    PosOrdersProvider provider,
+    PosOrderSection section,
+    double available,
+  ) {
+    final List<PosOrderCard> cards = provider.ordersIn(section);
+
+    // Cards hold their 288px design width until the pane is narrower than one
+    // card, at which point they stretch rather than overflow.
+    final double cardWidth = available < PosOrdersSpec.cardWidth
+        ? available.clamp(PosOrdersSpec.cardStretchBelowWidth, double.infinity)
+        : PosOrdersSpec.cardWidth;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader(
+          PosOrderGrouping.labelFor(section),
+          provider.countOf(section),
+        ),
+        const SizedBox(height: PosOrdersSpec.sectionHeaderGap),
+        if (cards.isEmpty)
+          Text(
+            'No orders',
+            style: loewRegular.copyWith(
+              fontSize: PosOrdersSpec.subtitleTextSize,
+              color: PosHomeSpec.inkAlpha(0.45),
+            ),
+          )
+        else
+          Wrap(
+            spacing: PosOrdersSpec.cardGap,
+            runSpacing: PosOrdersSpec.cardGap,
+            children: [
+              for (final PosOrderCard order in cards)
+                SizedBox(
+                  width: cardWidth,
+                  child: Builder(
+                    builder: (cardContext) => PosOrderCardTile(
+                      order: order,
+                      now: _now,
+                      pending: provider.isPending(order.id),
+                      onAdvance: () => _advance(order),
+                      onMenu: () => _openCardMenu(cardContext, order),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(String label, int count) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: loewBold.copyWith(
+            fontSize: PosOrdersSpec.sectionHeaderSize,
+            color: PosHomeSpec.ink,
+          ),
+        ),
+        const SizedBox(width: PosOrdersSpec.badgeGap),
+        Container(
+          height: PosOrdersSpec.badgeHeight,
+          constraints:
+              const BoxConstraints(minWidth: PosOrdersSpec.badgeMinWidth),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 7),
+          decoration: BoxDecoration(
+            color: PosHomeSpec.inactiveFill,
+            borderRadius: BorderRadius.circular(PosOrdersSpec.badgeRadius),
+          ),
+          child: Text(
+            '$count',
+            style: loewBold.copyWith(
+              fontSize: PosOrdersSpec.badgeTextSize,
+              color: PosHomeSpec.ink,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyBoard extends StatelessWidget {
+  final String? message;
+
+  const _EmptyBoard({this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(PosOrdersSpec.pagePadding),
+        child: Text(
+          message ?? 'No orders in this window',
+          textAlign: TextAlign.center,
+          style: loewRegular.copyWith(
+            fontSize: 14,
+            color: PosHomeSpec.inkAlpha(0.5),
+          ),
+        ),
+      ),
+    );
+  }
 }

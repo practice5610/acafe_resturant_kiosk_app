@@ -8,6 +8,7 @@ import 'package:acafe_customer/features/realtime/catalog_event.dart';
 import 'package:acafe_customer/features/realtime/catalog_socket_frame.dart';
 import 'package:acafe_customer/features/realtime/device_ordering_experience_event.dart';
 import 'package:acafe_customer/features/realtime/device_settings_event.dart';
+import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/websocket_config.dart';
 
 /// Thin Reverb transport (Pusher protocol, public channels only).
@@ -64,6 +65,7 @@ class ProductRealtimeGateway {
   void Function(DeviceOrderingExperienceEvent event)?
       onDeviceOrderingExperienceEvent;
   void Function(DeviceSettingsEvent event)? onDeviceSettingsEvent;
+  void Function(OrderChangedEvent event)? onOrderEvent;
   VoidCallback? onReconnect;
 
   /// Fired on every transition of the live connection, for UI that wants to
@@ -87,7 +89,10 @@ class ProductRealtimeGateway {
     if (!config.isUsable || branchId <= 0) {
       return;
     }
-    final channels = <String>[config.channelName(branchId)];
+    final channels = <String>[
+      config.channelName(branchId),
+      config.ordersChannelName(branchId),
+    ];
     if (deviceId != null && deviceId > 0) {
       channels.add(config.deviceSettingsChannelName(deviceId));
     }
@@ -244,6 +249,17 @@ class ProductRealtimeGateway {
         );
       }
       onDeviceOrderingExperienceEvent?.call(orderingEvent);
+      return;
+    }
+    final orderEvent = CatalogSocketFrame.orderChanged(message);
+    if (orderEvent != null) {
+      if (kDebugMode) {
+        debugPrint(
+          'ProductRealtimeGateway order.changed '
+          'id=${orderEvent.orderId} status=${orderEvent.orderStatus}',
+        );
+      }
+      onOrderEvent?.call(orderEvent);
       return;
     }
     final event = CatalogSocketFrame.productChanged(message);

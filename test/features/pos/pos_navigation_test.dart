@@ -10,7 +10,9 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
+import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/pos/domain/pos_mode.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/pos_router.dart';
@@ -73,6 +75,22 @@ Future<
     loggingInterceptor: LoggingInterceptor(),
     sharedPreferences: prefs,
   );
+
+  // Tabs that build their own screen-scoped provider resolve its repo from the
+  // service locator, exactly as they do under di.init() in the real app. This
+  // harness builds the POS tree by hand, so the few singletons those screens
+  // reach for have to be registered here too.
+  if (di.sl.isRegistered<PosOrdersRepo>()) {
+    await di.sl.unregister<PosOrdersRepo>();
+  }
+  di.sl.registerLazySingleton(() => PosOrdersRepo(dioClient: dio));
+
+  // Settings' General tab falls back to the locator for prefs the same way.
+  if (di.sl.isRegistered<SharedPreferences>()) {
+    await di.sl.unregister<SharedPreferences>();
+  }
+  di.sl.registerLazySingleton<SharedPreferences>(() => prefs);
+
   return (
     auth: KioskAuthProvider(
         kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs)),
@@ -134,6 +152,19 @@ void main() {
   // The router is an app-wide singleton, so location leaks between tests
   // unless each one starts from a known place.
   tearDown(() => RouterHelper.goRoutes.go(RouterHelper.kioskLoginScreen));
+
+  // GetIt is process-global and outlives this file. Leaving these registered
+  // hands the next test file in the shard a SharedPreferences and a DioClient
+  // built for *this* harness — which is how an unrelated suite starts failing
+  // only when run together with this one.
+  tearDown(() async {
+    if (di.sl.isRegistered<PosOrdersRepo>()) {
+      await di.sl.unregister<PosOrdersRepo>();
+    }
+    if (di.sl.isRegistered<SharedPreferences>()) {
+      await di.sl.unregister<SharedPreferences>();
+    }
+  });
 
   testWidgets('a POS device boots into the PIN screen, not the kiosk',
       (tester) async {

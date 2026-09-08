@@ -23,6 +23,10 @@ class WebsocketConfig {
 
   String channelName(int branchId) => 'branch.$branchId.products';
 
+  /// Branch order board. Public like the products channel, so what rides on it
+  /// is an order id and a status -- never order contents.
+  String ordersChannelName(int branchId) => 'branch.$branchId.orders';
+
   /// Per-device settings channel (Ordering Experience and future device pushes).
   String deviceSettingsChannelName(int deviceId) => 'device.$deviceId.settings';
 

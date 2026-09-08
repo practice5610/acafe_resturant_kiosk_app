@@ -155,9 +155,9 @@ void main() {
             ),
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: KioskShell(
-            child: const KioskMenuScreen(),
+            child: KioskMenuScreen(),
           ),
         ),
       ),

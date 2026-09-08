@@ -1,6 +1,5 @@
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
-import 'package:acafe_customer/features/search/search_flow_helper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

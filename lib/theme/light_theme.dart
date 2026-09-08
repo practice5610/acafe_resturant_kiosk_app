@@ -14,7 +14,6 @@ ThemeData light = ThemeData(
   hintColor: const Color(0xFF9F9F9F),
   disabledColor: const Color(0xFFBABFC4),
   shadowColor: Colors.grey[300],
-  indicatorColor: BrandColors.primary,
   splashFactory: NoSplash.splashFactory,
   splashColor: Colors.transparent,
   highlightColor: Colors.transparent,
@@ -101,5 +100,5 @@ ThemeData light = ThemeData(
     titleMedium: TextStyle(fontSize: 15.0, fontWeight: FontWeight.w500),
     bodyMedium: TextStyle(fontSize: 12.0),
     bodyLarge: TextStyle(fontSize: 14.0, fontWeight: FontWeight.w600),
-  ),
+  ), tabBarTheme: TabBarThemeData(indicatorColor: BrandColors.primary),
 );

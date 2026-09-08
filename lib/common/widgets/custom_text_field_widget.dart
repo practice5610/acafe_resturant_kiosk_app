@@ -154,7 +154,7 @@ class _CustomTextFieldWidgetState extends State<CustomTextFieldWidget> {
               CodePickerWidget(
                 onChanged: widget.onCountryChanged,
                 initialSelection: widget.countryDialCode ?? CountryConfig.defaultCountryCode,
-                favorite: [CountryConfig.defaultCountryCode],
+                favorite: const [CountryConfig.defaultCountryCode],
                 countryFilter: CountryConfig.allowedCountryCodes,
                 showDropDownButton: CountryConfig.showCountryPicker,
                 padding: EdgeInsets.zero,

@@ -267,12 +267,12 @@ void main() {
         ],
         child: MediaQuery(
           data: MediaQueryData(size: size),
-          child: PosShell(
+          child: const PosShell(
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
               home: Scaffold(
                 backgroundColor: PosHomeSpec.pageBg,
-                body: const PosReceiptsScreen(),
+                body: PosReceiptsScreen(),
               ),
             ),
           ),

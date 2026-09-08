@@ -42,7 +42,7 @@ class SearchResultScreen extends StatefulWidget {
 class _SearchResultScreenState extends State<SearchResultScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController scrollController = ScrollController();
-  String _type = 'all';
+  final String _type = 'all';
   late SearchProvider _searchProvider;
   late CategoryProvider _categoryProvider;
 

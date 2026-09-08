@@ -123,7 +123,7 @@ class KioskDealItem {
   factory KioskDealItem.fromJson(Map<String, dynamic> json) {
     final rawProduct = json['product'];
     if (rawProduct is! Map) {
-      throw FormatException('Deal item missing product map');
+      throw const FormatException('Deal item missing product map');
     }
     return KioskDealItem(
       quantity: int.tryParse('${json['quantity'] ?? 1}') ?? 1,

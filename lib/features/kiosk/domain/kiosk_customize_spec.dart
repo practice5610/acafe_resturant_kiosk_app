@@ -445,8 +445,8 @@ double kioskCustomizeResolvedHeroFactor({
   // range — including below 1 when the target itself shrank — and do not let
   // a "page still fits" cap block matching: a tall stack on a short window is
   // already scrolling, and a larger photo is what the customer asked for.
-  final double loBound = kKioskCustomizeHeroFloor;
-  final double hiBound = kKioskCustomizeHeroGrowthMax;
+  const double loBound = kKioskCustomizeHeroFloor;
+  const double hiBound = kKioskCustomizeHeroGrowthMax;
   double lo = loBound;
   double hi = hiBound;
   for (int i = 0; i < 28; i++) {

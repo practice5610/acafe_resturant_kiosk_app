@@ -15,7 +15,6 @@ import 'package:acafe_customer/helper/notification_helper.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
-import 'package:provider/provider.dart';
 
 import '../../../common/models/policy_model.dart';
 import '../../../helper/api_checker_helper.dart';

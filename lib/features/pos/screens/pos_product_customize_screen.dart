@@ -259,7 +259,7 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
       instruction: _instruction,
     );
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    final int? index = widget.cartIndex ?? productProvider.cartIndex;
+    final int index = widget.cartIndex ?? productProvider.cartIndex;
     cartProvider.addToCart(built, index, showMessage: false);
     if (widget.replaceOtherProductLines &&
         _product.id != null &&
@@ -829,10 +829,10 @@ class _VariationSection extends StatelessWidget {
         _SectionTitle(title),
         LayoutBuilder(
           builder: (context, constraints) {
-            final double gap = PosCustomizeSpec.dietaryCardGap;
+            const double gap = PosCustomizeSpec.dietaryCardGap;
             final double available = constraints.maxWidth;
             final int count = values.length;
-            final double ideal = PosCustomizeSpec.dietaryCardWidth;
+            const double ideal = PosCustomizeSpec.dietaryCardWidth;
             final double totalIdeal = count * ideal + (count - 1) * gap;
             final double cardWidth = totalIdeal <= available
                 ? ideal
@@ -1035,9 +1035,9 @@ class _AddOnsSection extends StatelessWidget {
         _SectionTitle(_title(context)),
         LayoutBuilder(
           builder: (context, constraints) {
-            final double gapH = PosCustomizeSpec.addonCardGapH;
-            final double gapV = PosCustomizeSpec.addonCardGapV;
-            final int columns = PosCustomizeSpec.addonColumns;
+            const double gapH = PosCustomizeSpec.addonCardGapH;
+            const double gapV = PosCustomizeSpec.addonCardGapV;
+            const int columns = PosCustomizeSpec.addonColumns;
             final double cardWidth = ((constraints.maxWidth -
                         gapH * (columns - 1)) /
                     columns)
@@ -1308,7 +1308,7 @@ class _CupCanSection extends StatelessWidget {
         _SectionTitle(title),
         LayoutBuilder(
           builder: (context, constraints) {
-            final double gap = PosCustomizeSpec.vesselCardGap;
+            const double gap = PosCustomizeSpec.vesselCardGap;
             return Row(
               children: [
                 for (int i = 0; i < values.length; i++) ...[

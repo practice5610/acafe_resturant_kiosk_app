@@ -772,7 +772,7 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
       return;
     }
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    final int? index = cartIndex ?? productProvider.cartIndex;
+    final int index = cartIndex ?? productProvider.cartIndex;
     cartProvider.addToCart(built, index);
     if (replaceOtherProductLines &&
         product.id != null &&

@@ -93,10 +93,10 @@ Future<void> _pumpHome(
       providers: providers,
       child: MediaQuery(
         data: MediaQueryData(size: size),
-        child: PosShell(
+        child: const PosShell(
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            home: const Scaffold(
+            home: Scaffold(
               backgroundColor: PosHomeSpec.pageBg,
               body: PosHomeCartScreen(),
             ),

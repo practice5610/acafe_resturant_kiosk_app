@@ -103,7 +103,7 @@ class Product {
         bool? isChanged,
         String? changeReason,
         int? halalStatus,
-        List<ProductTag>? tags,
+        this.tags,
       }) {
     _id = id;
     _name = name;
@@ -128,7 +128,6 @@ class Product {
     _mainPrice = mainPrice;
     _isChanged = isChanged;
     _changeReason = changeReason;
-    this.tags = tags;
   }
 
   int? get id => _id;

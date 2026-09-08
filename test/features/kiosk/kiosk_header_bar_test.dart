@@ -44,7 +44,7 @@ void main() {
     const double titleFontSize = 120;
 
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: Scaffold(
           body: Center(
             child: KioskHeaderBar(

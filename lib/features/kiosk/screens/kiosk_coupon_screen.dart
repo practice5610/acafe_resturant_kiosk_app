@@ -344,7 +344,7 @@ class _KioskCouponMetrics {
     // The shortest height the design can occupy is its fixed elements plus
     // half its whitespace; sizing against that (rather than the full 4530)
     // lets short displays keep usable field/button sizes.
-    final double minDesignHeight =
+    const double minDesignHeight =
         _kFixedTotal + _kGapTotal * _kMinGapFactor; // 2385.725
 
     final double s = math

@@ -109,7 +109,7 @@ void main() {
       // artboard × byWidth must pull scale down so the page still fits.
       const double w = 1080;
       final double artboard = figmaProduct();
-      final double byWidth = w / KioskCustomizeSpec.artboardWidth;
+      const double byWidth = w / KioskCustomizeSpec.artboardWidth;
       final double h = artboard * byWidth * 0.85;
       final double s = scaleAt(w, h);
       expect(s, lessThan(byWidth),
@@ -159,7 +159,7 @@ void main() {
   group('bounded, so nothing ever renders illegibly small', () {
     test('height can only pull the scale so far below the width rule', () {
       // A wide, short desktop window: 1600x600 would otherwise ask for 0.12.
-      final double byWidth =
+      const double byWidth =
           1600 / KioskCustomizeSpec.artboardWidth; // capped below 1
       final double s = scaleAt(1600, 600);
       expect(s, closeTo(byWidth * kKioskCustomizeHeightPull, 1e-9));

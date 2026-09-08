@@ -351,7 +351,13 @@ void main() {
       // 400ms fallback that used to fire a second full set of frames.
       await Future<void>.delayed(const Duration(milliseconds: 900));
 
-      expect(server.subscribedChannels, ['branch.1.products', 'device.1.settings']);
+      // The order board rides the same socket, so the branch now carries two
+      // channels. What this test guards is the "exactly once" part: no channel
+      // may appear twice.
+      expect(
+        server.subscribedChannels,
+        ['branch.1.products', 'branch.1.orders', 'device.1.settings'],
+      );
     });
 
     test('reports connected only once the server acknowledges', () async {
