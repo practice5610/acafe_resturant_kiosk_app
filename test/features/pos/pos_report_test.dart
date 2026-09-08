@@ -196,11 +196,15 @@ Map<String, dynamic> _reportPayload({
       },
       'cash_drawer': <String, dynamic>{
         'recorded': true,
+        'opening_float': 150.0,
         'cash_sales': 724.5,
         'cash_sales_count': 62,
-        'cash_refunds': 12,
-        'cash_refunds_count': 1,
-        'reconciliation_available': false,
+        // An int on purpose: PHP emits a round 32.00 as `32`, and a straight
+        // `as double` cast would throw only on round amounts.
+        'cash_refunds': 32,
+        'cash_refunds_count': 3,
+        'expected_cash': 842.5,
+        'reconciliation_available': true,
       },
       'reconciliation': <String, dynamic>{
         'ok': true,
@@ -290,12 +294,40 @@ class _StubManager extends KioskManagerProvider {
     notifyListeners();
   }
 
+  final List<Map<String, dynamic>> closedPayloads = <Map<String, dynamic>>[];
+
   @override
-  Future<bool> closeZReport({required String reportDate, String? comment}) async {
+  Future<bool> closeZReport({
+    required String reportDate,
+    String? comment,
+    double? closingCashCounted,
+    List<Map<String, dynamic>>? denominationBreakdown,
+    String? differenceReason,
+    bool emailReport = false,
+  }) async {
     closedDates.add(reportDate);
+    closedPayloads.add(<String, dynamic>{
+      'report_date': reportDate,
+      'closing_cash_counted': closingCashCounted,
+      'denomination_breakdown': denominationBreakdown,
+      'difference_reason': differenceReason,
+      'email_report': emailReport,
+      'comment': comment,
+    });
     _loadedDate = reportDate;
     notifyListeners();
     return true;
+  }
+
+  /// PINs this stub will accept. Anything else comes back rejected, the way
+  /// the real `verify-code` endpoint answers a wrong configuration_code.
+  String acceptedPin = '1234';
+  final List<String> verifiedPins = <String>[];
+
+  @override
+  Future<String?> verifyCloseDayPin(String code) async {
+    verifiedPins.add(code);
+    return code == acceptedPin ? null : 'Incorrect code';
   }
 }
 
@@ -368,7 +400,7 @@ void main() {
       // `voided.value` and `cash_drawer.cash_refunds` are ints in the fixture,
       // exactly as PHP emits them for round amounts.
       expect(data.refundValue, 32.0);
-      expect(data.cashRefunds, 12.0);
+      expect(data.cashRefunds, 32.0);
       expect(data.totalRevenue, 1842.5);
     });
 
@@ -466,18 +498,239 @@ void main() {
       await tester.tap(find.text('Close Day'));
       await tester.pumpAndSettle();
 
-      // The dialog is a guard, not a second close mechanism.
-      expect(find.textContaining('finalises the Z Report'), findsOneWidget);
+      // Step 1 — count the drawer.
+      expect(find.text('Count Cash Drawer'), findsWidgets);
+      expect(find.text('Enter counted amount'), findsOneWidget);
       expect(manager.closedDates, isEmpty);
 
-      await tester.tap(find.widgetWithText(TextButton, 'Close Day'));
+      // Match expected (€842.50) so Step 2 has no discrepancy gate.
+      for (final String key in <String>['8', '4', '2', ',', '5', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      // Step 2 — still pending prep in the fixture, so Confirm stays gated
+      // until "Close anyway".
+      expect(find.textContaining('Review & Confirm'), findsOneWidget);
+      expect(find.textContaining('still in progress'), findsOneWidget);
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
       expect(manager.closedDates.single, manager.requestedDates.first);
-      // A successful close re-reads the day, so the header flips to its closed
-      // state from the server's answer rather than a local assumption.
+      expect(manager.closedPayloads.single['closing_cash_counted'], 842.5);
+      // No opening float is sent: the server derives it from yesterday's
+      // counted close, so there is nothing here for a client to disagree with.
+      expect(manager.closedPayloads.single.containsKey('opening_cash'), isFalse);
       expect(manager.requestedDates, hasLength(2));
+    });
+
+    testWidgets('the denomination table and the typed total stay in sync',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 1400));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Count by denomination'));
+      await tester.pumpAndSettle();
+
+      // 2 x €50 + 1 x €20 = €120.00, summed from the rows themselves.
+      await tester.enterText(find.byType(TextField).at(0), '2');
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).at(1), '1');
+      await tester.pumpAndSettle();
+
+      expect(find.text('€ 120.00'), findsWidgets);
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Accept difference'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Reason for difference'), 'Short till');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+
+      final Map<String, dynamic> payload = manager.closedPayloads.single;
+      expect(payload['closing_cash_counted'], 120.0);
+
+      // Only the rows actually filled in travel — a table of zeros is the
+      // control's resting state, not a count.
+      final List<Map<String, dynamic>> rows =
+          payload['denomination_breakdown'] as List<Map<String, dynamic>>;
+      expect(rows, hasLength(2));
+      expect(rows.first['value'], 50.0);
+      expect(rows.first['quantity'], 2);
+      expect(rows.first['subtotal'], 100.0);
+    });
+
+    testWidgets('accepting a difference needs a reason before it can confirm',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+
+      // €800.00 against an expected €842.50 — a real shortfall.
+      for (final String key in <String>['8', '0', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cash difference detected'), findsOneWidget);
+
+      await tester.tap(find.text('Accept difference'));
+      await tester.pumpAndSettle();
+
+      // Accepted, but unexplained: still gated, and the hint says why.
+      expect(find.text('Add a reason for the cash difference first'),
+          findsOneWidget);
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+      expect(manager.closedDates, isEmpty);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Reason for difference'),
+        'Change error at morning shift',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add a reason for the cash difference first'),
+          findsNothing);
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+
+      expect(manager.closedDates, hasLength(1));
+      expect(manager.closedPayloads.single['difference_reason'],
+          'Change error at morning shift');
+    });
+
+    testWidgets('a wrong manager PIN blocks the close and says so',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      for (final String key in <String>['8', '4', '2', ',', '5', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Enter PIN'), '9999');
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+
+      // Checked against the device's configuration_code server-side, and a
+      // rejection stops the close rather than being quietly ignored.
+      expect(manager.verifiedPins, <String>['9999']);
+      expect(find.text('Incorrect code'), findsOneWidget);
+      expect(manager.closedDates, isEmpty);
+
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Enter PIN'), '1234');
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+
+      expect(manager.closedDates, hasLength(1));
+    });
+
+    testWidgets('an empty manager PIN is not verified and does not block',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      for (final String key in <String>['8', '4', '2', ',', '5', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+
+      // Nothing in this system makes the PIN mandatory, so an untouched field
+      // must not invent a gate — but it must also not fake a verification.
+      expect(manager.verifiedPins, isEmpty);
+      expect(manager.closedDates, hasLength(1));
+    });
+
+    testWidgets('an unsent accountant email is reported, not implied',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      for (final String key in <String>['8', '4', '2', ',', '5', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Email report to accountant'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+
+      expect(manager.closedPayloads.single['email_report'], isTrue);
+      // The stub reports email_sent = false, as the server does for a branch
+      // with no address on file. A ticked box must not imply a sent email.
+      expect(
+        find.textContaining('the email could not be sent'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Close Day modal Annuleren dismisses without closing',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 926));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      expect(find.text('Annuleren'), findsOneWidget);
+
+      await tester.tap(find.text('Annuleren'));
+      await tester.pumpAndSettle();
+
+      expect(manager.closedDates, isEmpty);
+      expect(find.text('Enter counted amount'), findsNothing);
+    });
+
+    testWidgets('Close Day Step 1 shows expected from opening float formula',
+        (tester) async {
+      await pumpAt(tester, const Size(1366, 926));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+
+      // Fixture: 150 + 724.50 − 32 = 842.50
+      expect(find.textContaining('842.50'), findsWidgets);
+      expect(
+        find.text('Opening float + cash sales − cash refunds'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a closed day shows the closed state instead of a live CTA',
@@ -489,23 +742,43 @@ void main() {
       expect(find.text('Close Day'), findsNothing);
     });
 
-    testWidgets('fabricates nothing for staff or the retired drawer rows',
+    testWidgets('fabricates nothing for staff, and shows no count until counted',
         (tester) async {
       await pumpAt(tester, const Size(1366, 926));
 
       // Decision 2: the panel ships complete but honest.
       expect(find.text("Staff attribution isn't tracked yet"), findsOneWidget);
 
-      // Decision 1: the retired reconciliation rows must not appear at all —
-      // a zero-filled "Difference: € 0.00" would read as a balanced drawer.
-      expect(find.text('Opening float'), findsNothing);
-      expect(find.text('Actual count'), findsNothing);
-      expect(find.text('Expected in drawer'), findsNothing);
-      expect(find.text('Difference'), findsNothing);
-      expect(find.text('Drawer count not tracked'), findsOneWidget);
+      // The derived rows are real now — opening float carries from yesterday's
+      // counted close, so Expected is computed rather than invented.
+      expect(find.text('Opening float'), findsOneWidget);
+      expect(find.text('Expected in drawer'), findsOneWidget);
+      expect(find.textContaining('Cash In (62)'), findsOneWidget);
 
-      // What is real is still shown.
-      expect(find.textContaining('Cash sales (62)'), findsOneWidget);
+      // But this day has not been counted, so the counted rows stay absent.
+      // A zero-filled "Difference: € 0.00" would read as a balanced drawer.
+      expect(find.text('Actual count'), findsNothing);
+      expect(find.text('Difference'), findsNothing);
+    });
+
+    testWidgets('a counted, closed day shows its actual count and difference',
+        (tester) async {
+      final Map<String, dynamic> payload = _reportPayload();
+      payload['closed'] = true;
+      payload['cash_drawer'] = <String, dynamic>{
+        ...payload['cash_drawer'] as Map<String, dynamic>,
+        'counted_amount': 840.0,
+        'discrepancy_amount': -2.5,
+        'discrepancy_resolution': 'accepted',
+        'discrepancy_note': 'Change error at morning shift',
+      };
+
+      await pumpAt(tester, const Size(1366, 926), payload: payload);
+
+      expect(find.text('Actual count'), findsOneWidget);
+      expect(find.text('€ 840.00'), findsWidgets);
+      expect(find.text('Difference'), findsOneWidget);
+      expect(find.text('−€ 2.50'), findsWidgets);
     });
 
     testWidgets('a pre-migration closed day says so rather than showing zeros',
@@ -827,6 +1100,105 @@ void main() {
       );
     }, skip: !Platform.isMacOS && !Platform.isLinux);
 
+    testWidgets('Close Day Step 1 golden at 1366 (Figma 1641:6042)',
+        (tester) async {
+      await pumpAt(
+        tester,
+        const Size(1366, 1133),
+        initialDate: DateTime(2026, 6, 25),
+      );
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/pos_close_day_step1_1366.png'),
+      );
+    }, skip: !Platform.isMacOS && !Platform.isLinux);
+
+    testWidgets('Close Day Step 1 denomination golden (Figma 1641:6362)',
+        (tester) async {
+      await pumpAt(
+        tester,
+        const Size(1366, 1500),
+        initialDate: DateTime(2026, 6, 25),
+      );
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Count by denomination'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/pos_close_day_denomination_1366.png'),
+      );
+    }, skip: !Platform.isMacOS && !Platform.isLinux);
+
+    testWidgets('Close Day Step 2 discrepancy golden (Figma 1641:6706)',
+        (tester) async {
+      await pumpAt(
+        tester,
+        const Size(1366, 1200),
+        initialDate: DateTime(2026, 6, 25),
+      );
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      // €840.00 against €842.50 — the Figma's own −€2.50.
+      for (final String key in <String>['8', '4', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/pos_close_day_step2_1366.png'),
+      );
+    }, skip: !Platform.isMacOS && !Platform.isLinux);
+
+    testWidgets('Close Day Step 2 resolved golden (Figma 1641:6761)',
+        (tester) async {
+      await pumpAt(
+        tester,
+        const Size(1366, 1200),
+        initialDate: DateTime(2026, 6, 25),
+      );
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      for (final String key in <String>['8', '4', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      // Both blockers cleared, both boxes ticked, PIN entered — the state
+      // Figma 1641:6761 shows, with Confirm live.
+      await tester.tap(find.text('Accept difference'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Reason for difference'),
+        'Change error at morning shift',
+      );
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Print Z-report'));
+      await tester.tap(find.text('Email report to accountant'));
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Enter PIN'), '1234');
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/pos_close_day_step2_resolved_1366.png'),
+      );
+    }, skip: !Platform.isMacOS && !Platform.isLinux);
+
     testWidgets('Report Overview golden on a narrow tablet (2-column reflow)',
         (tester) async {
       await pumpAt(
@@ -840,6 +1212,50 @@ void main() {
         matchesGoldenFile('goldens/pos_report_900.png'),
       );
     }, skip: !Platform.isMacOS && !Platform.isLinux);
+  });
+
+  group('Close Day modal responsiveness', () {
+    // The modal is a fixed 560px card that clamps to the window. These widths
+    // straddle that: at 720 and below the card is narrower than its design
+    // width, which is where the denomination table's two fixed columns and the
+    // paired Step 2 buttons would overflow if they were left unconstrained.
+    for (final Size size in <Size>[
+      const Size(1366, 1500),
+      const Size(1024, 1400),
+      const Size(720, 1400),
+      const Size(600, 1400),
+    ]) {
+      testWidgets('Step 1 + denomination fit at ${size.width.toInt()}px',
+          (tester) async {
+        await pumpAt(tester, size, initialDate: DateTime(2026, 6, 25));
+
+        await tester.tap(find.text('Close Day'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        await tester.tap(find.text('Count by denomination'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('Step 2 fits at ${size.width.toInt()}px', (tester) async {
+        await pumpAt(tester, size, initialDate: DateTime(2026, 6, 25));
+
+        await tester.tap(find.text('Close Day'));
+        await tester.pumpAndSettle();
+        for (final String key in <String>['8', '4', '0']) {
+          await tester.tap(find.text(key).first);
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        // Discrepancy + pending-orders banners are both showing here, which is
+        // the tallest and widest Step 2 gets.
+        expect(find.text('Cash difference detected'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 
   test('spec keeps the Figma palette', () {

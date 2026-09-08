@@ -155,6 +155,35 @@ class PosReportData {
   double get cashRefunds => _d(_cashSection['cash_refunds']);
   int get cashRefundsCount => _i(_cashSection['cash_refunds_count']);
 
+  /// Opening float carried from yesterday's counted close (or 0).
+  double get openingFloat => _d(_cashSection['opening_float']);
+
+  /// `Opening float + cash sales − cash refunds` — Close Day Step 1 expected.
+  double get expectedInDrawer {
+    if (_cashSection.containsKey('expected_cash')) {
+      return _d(_cashSection['expected_cash']);
+    }
+    return openingFloat + cashSales - cashRefunds;
+  }
+
+  bool get cashReconciliationAvailable =>
+      _cashSection['reconciliation_available'] == true;
+
+  /// What the drawer was actually counted at when this day was closed, or null
+  /// when the close skipped counting. Absent rather than zero on purpose: a
+  /// zero here would read as "counted, and the drawer was empty".
+  double? get countedAmount => _cashSection['counted_amount'] == null
+      ? null
+      : _d(_cashSection['counted_amount']);
+
+  /// Counted − expected, on a closed day that was counted.
+  double? get discrepancyAmount => _cashSection['discrepancy_amount'] == null
+      ? null
+      : _d(_cashSection['discrepancy_amount']);
+
+  String? get discrepancyNote =>
+      _cashSection['discrepancy_note']?.toString();
+
   // ── Refunds & discounts ───────────────────────────────────────────────
   Map<String, dynamic> get _voided => _map(raw['voided']);
   Map<String, dynamic> get _discounts => _map(raw['discounts']);

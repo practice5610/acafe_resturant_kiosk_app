@@ -1,12 +1,17 @@
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/domain/pos_z_report_print.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_close_day_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_close_day_step2.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_date_header.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_hourly_chart.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_panels.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_summary_cards.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 /// Report — Overview, Figma **1641:5518**.
@@ -14,8 +19,8 @@ import 'package:provider/provider.dart';
 /// A display layer over the Z Report, not a second one. Every figure comes from
 /// `kiosk-manager/sales-overview`, which resolves to `ZReportService::preview()`
 /// for an open day and to the frozen `z_reports` snapshot for a closed one — and
-/// Close Day calls the existing `zReportClose` endpoint unchanged. There is
-/// deliberately no day-closing, locking or record-generation logic in this file.
+/// Close Day still goes through `zReportClose`, now with counted cash fields.
+/// There is deliberately no day-closing, locking or snapshot logic in this file.
 class PosReportScreen extends StatefulWidget {
   /// Overrides the day the screen opens on. Production always wants today, but
   /// a golden that renders `DateTime.now()` silently rots the moment the date
@@ -65,68 +70,51 @@ class _PosReportScreenState extends State<PosReportScreen> {
   Future<void> _confirmCloseDay() async {
     final KioskManagerProvider manager = context.read<KioskManagerProvider>();
 
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        backgroundColor: PosUI.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(posPx(context, PosReportSpec.cardRadius)),
-        ),
-        title: Text(
-          'Close ${PosReportDateHeader.formatLong(_date)}?',
-          style: PosUI.text(context, size: 18, weight: FontWeight.w800),
-        ),
-        content: Text(
-          'This finalises the Z Report for the day and cannot be undone. '
-          'The totals shown here become the permanent record for this branch.',
-          style: PosUI.text(
-            context,
-            size: 14,
-            weight: FontWeight.w400,
-            color: PosReportSpec.inkMuted,
-            height: 1.4,
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'Cancel',
-              style: PosUI.text(context, size: 14, weight: FontWeight.w700),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Close Day',
-              style: PosUI.text(
-                context,
-                size: 14,
-                weight: FontWeight.w800,
-                color: PosUI.danger,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    // Only render the count modal against data that belongs to this day —
+    // same guard as the dashboard body.
+    final PosReportData? data = manager.salesDataDate == _reportDate
+        ? PosReportData.from(manager.salesData)
+        : null;
+    if (data == null) return;
 
-    if (confirmed != true || !mounted) return;
+    // Figma **1641:6042** + **1641:6707** — Count Cash Drawer, then Review &
+    // Confirm. Close Day still goes through closeZReport below.
+    final PosCloseDayResult? result = await PosCloseDayDialog.show(
+      context,
+      date: _date,
+      data: data,
+      verifyManagerPin: manager.verifyCloseDayPin,
+    );
+    if (result == null || !mounted) return;
+
+    if (result.action == PosCloseDayStep2Action.backToOrders) {
+      context.go(PosRoutes.orders);
+      return;
+    }
+    if (result.action != PosCloseDayStep2Action.confirm) return;
 
     // Captured before the await: `context` must not be touched across an async
     // gap, and this screen always has a Scaffold ancestor (PosScaffold).
-    // ScaffoldMessenger rather than showCustomSnackBarHelper because that
-    // helper resolves the *global* navigator context, which is fine in the app
-    // but unreachable from a widget test — and the close path is worth testing.
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
 
-    // The existing device-auth close. A second close of the same day is
-    // rejected by the backend's unique index with a 409, which the provider's
-    // ApiChecker surfaces — this screen adds no locking of its own.
-    final bool success = await manager.closeZReport(reportDate: _reportDate);
+    // No opening float is sent: the server derives it from yesterday's counted
+    // close, which is also where the figure shown in Step 1 came from.
+    final bool success = await manager.closeZReport(
+      reportDate: _reportDate,
+      closingCashCounted: result.countedAmount,
+      denominationBreakdown: result.denominationBreakdown,
+      differenceReason: result.differenceReason,
+      emailReport: result.emailReport,
+    );
     if (!mounted) return;
     if (success) {
+      // Printed from the close response — the frozen snapshot, carrying the
+      // z_number and the counted-cash figures this close just recorded.
+      final PosReportData? closed = PosReportData.from(manager.salesData);
+      if (result.printZReport && closed != null) {
+        posPrintZReport(closed, _date);
+      }
+
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -134,7 +122,10 @@ class _PosReportScreenState extends State<PosReportScreen> {
             behavior: SnackBarBehavior.floating,
             backgroundColor: PosReportSpec.ink,
             content: Text(
-              'Day closed — Z Report finalised.',
+              _closeMessage(
+                emailRequested: result.emailReport,
+                emailSent: manager.lastCloseEmailSent,
+              ),
               style: PosUI.text(
                 context,
                 size: 14,
@@ -144,10 +135,18 @@ class _PosReportScreenState extends State<PosReportScreen> {
             ),
           ),
         );
-      // Re-read so the header flips to its closed state from the server's own
-      // answer rather than an assumption made here.
       _load();
     }
+  }
+
+  /// A ticked "email report" box must not imply a send that didn't happen —
+  /// the branch may have no email address on file, or the mail server may have
+  /// refused it. The server reports what actually went out; this just says so.
+  String _closeMessage({required bool emailRequested, required bool emailSent}) {
+    if (!emailRequested) return 'Day closed — Z Report finalised.';
+    return emailSent
+        ? 'Day closed — Z Report finalised and emailed.'
+        : 'Day closed — Z Report finalised, but the email could not be sent.';
   }
 
   @override

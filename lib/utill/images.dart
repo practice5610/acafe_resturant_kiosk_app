@@ -292,6 +292,11 @@ class Images {
   // POS cash payment entry (Figma 1641:3751)
   static const String posFieldClearSvg = 'assets/svg/pos_field_clear.svg';
   static const String posKeyBackspaceSvg = 'assets/svg/pos_key_backspace.svg';
+  // POS Close Day modal (Figma 1641:6042 / 1641:6707)
+  static const String posXCircleSvg = 'assets/svg/pos_x_circle.svg';
+  static const String posCloseDayChevronSvg =
+      'assets/svg/pos_close_day_chevron.svg';
+  static const String posAlertTriangleSvg = 'assets/svg/pos_alert_triangle.svg';
   // POS payment declined (Figma 1641:4218)
   static const String posErrorCircleSvg = 'assets/svg/pos_error_circle.svg';
 

@@ -55,6 +55,27 @@ class KioskManagerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// One-off PIN check for the Close Day manager gate. Returns null when the
+  /// code is correct, otherwise the message to show.
+  ///
+  /// Hits the same server-side `verify-code` (hash_equals against the device's
+  /// configuration_code) as [verifyPin], but deliberately touches none of the
+  /// PIN-gate state above: unlocking the manager subtree and authorising one
+  /// day-close are different questions, and a mistyped PIN here must not
+  /// surface as an error on the manager gate — nor should a correct one leave
+  /// the subtree unlocked as a side effect.
+  Future<String?> verifyCloseDayPin(String code) async {
+    final apiResponse = await kioskManagerRepo.verifyCode(code);
+    final response = apiResponse.response;
+
+    if (response != null && response.statusCode == 200) return null;
+
+    return (response?.data is Map
+            ? response!.data['message']?.toString()
+            : null) ??
+        'Incorrect code';
+  }
+
   /// Called when navigating back to the menu from anywhere in the manager
   /// subtree, so re-entering requires the PIN again.
   void lockManagerAccess() {
@@ -114,9 +135,21 @@ class KioskManagerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether the last successful close actually emailed the report.
+  ///
+  /// False both when the operator didn't ask for it and when the branch has no
+  /// email address on file — the screen tells the operator which, rather than
+  /// letting a ticked box imply a send that never happened.
+  bool _lastCloseEmailSent = false;
+  bool get lastCloseEmailSent => _lastCloseEmailSent;
+
   Future<bool> closeZReport({
     required String reportDate,
     String? comment,
+    double? closingCashCounted,
+    List<Map<String, dynamic>>? denominationBreakdown,
+    String? differenceReason,
+    bool emailReport = false,
   }) async {
     _closingRegister = true;
     notifyListeners();
@@ -124,12 +157,17 @@ class KioskManagerProvider extends ChangeNotifier {
     final apiResponse = await kioskManagerRepo.closeZReport(
       reportDate: reportDate,
       comment: comment,
+      closingCashCounted: closingCashCounted,
+      denominationBreakdown: denominationBreakdown,
+      differenceReason: differenceReason,
+      emailReport: emailReport,
     );
 
     _closingRegister = false;
     final success =
         apiResponse.response != null && apiResponse.response!.statusCode == 200;
     if (success) {
+      _lastCloseEmailSent = apiResponse.response!.data['email_sent'] == true;
       final data = apiResponse.response!.data['data'];
       if (data != null) {
         // The close response IS the freshest view of that day, so it supersedes

@@ -50,17 +50,38 @@ class KioskManagerRepo {
     }
   }
 
+  /// Closes the day, optionally carrying the Close Day cash count.
+  ///
+  /// There is deliberately no opening-float parameter: the server derives it
+  /// from yesterday's counted close, so sending it back would only let a
+  /// client disagree with the figure it was shown.
   Future<ApiResponseModel> closeZReport({
     required String reportDate,
     String? comment,
+    double? closingCashCounted,
+    List<Map<String, dynamic>>? denominationBreakdown,
+    String? differenceReason,
+    bool emailReport = false,
   }) async {
     try {
+      final Map<String, dynamic> data = <String, dynamic>{
+        'report_date': reportDate,
+        'closing_comment': comment,
+      };
+      if (closingCashCounted != null) {
+        data['closing_cash_counted'] = closingCashCounted;
+      }
+      if (denominationBreakdown != null && denominationBreakdown.isNotEmpty) {
+        data['denomination_breakdown'] = denominationBreakdown;
+      }
+      if (differenceReason != null && differenceReason.isNotEmpty) {
+        data['difference_reason'] = differenceReason;
+      }
+      if (emailReport) data['email_report'] = true;
+
       final response = await dioClient.post(
         '/api/v1/kiosk/manager/z-report/close',
-        data: {
-          'report_date': reportDate,
-          'closing_comment': comment,
-        },
+        data: data,
       );
       return ApiResponseModel.withSuccess(response);
     } catch (e) {

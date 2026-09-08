@@ -371,17 +371,17 @@ class _Thumb extends StatelessWidget {
 
 // ── Cash Drawer Summary ─────────────────────────────────────────────────
 
-/// `cash-drawer-card`, in its reduced honest form (Phase 1, Decision 1).
+/// `cash-drawer-card` — Opening float / Cash In / Cash Out / Expected, plus
+/// Actual count and Difference once the drawer has actually been counted.
 ///
-/// Figma draws Opening float / Cash In / Cash Out / Expected / Actual count /
-/// Difference. Only two of those are real today: cash taken, and cash handed
-/// back on cancelled-but-paid orders. Full drawer reconciliation was
-/// deliberately retired in migration `2026_08_06_000001` — there is no float
-/// record, no paid-in/paid-out ledger and no counted-cash input anywhere in the
-/// system, so Expected and Difference could only be fabricated.
+/// The opening float is not an entry anyone makes: it is yesterday's counted
+/// close carried forward (`ZReportService::openingFloatFor`), so Expected is a
+/// real derived figure rather than a fabricated one.
 ///
-/// The missing rows are named rather than dropped silently, so the panel reads
-/// as "not tracked yet" instead of "the drawer balanced perfectly".
+/// Actual count and Difference appear **only** on a day that was counted
+/// through Close Day. They are absent, never zero-filled, on an open day or a
+/// close that skipped the count — a zeroed Difference reads as a balanced
+/// drawer, which is a claim this panel has no right to make.
 class PosReportCashDrawerPanel extends StatelessWidget {
   final PosReportData data;
 
@@ -389,6 +389,9 @@ class PosReportCashDrawerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double? counted = data.countedAmount;
+    final double? difference = data.discrepancyAmount;
+
     return PosReportCard(
       title: 'Cash Drawer Summary',
       compactTitle: true,
@@ -399,24 +402,51 @@ class PosReportCashDrawerPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 PosReportDetailRow(
-                  label: 'Cash sales (${data.cashSalesCount})',
+                  label: 'Opening float',
+                  value: PosHomeSpec.formatPrice(data.openingFloat,
+                      padZero: false),
+                ),
+                SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
+                PosReportDetailRow(
+                  label: 'Cash In (${data.cashSalesCount})',
                   value: PosHomeSpec.formatPrice(data.cashSales, padZero: false),
                 ),
                 SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
                 PosReportDetailRow(
-                  label: 'Cash refunds (${data.cashRefundsCount})',
-                  value: '−${PosHomeSpec.formatPrice(data.cashRefunds, padZero: false)}',
+                  label: 'Cash Out (${data.cashRefundsCount} refunds)',
+                  value:
+                      '−${PosHomeSpec.formatPrice(data.cashRefunds, padZero: false)}',
                   valueColor:
                       data.cashRefunds > 0 ? PosUI.danger : PosReportSpec.ink,
                 ),
-                SizedBox(height: posPx(context, PosReportSpec.cardInnerGap)),
-                const PosReportEmptyState(
-                  message: 'Drawer count not tracked',
-                  detail:
-                      'Opening float, expected total and counted cash need the '
-                      'cash-reconciliation feature, which is not part of this '
-                      'release.',
+                SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
+                PosReportDetailRow(
+                  label: 'Expected in drawer',
+                  labelWeight: FontWeight.w700,
+                  value: PosHomeSpec.formatPrice(data.expectedInDrawer,
+                      padZero: false),
                 ),
+                if (counted != null) ...<Widget>[
+                  SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
+                  PosReportDetailRow(
+                    label: 'Actual count',
+                    value: PosHomeSpec.formatPrice(counted, padZero: false),
+                  ),
+                  if (difference != null) ...<Widget>[
+                    SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
+                    PosReportDetailRow(
+                      label: 'Difference',
+                      labelWeight: FontWeight.w700,
+                      labelColor:
+                          difference.abs() >= 0.005 ? PosUI.danger : null,
+                      valueColor:
+                          difference.abs() >= 0.005 ? PosUI.danger : null,
+                      value: difference < 0
+                          ? '−${PosHomeSpec.formatPrice(difference.abs(), padZero: false)}'
+                          : PosHomeSpec.formatPrice(difference, padZero: false),
+                    ),
+                  ],
+                ],
               ],
             ),
     );
