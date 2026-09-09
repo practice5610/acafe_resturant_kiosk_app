@@ -321,10 +321,29 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('opens with the exact total already tendered', (tester) async {
+      await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
+      await selectCash(tester);
+
+      expect(find.text(PosHomeSpec.formatPrice(6, padZero: false)),
+          findsWidgets,
+          reason: 'exact is the common case, so it is the default, not €0');
+      expect(
+        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+            .selectedDenomination,
+        const PosCashDenomination.exact(),
+      );
+      expect(confirmEnabled(tester), isTrue);
+    });
+
     testWidgets('the keypad builds up the tendered amount', (tester) async {
       await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
       await selectCash(tester);
 
+      // Cash opens pre-filled with the exact total; clear it first so the
+      // keypad is building up a manual amount from scratch.
+      await tester.tap(find.bySemanticsLabel('Clear amount tendered'));
+      await tester.pump();
       expect(find.text(PosHomeSpec.formatPrice(0, padZero: false)),
           findsWidgets);
 
@@ -400,6 +419,9 @@ void main() {
       await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
       await selectCash(tester);
 
+      // Clear the exact-tender default to exercise a manual, partial tender.
+      await tester.tap(find.bySemanticsLabel('Clear amount tendered'));
+      await tester.pump();
       expect(confirmEnabled(tester), isFalse, reason: 'nothing tendered');
 
       await tapKey(tester, '5');
@@ -433,7 +455,9 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('switching back to Card drops the tender', (tester) async {
+    testWidgets(
+        'switching to Card drops the tender, switching back re-defaults to Exact',
+        (tester) async {
       await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
       await selectCash(tester);
       await tester.tap(find.text('€ 20'));
@@ -441,13 +465,20 @@ void main() {
 
       await tester.tap(find.text('Card'));
       await tester.pump();
+
+      expect(find.byType(PosCashPanel), findsNothing,
+          reason: 'Card carries no tender panel at all');
+
       await selectCash(tester);
 
+      // Back on Cash, the €20 chip is gone — the tender re-defaults to
+      // Exact, not to whatever the operator had chosen before switching away.
       expect(
-        tester.widget<PosCashPanel>(find.byType(PosCashPanel)).entry.isEmpty,
-        isTrue,
+        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+            .selectedDenomination,
+        const PosCashDenomination.exact(),
       );
-      expect(confirmEnabled(tester), isFalse);
+      expect(confirmEnabled(tester), isTrue);
     });
 
     testWidgets('the field clear button wipes the amount', (tester) async {

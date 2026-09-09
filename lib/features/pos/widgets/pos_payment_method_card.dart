@@ -66,7 +66,7 @@ class PosPaymentMethodCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: radius,
           child: Container(
-            height: height,
+            constraints: BoxConstraints(minHeight: height),
             padding: EdgeInsets.all(density.px(PosPaymentSpec.methodPadding)),
             decoration: BoxDecoration(
               borderRadius: radius,
@@ -78,6 +78,7 @@ class PosPaymentMethodCard extends StatelessWidget {
               ),
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(

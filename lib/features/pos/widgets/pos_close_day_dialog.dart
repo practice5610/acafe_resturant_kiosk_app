@@ -734,7 +734,7 @@ class _Footer extends StatelessWidget {
       children: <Widget>[
         Expanded(
           child: _ActionButton(
-            label: 'Annuleren',
+            label: 'Cancel',
             filled: false,
             onTap: onCancel,
           ),

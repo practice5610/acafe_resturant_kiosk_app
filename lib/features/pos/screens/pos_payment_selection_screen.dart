@@ -95,6 +95,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// operator actually chose. See [_onCashKey].
   PosCashDenomination? _denomination;
 
+  /// Guards the exact-tender default below so it seeds [_cash] once per
+  /// screen, not on every rebuild — otherwise it would fight the Clear button,
+  /// which sets the amount back to empty on purpose.
+  bool _cashDefaulted = false;
+
   /// Which tenders Settings → Payments leaves available on this terminal.
   ///
   /// Read once as the screen opens rather than watched: an operator cannot
@@ -151,15 +156,25 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     }
   }
 
-  void _selectMethod(PosPaymentMethod method) {
+  void _selectMethod(PosPaymentMethod method, double total) {
     if (_sale.paymentMethod == method) return;
     setState(() {
       _sale.paymentMethod = method;
-      // Switching away from cash abandons the tender. Leaving a stale amount
-      // behind would let an operator key €50, switch to card, switch back and
-      // confirm against a figure they had already moved on from.
-      _cash = _cash.clear();
-      _denomination = null;
+      if (method == PosPaymentMethod.cash) {
+        // Exact is the common case at a till — most cash sales are paid to
+        // the cent — so landing on it saves the typical operator a keypad
+        // entry. It is a default, not a lock-in: any digit or Clear moves the
+        // tender away from it exactly as before.
+        _cash = _cash.withCents(_totalCents(total));
+        _denomination = const PosCashDenomination.exact();
+      } else {
+        // Switching away from cash abandons the tender. Leaving a stale
+        // amount behind would let an operator key €50, switch to card,
+        // switch back and confirm against a figure they had already moved on
+        // from.
+        _cash = _cash.clear();
+        _denomination = null;
+      }
     });
   }
 
@@ -407,6 +422,18 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     final double subtotal = kioskCartTotal(lines);
     final double total = kioskPayableTotal(lines, discount);
 
+    // Same exact-tender default as switching onto Cash by hand (see
+    // _selectMethod) — but for the sale that already opens on Cash, so an
+    // operator never has to touch Exact themselves just to match what
+    // switching methods would have given them for free.
+    if (!_cashDefaulted) {
+      _cashDefaulted = true;
+      if (_isCash && _cash.isEmpty) {
+        _cash = _cash.withCents(_totalCents(total));
+        _denomination = const PosCashDenomination.exact();
+      }
+    }
+
     return Scaffold(
       backgroundColor: PosHomeSpec.pageBg,
       body: SafeArea(
@@ -462,7 +489,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                   subtotal: subtotal,
                   discount: discount,
                   total: total,
-                  onSelectMethod: _selectMethod,
+                  onSelectMethod: (method) => _selectMethod(method, total),
                   cash: _cash,
                   denomination: _denomination,
                   totalCents: _totalCents(total),
@@ -739,9 +766,14 @@ class _Content extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Width alone decides the structure, never height — the same rule
+        // PosResponsive.desktopFloor documents for the rest of POS. A short
+        // window (a laptop with a bookmarks bar, a half-height browser) is
+        // exactly what PosPaymentDensity.fit exists to absorb by shrinking
+        // type and spacing, with the SingleChildScrollView below as the last
+        // resort — it must not also flip the page into a different structure.
         final bool sideBySide =
-            constraints.maxWidth >= PosPaymentSpec.stackedBelowWidth &&
-                constraints.maxHeight >= PosPaymentSpec.stackedBelowHeight;
+            constraints.maxWidth >= PosPaymentSpec.stackedBelowWidth;
 
         if (!sideBySide) {
           // `content-area` in 1641:3751 is `pb-32 px-32` — no top inset. The
@@ -801,9 +833,18 @@ class _Content extends StatelessWidget {
         // lands inside the height this window actually has, rather than
         // scrolling past the fold on a 1366x768 laptop or a browser window
         // with a bookmarks bar. See [PosPaymentDensity].
+        //
+        // `cash: true` always, regardless of the method actually selected:
+        // the Cash/Card method cards are shared chrome, drawn before the
+        // operator has picked either one. Fitting them against whichever
+        // method is current would resize those cards the instant the
+        // operator switches — Card free to sit at full size, Cash squeezed
+        // down to make room for its panel. Sizing against cash's larger
+        // requirement always is the strictly tighter fit, so it is also
+        // correct for Card: nothing on screen needs more room than that.
         final PosPaymentDensity density = PosPaymentDensity.fit(
           available: constraints.maxHeight - padding.vertical,
-          cash: method == PosPaymentMethod.cash,
+          cash: true,
           discount: discount > 0,
         );
 

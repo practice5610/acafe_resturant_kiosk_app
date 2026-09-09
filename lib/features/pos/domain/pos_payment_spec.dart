@@ -33,9 +33,9 @@ class PosPaymentSpec {
   static const int paymentFlex = 634;
   static const double contentMaxWidth = 1300; // 634 + 32 + 634
 
-  /// Below either of these the cards stack and the page scrolls instead.
+  /// Below this the cards stack and the page scrolls instead. Width only —
+  /// see the sideBySide comment in pos_payment_selection_screen.dart.
   static const double stackedBelowWidth = 900;
-  static const double stackedBelowHeight = 560;
 
   /// Above this the pair keeps the Figma proportions. Between here and
   /// [stackedBelowWidth] the window is a staff tablet or a half-screen browser

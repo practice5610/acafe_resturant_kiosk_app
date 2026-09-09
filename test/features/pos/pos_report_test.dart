@@ -704,15 +704,15 @@ void main() {
       );
     });
 
-    testWidgets('Close Day modal Annuleren dismisses without closing',
+    testWidgets('Close Day modal Cancel dismisses without closing',
         (tester) async {
       final _StubManager manager = await pumpAt(tester, const Size(1366, 926));
 
       await tester.tap(find.text('Close Day'));
       await tester.pumpAndSettle();
-      expect(find.text('Annuleren'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
 
-      await tester.tap(find.text('Annuleren'));
+      await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, isEmpty);
