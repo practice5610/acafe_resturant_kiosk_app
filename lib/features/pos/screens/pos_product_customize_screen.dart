@@ -1070,6 +1070,7 @@ class _AddOnsSection extends StatelessWidget {
                         priceDelta: addon.effectivePrice,
                         imageUrl: _addonImageUrl(context, addon),
                         selected: selected,
+                        isDefault: isDefault,
                         quantity: quantity,
                         showQuantity:
                             selected && !group.isSingle && !isDefault,
@@ -1117,6 +1118,7 @@ class _AddOnCard extends StatelessWidget {
   final double priceDelta;
   final String imageUrl;
   final bool selected;
+  final bool isDefault;
   final int quantity;
   final bool showQuantity;
   final VoidCallback onTap;
@@ -1129,6 +1131,7 @@ class _AddOnCard extends StatelessWidget {
     required this.priceDelta,
     required this.imageUrl,
     required this.selected,
+    this.isDefault = false,
     required this.quantity,
     required this.showQuantity,
     required this.onTap,
@@ -1138,8 +1141,10 @@ class _AddOnCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Color ground =
+        isDefault ? PosCustomizeSpec.includedBg : PosCustomizeSpec.panelBg;
     return Material(
-      color: PosCustomizeSpec.panelBg,
+      color: ground,
       borderRadius: BorderRadius.circular(PosCustomizeSpec.addonCardRadius),
       child: InkWell(
         onTap: onTap,
@@ -1155,11 +1160,14 @@ class _AddOnCard extends StatelessWidget {
             PosCustomizeSpec.addonPadBottom,
           ),
           decoration: BoxDecoration(
+            color: ground,
             borderRadius:
                 BorderRadius.circular(PosCustomizeSpec.addonCardRadius),
             border: Border.all(
-              color: selected ? Colors.black : PosCustomizeSpec.mutedBorder,
-              width: selected ? 1.0 : 0.788,
+              color: isDefault
+                  ? PosCustomizeSpec.includedBorder
+                  : (selected ? Colors.black : PosCustomizeSpec.mutedBorder),
+              width: (isDefault || selected) ? 1.0 : 0.788,
             ),
           ),
           child: Column(

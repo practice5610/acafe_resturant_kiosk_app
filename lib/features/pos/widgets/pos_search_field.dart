@@ -50,7 +50,7 @@ class PosSearchFieldStyle {
     hintAlpha: 0.4,
   );
 
-  /// Settings → Products (Figma **1641:4003**).
+  /// Settings → Products / Orders filters (Figma **1641:4003**).
   static const PosSearchFieldStyle settings = PosSearchFieldStyle(
     height: 42,
     radius: 8,
@@ -60,13 +60,17 @@ class PosSearchFieldStyle {
     gap: 12,
     iconSize: 18,
     textSize: 14,
+    // Match the icon box so hint + glyph share one vertical center on web.
+    textHeight: 18 / 14,
     hintAlpha: 0.6,
   );
 }
 
-/// Product search above the grid. Filters the already-loaded branch menu
-/// client-side — no network round trip, so it stays instant and works offline,
-/// which matters on a counter terminal.
+/// Search field with icon + hint kept on one horizontal baseline.
+///
+/// Icon lives in [InputDecoration.prefixIcon] (not a sibling [Row] child) so
+/// Flutter centers the glyph with the typed / placeholder text together —
+/// the old Row layout drifted on web where TextField metrics differ from SVG.
 class PosSearchField extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -93,49 +97,59 @@ class PosSearchField extends StatelessWidget {
       height: style.textHeight,
     );
 
-    return Container(
+    return SizedBox(
       height: style.height,
-      padding: EdgeInsets.symmetric(horizontal: style.paddingH),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(style.radius),
-        border: Border.all(
-          color: style.borderColor,
-          width: style.borderWidth,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: style.iconSize,
-            height: style.iconSize,
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        cursorColor: PosHomeSpec.ink,
+        textAlignVertical: TextAlignVertical.center,
+        style: textStyle,
+        decoration: InputDecoration(
+          isDense: true,
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: EdgeInsets.only(right: style.paddingH),
+          prefixIcon: Padding(
+            padding: EdgeInsets.only(left: style.paddingH, right: style.gap),
             child: SvgPicture.asset(
               Images.posSearchSvg,
               width: style.iconSize,
               height: style.iconSize,
               fit: BoxFit.contain,
+              alignment: Alignment.center,
             ),
           ),
-          SizedBox(width: style.gap),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              cursorColor: PosHomeSpec.ink,
-              textAlignVertical: TextAlignVertical.center,
-              style: textStyle,
-              decoration: InputDecoration(
-                isCollapsed: true,
-                border: InputBorder.none,
-                hintText: hintText,
-                hintStyle: textStyle.copyWith(
-                  color: PosHomeSpec.inkAlpha(style.hintAlpha),
-                ),
-              ),
+          prefixIconConstraints: BoxConstraints(
+            minWidth: style.paddingH + style.iconSize + style.gap,
+            minHeight: style.height - style.borderWidth * 2,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(style.radius),
+            borderSide: BorderSide(
+              color: style.borderColor,
+              width: style.borderWidth,
             ),
           ),
-        ],
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(style.radius),
+            borderSide: BorderSide(
+              color: style.borderColor,
+              width: style.borderWidth,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(style.radius),
+            borderSide: BorderSide(
+              color: style.borderColor,
+              width: style.borderWidth,
+            ),
+          ),
+          hintText: hintText,
+          hintStyle: textStyle.copyWith(
+            color: PosHomeSpec.inkAlpha(style.hintAlpha),
+          ),
+        ),
       ),
     );
   }

@@ -18,6 +18,16 @@ class PosCustomizeSpec {
   static const Color mutedBorder = Color(0xFFB9B5A6);
   static const Color plusLabel = Color(0xFFFAF9F5);
 
+  /// Default (included) add-on card border — brand tan, matching the kiosk's
+  /// `_kCardBorderIncluded`.
+  static const Color includedBorder = Color(0xFFC8A97E);
+
+  /// Default (included) add-on card ground: panel cream washed with the tan
+  /// border colour, blended opaque so it cannot read as a smudge. Mirrors the
+  /// kiosk's `_kCardBgIncluded`.
+  static final Color includedBg =
+      Color.alphaBlend(includedBorder.withValues(alpha: 0.10), panelBg);
+
   static const double panePadding = 32;
   static const double sectionGap = 24;
   static const double sectionTitleGap = 16;
