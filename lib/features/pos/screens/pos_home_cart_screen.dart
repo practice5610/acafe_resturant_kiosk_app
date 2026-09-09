@@ -77,6 +77,13 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   @override
   void initState() {
     super.initState();
+    // Start warming the moment this screen exists — mirrors the PIN screen's
+    // (and kiosk welcome's) fire-and-forget `_warmMenu`. On the normal
+    // PIN-unlock path the catalog is already ready and this is a fast no-op;
+    // on a direct/deep-linked entry to `/pos-home` it means the awaited
+    // precache in `_loadMenu` below is joining warming that is already in
+    // flight, instead of starting cold.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _warmMenuEarly());
   }
 
   @override
@@ -103,6 +110,25 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     // _customerName / _table are owned by PosSaleSession and outlive this
     // screen — disposing them would break the payment screen still using them.
     super.dispose();
+  }
+
+  /// Same background warm as the PIN screen's `_warmMenu` / kiosk welcome's
+  /// `_startMenuPrefetch`: disk first, network if the cache is empty, then
+  /// fire-and-forget image precache for the selected category. Deliberately
+  /// not awaited — `_loadMenu` below does the awaited half right before the
+  /// grid renders. `CategoryProvider` dedupes the underlying network fetch,
+  /// so this never races or double-fetches against `_loadMenu`'s own
+  /// `ensureKioskMenuReady`.
+  void _warmMenuEarly() {
+    if (!mounted) return;
+    final category = context.read<CategoryProvider>();
+    final splash = context.read<SplashProvider>();
+    final locale = context.read<LocalizationProvider>().locale.languageCode;
+
+    category.warmKioskMenuFromDisk(locale).then((_) {
+      if (!mounted) return;
+      KioskMenuImageHelper.precacheAroundSelected(context, category, splash);
+    });
   }
 
   Future<void> _loadMenu() async {
@@ -133,7 +159,11 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
         category,
         splash,
         awaitVisible: true,
-      ).timeout(const Duration(seconds: 3), onTimeout: () {});
+        // Longer than the PIN screen's/kiosk welcome's 3s: unlike those
+        // paths, nothing has been warming since before this screen existed
+        // except `_warmMenuEarly` above, so this cap gets less of a head
+        // start and needs more room before giving up and painting shimmer.
+      ).timeout(const Duration(seconds: 5), onTimeout: () {});
     } catch (_) {}
     if (!mounted) return;
 

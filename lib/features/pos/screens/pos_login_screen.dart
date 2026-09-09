@@ -94,7 +94,16 @@ class _PosLoginScreenState extends State<PosLoginScreen> {
         categories,
         splash,
         awaitVisible: true,
-      ).timeout(const Duration(seconds: 3), onTimeout: () {});
+        // Kiosk's welcome screen gets this same 2nd step almost for free: a
+        // customer typically lingers reading the welcome art for a few
+        // seconds before tapping Continue, so `_warmMenu`'s background warm
+        // above is usually already done by the time this await starts. Staff
+        // punch in a 4-digit PIN in well under a second, so this await is
+        // usually doing the real waiting, not just confirming — 3s cut it off
+        // before slower networks finished, leaving the grid to paint some
+        // tiles from cache and some still shimmering. Matches the 5s used for
+        // the equivalent deep-link cap in pos_home_cart_screen.dart.
+      ).timeout(const Duration(seconds: 5), onTimeout: () {});
     } catch (_) {}
   }
 
