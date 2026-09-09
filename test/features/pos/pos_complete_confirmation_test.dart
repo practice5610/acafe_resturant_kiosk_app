@@ -14,8 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// Proves the acceptance criterion that matters most here: the board card and
 /// the Order Detail overlay show the *same* confirmation, because both route
 /// through the board's one gated `_advance`. The overlay is opened for real
-/// (⋯ → Open detail) rather than constructed with a stub callback, so what is
-/// exercised is the actual wiring, not a test double of it.
+/// (tapping the card) rather than constructed with a stub callback, so what
+/// is exercised is the actual wiring, not a test double of it.
 class _StubOrdersRepo implements PosOrdersRepo {
   int statusCalls = 0;
   String? lastStatus;
@@ -141,10 +141,9 @@ void main() {
     }
   }
 
+  // Figma has no ⋮ menu on this card — the whole tile opens the overlay.
   Future<void> openOverlay(WidgetTester tester) async {
-    await tester.tap(find.byIcon(Icons.more_vert_rounded).first);
-    await settle(tester);
-    await tester.tap(find.text('Open detail'));
+    await tester.tap(find.text('Max Mustermann').first);
     await settle(tester);
     expect(find.byType(PosOrderDetailOverlay), findsOneWidget);
   }

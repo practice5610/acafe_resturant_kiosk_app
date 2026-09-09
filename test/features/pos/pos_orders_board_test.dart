@@ -118,7 +118,8 @@ void main() {
     });
 
     test('action labels describe the transition they actually perform', () {
-      expect(PosOrderGrouping.actionLabelFor('new'), 'Start preparing');
+      // Figma 1641:4341's own CTA for a NEW order.
+      expect(PosOrderGrouping.actionLabelFor('new'), 'Accept order');
       // Not "Mark as complete", which is what Figma draws here: this rung makes
       // the order ready, it does not finish it.
       expect(PosOrderGrouping.actionLabelFor('preparing'), 'Mark as ready');

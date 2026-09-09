@@ -9,7 +9,6 @@ import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
-import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
 import 'package:acafe_customer/features/pos/providers/pos_orders_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
@@ -18,7 +17,6 @@ import 'package:acafe_customer/features/pos/widgets/pos_order_date_range_bar.dar
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
-import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -138,11 +136,13 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
   /// The board card calls it directly and the detail overlay is handed it (see
   /// [_openDetail]) rather than the provider method underneath, so the
   /// confirmation below cannot be present on one surface and missing on the
-  /// other — there is nowhere else for a completion to go.
+  /// other — there is nowhere else for an advance to go.
   ///
-  /// Only the terminal rung is gated. `preparing -> item_to_collect` and
-  /// `on_hold -> preparing` advance straight through: they are recoverable,
-  /// and Figma specifies a confirmation for completion alone.
+  /// Every rung the operator can push an order forward through is confirmed
+  /// before it fires — accepting a NEW order, marking one ready, marking one
+  /// complete — each with copy naming what it actually does. Only
+  /// `on_hold -> preparing` (Resume) is not: un-pausing an order does not
+  /// progress it, so there is nothing here for the operator to confirm.
   ///
   /// Returns the outcome rather than raising its own snackbar, because the two
   /// surfaces report failure differently — the board floats one over the
@@ -151,9 +151,15 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     final String? target = PosOrderGrouping.nextStatusFor(order.orderStatus);
     if (target == null) return const PosAdvanceResult.cancelled();
 
-    if (target == 'completed') {
-      final bool? confirmed =
-          await PosCompleteConfirmationDialog.show(context);
+    final _AdvanceConfirmation? confirmation =
+        _AdvanceConfirmation.forTransition(order.orderStatus, target);
+    if (confirmation != null) {
+      final bool? confirmed = await PosCompleteConfirmationDialog.show(
+        context,
+        heading: confirmation.heading,
+        subtext: confirmation.subtext,
+        confirmLabel: confirmation.confirmLabel,
+      );
       // Cancel, a tap outside and Escape all land here. Nothing is sent.
       if (confirmed != true || !mounted) {
         return const PosAdvanceResult.cancelled();
@@ -182,99 +188,10 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
       );
   }
 
-  /// Figma's `card-actions more-vertical`. "Open detail" is now wired — it
-  /// opens [PosOrderDetailOverlay] over the board. The remaining entries
-  /// (reprint, refund, cancel) are still separately-scoped work and stay
-  /// disabled rather than faked, so nothing here pretends to do something it
-  /// does not.
-  Future<void> _openCardMenu(BuildContext anchor, PosOrderCard order) async {
-    final RenderBox? box = anchor.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return;
-
-    final RenderBox? overlay =
-        Overlay.of(anchor).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
-
-    // Measured against the overlay, because that is the box RelativeRect is
-    // resolved against below.
-    final Offset origin = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final Size overlaySize = overlay.size;
-
-    // Figma anchors the menu's right edge to the button's right edge, which is
-    // also what keeps it on screen: these buttons sit at the right of a card in
-    // the rightmost column, so a left-anchored menu runs off the board. Clamped
-    // to the overlay either way.
-    const double menuWidth = PosHomeSpec.contextMenuWidth;
-    final double maxLeft = (overlaySize.width - menuWidth - 8).clamp(8.0, double.infinity);
-    final double left =
-        (origin.dx + box.size.width - menuWidth).clamp(8.0, maxLeft);
-    final double top = origin.dy + box.size.height + 6;
-
-    await showMenu<void>(
-      context: anchor,
-      color: PosSettingsSpec.fieldFill,
-      elevation: 12,
-      shadowColor: const Color(0x33241F20),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(PosSettingsSpec.fieldRadius),
-        side: const BorderSide(color: PosSettingsSpec.fieldBorder),
-      ),
-      // RelativeRect.fromLTRB takes *insets from each edge of the overlay*,
-      // not absolute coordinates. Passing an absolute x as `right` (and an
-      // absolute y as `bottom`) produced a rect wider than the screen, so the
-      // menu was laid out against a degenerate box and landed down-and-left of
-      // the button, on top of the cards below it.
-      position: RelativeRect.fromLTRB(
-        left,
-        top,
-        overlaySize.width - left - menuWidth,
-        overlaySize.height - top,
-      ),
-      // Fixed, not just a minimum: the longest entry would otherwise stretch
-      // the menu across several card columns.
-      constraints: const BoxConstraints(
-        minWidth: menuWidth,
-        maxWidth: menuWidth,
-      ),
-      items: [
-        PopupMenuItem<void>(
-          enabled: false,
-          height: PosReceiptsSpec.filterMenuItemHeight,
-          child: Text(
-            'Order #${order.id}',
-            style: loewBold.copyWith(
-              fontSize: PosSettingsSpec.fieldTextSize,
-              color: PosSettingsSpec.ink,
-            ),
-          ),
-        ),
-        PopupMenuItem<void>(
-          height: PosReceiptsSpec.filterMenuItemHeight,
-          onTap: () => _openDetail(order),
-          child: Text(
-            'Open detail',
-            style: loewRegular.copyWith(
-              fontSize: PosSettingsSpec.fieldTextSize,
-              color: PosSettingsSpec.ink,
-            ),
-          ),
-        ),
-        PopupMenuItem<void>(
-          enabled: false,
-          height: PosReceiptsSpec.filterMenuItemHeight,
-          child: Text(
-            'No other actions yet',
-            style: loewRegular.copyWith(
-              fontSize: PosSettingsSpec.fieldTextSize,
-              color: PosHomeSpec.inkAlpha(0.5),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   /// Open the detail overlay for one card.
+  ///
+  /// Figma has no ⋮ menu on this card — the whole card tile is the
+  /// affordance, wired through [PosOrderCardTile.onTap].
   ///
   /// The overlay is handed [PosOrdersProvider.advance] rather than its own
   /// transition call, so the modal's action and the card's own button run the
@@ -551,19 +468,19 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
               for (final PosOrderCard order in cards)
                 SizedBox(
                   width: cardWidth,
-                  child: Builder(
-                    builder: (cardContext) => PosOrderCardTile(
-                      order: order,
-                      now: _now,
-                      pending: provider.isPending(order.id),
-                      onAdvance: () async {
-                        final PosAdvanceResult result = await _advance(order);
-                        if (result.isFailed) {
-                          _showAdvanceError(order, result.message!);
-                        }
-                      },
-                      onMenu: () => _openCardMenu(cardContext, order),
-                    ),
+                  child: PosOrderCardTile(
+                    order: order,
+                    now: _now,
+                    pending: provider.isPending(order.id),
+                    onAdvance: () async {
+                      final PosAdvanceResult result = await _advance(order);
+                      if (result.isFailed) {
+                        _showAdvanceError(order, result.message!);
+                      }
+                    },
+                    // The whole card opens the detail overlay — Figma has no
+                    // ⋮ menu on this tile.
+                    onTap: () => _openDetail(order),
                   ),
                 ),
             ],
@@ -604,6 +521,54 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
         ),
       ],
     );
+  }
+}
+
+/// Confirmation copy for one forward transition on the kitchen ladder.
+///
+/// Named on the transition, not the target status alone: `new -> preparing`
+/// and `on_hold -> preparing` share a target but mean different things to the
+/// operator — accepting a new order versus un-pausing one already accepted —
+/// so only the first gets a prompt. See [PosOrdersListScreen._advance].
+class _AdvanceConfirmation {
+  final String heading;
+  final String subtext;
+  final String confirmLabel;
+
+  const _AdvanceConfirmation({
+    required this.heading,
+    required this.subtext,
+    required this.confirmLabel,
+  });
+
+  static _AdvanceConfirmation? forTransition(String fromStatus, String toStatus) {
+    if (PosOrderGrouping.newStatuses.contains(fromStatus.trim().toLowerCase())) {
+      return const _AdvanceConfirmation(
+        heading: 'Accept this order?',
+        subtext: 'This will start preparing the order.',
+        confirmLabel: 'Accept',
+      );
+    }
+
+    if (toStatus == 'item_to_collect') {
+      return const _AdvanceConfirmation(
+        heading: 'Mark order as ready?',
+        subtext: 'This will notify the customer their order is ready to '
+            'collect.',
+        confirmLabel: 'Ready',
+      );
+    }
+
+    if (toStatus == 'completed') {
+      return const _AdvanceConfirmation(
+        heading: PosCompleteConfirmationDialog.heading,
+        subtext: PosCompleteConfirmationDialog.subtext,
+        confirmLabel: PosCompleteConfirmationDialog.confirmLabel,
+      );
+    }
+
+    // on_hold -> preparing (Resume): un-pausing is not progressing the order.
+    return null;
   }
 }
 

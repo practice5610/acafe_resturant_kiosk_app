@@ -89,13 +89,16 @@ class PosOrderGrouping {
   /// "complete" would tell staff the order is finished when the customer has
   /// not been handed anything, and would skip the "ready to collect" push the
   /// customer gets at that rung.
+  ///
+  /// `new -> preparing` reads "Accept order" — Figma **1641:4341**'s own CTA
+  /// for a NEW order, not the "Start preparing" this used to say.
   static String? actionLabelFor(String orderStatus) {
     final String? next = nextStatusFor(orderStatus);
     if (next == null) return null;
 
     final String s = orderStatus.trim().toLowerCase();
     if (s == 'on_hold') return 'Resume';
-    if (next == 'preparing') return 'Start preparing';
+    if (newStatuses.contains(s)) return 'Accept order';
     if (next == 'item_to_collect') return 'Mark as ready';
     return 'Mark as complete';
   }

@@ -4,23 +4,38 @@ import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
 /// "Mark order as complete?" — Figma **1641:4791** / `confirmation-overlay`
-/// **1641:5119**.
+/// **1641:5119**. The same card also backs every other forward transition on
+/// the ladder (`new -> preparing`, `preparing -> item_to_collect`) with its
+/// own heading/subtext/confirm label, passed in by the caller — see
+/// [PosOrdersListScreen._advance]. Every rung the operator can push an order
+/// through is confirmed before it fires; only `on_hold -> preparing` (Resume)
+/// is not, because un-pausing an order is not progressing it.
 ///
-/// Gates exactly one transition: `item_to_collect -> completed`, the terminal
-/// rung. Every other rung on the ladder advances without a prompt, because
-/// they are all recoverable — only this one closes the order.
-///
-/// **Copy note.** Figma's subtext reads "This will move the order to the
-/// Finished section." That is not true of the transition this dialog actually
-/// gates: [PosOrderGrouping] already groups `item_to_collect` under FINISHED,
-/// so the card is sitting in that section before the operator taps, and
-/// completing it moves nothing. (It *would* be true of
-/// `preparing -> item_to_collect`, which this dialog deliberately does not
-/// gate.) The heading is the half that matches the button that opens this, so
-/// the heading won and the subtext was corrected to something the operator can
-/// actually rely on. Signed off; layout and type follow Figma exactly.
+/// **Copy note.** Figma's completion subtext reads "This will move the order
+/// to the Finished section." That is not true of the transition this dialog
+/// actually gates: [PosOrderGrouping] already groups `item_to_collect` under
+/// FINISHED, so the card is sitting in that section before the operator taps,
+/// and completing it moves nothing. (It *would* be true of
+/// `preparing -> item_to_collect`.) The heading is the half that matches the
+/// button that opens this, so the heading won and the subtext was corrected to
+/// something the operator can actually rely on. Signed off; layout and type
+/// follow Figma exactly.
 class PosCompleteConfirmationDialog extends StatelessWidget {
-  const PosCompleteConfirmationDialog({super.key});
+  /// Defaults to the completion copy so every existing no-arg call site (and
+  /// the `.heading` / `.subtext` / `.cancelLabel` / `.confirmLabel` constants
+  /// other screens read) keeps behaving exactly as before.
+  final String titleText;
+  final String bodyText;
+  final String cancelText;
+  final String confirmText;
+
+  const PosCompleteConfirmationDialog({
+    super.key,
+    this.titleText = heading,
+    this.bodyText = subtext,
+    this.cancelText = cancelLabel,
+    this.confirmText = confirmLabel,
+  });
 
   static const String heading = 'Mark order as complete?';
   static const String subtext = 'This will close the order.';
@@ -31,13 +46,24 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
   /// Cancel all resolve to null/false, which callers treat as "do nothing" —
   /// the same `Future<bool?>` contract the add-on settings confirm already
   /// uses, so no caller has to learn a second convention.
-  static Future<bool?> show(BuildContext context) {
+  static Future<bool?> show(
+    BuildContext context, {
+    String heading = PosCompleteConfirmationDialog.heading,
+    String subtext = PosCompleteConfirmationDialog.subtext,
+    String cancelLabel = PosCompleteConfirmationDialog.cancelLabel,
+    String confirmLabel = PosCompleteConfirmationDialog.confirmLabel,
+  }) {
     return showDialog<bool>(
       context: context,
       barrierDismissible: true,
       barrierColor: PosOrderDetailSpec.confirmBackdrop,
       useRootNavigator: false,
-      builder: (_) => const PosCompleteConfirmationDialog(),
+      builder: (_) => PosCompleteConfirmationDialog(
+        titleText: heading,
+        bodyText: subtext,
+        cancelText: cancelLabel,
+        confirmText: confirmLabel,
+      ),
     );
   }
 
@@ -78,7 +104,7 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    heading,
+                    titleText,
                     style: loewExtraBold.copyWith(
                       fontSize: PosCompleteConfirmationSpec.headingSize,
                       color: PosOrderDetailSpec.ink,
@@ -88,7 +114,7 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
                     height: PosCompleteConfirmationSpec.headingGap,
                   ),
                   Text(
-                    subtext,
+                    bodyText,
                     style: loewMedium.copyWith(
                       fontSize: PosCompleteConfirmationSpec.subtextSize,
                       color: PosOrderDetailSpec.inkAlpha(0.6),
@@ -99,7 +125,7 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
                     children: [
                       Expanded(
                         child: PosPaymentCardButton(
-                          label: cancelLabel,
+                          label: cancelText,
                           onTap: () => Navigator.of(context).pop(false),
                           radius: PosCompleteConfirmationSpec.buttonRadius,
                           borderWidth: PosCompleteConfirmationSpec.border,
@@ -112,7 +138,7 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
                       ),
                       Expanded(
                         child: PosPaymentCardButton(
-                          label: confirmLabel,
+                          label: confirmText,
                           filled: true,
                           onTap: () => Navigator.of(context).pop(true),
                           radius: PosCompleteConfirmationSpec.buttonRadius,

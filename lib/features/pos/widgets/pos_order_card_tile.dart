@@ -26,7 +26,11 @@ class PosOrderCardTile extends StatelessWidget {
 
   final bool pending;
   final VoidCallback? onAdvance;
-  final VoidCallback? onMenu;
+
+  /// Opens the order detail overlay. Figma has no ⋮ menu on this card — the
+  /// whole card is the affordance, so a tap anywhere on it (outside the
+  /// action button, which claims its own tap first) opens the detail.
+  final VoidCallback? onTap;
 
   const PosOrderCardTile({
     super.key,
@@ -34,7 +38,7 @@ class PosOrderCardTile extends StatelessWidget {
     required this.now,
     this.pending = false,
     this.onAdvance,
-    this.onMenu,
+    this.onTap,
   });
 
   static final DateFormat _clock = DateFormat('HH:mm');
@@ -75,18 +79,26 @@ class PosOrderCardTile extends StatelessWidget {
         ),
       ),
       clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // `urgent-border` — a full-height 4px bar, not a rounded stripe.
-            if (urgent)
-              Container(
-                width: PosOrdersSpec.urgentBarWidth,
-                color: PosOrderTimer.urgentColor,
-              ),
-            Expanded(child: _body(urgency, finished)),
-          ],
+      child: Material(
+        // Transparent so the InkWell's ripple sits over the card colour set
+        // above rather than painting its own white beneath it.
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // `urgent-border` — a full-height 4px bar, not a rounded stripe.
+                if (urgent)
+                  Container(
+                    width: PosOrdersSpec.urgentBarWidth,
+                    color: PosOrderTimer.urgentColor,
+                  ),
+                Expanded(child: _body(urgency, finished)),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -132,12 +144,8 @@ class PosOrderCardTile extends StatelessWidget {
           ),
         ),
         const Spacer(),
+        // Figma draws only the source badge here — no ⋮ menu on this card.
         PosOrderSourceIcon(channelKey: order.channelKey),
-        const SizedBox(width: 4),
-        // `card-actions more-vertical`. Figma overlaps this with the source
-        // badge; laid out beside it here so both stay tappable and neither is
-        // hidden.
-        _MenuButton(onTap: onMenu),
       ],
     );
   }
@@ -308,28 +316,6 @@ class _ActionButton extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MenuButton extends StatelessWidget {
-  final VoidCallback? onTap;
-
-  const _MenuButton({this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: const Padding(
-        padding: EdgeInsets.all(2),
-        child: Icon(
-          Icons.more_vert_rounded,
-          size: PosOrdersSpec.menuIconSize,
-          color: PosHomeSpec.ink,
         ),
       ),
     );
