@@ -1,14 +1,18 @@
-import 'package:acafe_customer/features/pos/domain/pos_general_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
+import 'package:acafe_customer/features/pos/providers/pos_staff_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_text_field.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// Settings → STAFF (Figma **1641:8484**).
 ///
-/// Pixel-faithful UI shell. Roster / shifts / permissions are local design
-/// fixtures so the screen matches Figma; wire real APIs later.
+/// Chrome is pixel-faithful to Figma; the data behind it is live. The roster,
+/// the shift board and the permission grid all come from [PosStaffProvider],
+/// which persists every change through [PosStaffRepo]. See that repo for why
+/// the store is local rather than server-side.
 class PosStaffSettingsPanel extends StatefulWidget {
   const PosStaffSettingsPanel({super.key});
 
@@ -21,64 +25,102 @@ class PosStaffSettingsPanel extends StatefulWidget {
 }
 
 class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
-  late final TextEditingController _name;
-  late String _selectedId;
-  late String _role;
-  late bool _active;
-  late Map<String, bool> _permissions;
+  final TextEditingController _name = TextEditingController();
 
-  static const List<PosSettingsOption> _roleOptions = [
-    PosSettingsOption(value: 'Owner', label: 'Owner'),
-    PosSettingsOption(value: 'Manager', label: 'Manager'),
-    PosSettingsOption(value: 'Employee', label: 'Employee'),
-  ];
+  PosStaffProvider? _provider;
 
-  static const List<String> _permissionKeys = [
-    'Process refunds',
-    'Apply discounts',
-    'Void orders',
-    'Access reports',
-    'Manage inventory',
-    'Access cash drawer',
-    'Manage staff',
-  ];
+  /// The member the name field is currently showing. Tracked so selection
+  /// changes rewrite the field while the operator's own keystrokes do not —
+  /// echoing provider state back into the controller mid-edit would fight the
+  /// cursor.
+  String? _boundId;
 
   @override
-  void initState() {
-    super.initState();
-    _selectedId = _StaffFixtures.defaultSelectedId;
-    final member = _StaffFixtures.memberById(_selectedId)!;
-    _name = TextEditingController(text: member.name);
-    _role = member.role;
-    _active = member.active;
-    _permissions = Map<String, bool>.from(member.permissions);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final PosStaffProvider next = context.read<PosStaffProvider>();
+    if (identical(next, _provider)) return;
+    _provider?.removeListener(_syncName);
+    _provider = next..addListener(_syncName);
+    _syncName();
   }
 
   @override
   void dispose() {
+    _provider?.removeListener(_syncName);
     _name.dispose();
     super.dispose();
   }
 
-  void _selectMember(String id) {
-    if (id == _selectedId) return;
-    final member = _StaffFixtures.memberById(id);
-    if (member == null) return;
-    setState(() {
-      _selectedId = id;
-      _name.text = member.name;
-      _role = member.role;
-      _active = member.active;
-      _permissions = Map<String, bool>.from(member.permissions);
-    });
+  void _syncName() {
+    final PosStaffProvider? provider = _provider;
+    if (provider == null) return;
+    final PosStaffMember? member = provider.selected;
+    if (member == null) {
+      _boundId = null;
+      _name.clear();
+      return;
+    }
+    if (_boundId == member.id) return;
+    _boundId = member.id;
+    _name.value = TextEditingValue(
+      text: member.name,
+      selection: TextSelection.collapsed(offset: member.name.length),
+    );
+  }
+
+  Future<void> _openAddStaff() async {
+    final PosStaffProvider provider = context.read<PosStaffProvider>();
+    final _NewStaff? result = await showDialog<_NewStaff>(
+      context: context,
+      builder: (_) => _AddStaffDialog(shifts: provider.shifts),
+    );
+    if (result == null || !mounted) return;
+    provider.addMember(
+      name: result.name,
+      role: result.role,
+      shiftIds: result.shiftIds,
+    );
+  }
+
+  Future<void> _openShift(String shiftId) async {
+    final PosStaffProvider provider = context.read<PosStaffProvider>();
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ChangeNotifierProvider<PosStaffProvider>.value(
+        value: provider,
+        child: _ShiftRosterDialog(shiftId: shiftId),
+      ),
+    );
+  }
+
+  /// "+ Add" on a shift row. Offers everyone not already on that shift.
+  Future<void> _addToShift(String shiftId) async {
+    final PosStaffProvider provider = context.read<PosStaffProvider>();
+    final PosStaffShift? shift = provider.roster.shiftById(shiftId);
+    if (shift == null) return;
+
+    final List<String>? picked = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _PickStaffDialog(
+        title: 'Add to ${shift.name}',
+        subtitle: shift.time,
+        candidates: provider.availableFor(shiftId),
+      ),
+    );
+    if (picked == null || picked.isEmpty || !mounted) return;
+    provider.addToShift(shiftId, picked);
   }
 
   @override
   Widget build(BuildContext context) {
+    final PosStaffProvider provider = context.watch<PosStaffProvider>();
+    final PosStaffMember? member = provider.selected;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _StaffHeader(onAdd: () {}),
+        _StaffHeader(onAdd: _openAddStaff),
         const SizedBox(height: 32),
         Expanded(
           child: LayoutBuilder(
@@ -86,21 +128,20 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
               final bool wide =
                   constraints.maxWidth >= PosSettingsSpec.wideBreakpoint;
               final Widget left = _LeftColumn(
-                selectedId: _selectedId,
-                onSelect: _selectMember,
+                provider: provider,
+                onSelect: provider.select,
+                onOpenShift: _openShift,
+                onAddToShift: _addToShift,
               );
               final Widget right = _RightColumn(
+                member: member,
                 nameController: _name,
-                role: _role,
-                roleOptions: _roleOptions,
-                onRoleChanged: (v) => setState(() => _role = v),
-                active: _active,
-                onActiveChanged: (v) => setState(() => _active = v),
-                permissions: _permissions,
-                permissionKeys: _permissionKeys,
-                onPermissionChanged: (key, value) {
-                  setState(() => _permissions[key] = value);
-                },
+                nameError: provider.errors['name'],
+                onNameChanged: provider.setName,
+                onRoleChanged: provider.setRole,
+                onActiveChanged: provider.setActive,
+                onPermissionChanged: provider.setPermission,
+                onGeneratePasscode: provider.regeneratePasscode,
               );
 
               if (!wide) {
@@ -235,12 +276,16 @@ class _StaffHeaderState extends State<_StaffHeader> {
 // ── Left column ─────────────────────────────────────────────────────────────
 
 class _LeftColumn extends StatelessWidget {
-  final String selectedId;
+  final PosStaffProvider provider;
   final ValueChanged<String> onSelect;
+  final ValueChanged<String> onOpenShift;
+  final ValueChanged<String> onAddToShift;
 
   const _LeftColumn({
-    required this.selectedId,
+    required this.provider,
     required this.onSelect,
+    required this.onOpenShift,
+    required this.onAddToShift,
   });
 
   @override
@@ -256,7 +301,11 @@ class _LeftColumn extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        const _ShiftsCard(),
+        _ShiftsCard(
+          provider: provider,
+          onOpenShift: onOpenShift,
+          onAddToShift: onAddToShift,
+        ),
         const SizedBox(height: 24),
         Text(
           'TEAM OF THE DAY',
@@ -267,7 +316,8 @@ class _LeftColumn extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         _TeamCard(
-          selectedId: selectedId,
+          members: provider.members,
+          selectedId: provider.selectedId,
           onSelect: onSelect,
         ),
       ],
@@ -276,24 +326,20 @@ class _LeftColumn extends StatelessWidget {
 }
 
 class _ShiftsCard extends StatelessWidget {
-  const _ShiftsCard();
+  final PosStaffProvider provider;
+  final ValueChanged<String> onOpenShift;
+  final ValueChanged<String> onAddToShift;
+
+  const _ShiftsCard({
+    required this.provider,
+    required this.onOpenShift,
+    required this.onAddToShift,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PosSettingsSpec.fieldBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            offset: Offset(0, 2),
-            blurRadius: 10,
-            spreadRadius: -4,
-          ),
-        ],
-      ),
+    final List<PosStaffShift> shifts = provider.shifts;
+    return _Card(
       child: Column(
         children: [
           const _TableHeader(columns: [
@@ -301,12 +347,14 @@ class _ShiftsCard extends StatelessWidget {
             _HeaderCell('TIME', width: 160),
             _HeaderCell('STAFF', flex: 1),
           ]),
-          for (int i = 0; i < _StaffFixtures.shifts.length; i++) ...[
+          for (int i = 0; i < shifts.length; i++)
             _ShiftRow(
-              shift: _StaffFixtures.shifts[i],
-              showDivider: i < _StaffFixtures.shifts.length - 1,
+              shift: shifts[i],
+              members: provider.membersOf(shifts[i].id),
+              showDivider: i < shifts.length - 1,
+              onOpen: () => onOpenShift(shifts[i].id),
+              onAdd: () => onAddToShift(shifts[i].id),
             ),
-          ],
         ],
       ),
     );
@@ -314,12 +362,18 @@ class _ShiftsCard extends StatelessWidget {
 }
 
 class _ShiftRow extends StatelessWidget {
-  final _ShiftFixture shift;
+  final PosStaffShift shift;
+  final List<PosStaffMember> members;
   final bool showDivider;
+  final VoidCallback onOpen;
+  final VoidCallback onAdd;
 
   const _ShiftRow({
     required this.shift,
+    required this.members,
     required this.showDivider,
+    required this.onOpen,
+    required this.onAdd,
   });
 
   @override
@@ -358,8 +412,11 @@ class _ShiftRow extends StatelessWidget {
             const SizedBox(width: 24),
             Expanded(
               child: _StaffChipRow(
-                names: shift.staffNames,
+                members: members,
                 visibleCount: 3,
+                onOverflowTap: onOpen,
+                onAdd: onAdd,
+                addLabel: 'Add to ${shift.name}',
               ),
             ),
           ],
@@ -370,54 +427,65 @@ class _ShiftRow extends StatelessWidget {
 }
 
 class _StaffChipRow extends StatelessWidget {
-  final List<String> names;
+  final List<PosStaffMember> members;
   final int visibleCount;
+  final VoidCallback onOverflowTap;
+  final VoidCallback onAdd;
+  final String addLabel;
 
   const _StaffChipRow({
-    required this.names,
+    required this.members,
     required this.visibleCount,
+    required this.onOverflowTap,
+    required this.onAdd,
+    required this.addLabel,
   });
 
   @override
   Widget build(BuildContext context) {
-    final int shown = names.length < visibleCount ? names.length : visibleCount;
-    final int overflow = names.length - shown;
+    final int shown =
+        members.length < visibleCount ? members.length : visibleCount;
+    final int overflow = members.length - shown;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        for (int i = 0; i < shown; i++) _CreamChip(label: names[i]),
-        if (overflow > 0) _CreamChip(label: '+$overflow more'),
+        for (int i = 0; i < shown; i++)
+          _CreamChip(label: members[i].shortName),
+        if (overflow > 0)
+          _CreamChip(
+            label: '+$overflow more',
+            onTap: onOverflowTap,
+          ),
+        if (members.isEmpty)
+          Text(
+            'No one rostered',
+            style: loewRegular.copyWith(
+              fontSize: 13,
+              color: PosSettingsSpec.inkMuted(),
+            ),
+          ),
+        _AddChip(label: addLabel, onTap: onAdd),
       ],
     );
   }
 }
 
 class _TeamCard extends StatelessWidget {
+  final List<PosStaffMember> members;
   final String selectedId;
   final ValueChanged<String> onSelect;
 
   const _TeamCard({
+    required this.members,
     required this.selectedId,
     required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PosSettingsSpec.fieldBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            offset: Offset(0, 2),
-            blurRadius: 10,
-            spreadRadius: -4,
-          ),
-        ],
-      ),
+    return _Card(
       child: Column(
         children: [
           const _TableHeader(columns: [
@@ -425,14 +493,13 @@ class _TeamCard extends StatelessWidget {
             _HeaderCell('ROLE', width: 120),
             _HeaderCell('STATUS', width: 100),
           ]),
-          for (int i = 0; i < _StaffFixtures.team.length; i++) ...[
+          for (int i = 0; i < members.length; i++)
             _TeamRow(
-              member: _StaffFixtures.team[i],
-              selected: _StaffFixtures.team[i].id == selectedId,
-              showDivider: i < _StaffFixtures.team.length - 1,
-              onTap: () => onSelect(_StaffFixtures.team[i].id),
+              member: members[i],
+              selected: members[i].id == selectedId,
+              showDivider: i < members.length - 1,
+              onTap: () => onSelect(members[i].id),
             ),
-          ],
         ],
       ),
     );
@@ -440,7 +507,7 @@ class _TeamCard extends StatelessWidget {
 }
 
 class _TeamRow extends StatelessWidget {
-  final _MemberFixture member;
+  final PosStaffMember member;
   final bool selected;
   final bool showDivider;
   final VoidCallback onTap;
@@ -509,9 +576,7 @@ class _TeamRow extends StatelessWidget {
                 ),
                 SizedBox(
                   width: 100,
-                  child: _StatusDot(
-                    active: member.active,
-                  ),
+                  child: _StatusDot(active: member.active),
                 ),
               ],
             ),
@@ -525,30 +590,30 @@ class _TeamRow extends StatelessWidget {
 // ── Right column ────────────────────────────────────────────────────────────
 
 class _RightColumn extends StatelessWidget {
+  final PosStaffMember? member;
   final TextEditingController nameController;
-  final String role;
-  final List<PosSettingsOption> roleOptions;
+  final String? nameError;
+  final ValueChanged<String> onNameChanged;
   final ValueChanged<String> onRoleChanged;
-  final bool active;
   final ValueChanged<bool> onActiveChanged;
-  final Map<String, bool> permissions;
-  final List<String> permissionKeys;
   final void Function(String key, bool value) onPermissionChanged;
+  final VoidCallback onGeneratePasscode;
 
   const _RightColumn({
+    required this.member,
     required this.nameController,
-    required this.role,
-    required this.roleOptions,
+    required this.nameError,
+    required this.onNameChanged,
     required this.onRoleChanged,
-    required this.active,
     required this.onActiveChanged,
-    required this.permissions,
-    required this.permissionKeys,
     required this.onPermissionChanged,
+    required this.onGeneratePasscode,
   });
 
   @override
   Widget build(BuildContext context) {
+    final PosStaffMember? m = member;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
@@ -562,20 +627,36 @@ class _RightColumn extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _MemberDetailsCard(
-            nameController: nameController,
-            role: role,
-            roleOptions: roleOptions,
-            onRoleChanged: onRoleChanged,
-            active: active,
-            onActiveChanged: onActiveChanged,
-          ),
-          const SizedBox(height: 24),
-          _PermissionsCard(
-            permissions: permissions,
-            permissionKeys: permissionKeys,
-            onPermissionChanged: onPermissionChanged,
-          ),
+          if (m == null)
+            _Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Select a team member to edit their details.',
+                  style: loewRegular.copyWith(
+                    fontSize: 13,
+                    color: PosSettingsSpec.inkMuted(),
+                  ),
+                ),
+              ),
+            )
+          else ...[
+            _MemberDetailsCard(
+              nameController: nameController,
+              nameError: nameError,
+              onNameChanged: onNameChanged,
+              role: m.role,
+              onRoleChanged: onRoleChanged,
+              active: m.active,
+              onActiveChanged: onActiveChanged,
+              onGeneratePasscode: onGeneratePasscode,
+            ),
+            const SizedBox(height: 24),
+            _PermissionsCard(
+              permissions: m.permissions,
+              onPermissionChanged: onPermissionChanged,
+            ),
+          ],
           const SizedBox(height: 16),
           Text(
             'Restricted actions on POS will prompt a manager override passcode.',
@@ -593,36 +674,29 @@ class _RightColumn extends StatelessWidget {
 
 class _MemberDetailsCard extends StatelessWidget {
   final TextEditingController nameController;
+  final String? nameError;
+  final ValueChanged<String> onNameChanged;
   final String role;
-  final List<PosSettingsOption> roleOptions;
   final ValueChanged<String> onRoleChanged;
   final bool active;
   final ValueChanged<bool> onActiveChanged;
+  final VoidCallback onGeneratePasscode;
 
   const _MemberDetailsCard({
     required this.nameController,
+    required this.nameError,
+    required this.onNameChanged,
     required this.role,
-    required this.roleOptions,
     required this.onRoleChanged,
     required this.active,
     required this.onActiveChanged,
+    required this.onGeneratePasscode,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PosSettingsSpec.fieldBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            offset: Offset(0, 2),
-            blurRadius: 5,
-          ),
-        ],
-      ),
+    return _Card(
+      radius: 16,
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -631,12 +705,14 @@ class _MemberDetailsCard extends StatelessWidget {
             PosSettingsTextField(
               label: 'Name',
               controller: nameController,
+              onChanged: onNameChanged,
+              errorText: nameError,
             ),
             const SizedBox(height: 12),
             PosSettingsDropdown(
               label: 'Role',
               value: role,
-              options: roleOptions,
+              options: PosStaffRoles.options,
               onChanged: onRoleChanged,
             ),
             const SizedBox(height: 12),
@@ -663,6 +739,9 @@ class _MemberDetailsCard extends StatelessWidget {
                     child: Padding(
                       padding: PosSettingsSpec.fieldPadding,
                       child: Text(
+                        // Never shown in the clear: the code goes to the member
+                        // when it is generated, not to whoever walks past the
+                        // settings screen.
                         '****',
                         style: loewBold.copyWith(
                           fontSize: PosSettingsSpec.fieldTextSize,
@@ -673,7 +752,7 @@ class _MemberDetailsCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _GenerateButton(onPressed: () {}),
+                _GenerateButton(onPressed: onGeneratePasscode),
               ],
             ),
             const SizedBox(height: 12),
@@ -688,10 +767,7 @@ class _MemberDetailsCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                _PosToggle(
-                  value: active,
-                  onChanged: onActiveChanged,
-                ),
+                _PosToggle(value: active, onChanged: onActiveChanged),
               ],
             ),
           ],
@@ -750,30 +826,17 @@ class _GenerateButtonState extends State<_GenerateButton> {
 
 class _PermissionsCard extends StatelessWidget {
   final Map<String, bool> permissions;
-  final List<String> permissionKeys;
   final void Function(String key, bool value) onPermissionChanged;
 
   const _PermissionsCard({
     required this.permissions,
-    required this.permissionKeys,
     required this.onPermissionChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PosSettingsSpec.fieldBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            offset: Offset(0, 2),
-            blurRadius: 5,
-          ),
-        ],
-      ),
+    const List<String> keys = PosStaffPermissions.keys;
+    return _Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -788,14 +851,13 @@ class _PermissionsCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            for (int i = 0; i < permissionKeys.length; i++) ...[
+            for (int i = 0; i < keys.length; i++)
               _PermissionRow(
-                label: permissionKeys[i],
-                value: permissions[permissionKeys[i]] ?? false,
-                showDivider: i < permissionKeys.length - 1,
-                onChanged: (v) => onPermissionChanged(permissionKeys[i], v),
+                label: keys[i],
+                value: permissions[keys[i]] ?? false,
+                showDivider: i < keys.length - 1,
+                onChanged: (v) => onPermissionChanged(keys[i], v),
               ),
-            ],
           ],
         ),
       ),
@@ -850,7 +912,425 @@ class _PermissionRow extends StatelessWidget {
   }
 }
 
+// ── Dialogs ─────────────────────────────────────────────────────────────────
+
+/// What [_AddStaffDialog] hands back — nothing is written until the panel
+/// applies it, so a cancelled dialog leaves the roster untouched.
+class _NewStaff {
+  final String name;
+  final String role;
+  final List<String> shiftIds;
+
+  const _NewStaff({
+    required this.name,
+    required this.role,
+    required this.shiftIds,
+  });
+}
+
+class _AddStaffDialog extends StatefulWidget {
+  final List<PosStaffShift> shifts;
+
+  const _AddStaffDialog({required this.shifts});
+
+  @override
+  State<_AddStaffDialog> createState() => _AddStaffDialogState();
+}
+
+class _AddStaffDialogState extends State<_AddStaffDialog> {
+  final TextEditingController _name = TextEditingController();
+  final Set<String> _shiftIds = <String>{};
+  String _role = PosStaffRoles.employee;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final String? error = PosStaffValidation.name(_name.text);
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    Navigator.of(context).pop(
+      _NewStaff(
+        name: _name.text.trim(),
+        role: _role,
+        shiftIds: _shiftIds.toList(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _DialogFrame(
+      title: 'ADD STAFF MEMBER',
+      subtitle: 'They can be rostered onto a shift right away.',
+      onConfirm: _submit,
+      confirmLabel: 'Add Member',
+      children: [
+        PosSettingsTextField(
+          label: 'Name',
+          controller: _name,
+          errorText: _error,
+          textInputAction: TextInputAction.done,
+          onChanged: (_) {
+            if (_error != null) setState(() => _error = null);
+          },
+        ),
+        const SizedBox(height: 12),
+        PosSettingsDropdown(
+          label: 'Role',
+          value: _role,
+          options: PosStaffRoles.options,
+          onChanged: (v) => setState(() => _role = v),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'SHIFTS',
+          style: loewExtraBold.copyWith(
+            fontSize: PosSettingsSpec.labelSize,
+            letterSpacing: PosSettingsSpec.labelTracking,
+            color: PosSettingsSpec.ink,
+          ),
+        ),
+        const SizedBox(height: PosSettingsSpec.labelGap),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final PosStaffShift shift in widget.shifts)
+              _SelectableChip(
+                label: shift.name,
+                selected: _shiftIds.contains(shift.id),
+                onTap: () => setState(() {
+                  if (!_shiftIds.remove(shift.id)) _shiftIds.add(shift.id);
+                }),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Multi-select picker used by "+ Add" on a shift row. Returns the chosen ids.
+class _PickStaffDialog extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final List<PosStaffMember> candidates;
+
+  const _PickStaffDialog({
+    required this.title,
+    required this.subtitle,
+    required this.candidates,
+  });
+
+  @override
+  State<_PickStaffDialog> createState() => _PickStaffDialogState();
+}
+
+class _PickStaffDialogState extends State<_PickStaffDialog> {
+  final Set<String> _picked = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final bool empty = widget.candidates.isEmpty;
+    return _DialogFrame(
+      title: widget.title.toUpperCase(),
+      subtitle: empty
+          ? 'Everyone on the team is already on this shift.'
+          : widget.subtitle,
+      confirmLabel: 'Add ${_picked.length}',
+      onConfirm: _picked.isEmpty
+          ? null
+          : () => Navigator.of(context).pop(_picked.toList()),
+      children: [
+        if (empty)
+          Text(
+            'Add a new team member first, then roster them here.',
+            style: loewRegular.copyWith(
+              fontSize: 13,
+              color: PosSettingsSpec.inkMuted(),
+            ),
+          )
+        else
+          for (final PosStaffMember m in widget.candidates)
+            _PickRow(
+              member: m,
+              selected: _picked.contains(m.id),
+              onTap: () => setState(() {
+                if (!_picked.remove(m.id)) _picked.add(m.id);
+              }),
+            ),
+      ],
+    );
+  }
+}
+
+class _PickRow extends StatelessWidget {
+  final PosStaffMember member;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PickRow({
+    required this.member,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Row(
+            children: [
+              _CheckBox(value: selected),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  member.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewBold.copyWith(
+                    fontSize: 14,
+                    color: PosSettingsSpec.ink,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _CreamChip(label: member.role, fontSize: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The full roster of one shift — what the "+N more" chip opens. Rostering is
+/// live here, so removals apply as they are tapped rather than on a confirm.
+class _ShiftRosterDialog extends StatelessWidget {
+  final String shiftId;
+
+  const _ShiftRosterDialog({required this.shiftId});
+
+  @override
+  Widget build(BuildContext context) {
+    final PosStaffProvider provider = context.watch<PosStaffProvider>();
+    final PosStaffShift? shift = provider.roster.shiftById(shiftId);
+    if (shift == null) return const SizedBox.shrink();
+    final List<PosStaffMember> members = provider.membersOf(shiftId);
+
+    return _DialogFrame(
+      title: '${shift.name.toUpperCase()} SHIFT',
+      subtitle: '${shift.time} · ${members.length} on shift',
+      confirmLabel: 'Done',
+      onConfirm: () => Navigator.of(context).pop(),
+      children: [
+        if (members.isEmpty)
+          Text(
+            'No one is rostered onto this shift yet.',
+            style: loewRegular.copyWith(
+              fontSize: 13,
+              color: PosSettingsSpec.inkMuted(),
+            ),
+          )
+        else
+          for (final PosStaffMember m in members)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      m.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: loewBold.copyWith(
+                        fontSize: 14,
+                        color: PosSettingsSpec.ink,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _CreamChip(label: m.role, fontSize: 12),
+                  const SizedBox(width: 8),
+                  _RemoveButton(
+                    tooltip: 'Remove ${m.shortName} from ${shift.name}',
+                    onTap: () => provider.removeFromShift(shiftId, m.id),
+                  ),
+                ],
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+/// Shared dialog chrome — cream card, ink title, cancel + confirm.
+class _DialogFrame extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String confirmLabel;
+  final VoidCallback? onConfirm;
+  final List<Widget> children;
+
+  const _DialogFrame({
+    required this.title,
+    required this.subtitle,
+    required this.confirmLabel,
+    required this.onConfirm,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: PosSettingsSpec.panelBg,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: PosSettingsSpec.fieldBorder),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 620),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                title,
+                style: loewExtraBold.copyWith(
+                  fontSize: 18,
+                  color: PosSettingsSpec.ink,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: loewRegular.copyWith(
+                  fontSize: 13,
+                  color: PosSettingsSpec.inkMuted(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: children,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _DialogButton(
+                    label: 'Cancel',
+                    filled: false,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  const SizedBox(width: 8),
+                  _DialogButton(
+                    label: confirmLabel,
+                    filled: true,
+                    onPressed: onConfirm,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogButton extends StatelessWidget {
+  final String label;
+  final bool filled;
+  final VoidCallback? onPressed;
+
+  const _DialogButton({
+    required this.label,
+    required this.filled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enabled = onPressed != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.45,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: filled ? PosSettingsSpec.ink : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: PosSettingsSpec.fieldBorder),
+            ),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              child: Text(
+                label,
+                style: loewBold.copyWith(
+                  fontSize: 13,
+                  color: filled ? Colors.white : PosSettingsSpec.ink,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Shared chrome ───────────────────────────────────────────────────────────
+
+/// The white, hairline-bordered card every block on this screen sits in.
+class _Card extends StatelessWidget {
+  final Widget child;
+  final double radius;
+
+  const _Card({required this.child, this.radius = 16});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: PosSettingsSpec.fieldBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D000000),
+            offset: Offset(0, 2),
+            blurRadius: 10,
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
 
 class _HeaderCell {
   final String label;
@@ -940,15 +1420,17 @@ class _InkPill extends StatelessWidget {
 class _CreamChip extends StatelessWidget {
   final String label;
   final double fontSize;
+  final VoidCallback? onTap;
 
   const _CreamChip({
     required this.label,
     this.fontSize = 13,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    final Widget chip = DecoratedBox(
       decoration: BoxDecoration(
         color: PosSettingsSpec.pageBg,
         borderRadius: BorderRadius.circular(999),
@@ -961,6 +1443,157 @@ class _CreamChip extends StatelessWidget {
           style: loewBold.copyWith(
             fontSize: fontSize,
             color: PosSettingsSpec.ink,
+          ),
+        ),
+      ),
+    );
+    if (onTap == null) return chip;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(onTap: onTap, child: chip),
+    );
+  }
+}
+
+/// Outline "+ Add" pill that opens a shift's staff picker.
+class _AddChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _AddChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: PosSettingsSpec.ink),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add, size: 14, color: PosSettingsSpec.ink),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Add',
+                    style: loewBold.copyWith(
+                      fontSize: 13,
+                      color: PosSettingsSpec.ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectableChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SelectableChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: selected ? PosSettingsSpec.ink : Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected
+                  ? PosSettingsSpec.ink
+                  : PosSettingsSpec.fieldBorder,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Text(
+              label,
+              style: loewBold.copyWith(
+                fontSize: 13,
+                color: selected ? Colors.white : PosSettingsSpec.ink,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckBox extends StatelessWidget {
+  final bool value;
+
+  const _CheckBox({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: value ? PosSettingsSpec.ink : Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: value ? PosSettingsSpec.ink : PosSettingsSpec.fieldBorder,
+        ),
+      ),
+      child: value
+          ? const Icon(Icons.check, size: 14, color: Colors.white)
+          : null,
+    );
+  }
+}
+
+class _RemoveButton extends StatelessWidget {
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _RemoveButton({required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: PosSettingsSpec.fieldBorder),
+            ),
+            child: Icon(
+              Icons.close,
+              size: 15,
+              color: PosSettingsSpec.inkMuted(0.8),
+            ),
           ),
         ),
       ),
@@ -991,9 +1624,8 @@ class _StatusDot extends StatelessWidget {
           active ? 'Active' : 'Inactive',
           style: loewRegular.copyWith(
             fontSize: 13,
-            color: active
-                ? PosSettingsSpec.ink
-                : PosSettingsSpec.inkMuted(),
+            color:
+                active ? PosSettingsSpec.ink : PosSettingsSpec.inkMuted(),
           ),
         ),
       ],
@@ -1054,171 +1686,5 @@ class _PosToggle extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ── Design fixtures (UI only — replace with real APIs later) ────────────────
-
-class _ShiftFixture {
-  final String name;
-  final String time;
-  final List<String> staffNames;
-
-  const _ShiftFixture({
-    required this.name,
-    required this.time,
-    required this.staffNames,
-  });
-}
-
-class _MemberFixture {
-  final String id;
-  final String name;
-  final String role;
-  final bool active;
-  final Map<String, bool> permissions;
-
-  const _MemberFixture({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.active,
-    required this.permissions,
-  });
-}
-
-class _StaffFixtures {
-  static const String defaultSelectedId = 'thomas';
-
-  static const List<_ShiftFixture> shifts = [
-    _ShiftFixture(
-      name: 'Morning',
-      time: '08:00-14:00',
-      staffNames: [
-        'Maria',
-        'Sophie',
-        'Liam',
-        'Eva',
-        'Noah',
-        'Olivia',
-        'Lucas',
-        'Mila',
-        'Finn',
-        'Sara',
-        'Jesse',
-        'Nina',
-      ],
-    ),
-    _ShiftFixture(
-      name: 'Afternoon',
-      time: '14:00-20:00',
-      staffNames: [
-        'Thomas',
-        'Liam',
-        'Ava',
-        'Emma',
-        'Noah',
-        'Sophie',
-        'Lucas',
-        'Mila',
-        'Finn',
-        'Sara',
-        'Jesse',
-      ],
-    ),
-    _ShiftFixture(
-      name: 'Evening',
-      time: '20:00-22:00',
-      staffNames: [
-        'Maria',
-        'Thomas',
-        'Noah',
-        'Liam',
-        'Sophie',
-        'Ava',
-        'Emma',
-        'Olivia',
-        'Lucas',
-        'Mila',
-        'Finn',
-        'Sara',
-        'Jesse',
-      ],
-    ),
-  ];
-
-  static const Map<String, bool> _managerPerms = {
-    'Process refunds': true,
-    'Apply discounts': true,
-    'Void orders': false,
-    'Access reports': true,
-    'Manage inventory': true,
-    'Access cash drawer': true,
-    'Manage staff': false,
-  };
-
-  static const Map<String, bool> _ownerPerms = {
-    'Process refunds': true,
-    'Apply discounts': true,
-    'Void orders': true,
-    'Access reports': true,
-    'Manage inventory': true,
-    'Access cash drawer': true,
-    'Manage staff': true,
-  };
-
-  static const Map<String, bool> _employeePerms = {
-    'Process refunds': false,
-    'Apply discounts': true,
-    'Void orders': false,
-    'Access reports': false,
-    'Manage inventory': false,
-    'Access cash drawer': true,
-    'Manage staff': false,
-  };
-
-  static const List<_MemberFixture> team = [
-    _MemberFixture(
-      id: 'maria',
-      name: 'Maria van den Berg',
-      role: 'Owner',
-      active: true,
-      permissions: _ownerPerms,
-    ),
-    _MemberFixture(
-      id: 'thomas',
-      name: 'Thomas de Vries',
-      role: 'Manager',
-      active: true,
-      permissions: _managerPerms,
-    ),
-    _MemberFixture(
-      id: 'sophie',
-      name: 'Sophie Jansen',
-      role: 'Employee',
-      active: true,
-      permissions: _employeePerms,
-    ),
-    _MemberFixture(
-      id: 'liam',
-      name: 'Liam Bakker',
-      role: 'Employee',
-      active: true,
-      permissions: _employeePerms,
-    ),
-    _MemberFixture(
-      id: 'emma',
-      name: 'Emma Visser',
-      role: 'Employee',
-      active: false,
-      permissions: _employeePerms,
-    ),
-  ];
-
-  static _MemberFixture? memberById(String id) {
-    for (final m in team) {
-      if (m.id == id) return m;
-    }
-    return null;
   }
 }

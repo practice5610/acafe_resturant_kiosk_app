@@ -14,6 +14,8 @@ import 'package:acafe_customer/features/pos/widgets/pos_profile_settings_panel.d
 import 'package:acafe_customer/features/pos/domain/pos_payment_settings_repo.dart';
 import 'package:acafe_customer/features/pos/providers/pos_payment_settings_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payments_settings_panel.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_repo.dart';
+import 'package:acafe_customer/features/pos/providers/pos_staff_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_sidebar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_staff_settings_panel.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -59,7 +61,9 @@ class _PosSettingsScreenState extends State<PosSettingsScreen> {
                     sharedPreferences: widget.sharedPreferences,
                   ),
                 PosSettingsSection.profile => const PosProfileSettingsPanel(),
-                PosSettingsSection.staff => const PosStaffSettingsPanel(),
+                PosSettingsSection.staff => _StaffSectionHost(
+                    sharedPreferences: widget.sharedPreferences,
+                  ),
                 PosSettingsSection.products => const PosProductsSettingsPanel(),
                 PosSettingsSection.addOns => const PosAddonsSettingsPanel(),
                 PosSettingsSection.payments => _PaymentsSectionHost(
@@ -170,3 +174,27 @@ class _PaymentsSectionHost extends StatelessWidget {
   }
 }
 
+/// Scopes the Staff provider to this tab, as the sibling sections do, and
+/// hydrates the roster once from prefs (falling back to the seed roster on a
+/// terminal that has never been edited).
+class _StaffSectionHost extends StatelessWidget {
+  final SharedPreferences? sharedPreferences;
+
+  const _StaffSectionHost({this.sharedPreferences});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider<PosStaffProvider>(
+      create: (context) {
+        final provider = PosStaffProvider(
+          repo: PosStaffRepo(
+            sharedPreferences: sharedPreferences ?? di.sl<SharedPreferences>(),
+          ),
+        );
+        provider.hydrate();
+        return provider;
+      },
+      child: const PosStaffSettingsPanel(),
+    );
+  }
+}

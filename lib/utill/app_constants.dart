@@ -184,6 +184,9 @@ class AppConstants {
   /// POS Settings → Hardware form (printer prefs + receipt format).
   static const String posHardwareSettingsKey = 'pos_hardware_settings_v1';
   static const String posPaymentSettingsKey = 'pos_payment_settings_v1';
+
+  /// POS Settings → Staff roster, shift assignments and floor permissions.
+  static const String posStaffRosterKey = 'pos_staff_roster_v1';
   static const String currentAddress = 'current_address';
   static const String lastOrderPaymentMethod = 'last_order_payment_method';
   static const String appleLoginEmail = 'apple_login_email';

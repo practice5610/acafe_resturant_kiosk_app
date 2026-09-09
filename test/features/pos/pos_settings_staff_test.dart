@@ -160,6 +160,106 @@ void main() {
     expect(find.text('Employee'), findsWidgets);
   });
 
+  testWidgets('adding staff to the Morning shift updates the board',
+      (tester) async {
+    await _pumpStaff(tester);
+    expect(find.text('+9 more'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Add to Morning'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ADD TO MORNING'), findsOneWidget);
+    // Thomas is rostered on afternoon and evening only, so the picker offers
+    // him for the morning.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.text('Thomas de Vries'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add 1'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing);
+    // Morning is now 13 like the evening shift, so both read "+10 more".
+    expect(find.text('+10 more'), findsNWidgets(2));
+    expect(find.text('+9 more'), findsNothing);
+  });
+
+  testWidgets('Add Staff Member rosters the new hire onto chosen shifts',
+      (tester) async {
+    await _pumpStaff(tester);
+
+    await tester.tap(find.text('Add Staff Member'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
+      'Sanne Bakker',
+    );
+    await tester.tap(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Morning')),
+    );
+    await tester.tap(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Evening')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add Member'));
+    await tester.pumpAndSettle();
+
+    // The new hire is selected, so Member Details is bound to them.
+    expect(find.widgetWithText(TextField, 'Sanne Bakker'), findsOneWidget);
+    // Morning 12 -> 13 and evening 13 -> 14.
+    expect(find.text('+10 more'), findsOneWidget);
+    expect(find.text('+11 more'), findsOneWidget);
+    expect(find.text('+9 more'), findsNothing);
+  });
+
+  testWidgets('the overflow chip opens the shift roster and removes from it',
+      (tester) async {
+    await _pumpStaff(tester);
+
+    await tester.tap(find.text('+9 more'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MORNING SHIFT'), findsOneWidget);
+    expect(find.text('08:00-14:00 \u00b7 12 on shift'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Remove Maria from Morning'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('08:00-14:00 \u00b7 11 on shift'), findsOneWidget);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('+8 more'), findsNWidgets(2));
+  });
+
+  testWidgets('member edits survive leaving and re-entering the tab',
+      (tester) async {
+    await _pumpStaff(tester);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Thomas de Vries'),
+      'Thomas Bakker',
+    );
+    await tester.pumpAndSettle();
+
+    // Leave Staff and come back — the section host rebuilds the provider from
+    // prefs, so this only passes if the edit was written through.
+    await tester.tap(find.text('PROFILE'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('STAFF'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, 'Thomas Bakker'), findsOneWidget);
+    expect(find.text('Thomas de Vries'), findsNothing);
+  });
+
   test('staff section subtitle matches Figma', () {
     expect(
       PosSettingsSection.staff.subtitle,
