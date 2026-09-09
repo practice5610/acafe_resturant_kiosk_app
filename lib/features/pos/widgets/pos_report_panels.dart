@@ -2,6 +2,7 @@ import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -597,23 +598,32 @@ class _LegendRow extends StatelessWidget {
 
 // ── Staff Shifts & Tips ─────────────────────────────────────────────────
 
-/// `staff-tips-card`. The layout is complete; the rows are honestly empty.
+/// `staff-tips-card`. The roster is real now (Settings → Staff), but sales
+/// and tips per person still are not.
 ///
-/// There is no staff-attribution data anywhere in this system: no Employee,
-/// Staff or Shift model, no cashier field on orders, and POS login is a single
-/// 4-digit `devices.configuration_code` per *terminal* rather than per person.
-/// So per-person Sales and Tips cannot be computed even approximately.
-///
-/// Per Phase 1 Decision 2 the panel ships visually complete with a stated gap
-/// rather than with invented names — the staff-identity model is scoped as its
-/// own feature.
+/// [roster] comes from [PosStaffRepo]'s local cache, not the report API:
+/// there is still no cashier/staff field on an order, and POS login is a
+/// single 4-digit `devices.configuration_code` per *terminal* rather than per
+/// person, so nothing on an order can be traced back to whoever rang it up.
+/// What changed is that the team itself is no longer unknowable — an operator
+/// can add real names in Settings → Staff, and this panel should show them
+/// rather than a blanket "not tracked" message that was only ever true for
+/// lack of a roster to draw on.
 class PosReportStaffTipsPanel extends StatelessWidget {
   final PosReportData data;
+  final PosStaffRoster roster;
 
-  const PosReportStaffTipsPanel({super.key, required this.data});
+  const PosReportStaffTipsPanel({
+    super.key,
+    required this.data,
+    required this.roster,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final List<PosStaffMember> team =
+        roster.members.where((PosStaffMember m) => m.active).toList();
+
     return PosReportCard(
       title: 'Staff Shifts & Tips',
       compactTitle: true,
@@ -634,17 +644,106 @@ class PosReportStaffTipsPanel extends StatelessWidget {
             ),
           ),
           SizedBox(height: posPx(context, PosReportSpec.tableGap)),
-          const PosReportEmptyState(
-            message: "Staff attribution isn't tracked yet",
-            detail:
-                'Orders record the terminal, not the person, so sales and tips '
-                'cannot be split per staff member.',
-          ),
+          if (team.isEmpty)
+            const PosReportEmptyState(
+              message: 'No staff added yet',
+              detail: 'Add your team in Settings → Staff to see them here.',
+            )
+          else ...<Widget>[
+            for (int i = 0; i < team.length; i++) ...<Widget>[
+              if (i > 0) SizedBox(height: posPx(context, PosReportSpec.tableGap)),
+              _StaffRow(member: team[i]),
+            ],
+            SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
+            Text(
+              "Orders record the terminal, not the person, so sales and "
+              "tips can't be split per staff member yet.",
+              style: PosUI.text(
+                context,
+                size: 11,
+                weight: FontWeight.w500,
+                color: PosReportSpec.inkMuted,
+              ),
+            ),
+          ],
           SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
           PosReportDetailRow(
             label: 'Tip pool (all staff)',
             value: PosHomeSpec.formatPrice(data.totalTips, padZero: false),
             valueWeight: FontWeight.w800,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StaffRow extends StatelessWidget {
+  final PosStaffMember member;
+
+  const _StaffRow({required this.member});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: posPx(context, PosReportSpec.compactRowHeight),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  member.name,
+                  style: PosUI.text(
+                    context,
+                    size: PosReportSpec.tableRowSize,
+                    weight: FontWeight.w700,
+                    color: PosReportSpec.ink,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  member.role,
+                  style: PosUI.text(
+                    context,
+                    size: PosReportSpec.tableRowSize - 2,
+                    weight: FontWeight.w500,
+                    color: PosReportSpec.inkMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: posPx(context, PosReportSpec.staffColumnWidth),
+            child: Text(
+              '—',
+              textAlign: TextAlign.right,
+              style: PosUI.text(
+                context,
+                size: PosReportSpec.tableRowSize,
+                weight: FontWeight.w600,
+                color: PosReportSpec.inkMuted,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: posPx(context, PosReportSpec.staffColumnWidth),
+            child: Text(
+              '—',
+              textAlign: TextAlign.right,
+              style: PosUI.text(
+                context,
+                size: PosReportSpec.tableRowSize,
+                weight: FontWeight.w600,
+                color: PosReportSpec.inkMuted,
+              ),
+            ),
           ),
         ],
       ),

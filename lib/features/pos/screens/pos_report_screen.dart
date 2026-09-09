@@ -1,8 +1,11 @@
+import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_z_report_print.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_step2.dart';
@@ -14,6 +17,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Report — Overview, Figma **1641:5518**.
 ///
@@ -30,7 +34,12 @@ class PosReportScreen extends StatefulWidget {
   @visibleForTesting
   final DateTime? initialDate;
 
-  const PosReportScreen({super.key, this.initialDate});
+  /// Test seam, mirroring [PosPaymentSelectionScreen]. Production leaves this
+  /// null and resolves prefs from GetIt.
+  @visibleForTesting
+  final SharedPreferences? sharedPreferences;
+
+  const PosReportScreen({super.key, this.initialDate, this.sharedPreferences});
 
   @override
   State<PosReportScreen> createState() => _PosReportScreenState();
@@ -41,6 +50,22 @@ class _PosReportScreenState extends State<PosReportScreen> {
   /// view concern, and keeping it here means stepping a day rebuilds this
   /// subtree and re-fetches exactly one day rather than disturbing app state.
   late DateTime _date;
+
+  /// Settings → Staff's roster, read once as the screen opens. It is a
+  /// per-terminal local cache (no server-side staff API exists yet — see
+  /// [PosStaffRepo]), and it does not vary with the report date, so there is
+  /// nothing to re-read when the operator steps between days.
+  late final PosStaffRoster _staffRoster = _loadStaffRoster();
+
+  PosStaffRoster _loadStaffRoster() {
+    final SharedPreferences? prefs = widget.sharedPreferences ??
+        (di.sl.isRegistered<SharedPreferences>()
+            ? di.sl<SharedPreferences>()
+            : null);
+    if (prefs == null) return PosStaffRoster.empty();
+    return PosStaffRepo(sharedPreferences: prefs).loadSaved() ??
+        PosStaffRoster.empty();
+  }
 
   @override
   void initState() {
@@ -204,6 +229,7 @@ class _PosReportScreenState extends State<PosReportScreen> {
                 Expanded(
                   child: _Body(
                     data: data,
+                    staffRoster: _staffRoster,
                     // Strictly the provider's in-flight flag. It must NOT also
                     // treat "no data for this date" as loading: a request that
                     // failed leaves the date unmatched forever, and the screen
@@ -261,11 +287,13 @@ class _ReportView {
 
 class _Body extends StatelessWidget {
   final PosReportData? data;
+  final PosStaffRoster staffRoster;
   final bool loading;
   final VoidCallback onRetry;
 
   const _Body({
     required this.data,
+    required this.staffRoster,
     required this.loading,
     required this.onRetry,
   });
@@ -283,7 +311,7 @@ class _Body extends StatelessWidget {
 
     return Stack(
       children: <Widget>[
-        _Dashboard(data: data!),
+        _Dashboard(data: data!, staffRoster: staffRoster),
         if (loading)
           const Positioned(
             top: 0,
@@ -349,8 +377,9 @@ class _Unavailable extends StatelessWidget {
 /// cards per row, never a list.
 class _Dashboard extends StatelessWidget {
   final PosReportData data;
+  final PosStaffRoster staffRoster;
 
-  const _Dashboard({required this.data});
+  const _Dashboard({required this.data, required this.staffRoster});
 
   @override
   Widget build(BuildContext context) {
@@ -414,7 +443,7 @@ class _Dashboard extends StatelessWidget {
                 children: <Widget>[
                   PosReportCashDrawerPanel(data: data),
                   PosReportCategorySalesPanel(data: data),
-                  PosReportStaffTipsPanel(data: data),
+                  PosReportStaffTipsPanel(data: data, roster: staffRoster),
                   PosReportRefundsPanel(data: data),
                 ],
               ),

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:acafe_customer/common/models/config_model.dart';
@@ -8,6 +9,7 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.d
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_hourly_chart.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_panels.dart';
@@ -342,6 +344,7 @@ void main() {
     Size size, {
     Map<String, dynamic>? payload,
     DateTime? initialDate,
+    PosStaffRoster? staffRoster,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
@@ -350,6 +353,8 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{
       AppConstants.languageCode: 'en',
       AppConstants.countryCode: 'NL',
+      if (staffRoster != null)
+        AppConstants.posStaffRosterKey: jsonEncode(staffRoster.toJson()),
     });
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final DioClient dio = DioClient(
@@ -382,7 +387,10 @@ void main() {
               theme: ThemeData(fontFamily: 'Rubik'),
               home: Scaffold(
                 backgroundColor: PosHomeSpec.pageBg,
-                body: PosReportScreen(initialDate: initialDate),
+                body: PosReportScreen(
+                  initialDate: initialDate,
+                  sharedPreferences: prefs,
+                ),
               ),
             ),
           ),
@@ -743,12 +751,14 @@ void main() {
       expect(find.text('Close Day'), findsNothing);
     });
 
-    testWidgets('fabricates nothing for staff, and shows no count until counted',
+    testWidgets(
+        'fabricates no staff when no roster exists, and shows no count until counted',
         (tester) async {
       await pumpAt(tester, const Size(1366, 926));
 
-      // Decision 2: the panel ships complete but honest.
-      expect(find.text("Staff attribution isn't tracked yet"), findsOneWidget);
+      // Decision 2, still honoured: with no roster saved on this terminal, the
+      // panel says so rather than inventing names.
+      expect(find.text('No staff added yet'), findsOneWidget);
 
       // The derived rows are real now — opening float carries from yesterday's
       // counted close, so Expected is computed rather than invented.
@@ -760,6 +770,44 @@ void main() {
       // A zero-filled "Difference: € 0.00" would read as a balanced drawer.
       expect(find.text('Actual count'), findsNothing);
       expect(find.text('Difference'), findsNothing);
+    });
+
+    testWidgets('shows the real Settings → Staff roster once one exists',
+        (tester) async {
+      final PosStaffRoster roster = PosStaffRoster(
+        members: const <PosStaffMember>[
+          PosStaffMember(
+            id: 'maria',
+            name: 'Maria van den Berg',
+            role: PosStaffRoles.owner,
+            active: true,
+            passcode: '1234',
+            permissions: <String, bool>{},
+          ),
+          // Inactive staff must not show up on today's report.
+          PosStaffMember(
+            id: 'emma',
+            name: 'Emma Visser',
+            role: PosStaffRoles.employee,
+            active: false,
+            passcode: '5678',
+            permissions: <String, bool>{},
+          ),
+        ],
+        shifts: PosStaffRoster.emptyShifts(),
+      );
+
+      await pumpAt(tester, const Size(1366, 926), staffRoster: roster);
+
+      expect(find.text('No staff added yet'), findsNothing);
+      expect(find.text('Maria van den Berg'), findsOneWidget);
+      expect(find.text(PosStaffRoles.owner), findsOneWidget);
+      expect(find.text('Emma Visser'), findsNothing,
+          reason: 'inactive staff are not on today\'s floor');
+
+      // No order-level attribution exists yet, so the per-person columns are
+      // honestly blank rather than a fabricated 0.
+      expect(find.text('—'), findsWidgets);
     });
 
     testWidgets('a counted, closed day shows its actual count and difference',
