@@ -124,6 +124,8 @@ class PosOrderCardTile extends StatelessWidget {
   }
 
   Widget _topRow() {
+    final String statusLabel = PosOrderGrouping.labelFor(order.section);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -143,6 +145,13 @@ class PosOrderCardTile extends StatelessWidget {
             color: PosHomeSpec.ink,
           ),
         ),
+        // The section dot alone reads as decoration, not status — this spells
+        // it out. `excluded` orders never reach the board, so an empty label
+        // here is only a defensive no-op, not a real case.
+        if (statusLabel.isNotEmpty) ...[
+          const SizedBox(width: PosOrdersSpec.statusChipGap),
+          _StatusChip(label: statusLabel, color: _sectionColor),
+        ],
         const Spacer(),
         // Figma draws only the source badge here — no ⋮ menu on this card.
         PosOrderSourceIcon(channelKey: order.channelKey),
@@ -254,6 +263,41 @@ class PosOrderCardTile extends StatelessWidget {
     }
 
     return _ActionButton(label: label, onTap: onAdvance);
+  }
+}
+
+/// Spells out the card's section in words, coloured to match its dot —
+/// "NEW" / "IN PROGRESS" / "FINISHED". Not in Figma; the dot alone was not
+/// legible enough as a status indicator on the card itself.
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: PosOrdersSpec.statusChipHeight,
+      padding: const EdgeInsets.symmetric(
+        horizontal: PosOrdersSpec.statusChipPaddingH,
+      ),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(PosOrdersSpec.statusChipRadius),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: loewBold.copyWith(
+          fontSize: PosOrdersSpec.statusChipTextSize,
+          color: Colors.white,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
   }
 }
 

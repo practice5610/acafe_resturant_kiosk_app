@@ -75,6 +75,16 @@ class PosOrdersSpec {
   static const double clockTextSize = 13;
   static const double clockGap = 6;
 
+  /// The per-card status chip ("NEW" / "IN PROGRESS" / "FINISHED"). Not a
+  /// Figma element — the section dot alone wasn't legible enough as a status
+  /// indicator on the card itself, so this spells it out in words too,
+  /// coloured to match that same dot.
+  static const double statusChipHeight = 18;
+  static const double statusChipRadius = 9;
+  static const double statusChipPaddingH = 8;
+  static const double statusChipTextSize = 9;
+  static const double statusChipGap = 8;
+
   static const double sourceBadgeSize = 24;
   static const double sourceIconSize = 14;
 

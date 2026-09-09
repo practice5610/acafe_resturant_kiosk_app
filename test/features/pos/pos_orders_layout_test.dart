@@ -245,21 +245,29 @@ void main() {
       (tester) async {
     await pumpBoard(tester, _StubOrdersRepo());
 
-    expect(find.text('NEW'), findsOneWidget);
-    expect(find.text('IN PROGRESS'), findsOneWidget);
-    expect(find.text('FINISHED'), findsOneWidget);
+    // Each card now carries its own status chip ("NEW" etc. in white, at the
+    // chip's smaller size), so a bare find.text('NEW') would also catch
+    // those — disambiguate by the section header's own text size.
+    Finder header(String label) => find.byWidgetPredicate((widget) =>
+        widget is Text &&
+        widget.data == label &&
+        widget.style?.fontSize == PosOrdersSpec.sectionHeaderSize);
 
-    final double newY = tester.getTopLeft(find.text('NEW')).dy;
-    final double progressY = tester.getTopLeft(find.text('IN PROGRESS')).dy;
-    final double finishedY = tester.getTopLeft(find.text('FINISHED')).dy;
+    expect(header('NEW'), findsOneWidget);
+    expect(header('IN PROGRESS'), findsOneWidget);
+    expect(header('FINISHED'), findsOneWidget);
+
+    final double newY = tester.getTopLeft(header('NEW')).dy;
+    final double progressY = tester.getTopLeft(header('IN PROGRESS')).dy;
+    final double finishedY = tester.getTopLeft(header('FINISHED')).dy;
 
     // Figma draws every section at the full content width, one under the next.
     expect(progressY, greaterThan(newY));
     expect(finishedY, greaterThan(progressY));
 
-    final double newX = tester.getTopLeft(find.text('NEW')).dx;
-    expect(tester.getTopLeft(find.text('IN PROGRESS')).dx, newX);
-    expect(tester.getTopLeft(find.text('FINISHED')).dx, newX);
+    final double newX = tester.getTopLeft(header('NEW')).dx;
+    expect(tester.getTopLeft(header('IN PROGRESS')).dx, newX);
+    expect(tester.getTopLeft(header('FINISHED')).dx, newX);
   });
 
   testWidgets('cards hold the Figma 288px width and 12px gap', (tester) async {

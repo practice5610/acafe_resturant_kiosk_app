@@ -6,6 +6,7 @@ import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/screens/pos_orders_list_screen.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -266,6 +267,14 @@ void main() {
 
   setUpAll(_loadFonts);
 
+  // Each card now carries its own status chip ("NEW" etc., white text at the
+  // chip's smaller size), so a bare find.text('NEW') also catches those —
+  // disambiguate by the section header's own text size.
+  Finder sectionHeader(String label) => find.byWidgetPredicate((widget) =>
+      widget is Text &&
+      widget.data == label &&
+      widget.style?.fontSize == PosOrdersSpec.sectionHeaderSize);
+
   Future<void> pumpAt(WidgetTester tester, Size size) async {
     SharedPreferences.setMockInitialValues({
       AppConstants.token: 'device-token',
@@ -313,9 +322,9 @@ void main() {
     await pumpAt(tester, const Size(1366, 926));
 
     expect(find.text('Search in orders...'), findsOneWidget);
-    expect(find.text('NEW'), findsOneWidget);
-    expect(find.text('IN PROGRESS'), findsOneWidget);
-    expect(find.text('FINISHED'), findsOneWidget);
+    expect(sectionHeader('NEW'), findsOneWidget);
+    expect(sectionHeader('IN PROGRESS'), findsOneWidget);
+    expect(sectionHeader('FINISHED'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await expectLater(
@@ -326,7 +335,7 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pump();
 
-    expect(find.text('FINISHED'), findsOneWidget);
+    expect(sectionHeader('FINISHED'), findsOneWidget);
     expect(find.text('Done'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   }, skip: !Platform.isMacOS && !Platform.isLinux);
@@ -337,9 +346,9 @@ void main() {
     // sections can be checked against 1641:2874 at once, without scrolling.
     await pumpAt(tester, const Size(1366, 1500));
 
-    expect(find.text('NEW'), findsOneWidget);
-    expect(find.text('IN PROGRESS'), findsOneWidget);
-    expect(find.text('FINISHED'), findsOneWidget);
+    expect(sectionHeader('NEW'), findsOneWidget);
+    expect(sectionHeader('IN PROGRESS'), findsOneWidget);
+    expect(sectionHeader('FINISHED'), findsOneWidget);
     // preparing x2 and on_hold in IN PROGRESS; item_to_collect in FINISHED
     // still carries the action that finishes it.
     expect(find.text('Mark as ready'), findsNWidgets(2));
