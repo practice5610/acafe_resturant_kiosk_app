@@ -6,8 +6,6 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_checkout.dart';
-import 'package:acafe_customer/features/pos/domain/pos_hardware_settings.dart';
-import 'package:acafe_customer/features/pos/domain/pos_hardware_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_settings_repo.dart';
@@ -365,10 +363,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     final int? orderId = int.tryParse((rawOrderId ?? '').trim());
     if (orderId == null) return;
 
-    final PosHardwareSettings? hardware = PosHardwareSettingsRepo(
-      sharedPreferences: di.sl<SharedPreferences>(),
-    ).loadSaved(storeName: '');
-    if (hardware == null || !hardware.autoPrintReceipts) return;
+    final settings = posLoadReceiptSettings(
+      context,
+      sharedPreferences: widget.sharedPreferences,
+    );
+    if (!settings.hardware.autoPrintReceipts) return;
 
     final KioskManagerProvider manager = context.read<KioskManagerProvider>();
     try {
@@ -376,7 +375,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       if (!mounted) return;
       final Map<String, dynamic>? json = manager.receiptDetail;
       if (json == null || manager.receiptDetailId != orderId) return;
-      posPrintReceipt(PosReceiptDetail.fromJson(json));
+      posPrintReceipt(
+        PosReceiptDetail.fromJson(json),
+        hardware: settings.hardware,
+        general: settings.general,
+      );
     } catch (_) {
       if (!mounted) return;
       showCustomSnackBarHelper(

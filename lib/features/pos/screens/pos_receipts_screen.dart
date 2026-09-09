@@ -172,7 +172,12 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
 
   void _print(PosReceiptDetail receipt) {
     try {
-      posPrintReceipt(receipt);
+      final settings = posLoadReceiptSettings(context);
+      posPrintReceipt(
+        receipt,
+        hardware: settings.hardware,
+        general: settings.general,
+      );
     } catch (_) {
       // print() is only meaningful on the web build the POS actually ships as.
       showCustomSnackBarHelper('Printing is not available on this device');
