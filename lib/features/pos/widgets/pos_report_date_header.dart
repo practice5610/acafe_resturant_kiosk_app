@@ -18,6 +18,14 @@ class PosReportDateHeader extends StatelessWidget {
   final DateTime date;
   final ValueChanged<DateTime> onDateChanged;
 
+  /// The branch's business "today", as the server resolved it -- not
+  /// `DateTime.now()`. A POS terminal's own OS clock can be set to any
+  /// timezone; the server validates and reports against the one configured
+  /// in Settings → General (Business Setting `time_zone`), and this control
+  /// must agree with whichever day the server will actually accept, or the
+  /// arrow lets the operator step into a date the endpoint then 422s on.
+  final DateTime today;
+
   /// Null while the day is already closed or a close is in flight — the button
   /// renders in its disabled state rather than disappearing, so the day's state
   /// stays legible.
@@ -29,6 +37,7 @@ class PosReportDateHeader extends StatelessWidget {
     super.key,
     required this.date,
     required this.onDateChanged,
+    required this.today,
     required this.onCloseDay,
     required this.closed,
     required this.closing,
@@ -49,10 +58,9 @@ class PosReportDateHeader extends StatelessWidget {
   static bool isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  bool get _isToday => isSameDay(date, DateTime.now());
+  bool get _isToday => isSameDay(date, today);
 
   Future<void> _pick(BuildContext context) async {
-    final DateTime today = DateTime.now();
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: date,
@@ -79,7 +87,7 @@ class PosReportDateHeader extends StatelessWidget {
 
   void _step(int days) {
     final DateTime next = DateTime(date.year, date.month, date.day + days);
-    if (days > 0 && next.isAfter(DateTime.now())) return;
+    if (days > 0 && next.isAfter(today)) return;
     onDateChanged(next);
   }
 

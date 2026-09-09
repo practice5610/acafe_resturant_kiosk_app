@@ -64,6 +64,16 @@ class PosReportData {
   Map<String, dynamic> get _sales => _map(raw['sales']);
   Map<String, dynamic> get _transactions => _map(raw['transactions']);
 
+  /// The calendar day this payload is actually for, per the server's own
+  /// resolution (the branch's configured business timezone, not whatever
+  /// timezone the requesting device's clock happens to be set to). Null only
+  /// for a malformed/legacy payload missing the field entirely.
+  DateTime? get reportDate {
+    final String? raw = this.raw['report_date'] as String?;
+    if (raw == null) return null;
+    return DateTime.tryParse(raw);
+  }
+
   bool get closed => raw['closed'] == true;
   int? get zNumber => raw['z_number'] == null ? null : _i(raw['z_number']);
   String? get closedBy => raw['closed_by'] as String?;

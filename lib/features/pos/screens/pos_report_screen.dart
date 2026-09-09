@@ -51,6 +51,18 @@ class _PosReportScreenState extends State<PosReportScreen> {
   /// subtree and re-fetches exactly one day rather than disturbing app state.
   late DateTime _date;
 
+  /// The branch's business "today", per the server -- not this device's own
+  /// clock. Provisional (a straight `DateTime.now()` guess) until the very
+  /// first load resolves it from the server's response; see [_load]'s
+  /// `resolveToday`. A device whose OS timezone runs even an hour ahead of
+  /// the branch's configured business timezone (Settings → General → Time
+  /// Zone, applied server-side) would otherwise ask for a "today" the
+  /// endpoint has not reached yet and get a 422 `future-date` back right at
+  /// that boundary -- which is also why the date header takes [_today]
+  /// rather than reading `DateTime.now()` itself.
+  late DateTime _today;
+  bool _todayConfirmed = false;
+
   /// Settings → Staff's roster, read once as the screen opens. It is a
   /// per-terminal local cache (no server-side staff API exists yet — see
   /// [PosStaffRepo]), and it does not vary with the report date, so there is
@@ -70,22 +82,50 @@ class _PosReportScreenState extends State<PosReportScreen> {
   @override
   void initState() {
     super.initState();
-    final DateTime now = widget.initialDate ?? DateTime.now();
-    _date = DateTime(now.year, now.month, now.day);
+    final DateTime? pinned = widget.initialDate;
+    if (pinned != null) {
+      // A golden/test pins an exact date -- there is no live server to
+      // resolve "today" against, and the value is trusted as-is.
+      _date = DateTime(pinned.year, pinned.month, pinned.day);
+      _today = _date;
+      _todayConfirmed = true;
+    } else {
+      final DateTime now = DateTime.now();
+      _date = DateTime(now.year, now.month, now.day);
+      _today = _date;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _load();
+      if (mounted) _load(resolveToday: !_todayConfirmed);
     });
   }
 
-  String get _reportDate =>
-      '${_date.year.toString().padLeft(4, '0')}-'
-      '${_date.month.toString().padLeft(2, '0')}-'
-      '${_date.day.toString().padLeft(2, '0')}';
+  String _dateString(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
-  void _load() {
-    context.read<KioskManagerProvider>().loadSalesOverview(
-          reportDate: _reportDate,
-        );
+  String get _reportDate => _dateString(_date);
+
+  /// [resolveToday] leaves `report_date` off the request entirely, so the
+  /// server answers with whichever day it considers "today" in the branch's
+  /// own configured timezone -- see [_today]'s doc. The response's own
+  /// `report_date` (now what [KioskManagerProvider.salesDataDate] reports;
+  /// it stopped trusting the request echo for exactly this reason) is then
+  /// adopted as both the day on screen and the reference every later
+  /// forward-navigation guard compares against.
+  Future<void> _load({bool resolveToday = false}) async {
+    final KioskManagerProvider manager = context.read<KioskManagerProvider>();
+    await manager.loadSalesOverview(
+      reportDate: resolveToday ? null : _reportDate,
+    );
+    if (!mounted || !resolveToday || _todayConfirmed) return;
+    final DateTime? resolved = PosReportData.from(manager.salesData)?.reportDate;
+    if (resolved == null) return; // Failed; _Unavailable's Try Again re-resolves.
+    setState(() {
+      _date = resolved;
+      _today = resolved;
+      _todayConfirmed = true;
+    });
   }
 
   void _onDateChanged(DateTime date) {
@@ -221,6 +261,7 @@ class _PosReportScreenState extends State<PosReportScreen> {
                   child: PosReportDateHeader(
                     date: _date,
                     onDateChanged: _onDateChanged,
+                    today: _today,
                     onCloseDay: _confirmCloseDay,
                     closed: data?.closed ?? false,
                     closing: view.closing,

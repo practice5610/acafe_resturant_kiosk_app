@@ -260,7 +260,11 @@ class _StubManager extends KioskManagerProvider {
       return;
     }
     _inFlight = false;
-    _loadedDate = reportDate;
+    // Mirrors the real provider: a null `reportDate` (the screen resolving
+    // "today" against the server rather than guessing from the device
+    // clock) is answered from the payload's own declared report_date, not
+    // echoed back as null.
+    _loadedDate = reportDate ?? _payload['report_date'] as String?;
     notifyListeners();
   }
 
@@ -475,18 +479,21 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('fetches exactly the selected day and re-fetches on step',
+    testWidgets(
+        'resolves "today" from the server, then fetches exactly the selected day on each step',
         (tester) async {
       final _StubManager manager = await pumpAt(tester, const Size(1366, 926));
 
-      final String today = manager.requestedDates.single;
-      expect(today, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+      // The very first load asks what day it is rather than guessing from
+      // this device's own clock/timezone -- an empty string is the stub's
+      // stand-in for "no report_date sent".
+      expect(manager.requestedDates.single, '');
 
       await tester.tap(find.byTooltip('Previous day'));
       await tester.pumpAndSettle();
 
       expect(manager.requestedDates, hasLength(2));
-      expect(manager.requestedDates.last, isNot(today));
+      expect(manager.requestedDates.last, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
     });
 
     testWidgets('next-day is disabled on today', (tester) async {
@@ -532,7 +539,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
-      expect(manager.closedDates.single, manager.requestedDates.first);
+      // The first request was the initial resolve-today load (an empty
+      // string -- see the "fetches exactly the selected day" test); the
+      // resolved date is what Close Day and the post-close reload both use.
+      expect(manager.closedDates.single, manager.requestedDates.last);
       expect(manager.closedPayloads.single['closing_cash_counted'], 842.5);
       // No opening float is sent: the server derives it from yesterday's
       // counted close, so there is nothing here for a client to disagree with.

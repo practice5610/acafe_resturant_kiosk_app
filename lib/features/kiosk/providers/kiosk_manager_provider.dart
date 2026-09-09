@@ -91,8 +91,13 @@ class KioskManagerProvider extends ChangeNotifier {
   Map<String, dynamic>? _salesData;
   Map<String, dynamic>? get salesData => _salesData;
 
-  /// The `report_date` [salesData] actually describes, or null when it is the
-  /// implicit "today" the manager screen asks for.
+  /// The `report_date` [salesData] actually describes.
+  ///
+  /// Read from the payload's own `report_date`, never from the request
+  /// parameter that was sent: the server is the one authority on which
+  /// calendar day "today" is (it resolves the implicit case in the branch's
+  /// configured business timezone, not this device's), so a caller that
+  /// asks with `reportDate: null` finds out which day it got from here.
   ///
   /// Exposed because a request-id guard alone is not enough for the POS Report
   /// screen: dropping a superseded response still leaves the *previous* day's
@@ -126,7 +131,7 @@ class KioskManagerProvider extends ChangeNotifier {
     if (apiResponse.response != null &&
         apiResponse.response!.statusCode == 200) {
       _salesData = Map<String, dynamic>.from(apiResponse.response!.data);
-      _salesDataDate = reportDate;
+      _salesDataDate = _salesData!['report_date']?.toString() ?? reportDate;
     } else {
       ApiCheckerHelper.checkApi(apiResponse);
     }
@@ -175,7 +180,7 @@ class KioskManagerProvider extends ChangeNotifier {
         // before the close could land afterwards and show the day as open again.
         _salesRequestId++;
         _salesData = Map<String, dynamic>.from(data);
-        _salesDataDate = reportDate;
+        _salesDataDate = _salesData!['report_date']?.toString() ?? reportDate;
         _salesLoading = false;
       }
     } else {
