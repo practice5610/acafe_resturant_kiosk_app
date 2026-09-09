@@ -36,6 +36,28 @@ class PosPaymentSpec {
   static const double stackedBelowWidth = 900;
   static const double stackedBelowHeight = 560;
 
+  /// Above this the pair keeps the Figma proportions. Between here and
+  /// [stackedBelowWidth] the window is a staff tablet or a half-screen browser
+  /// window: still two columns, but the split, the gutter and the page insets
+  /// all change, because the keypad has a comfortable minimum width and the
+  /// receipt does not.
+  static const double mediumBelowWidth = 1180;
+
+  /// Medium-band split. The payment column carries a 3x keypad, a five-chip
+  /// denomination row and the totals; the receipt carries a list that reads
+  /// fine narrow. So the room that is missing comes out of the receipt.
+  static const int mediumReceiptFlex = 5;
+  static const int mediumPaymentFlex = 7;
+
+  /// Page insets and gutter for the medium band — 20 instead of 32 buys the
+  /// two columns 24px each without touching either card's internals.
+  static const double mediumContentPadding = 20;
+  static const double mediumContentGap = 20;
+
+  /// Stacked band: a single column of cards on a portrait tablet is capped so
+  /// the receipt does not run a line of text the full width of the window.
+  static const double stackedMaxWidth = 720;
+
   // ── Cards (1641:2764 / 1641:2838) ────────────────────────────────────
   static const double cardRadius = 16;
   static const double cardBorder = 1.5;
@@ -94,8 +116,22 @@ class PosPaymentSpec {
   static const double denomBorder = 1.5;
   static const double denomLabelSize = 14;
   static const double denomLabelHeight = 17 / 14;
-  static const EdgeInsets denomPadding =
-      EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+  static const double denomPaddingH = 16;
+  static const double denomPaddingV = 12;
+  static const EdgeInsets denomPadding = EdgeInsets.symmetric(
+    horizontal: denomPaddingH,
+    vertical: denomPaddingV,
+  );
+
+  // ── numeric-keypad (1641:3849) ───────────────────────────────────────
+  /// Mirrors `posCashKeypadStyle`. Held here as well because the column has to
+  /// know how tall the pad will be *before* it builds one — see
+  /// [PosPaymentDensity.fit].
+  static const double keypadKeyHeight = 48;
+  static const double keypadRowGap = 8;
+  static const int keypadRows = 4;
+  static const double _keypadHeight =
+      keypadRows * keypadKeyHeight + (keypadRows - 1) * keypadRowGap;
 
   static const double changeBannerPadding = 16;
   static const double changeBannerRadius = 12;
@@ -112,6 +148,12 @@ class PosPaymentSpec {
   static const double summaryPaddingTop = 16;
   static const double summaryPaddingH = 24;
   static const double summaryGap = 8;
+
+  /// The unpinned summary's two internal gaps — above and below the rule.
+  static const double _summaryGaps = summaryGap * 2;
+  /// Line boxes of `PosReceiptSummary`, kept in step with `PosHomeSpec`.
+  static const double _summaryRowLine = 19;
+  static const double _summaryTotalLine = 29;
 
   // ── waiting-card (1641:4203 / 1641:4204) ─────────────────────────────
   static const double waitCardWidth = 560;
@@ -179,4 +221,117 @@ class PosPaymentSpec {
   /// Total height the bar occupies.
   static const double barHeight =
       barBorderTop + barPaddingTop + confirmHeight + barPaddingBottom;
+}
+
+/// Vertical density for the payment column.
+///
+/// The cash frame is authored at 1024 tall, where the card's natural height
+/// (~721px with the keypad open) just clears the nav bar, the back row and the
+/// sticky Confirm bar. A 1366x768 laptop, or any browser window with a bookmarks
+/// bar, leaves ~150px less than that — and a till operator scrolling to reach
+/// Change Due and the total is how the wrong amount gets confirmed.
+///
+/// So the column is *fitted* rather than scrolled: one factor derived from the
+/// height actually available, applied to the card's spacing and type. Spacing
+/// takes the factor whole; type takes half of it (`(1 + s) / 2`), because a
+/// keypad digit that shrinks as fast as the gap around it stops being readable
+/// across a counter. [fit] solves for the factor that lands the card exactly on
+/// the available height under that split, so the result fits in one pass.
+@immutable
+class PosPaymentDensity {
+  /// 1.0 = the design as drawn.
+  final double scale;
+
+  const PosPaymentDensity(this.scale);
+
+  static const PosPaymentDensity full = PosPaymentDensity(1);
+
+  /// Floor. Below this the type stops being counter-legible, and scrolling the
+  /// last few pixels is the better trade — the column keeps its scroll view for
+  /// exactly that case.
+  static const double minScale = 0.7;
+
+  /// Spacing, borders and fixed box heights.
+  double px(double designPx) => designPx * scale;
+
+  /// Type, and anything sized to read rather than to fit.
+  double get textScale => (1 + scale) / 2;
+
+  double text(double designPx) => designPx * textScale;
+
+  bool get isFull => scale >= 1;
+
+  /// Everything in the payment card that is a gap, a padding, a border or a
+  /// fixed box height — the part that scales one-for-one.
+  static double _spacing({required bool cash}) {
+    const double shell = PosPaymentSpec.cardBorder * 2 + // the card outline
+        PosPaymentSpec.paymentCardPaddingV * 2 +
+        PosPaymentSpec.paymentCardGap + // label -> methods
+        PosPaymentSpec.methodHeight +
+        PosPaymentSpec.paymentCardGap + // methods -> cash panel or summary
+        PosPaymentSpec.summaryPaddingTop +
+        PosPaymentSpec._summaryGaps +
+        1; // the rule above Total
+    if (!cash) return shell;
+    const double panel = PosPaymentSpec.cashFieldLabelGap +
+        PosPaymentSpec.cashFieldPadding * 2 +
+        PosPaymentSpec.cashFieldBorder * 2 +
+        PosPaymentSpec.cashPanelGap +
+        PosPaymentSpec.denomPaddingV * 2 +
+        PosPaymentSpec.denomBorder * 2 +
+        PosPaymentSpec.cashPanelGap +
+        PosPaymentSpec._keypadHeight +
+        PosPaymentSpec.paymentCardGap + // keypad -> change banner
+        PosPaymentSpec.changeBannerPadding * 2 +
+        PosPaymentSpec.changeBannerBorder * 2;
+    return shell + PosPaymentSpec.paymentCardGap + panel;
+  }
+
+  /// Every line of type in the payment card, at its authored line height.
+  static double _type({required bool cash, required bool discount}) {
+    double total = PosPaymentSpec.sectionLabelSize *
+            PosPaymentSpec.sectionLabelHeight +
+        PosPaymentSpec._summaryRowLine +
+        PosPaymentSpec._summaryTotalLine;
+    if (discount) {
+      total += PosPaymentSpec.summaryGap + PosPaymentSpec._summaryRowLine;
+    }
+    if (cash) {
+      total += PosPaymentSpec.cashFieldLabelSize *
+              PosPaymentSpec.cashFieldLabelHeight +
+          PosPaymentSpec.cashAmountSize * PosPaymentSpec.cashAmountHeight +
+          PosPaymentSpec.denomLabelSize * PosPaymentSpec.denomLabelHeight +
+          PosPaymentSpec.changeValueSize * PosPaymentSpec.changeValueHeight;
+    }
+    return total;
+  }
+
+  /// Natural height of the payment card as drawn, for [available] to be
+  /// measured against.
+  static double naturalHeight({required bool cash, required bool discount}) =>
+      _spacing(cash: cash) + _type(cash: cash, discount: discount);
+
+  /// The largest factor whose card still fits in [available] logical pixels.
+  ///
+  /// Solved rather than searched: height(s) = A*s + B*(1+s)/2, so the exact
+  /// root is `(available - B/2) / (A + B/2)`.
+  factory PosPaymentDensity.fit({
+    required double available,
+    required bool cash,
+    required bool discount,
+  }) {
+    if (!available.isFinite || available <= 0) return full;
+    final double a = _spacing(cash: cash);
+    final double b = _type(cash: cash, discount: discount);
+    if (a + b <= available) return full;
+    final double s = (available - b / 2) / (a + b / 2);
+    return PosPaymentDensity(s.clamp(minScale, 1.0));
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is PosPaymentDensity && other.scale == scale;
+
+  @override
+  int get hashCode => scale.hashCode;
 }

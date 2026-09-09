@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -521,12 +522,17 @@ class PosReceiptSummary extends StatelessWidget {
   /// with no rule, as the payment card draws it.
   final bool pinned;
 
+  /// Fitted density for the payment card's medium/laptop band. Unused (and
+  /// left at full size) by the pinned receipt footer, which always has room.
+  final PosPaymentDensity density;
+
   const PosReceiptSummary({
     super.key,
     required this.subtotal,
     required this.discount,
     required this.total,
     this.pinned = true,
+    this.density = PosPaymentDensity.full,
   });
 
   @override
@@ -538,9 +544,11 @@ class PosReceiptSummary extends StatelessWidget {
               ? PosHomeSpec.summaryHeightWithDiscount
               : PosHomeSpec.summaryHeight)
           : null,
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         PosHomeSpec.panelPaddingH,
-        PosHomeSpec.summaryPaddingTop,
+        pinned
+            ? PosHomeSpec.summaryPaddingTop
+            : density.px(PosHomeSpec.summaryPaddingTop),
         PosHomeSpec.panelPaddingH,
         0,
       ),
@@ -554,38 +562,46 @@ class PosReceiptSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            height: PosHomeSpec.summaryRowSize * PosHomeSpec.summaryRowHeight,
+            height: PosHomeSpec.summaryRowSize *
+                PosHomeSpec.summaryRowHeight *
+                density.textScale,
             child: _SummaryRow(
               label: 'Subtotal',
               value: PosHomeSpec.formatPrice(subtotal),
+              density: density,
             ),
           ),
           if (showDiscount) ...[
-            const SizedBox(height: PosHomeSpec.summaryGap),
+            SizedBox(height: density.px(PosHomeSpec.summaryGap)),
             SizedBox(
-              height: PosHomeSpec.summaryRowSize * PosHomeSpec.summaryRowHeight,
-            child: _SummaryRow(
-              label: 'Discount',
-              value: '- ${PosHomeSpec.formatPrice(discount)}',
-              color: PosHomeSpec.discountGreen,
-            ),
+              height: PosHomeSpec.summaryRowSize *
+                  PosHomeSpec.summaryRowHeight *
+                  density.textScale,
+              child: _SummaryRow(
+                label: 'Discount',
+                value: '- ${PosHomeSpec.formatPrice(discount)}',
+                color: PosHomeSpec.discountGreen,
+                density: density,
+              ),
             ),
           ],
-          const SizedBox(height: PosHomeSpec.summaryGap),
+          SizedBox(height: density.px(PosHomeSpec.summaryGap)),
           const ColoredBox(
             color: PosHomeSpec.hairline,
             child: SizedBox(height: 1, width: double.infinity),
           ),
-          const SizedBox(height: PosHomeSpec.summaryGap),
+          SizedBox(height: density.px(PosHomeSpec.summaryGap)),
           SizedBox(
-            height: PosHomeSpec.summaryTotalSize * PosHomeSpec.summaryTotalHeight,
+            height: PosHomeSpec.summaryTotalSize *
+                PosHomeSpec.summaryTotalHeight *
+                density.textScale,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Total',
                   style: loewExtraBold.copyWith(
-                    fontSize: PosHomeSpec.summaryTotalSize,
+                    fontSize: density.text(PosHomeSpec.summaryTotalSize),
                     color: PosHomeSpec.ink,
                     height: PosHomeSpec.summaryTotalHeight,
                   ),
@@ -593,7 +609,7 @@ class PosReceiptSummary extends StatelessWidget {
                 Text(
                   PosHomeSpec.formatPrice(total),
                   style: loewExtraBold.copyWith(
-                    fontSize: PosHomeSpec.summaryTotalSize,
+                    fontSize: density.text(PosHomeSpec.summaryTotalSize),
                     color: PosHomeSpec.ink,
                     height: PosHomeSpec.summaryTotalHeight,
                   ),
@@ -611,11 +627,13 @@ class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final Color? color;
+  final PosPaymentDensity density;
 
   const _SummaryRow({
     required this.label,
     required this.value,
     this.color,
+    this.density = PosPaymentDensity.full,
   });
 
   @override
@@ -626,7 +644,7 @@ class _SummaryRow extends StatelessWidget {
         Text(
           label,
           style: swiss721Light.copyWith(
-            fontSize: PosHomeSpec.summaryRowSize,
+            fontSize: density.text(PosHomeSpec.summaryRowSize),
             color: color ?? PosHomeSpec.inkAlpha(0.6),
             height: PosHomeSpec.summaryRowHeight,
           ),
@@ -634,7 +652,7 @@ class _SummaryRow extends StatelessWidget {
         Text(
           value,
           style: swiss721Light.copyWith(
-            fontSize: PosHomeSpec.summaryRowSize,
+            fontSize: density.text(PosHomeSpec.summaryRowSize),
             color: color ?? PosHomeSpec.ink,
             height: PosHomeSpec.summaryRowHeight,
           ),

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
@@ -18,11 +20,16 @@ class PosPaymentMethodCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Fitted density for the medium/laptop band. Defaults to full size, which
+  /// is the only size this card ever drew before [PosPaymentDensity] existed.
+  final PosPaymentDensity density;
+
   const PosPaymentMethodCard({
     super.key,
     required this.method,
     required this.selected,
     required this.onTap,
+    this.density = PosPaymentDensity.full,
   });
 
   String get _label => method == PosPaymentMethod.cash ? 'Cash' : 'Card';
@@ -36,6 +43,18 @@ class PosPaymentMethodCard extends StatelessWidget {
     final BorderRadius radius =
         BorderRadius.circular(PosPaymentSpec.methodRadius);
 
+    // The design's 95px is padding + a fixed icon row + a label line, with a
+    // few px of slack at full size. Text shrinks slower than spacing (see
+    // [PosPaymentDensity]), so below full density that slack can invert into
+    // an overflow — never shrink past what the label actually needs.
+    final double contentHeight = density.px(PosPaymentSpec.methodPadding) * 2 +
+        density.px(PosPaymentSpec.methodTopRowHeight) +
+        density.px(PosPaymentSpec.methodInnerGap) +
+        density.text(PosPaymentSpec.methodLabelSize) *
+            PosPaymentSpec.methodLabelHeight;
+    final double height =
+        math.max(density.px(PosPaymentSpec.methodHeight), contentHeight);
+
     return Semantics(
       button: true,
       selected: selected,
@@ -47,8 +66,8 @@ class PosPaymentMethodCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: radius,
           child: Container(
-            height: PosPaymentSpec.methodHeight,
-            padding: const EdgeInsets.all(PosPaymentSpec.methodPadding),
+            height: height,
+            padding: EdgeInsets.all(density.px(PosPaymentSpec.methodPadding)),
             decoration: BoxDecoration(
               borderRadius: radius,
               border: Border.all(
@@ -62,22 +81,23 @@ class PosPaymentMethodCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  height: PosPaymentSpec.methodTopRowHeight,
+                  height: density.px(PosPaymentSpec.methodTopRowHeight),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _IconWell(asset: _icon, selected: selected),
-                      _Radio(selected: selected),
+                      _IconWell(
+                          asset: _icon, selected: selected, density: density),
+                      _Radio(selected: selected, density: density),
                     ],
                   ),
                 ),
-                const SizedBox(height: PosPaymentSpec.methodInnerGap),
+                SizedBox(height: density.px(PosPaymentSpec.methodInnerGap)),
                 Text(
                   _label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: loewBold.copyWith(
-                    fontSize: PosPaymentSpec.methodLabelSize,
+                    fontSize: density.text(PosPaymentSpec.methodLabelSize),
                     color: PosHomeSpec.ink,
                     height: PosPaymentSpec.methodLabelHeight,
                   ),
@@ -94,14 +114,17 @@ class PosPaymentMethodCard extends StatelessWidget {
 class _IconWell extends StatelessWidget {
   final String asset;
   final bool selected;
+  final PosPaymentDensity density;
 
-  const _IconWell({required this.asset, required this.selected});
+  const _IconWell(
+      {required this.asset, required this.selected, required this.density});
 
   @override
   Widget build(BuildContext context) {
+    final double box = density.px(PosPaymentSpec.methodIconBox);
     return Container(
-      width: PosPaymentSpec.methodIconBox,
-      height: PosPaymentSpec.methodIconBox,
+      width: box,
+      height: box,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: selected ? PosHomeSpec.ink : PosPaymentSpec.methodIdleIconBg,
@@ -114,8 +137,8 @@ class _IconWell extends StatelessWidget {
       // moment it is selected.
       child: SvgPicture.asset(
         asset,
-        width: PosPaymentSpec.methodIconSize,
-        height: PosPaymentSpec.methodIconSize,
+        width: density.px(PosPaymentSpec.methodIconSize),
+        height: density.px(PosPaymentSpec.methodIconSize),
         colorFilter: ColorFilter.mode(
           selected ? PosHomeSpec.pageBg : PosHomeSpec.ink,
           BlendMode.srcIn,
@@ -127,24 +150,26 @@ class _IconWell extends StatelessWidget {
 
 class _Radio extends StatelessWidget {
   final bool selected;
+  final PosPaymentDensity density;
 
-  const _Radio({required this.selected});
+  const _Radio({required this.selected, required this.density});
 
   @override
   Widget build(BuildContext context) {
+    final double size = density.px(PosPaymentSpec.methodRadioSize);
     return SizedBox(
-      width: PosPaymentSpec.methodRadioSize,
-      height: PosPaymentSpec.methodRadioSize,
+      width: size,
+      height: size,
       child: SvgPicture.asset(
         selected ? Images.posRadioOnSvg : Images.posRadioOffSvg,
-        width: PosPaymentSpec.methodRadioSize,
-        height: PosPaymentSpec.methodRadioSize,
+        width: size,
+        height: size,
         // A missing asset in a stale web AssetManifest must not leave the card
         // with no selection indicator at all — see the trash-icon note in
         // pos_receipt_line.dart.
         placeholderBuilder: (_) => Icon(
           selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-          size: PosPaymentSpec.methodRadioSize,
+          size: size,
           color: selected ? PosHomeSpec.ink : PosHomeSpec.itemDivider,
         ),
       ),

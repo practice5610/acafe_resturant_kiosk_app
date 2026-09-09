@@ -654,11 +654,11 @@ class _Content extends StatelessWidget {
     );
   }
 
-  Widget _paymentCard() {
+  Widget _paymentCard(PosPaymentDensity density) {
     return _Card(
-      padding: const EdgeInsets.symmetric(
-        horizontal: PosPaymentSpec.paymentCardPaddingH,
-        vertical: PosPaymentSpec.paymentCardPaddingV,
+      padding: EdgeInsets.symmetric(
+        horizontal: density.px(PosPaymentSpec.paymentCardPaddingH),
+        vertical: density.px(PosPaymentSpec.paymentCardPaddingV),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -667,17 +667,16 @@ class _Content extends StatelessWidget {
           Text(
             'SELECT PAYMENT METHOD',
             style: loewBold.copyWith(
-              fontSize: PosPaymentSpec.sectionLabelSize,
+              fontSize: density.text(PosPaymentSpec.sectionLabelSize),
               height: PosPaymentSpec.sectionLabelHeight,
               letterSpacing: PosPaymentSpec.sectionLabelTracking,
               color: PosHomeSpec.inkAlpha(PosPaymentSpec.sectionLabelOpacity),
             ),
           ),
-          const SizedBox(height: PosPaymentSpec.paymentCardGap),
+          SizedBox(height: density.px(PosPaymentSpec.paymentCardGap)),
           Row(
-            // start, not stretch: the card is inside a SingleChildScrollView
-            // whose height is unbounded, and both method cards already carry
-            // the design's fixed 95px height.
+            // start, not stretch: both method cards carry their own fixed
+            // (fitted) height rather than filling whatever the row is given.
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (cashEnabled)
@@ -686,18 +685,20 @@ class _Content extends StatelessWidget {
                     method: PosPaymentMethod.cash,
                     selected: method == PosPaymentMethod.cash,
                     onTap: () => onSelectMethod(PosPaymentMethod.cash),
+                    density: density,
                   ),
                 ),
               // Only a separator when there are two cards to separate; a
               // single-tender terminal must not carry a stray 16px gutter.
               if (cashEnabled && cardEnabled)
-                const SizedBox(width: PosPaymentSpec.methodGap),
+                SizedBox(width: density.px(PosPaymentSpec.methodGap)),
               if (cardEnabled)
                 Expanded(
                   child: PosPaymentMethodCard(
                     method: PosPaymentMethod.card,
                     selected: method == PosPaymentMethod.card,
                     onTap: () => onSelectMethod(PosPaymentMethod.card),
+                    density: density,
                   ),
                 ),
             ],
@@ -706,7 +707,7 @@ class _Content extends StatelessWidget {
           // the card frame (1641:2757) goes straight from the method row to
           // the totals.
           if (method == PosPaymentMethod.cash) ...[
-            const SizedBox(height: PosPaymentSpec.paymentCardGap),
+            SizedBox(height: density.px(PosPaymentSpec.paymentCardGap)),
             PosCashPanel(
               entry: cash,
               totalCents: totalCents,
@@ -715,14 +716,16 @@ class _Content extends StatelessWidget {
               onKey: onCashKey,
               onBackspace: onCashBackspace,
               onClear: onCashClear,
+              density: density,
             ),
           ],
-          const SizedBox(height: PosPaymentSpec.paymentCardGap),
+          SizedBox(height: density.px(PosPaymentSpec.paymentCardGap)),
           PosReceiptSummary(
             subtotal: subtotal,
             discount: discount,
             total: total,
             pinned: false,
+            density: density,
           ),
         ],
       ),
@@ -737,55 +740,102 @@ class _Content extends StatelessWidget {
             constraints.maxWidth >= PosPaymentSpec.stackedBelowWidth &&
                 constraints.maxHeight >= PosPaymentSpec.stackedBelowHeight;
 
-        // `content-area` in 1641:3751 is `pb-32 px-32` — no top inset. The
-        // back row above it already provides the breathing room, and the 32px
-        // this frees is what lets the totals stay on screen under the keypad.
-        const EdgeInsets padding = EdgeInsets.fromLTRB(
-          PosPaymentSpec.contentPadding,
-          0,
-          PosPaymentSpec.contentPadding,
-          PosPaymentSpec.contentPadding,
-        );
-
         if (!sideBySide) {
+          // `content-area` in 1641:3751 is `pb-32 px-32` — no top inset. The
+          // back row above it already provides the breathing room.
+          const EdgeInsets padding = EdgeInsets.fromLTRB(
+            PosPaymentSpec.contentPadding,
+            0,
+            PosPaymentSpec.contentPadding,
+            PosPaymentSpec.contentPadding,
+          );
           return SingleChildScrollView(
             padding: padding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _receiptCard(fill: false),
-                const SizedBox(height: PosPaymentSpec.contentGap),
-                _paymentCard(),
-              ],
+            // Capped, not stretched: a portrait tablet is wide enough to
+            // stack the two cards but not to run the receipt's item rows the
+            // full width of the window.
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                    maxWidth: PosPaymentSpec.stackedMaxWidth),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _receiptCard(fill: false),
+                    const SizedBox(height: PosPaymentSpec.contentGap),
+                    _paymentCard(PosPaymentDensity.full),
+                  ],
+                ),
+              ),
             ),
           );
         }
 
+        // Between `stackedBelowWidth` and `mediumBelowWidth` the window is a
+        // staff tablet or a half-screen browser: wide enough for two columns,
+        // not wide enough for the design's 634/634 split plus its 32px
+        // margins. Tightening the gutter and shrinking the receipt column
+        // (rather than reusing the large-format proportions verbatim) is what
+        // makes this band look designed for rather than merely not broken.
+        final bool isMedium =
+            constraints.maxWidth < PosPaymentSpec.mediumBelowWidth;
+
+        final double sidePadding = isMedium
+            ? PosPaymentSpec.mediumContentPadding
+            : PosPaymentSpec.contentPadding;
+        final double gap = isMedium
+            ? PosPaymentSpec.mediumContentGap
+            : PosPaymentSpec.contentGap;
+
+        final EdgeInsets padding = EdgeInsets.fromLTRB(
+          sidePadding,
+          0,
+          sidePadding,
+          sidePadding,
+        );
+
+        // Fitted so the payment column — method cards, keypad and totals —
+        // lands inside the height this window actually has, rather than
+        // scrolling past the fold on a 1366x768 laptop or a browser window
+        // with a bookmarks bar. See [PosPaymentDensity].
+        final PosPaymentDensity density = PosPaymentDensity.fit(
+          available: constraints.maxHeight - padding.vertical,
+          cash: method == PosPaymentMethod.cash,
+          discount: discount > 0,
+        );
+
+        final Widget row = Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: isMedium
+                  ? PosPaymentSpec.mediumReceiptFlex
+                  : PosPaymentSpec.receiptFlex,
+              child: _receiptCard(fill: true),
+            ),
+            SizedBox(width: gap),
+            Expanded(
+              flex: isMedium
+                  ? PosPaymentSpec.mediumPaymentFlex
+                  : PosPaymentSpec.paymentFlex,
+              // The fit is exact, so this only ever scrolls as a
+              // belt-and-braces fallback below the density floor.
+              child: SingleChildScrollView(child: _paymentCard(density)),
+            ),
+          ],
+        );
+
         return Padding(
           padding: padding,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                  maxWidth: PosPaymentSpec.contentMaxWidth),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: PosPaymentSpec.receiptFlex,
-                    child: _receiptCard(fill: true),
+          child: isMedium
+              ? row
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                        maxWidth: PosPaymentSpec.contentMaxWidth),
+                    child: row,
                   ),
-                  const SizedBox(width: PosPaymentSpec.contentGap),
-                  Expanded(
-                    flex: PosPaymentSpec.paymentFlex,
-                    // Scrolls rather than stretches: the payment card is sized
-                    // by its content in the design, and a short window must
-                    // reach the total rather than clip it.
-                    child: SingleChildScrollView(child: _paymentCard()),
-                  ),
-                ],
-              ),
-            ),
-          ),
+                ),
         );
       },
     );

@@ -60,6 +60,10 @@ class PosCashPanel extends StatelessWidget {
   /// needs a single "start over" that does not take six taps.
   final VoidCallback onClear;
 
+  /// Fitted density for the medium/laptop band. Full size is the panel this
+  /// widget always drew before [PosPaymentDensity] existed.
+  final PosPaymentDensity density;
+
   const PosCashPanel({
     super.key,
     required this.entry,
@@ -70,6 +74,7 @@ class PosCashPanel extends StatelessWidget {
     required this.onBackspace,
     required this.onClear,
     this.denominations = defaultDenominations,
+    this.density = PosPaymentDensity.full,
   });
 
   /// Figma's row: €5 / €10 / €20 / €50 / Exact.
@@ -91,25 +96,28 @@ class PosCashPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _AmountField(entry: entry, onClear: onClear),
-        const SizedBox(height: PosPaymentSpec.cashPanelGap),
+        _AmountField(entry: entry, onClear: onClear, density: density),
+        SizedBox(height: density.px(PosPaymentSpec.cashPanelGap)),
         _DenominationRow(
           denominations: denominations,
           selected: selectedDenomination,
           totalCents: totalCents,
           onSelect: onDenomination,
+          density: density,
         ),
-        const SizedBox(height: PosPaymentSpec.cashPanelGap),
+        SizedBox(height: density.px(PosPaymentSpec.cashPanelGap)),
         PosKeypad(
           rows: PosKeypad.digitRows(decimal: ','),
           style: posCashKeypadStyle(
             backspaceAsset: Images.posKeyBackspaceSvg,
           ),
+          scale: density.scale,
           onKey: onKey,
           onBackspace: onBackspace,
         ),
-        const SizedBox(height: PosPaymentSpec.paymentCardGap),
-        _ChangeDueBanner(cents: _changeCents, covered: _covered),
+        SizedBox(height: density.px(PosPaymentSpec.paymentCardGap)),
+        _ChangeDueBanner(
+            cents: _changeCents, covered: _covered, density: density),
       ],
     );
   }
@@ -119,8 +127,10 @@ class PosCashPanel extends StatelessWidget {
 class _AmountField extends StatelessWidget {
   final PosCashEntry entry;
   final VoidCallback onClear;
+  final PosPaymentDensity density;
 
-  const _AmountField({required this.entry, required this.onClear});
+  const _AmountField(
+      {required this.entry, required this.onClear, required this.density});
 
   @override
   Widget build(BuildContext context) {
@@ -131,15 +141,15 @@ class _AmountField extends StatelessWidget {
         Text(
           'Amount Tendered',
           style: loewBold.copyWith(
-            fontSize: PosPaymentSpec.cashFieldLabelSize,
+            fontSize: density.text(PosPaymentSpec.cashFieldLabelSize),
             height: PosPaymentSpec.cashFieldLabelHeight,
             color:
                 PosHomeSpec.inkAlpha(PosPaymentSpec.cashFieldLabelOpacity),
           ),
         ),
-        const SizedBox(height: PosPaymentSpec.cashFieldLabelGap),
+        SizedBox(height: density.px(PosPaymentSpec.cashFieldLabelGap)),
         Container(
-          padding: const EdgeInsets.all(PosPaymentSpec.cashFieldPadding),
+          padding: EdgeInsets.all(density.px(PosPaymentSpec.cashFieldPadding)),
           decoration: BoxDecoration(
             color: PosHomeSpec.tileBg,
             borderRadius:
@@ -165,14 +175,15 @@ class _AmountField extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: loewExtraBold.copyWith(
-                    fontSize: PosPaymentSpec.cashAmountSize,
+                    fontSize: density.text(PosPaymentSpec.cashAmountSize),
                     height: PosPaymentSpec.cashAmountHeight,
                     color: PosHomeSpec.ink,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              _ClearButton(enabled: !entry.isEmpty, onTap: onClear),
+              SizedBox(width: density.px(12)),
+              _ClearButton(
+                  enabled: !entry.isEmpty, onTap: onClear, density: density),
             ],
           ),
         ),
@@ -184,11 +195,14 @@ class _AmountField extends StatelessWidget {
 class _ClearButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
+  final PosPaymentDensity density;
 
-  const _ClearButton({required this.enabled, required this.onTap});
+  const _ClearButton(
+      {required this.enabled, required this.onTap, required this.density});
 
   @override
   Widget build(BuildContext context) {
+    final double size = density.px(PosPaymentSpec.cashClearIconSize);
     return Semantics(
       button: true,
       label: 'Clear amount tendered',
@@ -198,15 +212,15 @@ class _ClearButton extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: enabled ? onTap : null,
           child: SizedBox(
-            width: PosPaymentSpec.cashClearIconSize,
-            height: PosPaymentSpec.cashClearIconSize,
+            width: size,
+            height: size,
             child: SvgPicture.asset(
               Images.posFieldClearSvg,
-              width: PosPaymentSpec.cashClearIconSize,
-              height: PosPaymentSpec.cashClearIconSize,
+              width: size,
+              height: size,
               placeholderBuilder: (_) => Icon(
                 Icons.backspace_outlined,
-                size: PosPaymentSpec.cashClearIconSize,
+                size: size,
                 color: PosHomeSpec.inkAlpha(0.67),
               ),
             ),
@@ -223,12 +237,14 @@ class _DenominationRow extends StatelessWidget {
   final PosCashDenomination? selected;
   final int totalCents;
   final ValueChanged<PosCashDenomination> onSelect;
+  final PosPaymentDensity density;
 
   const _DenominationRow({
     required this.denominations,
     required this.selected,
     required this.totalCents,
     required this.onSelect,
+    required this.density,
   });
 
   @override
@@ -237,12 +253,13 @@ class _DenominationRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (int i = 0; i < denominations.length; i++) ...[
-          if (i > 0) const SizedBox(width: PosPaymentSpec.denomGap),
+          if (i > 0) SizedBox(width: density.px(PosPaymentSpec.denomGap)),
           Expanded(
             child: _DenominationChip(
               denomination: denominations[i],
               active: selected == denominations[i],
               onTap: () => onSelect(denominations[i]),
+              density: density,
             ),
           ),
         ],
@@ -255,11 +272,13 @@ class _DenominationChip extends StatelessWidget {
   final PosCashDenomination denomination;
   final bool active;
   final VoidCallback onTap;
+  final PosPaymentDensity density;
 
   const _DenominationChip({
     required this.denomination,
     required this.active,
     required this.onTap,
+    required this.density,
   });
 
   /// `€ 5`, not `€ 5.00` — these name notes, so the cents would be noise.
@@ -285,7 +304,10 @@ class _DenominationChip extends StatelessWidget {
           onTap: onTap,
           borderRadius: radius,
           child: Container(
-            padding: PosPaymentSpec.denomPadding,
+            padding: EdgeInsets.symmetric(
+              horizontal: density.px(PosPaymentSpec.denomPaddingH),
+              vertical: density.px(PosPaymentSpec.denomPaddingV),
+            ),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: radius,
@@ -299,7 +321,7 @@ class _DenominationChip extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: loewBold.copyWith(
-                fontSize: PosPaymentSpec.denomLabelSize,
+                fontSize: density.text(PosPaymentSpec.denomLabelSize),
                 height: PosPaymentSpec.denomLabelHeight,
                 color: active ? Colors.white : PosHomeSpec.ink,
               ),
@@ -320,8 +342,10 @@ class _DenominationChip extends StatelessWidget {
 class _ChangeDueBanner extends StatelessWidget {
   final int cents;
   final bool covered;
+  final PosPaymentDensity density;
 
-  const _ChangeDueBanner({required this.cents, required this.covered});
+  const _ChangeDueBanner(
+      {required this.cents, required this.covered, required this.density});
 
   @override
   Widget build(BuildContext context) {
@@ -329,7 +353,7 @@ class _ChangeDueBanner extends StatelessWidget {
         covered ? PosHomeSpec.discountGreen : PosHomeSpec.inkAlpha(0.35);
 
     return Container(
-      padding: const EdgeInsets.all(PosPaymentSpec.changeBannerPadding),
+      padding: EdgeInsets.all(density.px(PosPaymentSpec.changeBannerPadding)),
       decoration: BoxDecoration(
         color: covered
             ? PosPaymentSpec.changeBannerFill
@@ -347,7 +371,7 @@ class _ChangeDueBanner extends StatelessWidget {
           Text(
             'Change Due',
             style: loewBold.copyWith(
-              fontSize: PosPaymentSpec.changeLabelSize,
+              fontSize: density.text(PosPaymentSpec.changeLabelSize),
               height: PosPaymentSpec.changeLabelHeight,
               color: accent,
             ),
@@ -358,7 +382,7 @@ class _ChangeDueBanner extends StatelessWidget {
               padZero: false,
             ),
             style: loewExtraBold.copyWith(
-              fontSize: PosPaymentSpec.changeValueSize,
+              fontSize: density.text(PosPaymentSpec.changeValueSize),
               height: PosPaymentSpec.changeValueHeight,
               color: accent,
             ),
