@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:acafe_customer/common/models/config_model.dart';
@@ -8,6 +9,7 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_section.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/screens/pos_settings_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_staff_settings_panel.dart';
@@ -62,6 +64,10 @@ Future<void> _pumpStaff(WidgetTester tester) async {
     AppConstants.kioskDeviceName: 'Till 1 Amsterdam',
     AppConstants.kioskBranchName: 'Amsterdam',
     AppConstants.kioskUsername: 'till1',
+    // Widget tests still use the Figma seed as fixture data; production
+    // loads from the DB and starts empty when none exist.
+    AppConstants.posStaffRosterKey:
+        jsonEncode(PosStaffRoster.seed().toJson()),
   });
   final prefs = await SharedPreferences.getInstance();
   final dio = DioClient(
@@ -160,7 +166,7 @@ void main() {
     expect(find.text('Employee'), findsWidgets);
   });
 
-  testWidgets('adding staff to the Morning shift updates the board',
+  testWidgets('shift + Add opens hire dialog with that shift pre-selected',
       (tester) async {
     await _pumpStaff(tester);
     expect(find.text('+9 more'), findsOneWidget);
@@ -168,24 +174,40 @@ void main() {
     await tester.tap(find.byTooltip('Add to Morning'));
     await tester.pumpAndSettle();
 
-    expect(find.text('ADD TO MORNING'), findsOneWidget);
-    // Thomas is rostered on afternoon and evening only, so the picker offers
-    // him for the morning.
-    await tester.tap(
-      find.descendant(
-        of: find.byType(Dialog),
-        matching: find.text('Thomas de Vries'),
-      ),
-    );
-    await tester.pumpAndSettle();
+    expect(find.text('ADD STAFF MEMBER'), findsOneWidget);
 
-    await tester.tap(find.text('Add 1'));
+    await tester.enterText(
+      find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
+      'Amir Morning',
+    );
+    await tester.tap(find.text('Add Member'));
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsNothing);
-    // Morning is now 13 like the evening shift, so both read "+10 more".
+    expect(find.widgetWithText(TextField, 'Amir Morning'), findsOneWidget);
+    // Morning 12 → 13, so both morning and evening show "+10 more".
     expect(find.text('+10 more'), findsNWidgets(2));
     expect(find.text('+9 more'), findsNothing);
+  });
+
+  testWidgets('Afternoon + Add pre-selects Afternoon only', (tester) async {
+    await _pumpStaff(tester);
+
+    await tester.tap(find.byTooltip('Add to Afternoon'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ADD STAFF MEMBER'), findsOneWidget);
+
+    await tester.enterText(
+      find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
+      'Lea Afternoon',
+    );
+    await tester.tap(find.text('Add Member'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, 'Lea Afternoon'), findsOneWidget);
+    // Afternoon was 11 → 12 (+9 more). Morning/evening unchanged.
+    expect(find.text('+9 more'), findsNWidgets(2));
   });
 
   testWidgets('Add Staff Member rosters the new hire onto chosen shifts',
@@ -199,9 +221,7 @@ void main() {
       find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
       'Sanne Bakker',
     );
-    await tester.tap(
-      find.descendant(of: find.byType(Dialog), matching: find.text('Morning')),
-    );
+    // Morning is selected by default; also pick Evening.
     await tester.tap(
       find.descendant(of: find.byType(Dialog), matching: find.text('Evening')),
     );
@@ -216,6 +236,32 @@ void main() {
     expect(find.text('+10 more'), findsOneWidget);
     expect(find.text('+11 more'), findsOneWidget);
     expect(find.text('+9 more'), findsNothing);
+  });
+
+  testWidgets('Add Staff Member defaults to Morning and requires a shift',
+      (tester) async {
+    await _pumpStaff(tester);
+
+    await tester.tap(find.text('Add Staff Member'));
+    await tester.pumpAndSettle();
+
+    // Morning starts selected — tapping it alone cannot clear the requirement.
+    await tester.tap(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Morning')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Select at least one shift'), findsOneWidget);
+
+    await tester.enterText(
+      find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
+      'Amir',
+    );
+    await tester.tap(find.text('Add Member'));
+    await tester.pumpAndSettle();
+
+    // Still on Morning (compulsory default) — member is added to morning.
+    expect(find.widgetWithText(TextField, 'Amir'), findsOneWidget);
+    expect(find.text('Amir'), findsWidgets);
   });
 
   testWidgets('the overflow chip opens the shift roster and removes from it',

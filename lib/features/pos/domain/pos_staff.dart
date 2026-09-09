@@ -280,7 +280,6 @@ class PosStaffRoster {
           PosStaffMember.fromJson(Map<String, dynamic>.from(entry));
       if (m != null) members.add(m);
     }
-    if (members.isEmpty) return null;
 
     final List<PosStaffShift> shifts = [];
     for (final entry in rawShifts) {
@@ -289,15 +288,43 @@ class PosStaffRoster {
           PosStaffShift.fromJson(Map<String, dynamic>.from(entry));
       if (s != null) shifts.add(s);
     }
-    if (shifts.isEmpty) return null;
 
-    return PosStaffRoster(members: members, shifts: shifts);
+    // Always ensure the three service windows exist, even on an empty hire.
+    final List<PosStaffShift> normalized =
+        shifts.isEmpty ? PosStaffRoster.emptyShifts() : shifts;
+
+    return PosStaffRoster(members: members, shifts: normalized);
   }
 
-  /// The roster a terminal starts on — the Figma team (1641:8484).
-  ///
-  /// It is a seed, not a fixture: the first edit persists over it, so nothing
-  /// below survives an operator's changes.
+  /// Empty roster a new branch starts on — no demo staff.
+  factory PosStaffRoster.empty() => PosStaffRoster(
+        members: const [],
+        shifts: emptyShifts(),
+      );
+
+  static List<PosStaffShift> emptyShifts() => const [
+        PosStaffShift(
+          id: PosStaffShift.morning,
+          name: 'Morning',
+          time: '08:00-14:00',
+          memberIds: [],
+        ),
+        PosStaffShift(
+          id: PosStaffShift.afternoon,
+          name: 'Afternoon',
+          time: '14:00-20:00',
+          memberIds: [],
+        ),
+        PosStaffShift(
+          id: PosStaffShift.evening,
+          name: 'Evening',
+          time: '20:00-22:00',
+          memberIds: [],
+        ),
+      ];
+
+  /// Legacy Figma demo roster — kept for unit tests only. Production hydrate
+  /// never uses this; staff comes from the DB (or starts empty).
   factory PosStaffRoster.seed() {
     PosStaffMember member(
       String id,

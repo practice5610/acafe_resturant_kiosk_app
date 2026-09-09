@@ -11,8 +11,7 @@ import 'package:provider/provider.dart';
 ///
 /// Chrome is pixel-faithful to Figma; the data behind it is live. The roster,
 /// the shift board and the permission grid all come from [PosStaffProvider],
-/// which persists every change through [PosStaffRepo]. See that repo for why
-/// the store is local rather than server-side.
+/// which persists every change through [PosStaffRepo] to the branch DB.
 class PosStaffSettingsPanel extends StatefulWidget {
   const PosStaffSettingsPanel({super.key});
 
@@ -69,11 +68,15 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
     );
   }
 
-  Future<void> _openAddStaff() async {
+  Future<void> _openAddStaff({String? shiftId}) async {
     final PosStaffProvider provider = context.read<PosStaffProvider>();
     final _NewStaff? result = await showDialog<_NewStaff>(
       context: context,
-      builder: (_) => _AddStaffDialog(shifts: provider.shifts),
+      builder: (_) => _AddStaffDialog(
+        shifts: provider.shifts,
+        // Header → Morning; shift-row "+ Add" → that shift.
+        initialShiftIds: {shiftId ?? PosStaffShift.morning},
+      ),
     );
     if (result == null || !mounted) return;
     provider.addMember(
@@ -94,23 +97,8 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
     );
   }
 
-  /// "+ Add" on a shift row. Offers everyone not already on that shift.
-  Future<void> _addToShift(String shiftId) async {
-    final PosStaffProvider provider = context.read<PosStaffProvider>();
-    final PosStaffShift? shift = provider.roster.shiftById(shiftId);
-    if (shift == null) return;
-
-    final List<String>? picked = await showDialog<List<String>>(
-      context: context,
-      builder: (_) => _PickStaffDialog(
-        title: 'Add to ${shift.name}',
-        subtitle: shift.time,
-        candidates: provider.availableFor(shiftId),
-      ),
-    );
-    if (picked == null || picked.isEmpty || !mounted) return;
-    provider.addToShift(shiftId, picked);
-  }
+  /// "+ Add" on a shift row — opens hire dialog with that shift pre-selected.
+  Future<void> _addToShift(String shiftId) => _openAddStaff(shiftId: shiftId);
 
   @override
   Widget build(BuildContext context) {
@@ -142,6 +130,9 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
                 onActiveChanged: provider.setActive,
                 onPermissionChanged: provider.setPermission,
                 onGeneratePasscode: provider.regeneratePasscode,
+                onRemove: member == null
+                    ? null
+                    : () => provider.removeMember(member.id),
               );
 
               if (!wide) {
@@ -493,13 +484,25 @@ class _TeamCard extends StatelessWidget {
             _HeaderCell('ROLE', width: 120),
             _HeaderCell('STATUS', width: 100),
           ]),
-          for (int i = 0; i < members.length; i++)
-            _TeamRow(
-              member: members[i],
-              selected: members[i].id == selectedId,
-              showDivider: i < members.length - 1,
-              onTap: () => onSelect(members[i].id),
-            ),
+          if (members.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+              child: Text(
+                'No staff yet. Use Add Staff Member to hire someone.',
+                style: loewRegular.copyWith(
+                  fontSize: 13,
+                  color: PosSettingsSpec.inkMuted(),
+                ),
+              ),
+            )
+          else
+            for (int i = 0; i < members.length; i++)
+              _TeamRow(
+                member: members[i],
+                selected: members[i].id == selectedId,
+                showDivider: i < members.length - 1,
+                onTap: () => onSelect(members[i].id),
+              ),
         ],
       ),
     );
@@ -598,6 +601,7 @@ class _RightColumn extends StatelessWidget {
   final ValueChanged<bool> onActiveChanged;
   final void Function(String key, bool value) onPermissionChanged;
   final VoidCallback onGeneratePasscode;
+  final VoidCallback? onRemove;
 
   const _RightColumn({
     required this.member,
@@ -608,6 +612,7 @@ class _RightColumn extends StatelessWidget {
     required this.onActiveChanged,
     required this.onPermissionChanged,
     required this.onGeneratePasscode,
+    this.onRemove,
   });
 
   @override
@@ -650,6 +655,7 @@ class _RightColumn extends StatelessWidget {
               active: m.active,
               onActiveChanged: onActiveChanged,
               onGeneratePasscode: onGeneratePasscode,
+              onRemove: onRemove,
             ),
             const SizedBox(height: 24),
             _PermissionsCard(
@@ -681,6 +687,7 @@ class _MemberDetailsCard extends StatelessWidget {
   final bool active;
   final ValueChanged<bool> onActiveChanged;
   final VoidCallback onGeneratePasscode;
+  final VoidCallback? onRemove;
 
   const _MemberDetailsCard({
     required this.nameController,
@@ -691,6 +698,7 @@ class _MemberDetailsCard extends StatelessWidget {
     required this.active,
     required this.onActiveChanged,
     required this.onGeneratePasscode,
+    this.onRemove,
   });
 
   @override
@@ -770,6 +778,25 @@ class _MemberDetailsCard extends StatelessWidget {
                 _PosToggle(value: active, onChanged: onActiveChanged),
               ],
             ),
+            if (onRemove != null) ...[
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: onRemove,
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFFB42318),
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Remove staff member',
+                    style: loewBold.copyWith(fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -931,7 +958,14 @@ class _NewStaff {
 class _AddStaffDialog extends StatefulWidget {
   final List<PosStaffShift> shifts;
 
-  const _AddStaffDialog({required this.shifts});
+  /// Shifts pre-selected when the dialog opens. Header hire defaults to
+  /// Morning; a shift-row "+ Add" passes that shift alone.
+  final Set<String> initialShiftIds;
+
+  const _AddStaffDialog({
+    required this.shifts,
+    this.initialShiftIds = const {PosStaffShift.morning},
+  });
 
   @override
   State<_AddStaffDialog> createState() => _AddStaffDialogState();
@@ -939,9 +973,14 @@ class _AddStaffDialog extends StatefulWidget {
 
 class _AddStaffDialogState extends State<_AddStaffDialog> {
   final TextEditingController _name = TextEditingController();
-  final Set<String> _shiftIds = <String>{};
+  late final Set<String> _shiftIds = Set<String>.from(
+    widget.initialShiftIds.isEmpty
+        ? const {PosStaffShift.morning}
+        : widget.initialShiftIds,
+  );
   String _role = PosStaffRoles.employee;
   String? _error;
+  String? _shiftError;
 
   @override
   void dispose() {
@@ -949,10 +988,30 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
     super.dispose();
   }
 
+  void _toggleShift(String id) {
+    setState(() {
+      if (_shiftIds.contains(id)) {
+        // Keep at least one shift selected — shifts are compulsory.
+        if (_shiftIds.length == 1) {
+          _shiftError = 'Select at least one shift';
+          return;
+        }
+        _shiftIds.remove(id);
+      } else {
+        _shiftIds.add(id);
+      }
+      _shiftError = null;
+    });
+  }
+
   void _submit() {
     final String? error = PosStaffValidation.name(_name.text);
     if (error != null) {
       setState(() => _error = error);
+      return;
+    }
+    if (_shiftIds.isEmpty) {
+      setState(() => _shiftError = 'Select at least one shift');
       return;
     }
     Navigator.of(context).pop(
@@ -1006,12 +1065,20 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
               _SelectableChip(
                 label: shift.name,
                 selected: _shiftIds.contains(shift.id),
-                onTap: () => setState(() {
-                  if (!_shiftIds.remove(shift.id)) _shiftIds.add(shift.id);
-                }),
+                onTap: () => _toggleShift(shift.id),
               ),
           ],
         ),
+        if (_shiftError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _shiftError!,
+            style: loewRegular.copyWith(
+              fontSize: 12,
+              color: const Color(0xFFB42318),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1455,7 +1522,7 @@ class _CreamChip extends StatelessWidget {
   }
 }
 
-/// Outline "+ Add" pill that opens a shift's staff picker.
+/// Outline "+ Add" pill that opens the hire dialog for that shift.
 class _AddChip extends StatelessWidget {
   final String label;
   final VoidCallback onTap;

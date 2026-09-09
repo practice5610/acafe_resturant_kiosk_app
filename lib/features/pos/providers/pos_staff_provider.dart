@@ -8,20 +8,21 @@ import 'package:flutter/foundation.dart';
 /// Unlike [PosGeneralSettingsProvider], this screen has no Save button in
 /// Figma, so it follows Products' per-control auto-save instead: every mutation
 /// updates the roster in memory, notifies, and writes through to
-/// [PosStaffRepo]. The one exception is the name field, which is held in memory
-/// while it is invalid (mid-edit blanks are normal) and persisted as soon as it
-/// validates — so a half-typed name can never be the thing that survives a
-/// restart.
+/// [PosStaffRepo] (DB via API, with a local cache). The one exception is the
+/// name field, which is held in memory while it is invalid (mid-edit blanks
+/// are normal) and persisted as soon as it validates.
 class PosStaffProvider extends ChangeNotifier {
   final PosStaffRepo repo;
 
   PosStaffProvider({required this.repo});
 
-  PosStaffRoster _roster = PosStaffRoster.seed();
+  PosStaffRoster _roster = PosStaffRoster.empty();
   String _selectedId = '';
   Map<String, String> _errors = {};
   bool _hydrated = false;
   bool _saving = false;
+  bool _loading = false;
+  String? _syncError;
 
   PosStaffRoster get roster => _roster;
   List<PosStaffMember> get members => _roster.members;
@@ -29,6 +30,8 @@ class PosStaffProvider extends ChangeNotifier {
   Map<String, String> get errors => _errors;
   bool get isHydrated => _hydrated;
   bool get isSaving => _saving;
+  bool get isLoading => _loading;
+  String? get syncError => _syncError;
 
   String get selectedId => _selectedId;
   PosStaffMember? get selected => _roster.memberById(_selectedId);
@@ -46,17 +49,29 @@ class PosStaffProvider extends ChangeNotifier {
           if (s.memberIds.contains(memberId)) s.id,
       ];
 
-  void hydrate() {
-    _roster = repo.loadSaved() ?? PosStaffRoster.seed();
+  /// Loads from the server when possible; otherwise local cache; otherwise
+  /// an empty roster (no hardcoded demo staff).
+  Future<void> hydrate() async {
+    _loading = true;
+    _syncError = null;
+    notifyListeners();
+
+    final PosStaffRoster? remote = await repo.fetchRemote();
+    if (remote != null) {
+      _roster = remote;
+      await repo.saveLocal(remote);
+    } else {
+      _roster = repo.loadSaved() ?? PosStaffRoster.empty();
+    }
+
     _selectedId = _defaultSelection();
     _errors = {};
     _hydrated = true;
+    _loading = false;
     notifyListeners();
   }
 
   String _defaultSelection() {
-    // The Figma screen opens on the manager; falling back to the first member
-    // keeps a saved roster that no longer has one from opening on nothing.
     final PosStaffMember? manager = _firstWithRole(PosStaffRoles.manager);
     if (manager != null) return manager.id;
     return _roster.members.isEmpty ? '' : _roster.members.first.id;
@@ -143,9 +158,6 @@ class PosStaffProvider extends ChangeNotifier {
 
   /// Adds a member and selects them. Returns the new id, or `null` when the
   /// name does not validate — in which case `errors['newName']` says why.
-  ///
-  /// [shiftIds] rosters the new member straight onto those shifts, so hiring
-  /// someone for the morning is one dialog rather than two.
   String? addMember({
     required String name,
     required String role,
@@ -200,7 +212,6 @@ class PosStaffProvider extends ChangeNotifier {
       for (final m in _roster.members)
         if (m.id != id) m,
     ];
-    if (next.isEmpty) return; // never leave the terminal with no staff at all
 
     _roster = PosStaffRoster(
       members: next,
@@ -236,8 +247,6 @@ class PosStaffProvider extends ChangeNotifier {
 
   // ── Shifts ────────────────────────────────────────────────────────────
 
-  /// Rosters [memberIds] onto [shiftId], skipping ids already on it. This is
-  /// what "add staff to Morning / Evening" calls.
   void addToShift(String shiftId, Iterable<String> memberIds) {
     final PosStaffShift? shift = _roster.shiftById(shiftId);
     if (shift == null) return;
@@ -291,11 +300,13 @@ class PosStaffProvider extends ChangeNotifier {
 
   Future<void> _persist() async {
     _saving = true;
+    _syncError = null;
     final PosStaffRoster snapshot = _roster;
-    await repo.save(snapshot);
-    // Only clear the flag if nothing newer started while this write was in
-    // flight; the last write always wins and it always carries the whole
-    // roster, so an interleaved save cannot lose an edit.
+    await repo.saveLocal(snapshot);
+    final response = await repo.saveRemote(snapshot);
+    if (!response.isSuccess) {
+      _syncError = response.error?.toString() ?? 'Could not save staff';
+    }
     if (identical(snapshot, _roster)) {
       _saving = false;
       notifyListeners();

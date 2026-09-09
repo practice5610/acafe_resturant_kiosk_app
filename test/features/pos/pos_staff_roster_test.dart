@@ -9,8 +9,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 Future<PosStaffProvider> _provider() async {
   final prefs = await SharedPreferences.getInstance();
-  final provider = PosStaffProvider(repo: PosStaffRepo(sharedPreferences: prefs))
-    ..hydrate();
+  // Unit tests exercise edits against the legacy Figma seed. Production starts
+  // empty and loads from the DB; tests pre-seed the local cache instead.
+  await prefs.setString(
+    AppConstants.posStaffRosterKey,
+    jsonEncode(PosStaffRoster.seed().toJson()),
+  );
+  final provider = PosStaffProvider(repo: PosStaffRepo(sharedPreferences: prefs));
+  await provider.hydrate();
   return provider;
 }
 
@@ -129,12 +135,12 @@ void main() {
       }
     });
 
-    test('the last member cannot be removed', () async {
+    test('removing the last member leaves an empty roster', () async {
       final provider = await _provider();
       for (final m in [...provider.members]) {
         provider.removeMember(m.id);
       }
-      expect(provider.members.length, 1);
+      expect(provider.members, isEmpty);
     });
   });
 
@@ -211,11 +217,16 @@ void main() {
     test('a half-typed name is not persisted, a valid one is', () async {
       final provider = await _provider();
       provider.select('sophie');
+      final String before =
+          provider.roster.memberById('sophie')!.name;
 
       provider.setName('');
       await Future<void>.delayed(Duration.zero);
       expect(provider.errors['name'], isNotNull);
-      expect(await _stored(), isNull);
+      expect(
+        PosStaffRoster.fromJson((await _stored())!)!.memberById('sophie')!.name,
+        before,
+      );
 
       provider.setName('Sophie de Wit');
       await Future<void>.delayed(Duration.zero);
@@ -224,7 +235,7 @@ void main() {
       expect(reloaded.memberById('sophie')!.name, 'Sophie de Wit');
     });
 
-    test('a saved roster is preferred over the seed on hydrate', () async {
+    test('a saved roster is preferred over empty on hydrate', () async {
       final first = await _provider();
       first.addMember(
         name: 'Bram Post',
@@ -233,16 +244,33 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      final second = await _provider();
+      final prefs = await SharedPreferences.getInstance();
+      final second = PosStaffProvider(
+        repo: PosStaffRepo(sharedPreferences: prefs),
+      );
+      await second.hydrate();
       expect(second.roster.memberById('bram-post'), isNotNull);
       expect(second.shiftsOf('bram-post'), [PosStaffShift.evening]);
     });
 
-    test('a corrupt record falls back to the seed', () async {
+    test('a corrupt record falls back to an empty roster', () async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(AppConstants.posStaffRosterKey, '{not json');
-      final provider = await _provider();
-      expect(provider.members.length, PosStaffRoster.seed().members.length);
+      final provider = PosStaffProvider(
+        repo: PosStaffRepo(sharedPreferences: prefs),
+      );
+      await provider.hydrate();
+      expect(provider.members, isEmpty);
+      expect(provider.shifts.length, 3);
+    });
+
+    test('hydrate without cache starts empty', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final provider = PosStaffProvider(
+        repo: PosStaffRepo(sharedPreferences: prefs),
+      );
+      await provider.hydrate();
+      expect(provider.members, isEmpty);
     });
 
     test('a record missing a permission key loads with it defaulted', () {

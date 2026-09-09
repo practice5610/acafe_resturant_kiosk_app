@@ -1,4 +1,5 @@
 import 'package:acafe_customer/di_container.dart' as di;
+import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_general_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_hardware_settings_repo.dart';
@@ -175,8 +176,7 @@ class _PaymentsSectionHost extends StatelessWidget {
 }
 
 /// Scopes the Staff provider to this tab, as the sibling sections do, and
-/// hydrates the roster once from prefs (falling back to the seed roster on a
-/// terminal that has never been edited).
+/// hydrates the roster from the branch DB (falling back to local cache / empty).
 class _StaffSectionHost extends StatelessWidget {
   final SharedPreferences? sharedPreferences;
 
@@ -186,9 +186,12 @@ class _StaffSectionHost extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<PosStaffProvider>(
       create: (context) {
+        final SharedPreferences prefs =
+            sharedPreferences ?? di.sl<SharedPreferences>();
         final provider = PosStaffProvider(
           repo: PosStaffRepo(
-            sharedPreferences: sharedPreferences ?? di.sl<SharedPreferences>(),
+            sharedPreferences: prefs,
+            dioClient: di.sl.isRegistered<DioClient>() ? di.sl<DioClient>() : null,
           ),
         );
         provider.hydrate();
