@@ -400,6 +400,21 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     final PosMetrics? metrics = PosMetrics.maybeOf(context);
     final bool sideReceipt = metrics?.showsSideReceipt ?? true;
 
+    // `metrics.window.width` when a PosShell ancestor published one;
+    // MediaQuery otherwise (e.g. widget tests that mount this screen bare) —
+    // the same fallback Customize already uses for its own receipt width.
+    final double windowWidth =
+        metrics?.window.width ?? MediaQuery.sizeOf(context).width;
+
+    // Below the desktop floor both panes keep the flat design pixels they
+    // always have; at/above it they scale as a continuous proportion of the
+    // window instead of holding still while only the product grid resizes.
+    // See PosResponsive.desktopFloor.
+    final double sidebarWidth = PosResponsive.sidebarWidth(windowWidth);
+    final double receiptWidth = windowWidth >= PosResponsive.desktopFloor
+        ? PosResponsive.receiptWidth(windowWidth)
+        : PosHomeSpec.receiptWidth;
+
     final categories = category.categoryList ?? const <CategoryModel>[];
     final selectedId = category.selectedSubCategoryId;
 
@@ -415,6 +430,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
       subtotal: subtotal,
       discount: discount,
       total: total,
+      width: receiptWidth,
     );
 
     return ColoredBox(
@@ -429,6 +445,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
                   categories: categories,
                   selectedId: selectedId,
                   onSelect: _selectCategory,
+                  width: sidebarWidth,
                 ),
                 Expanded(
                   child: _ContentArea(

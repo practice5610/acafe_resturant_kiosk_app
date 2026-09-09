@@ -450,7 +450,12 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
                       ),
                       if (sideReceipt)
                         SizedBox(
-                          width: PosResponsive.receiptPanelWidth(
+                          // The same receipt-width policy Home and Payment
+                          // use — a continuous proportion of the window
+                          // at/above the desktop floor instead of this
+                          // screen's own separate 30% clamp forever. Below
+                          // the floor this is that same clamp, unchanged.
+                          width: PosResponsive.receiptWidth(
                             MediaQuery.sizeOf(context).width,
                           ),
                           child: receipt,

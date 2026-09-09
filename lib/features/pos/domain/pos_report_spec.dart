@@ -156,11 +156,10 @@ class PosReportSpec {
   static const double staffColumnWidth = 80;
 
   // ── Responsive breakpoints (logical px of the content area) ──────────
-  /// Below this the four KPI cards stop fitting in one row and go 2x2.
-  static const double kpiWrapWidth = 1040;
-
-  /// Below this the four bottom panels go 2x2, and below [stackWidth] they
-  /// become a single column along with the two middle panels.
-  static const double bottomWrapWidth = 1180;
+  /// The KPI row's own `1040` and the bottom row's own `1180` seams are
+  /// gone — both now go to 4 columns at `PosResponsive.desktopFloor` (1024)
+  /// instead, the same floor Home/Payment share, so the dashboard doesn't
+  /// re-wrap at a width nothing else on the screen reacts to. See
+  /// `_Dashboard` in `pos_report_screen.dart`.
   static const double stackWidth = 720;
 }

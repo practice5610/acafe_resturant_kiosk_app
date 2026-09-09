@@ -773,6 +773,59 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('desktop floor: no medium/full column swap at/above 1024', () {
+    // The medium band (5:7 flex, 20px gutter) used to run all the way to
+    // 1180 before jumping to the equal 634:634 split — a window widened
+    // past 1180 would visibly "pop". `mediumBelowWidth` is now pinned to
+    // the same 1024 floor Home uses, so nothing below 1364 (the width at
+    // which the 1300 content cap engages) should show a slope change.
+    Future<double> methodCardWidth(WidgetTester tester, double width) async {
+      await _pump(tester, size: Size(width, 900),
+          lines: [_line('Oat Milk Matcha', 6)]);
+      return tester.getSize(find.byType(PosPaymentMethodCard).first).width;
+    }
+
+    testWidgets(
+        'the payment card grows at the same rate on both sides of the old 1180 seam',
+        (tester) async {
+      // All four points sit below the 1300 content-width cap (window - 64px
+      // padding < 1300), so growth is linear throughout if — and only if —
+      // the same flex ratio governs the whole stretch.
+      final double w1024 = await methodCardWidth(tester, 1024);
+      final double w1100 = await methodCardWidth(tester, 1100);
+      final double w1180 = await methodCardWidth(tester, 1180);
+      final double w1260 = await methodCardWidth(tester, 1260);
+
+      final double beforeSeam = w1100 - w1024;
+      final double acrossSeam = w1180 - w1100;
+      final double afterSeam = w1260 - w1180;
+
+      expect(acrossSeam, closeTo(beforeSeam, 1),
+          reason: 'growth rate changed approaching the old 1180 seam');
+      expect(afterSeam, closeTo(beforeSeam, 1),
+          reason: 'growth rate changed past the old 1180 seam');
+    });
+
+    testWidgets('the card keeps growing (not stuck on the medium ratio) up to the cap',
+        (tester) async {
+      final double w1024 = await methodCardWidth(tester, 1024);
+      final double w1364 = await methodCardWidth(tester, 1364);
+      expect(w1364, greaterThan(w1024));
+    });
+
+    testWidgets('a portrait desktop window still shows the side-by-side layout',
+        (tester) async {
+      // 1024 wide, taller than it is wide: this used to fall into whatever
+      // the surrounding shell's own orientation gate decided, but this
+      // screen's own side-by-side test is width/height threshold based, not
+      // orientation based, and must stay that way above the floor.
+      await _pump(tester,
+          size: const Size(1024, 1400), lines: [_line('Oat Milk Matcha', 6)]);
+      expect(find.byType(PosPaymentMethodCard), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
 
 /// A terminal whose result the test decides, standing in for the registered

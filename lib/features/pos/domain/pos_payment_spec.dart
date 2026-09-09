@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:flutter/material.dart';
 
 /// Design tokens for the POS payment screen, read from the Figma frame
@@ -41,7 +42,15 @@ class PosPaymentSpec {
   /// window: still two columns, but the split, the gutter and the page insets
   /// all change, because the keypad has a comfortable minimum width and the
   /// receipt does not.
-  static const double mediumBelowWidth = 1180;
+  ///
+  /// Pinned to [PosResponsive.desktopFloor] rather than its own number: this
+  /// was `1180` (a Payment-only seam independent of Home's), which meant a
+  /// window between 1024 and 1180 got a *different* column split on Payment
+  /// than the one it already got on Home/Customize — one more of the
+  /// "several components independently reflow at their own breakpoints" the
+  /// layout audit flagged. Sharing the floor makes the medium↔full swap stop
+  /// existing anywhere at/above 1024, not just move.
+  static const double mediumBelowWidth = PosResponsive.desktopFloor;
 
   /// Medium-band split. The payment column carries a 3x keypad, a five-chip
   /// denomination row and the totals; the receipt carries a list that reads

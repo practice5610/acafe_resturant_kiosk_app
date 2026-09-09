@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_hourly_chart.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_report_panels.dart';
 import 'package:acafe_customer/features/pos/screens/pos_report_screen.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -955,6 +956,60 @@ void main() {
         expect(find.text('Refunds & Discounts'), findsOneWidget);
       });
     }
+
+    testWidgets(
+        'the bottom row goes 4-across at the desktop floor, not the old 1180 seam',
+        (tester) async {
+      // Content width here lands comfortably between the desktop floor (1024)
+      // and the old bottomWrapWidth seam (1180) — a width band that used to
+      // force 2 columns and now must not.
+      await pumpAt(tester, const Size(1120, 1024));
+
+      final double cashY =
+          tester.getTopLeft(find.byType(PosReportCashDrawerPanel)).dy;
+      final double categoryY =
+          tester.getTopLeft(find.byType(PosReportCategorySalesPanel)).dy;
+      final double staffY =
+          tester.getTopLeft(find.byType(PosReportStaffTipsPanel)).dy;
+      final double refundsY =
+          tester.getTopLeft(find.byType(PosReportRefundsPanel)).dy;
+
+      expect(categoryY, cashY, reason: 'category panel wrapped to a new row');
+      expect(staffY, cashY, reason: 'staff panel wrapped to a new row');
+      expect(refundsY, cashY, reason: 'refunds panel wrapped to a new row');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'the KPI row is already 4-across just above the floor, below the old 1040 seam',
+        (tester) async {
+      // Window, not content, width: `_Dashboard` subtracts scaled body
+      // padding first. At this window size `PosMetrics.scale` sits at its
+      // 0.68 floor, so padding costs a fixed ~32.6px either side — landing
+      // the content width at ~1027, between the desktop floor (1024) and the
+      // old kpiWrapWidth seam (1040): a band that used to be 2-column.
+      await pumpAt(tester, const Size(1060, 1024));
+
+      // `PosReportRevenueCard.build()` returns a `PosReportKpiCard` directly,
+      // so all four KPI cards — Revenue, Total Orders, Average Order Value,
+      // Tips — surface as one `PosReportKpiCard` each; comparing their tops
+      // to each other is comparing containers to containers, not a container
+      // top to a text baseline nested inside a differently-padded sibling.
+      final List<Element> kpiCards = find
+          .byWidgetPredicate((w) => w.runtimeType.toString() == 'PosReportKpiCard')
+          .evaluate()
+          .toList();
+      expect(kpiCards, hasLength(4),
+          reason: 'expected Revenue, Total Orders, Average Order Value, Tips');
+
+      final double firstY = tester.getTopLeft(find.byWidget(kpiCards.first.widget)).dy;
+      for (final Element card in kpiCards.skip(1)) {
+        final double y = tester.getTopLeft(find.byWidget(card.widget)).dy;
+        expect(y, closeTo(firstY, 1),
+            reason: 'a KPI card wrapped to a new row');
+      }
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('date navigation costs exactly one fetch and no idle rebuilds',
         (tester) async {

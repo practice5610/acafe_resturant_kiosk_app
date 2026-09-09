@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_z_report_print.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_dialog.dart';
@@ -336,8 +337,10 @@ class _Unavailable extends StatelessWidget {
 /// Three rows of equal-width cards on a counter terminal, reflowing by content
 /// width rather than by device class:
 ///
-///  * `>= kpiWrapWidth`  — 4 KPI cards across
-///  * `>= bottomWrapWidth` — 4 bottom panels across
+///  * `>= PosResponsive.desktopFloor` — 4 across, both the KPI row and the
+///    bottom panel row: at/above the same 1024 floor Home/Payment use, column
+///    counts hold steady and the cards simply grow, rather than the KPI and
+///    bottom rows re-wrapping at their own separate 1040/1180 seams.
 ///  * `>= stackWidth`    — 2 columns everywhere else
 ///  * below that         — one column
 ///
@@ -357,13 +360,17 @@ class _Dashboard extends StatelessWidget {
             posPx(context, PosReportSpec.bodyPaddingH) * 2;
         final double gap = posPx(context, PosReportSpec.cardGap);
 
-        final int kpiColumns = width >= PosReportSpec.kpiWrapWidth
+        // Both rows share one floor now instead of their own separate seams
+        // (formerly 1040 for the KPI row, 1180 for the bottom row) — see the
+        // class doc. Below the floor, both keep exactly the 2-column /
+        // 1-column behaviour they always had.
+        final int kpiColumns = width >= PosResponsive.desktopFloor
             ? 4
             : width >= PosReportSpec.stackWidth
                 ? 2
                 : 1;
         final int midColumns = width >= PosReportSpec.stackWidth ? 2 : 1;
-        final int bottomColumns = width >= PosReportSpec.bottomWrapWidth
+        final int bottomColumns = width >= PosResponsive.desktopFloor
             ? 4
             : width >= PosReportSpec.stackWidth
                 ? 2

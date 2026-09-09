@@ -13,17 +13,26 @@ class PosCategorySidebar extends StatelessWidget {
   final String? selectedId;
   final ValueChanged<CategoryModel> onSelect;
 
+  /// Pane width. Defaults to the flat Figma value — the only width this
+  /// widget ever drew before the desktop-floor refactor — so every other
+  /// caller (and every existing test that constructs this widget directly)
+  /// keeps working unchanged. `pos_home_cart_screen.dart` is the one caller
+  /// that now passes [PosResponsive.sidebarWidth]'s continuous value above
+  /// the floor.
+  final double width;
+
   const PosCategorySidebar({
     super.key,
     required this.categories,
     required this.selectedId,
     required this.onSelect,
+    this.width = PosHomeSpec.sidebarWidth,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: PosHomeSpec.sidebarWidth,
+      width: width,
       decoration: const BoxDecoration(
         color: PosHomeSpec.pageBg,
         border: Border(

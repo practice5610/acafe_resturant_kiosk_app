@@ -137,10 +137,14 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: '$label pill missing');
     }
 
+    // closeTo, not exact equality: at 1366 wide the desktop-floor proportional
+    // model (width * 192/1366, width * 421/1366) reproduces the flat Figma
+    // pixels to within floating-point noise, not bit-for-bit — no render
+    // could ever show the difference.
     expect(tester.getSize(find.byType(PosCategorySidebar)).width,
-        PosHomeSpec.sidebarWidth);
+        closeTo(PosHomeSpec.sidebarWidth, 0.01));
     expect(tester.getSize(find.byType(PosReceiptPanel)).width,
-        PosHomeSpec.receiptWidth);
+        closeTo(PosHomeSpec.receiptWidth, 0.01));
 
     expect(tester.takeException(), isNull);
   });
