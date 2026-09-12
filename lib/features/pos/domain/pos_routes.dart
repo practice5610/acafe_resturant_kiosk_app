@@ -15,9 +15,6 @@ class PosRoutes {
   /// Every POS path starts with this.
   static const String prefix = '/pos-';
 
-  // Entry
-  static const String login = '/pos-login';
-
   // Shell tabs (persistent top nav)
   static const String home = '/pos-home';
   static const String browse = '/pos-browse';
@@ -34,7 +31,4 @@ class PosRoutes {
 
   /// True for any path in the POS tree.
   static bool matches(String path) => path.startsWith(prefix);
-
-  /// Paths reachable before the shift PIN has been entered.
-  static const Set<String> preAuthPaths = {login};
 }

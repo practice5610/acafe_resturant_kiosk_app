@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart'
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/di_container.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -17,6 +18,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
+import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
@@ -112,6 +114,15 @@ Future<CartProvider> _pump(
         ChangeNotifierProvider<CartProvider>.value(value: cart),
         ChangeNotifierProvider<CouponProvider>(
           create: (_) => CouponProvider(couponRepo: null),
+        ),
+        // The payment frame draws its own PosTopNavBar (Figma 1641:2758),
+        // which reads the signed-in staff role. Owner keeps every tab
+        // visible, matching what these tests otherwise assume by default.
+        ChangeNotifierProvider<PosSessionProvider>(
+          create: (_) => PosSessionProvider(
+            kioskManagerRepo:
+                KioskManagerRepo(dioClient: dio, sharedPreferences: prefs),
+          )..debugSetElevated(true),
         ),
       ],
       child: MediaQuery(

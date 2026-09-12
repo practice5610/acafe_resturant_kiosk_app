@@ -88,7 +88,9 @@ void main() {
         provider.shiftsOf(id!),
         [PosStaffShift.morning, PosStaffShift.evening],
       );
-      expect(provider.selected!.passcode.length, PosStaffPasscode.length);
+      // No per-staff passcode is issued any more -- POS manager access is
+      // gated by the device's own configuration_code instead.
+      expect(provider.selected!.passcode, '');
       expect(
         provider.selected!.permissions,
         PosStaffRoles.defaultPermissions(PosStaffRoles.employee),
@@ -113,17 +115,6 @@ void main() {
           provider.addMember(name: 'Jan Jansen', role: PosStaffRoles.employee);
       expect(first, 'jan-jansen');
       expect(second, 'jan-jansen-2');
-    });
-
-    test('generated passcodes do not collide with the roster', () async {
-      final provider = await _provider();
-      final String? code = provider.regeneratePasscode();
-      expect(code, isNotNull);
-      final others = [
-        for (final m in provider.members)
-          if (m.id != provider.selectedId) m.passcode,
-      ];
-      expect(others.contains(code), isFalse);
     });
 
     test('removing a member clears them from every shift', () async {

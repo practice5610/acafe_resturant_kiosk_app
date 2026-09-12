@@ -5,6 +5,7 @@ import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_general_settings.dart';
@@ -22,6 +23,7 @@ import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
 import 'package:acafe_customer/features/pos/providers/pos_payment_settings_provider.dart';
+import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/screens/pos_settings_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_toggle.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
@@ -436,6 +438,14 @@ void main() {
             ),
             ChangeNotifierProvider<CouponProvider>(
               create: (_) => CouponProvider(couponRepo: null),
+            ),
+            // The payment frame draws its own PosTopNavBar, which reads
+            // manager step-up state.
+            ChangeNotifierProvider<PosSessionProvider>(
+              create: (_) => PosSessionProvider(
+                kioskManagerRepo:
+                    KioskManagerRepo(dioClient: dio, sharedPreferences: p),
+              )..debugSetElevated(true),
             ),
           ],
           child: MediaQuery(

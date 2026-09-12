@@ -145,10 +145,10 @@ void main() {
     expect(find.text('MEMBER DETAILS'), findsOneWidget);
     expect(find.text('PERMISSIONS'), findsOneWidget);
     expect(find.text('Process refunds'), findsOneWidget);
-    expect(find.text('Generate'), findsOneWidget);
     expect(
       find.text(
-        'Restricted actions on POS will prompt a manager override passcode.',
+        'Restricted actions on POS prompt the manager PIN set for this '
+        'device in Kiosk settings.',
       ),
       findsOneWidget,
     );

@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
-import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_route_policy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_nav_pill.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pin_modal.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_wordmark.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
@@ -46,7 +48,9 @@ class PosNavBarSpec {
 
   static const double scanSize = 36;
   static const double avatarSize = 40;
+  static const double lockSize = 36;
   static const Key scanButtonKey = Key('pos-scan-button');
+  static const Key lockButtonKey = Key('pos-lock-button');
 
   /// Report is 18/10 in the frame; every other pill is 20/12.
   static const EdgeInsets reportPadding =
@@ -68,6 +72,24 @@ const List<PosNavItem> kPosNavItems = [
   PosNavItem(label: 'Receipts', path: PosRoutes.receipts),
   PosNavItem(label: 'Settings', path: PosRoutes.settings),
 ];
+
+/// Tabs every staff member can reach regardless of role.
+const Set<String> _kAlwaysVisiblePaths = {
+  PosRoutes.home,
+  PosRoutes.orders,
+  PosRoutes.receipts,
+};
+
+/// [kPosNavItems], filtered to what the signed-in staff member (or a
+/// stepped-up Employee) may see. Manager-only tabs are hidden rather than
+/// disabled — [PosRoutePolicy.managerOnlyPaths] is what stops a typed URL or
+/// Back button from reaching them anyway.
+List<PosNavItem> visiblePosNavItems(bool canAccessManagerTabs) {
+  if (canAccessManagerTabs) return kPosNavItems;
+  return kPosNavItems
+      .where((item) => _kAlwaysVisiblePaths.contains(item.path))
+      .toList();
+}
 
 /// Persistent POS chrome, mounted by the `ShellRoute` so it survives tab
 /// switches instead of being rebuilt per screen.
@@ -156,39 +178,29 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
   /// called in this app, so any other locale would throw `LocaleDataException`.
   String get _formattedDate => DateFormat('EEEE, d MMMM').format(_today);
 
-  Future<void> _openAvatarMenu() async {
-    final RenderBox? box = context.findRenderObject() as RenderBox?;
-    final Offset origin =
-        box == null ? Offset.zero : box.localToGlobal(Offset.zero);
-
-    final String? action = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        origin.dx + (box?.size.width ?? 0),
-        origin.dy + PosNavBarSpec.height,
-        0,
-        0,
-      ),
-      items: const [
-        PopupMenuItem<String>(
-          value: 'lock',
-          child: Text('Lock terminal'),
-        ),
-      ],
-    );
-
-    if (action != 'lock' || !mounted) return;
-    // Clears the shift PIN. The route guard then refuses every /pos- path, but
-    // it only re-evaluates on navigation, so send the terminal to the lock
-    // screen explicitly rather than waiting for the next tap.
-    context.read<KioskManagerProvider>().lockManagerAccess();
-    if (!mounted) return;
-    context.go(PosRoutes.login);
+  /// Locked (no step-up): opens the manager PIN modal. Unlocked (a manager
+  /// step-up is active): drops the grant, re-hiding Report/Settings without
+  /// leaving the current screen -- there's no shift to end, just a temporary
+  /// grant to give up.
+  Future<void> _onLockTap() async {
+    final session = context.read<PosSessionProvider>();
+    if (session.canAccessManagerTabs) {
+      session.lock();
+      // The route guard only re-evaluates on navigation, so a lock while
+      // sitting on Report/Settings would otherwise leave that screen showing
+      // until the next tap. Send the terminal home explicitly instead.
+      if (PosRoutePolicy.managerOnlyPaths.contains(widget.currentPath)) {
+        context.go(PosRoutes.home);
+      }
+      return;
+    }
+    await PosPinModal.show(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<KioskAuthProvider>();
+    final session = context.watch<PosSessionProvider>();
 
     return Container(
       height: PosNavBarSpec.height,
@@ -248,7 +260,9 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (final item in kPosNavItems) ...[
+                          for (final item
+                              in visiblePosNavItems(
+                                  session.canAccessManagerTabs)) ...[
                             if (item != kPosNavItems.first)
                               const SizedBox(width: PosNavBarSpec.pillGap),
                             PosNavPill(
@@ -272,14 +286,13 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
                 const SizedBox(width: PosNavBarSpec.groupGap),
                 const _ScanButton(),
                 const SizedBox(width: PosNavBarSpec.groupGap),
+                _PosLockButton(
+                  unlocked: session.canAccessManagerTabs,
+                  onTap: widget.interactive ? _onLockTap : null,
+                ),
+                const SizedBox(width: PosNavBarSpec.groupGap),
                 PosAvatar(
-                  // No staff identity exists: the terminal authenticates as a
-                  // device and the shift PIN is that device's
-                  // configuration_code, so there is no user record and no photo
-                  // to show. The initial names the till instead of inventing a
-                  // person.
                   initial: _initialFor(auth),
-                  onTap: widget.interactive ? _openAvatarMenu : null,
                 ),
               ],
             ),
@@ -289,10 +302,45 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
     );
   }
 
+  /// The till has no staff identity — anyone can operate the counter — so
+  /// the avatar names the device/branch instead of a person.
   static String _initialFor(KioskAuthProvider auth) {
     final String source =
         auth.deviceName.isNotEmpty ? auth.deviceName : auth.branchName;
     return source.isEmpty ? 'A' : source.trim().characters.first.toUpperCase();
+  }
+}
+
+/// Locked (an Employee): tapping opens the manager step-up PIN modal.
+/// Unlocked (Manager/Owner, or a stepped-up Employee): tapping logs the
+/// terminal out. Placeholder glyphs pending real icon design, same status as
+/// the older kiosk manager lock icon it replaces.
+class _PosLockButton extends StatelessWidget {
+  final bool unlocked;
+  final VoidCallback? onTap;
+
+  const _PosLockButton({required this.unlocked, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: PosNavBarSpec.lockButtonKey,
+      width: PosNavBarSpec.lockSize,
+      height: PosNavBarSpec.lockSize,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Icon(
+            unlocked ? Icons.lock_open : Icons.lock_outline,
+            size: PosNavBarSpec.lockSize * 0.6,
+            color: PosUI.ink,
+          ),
+        ),
+      ),
+    );
   }
 }
 

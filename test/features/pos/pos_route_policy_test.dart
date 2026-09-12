@@ -5,18 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// The POS routing rules. These are the part of the feature where a mistake is
 /// invisible in review and obvious in service — a redirect loop that bricks a
-/// till, or a Back button that re-locks it mid-sale.
+/// till, or a Back button that lands somewhere broken.
 String? redirect(
   String path, {
   bool isPosDevice = true,
   bool isLoggedIn = true,
-  bool isPinVerified = true,
+  bool canAccessManagerTabs = true,
 }) =>
     PosRoutePolicy.redirect(
       path: path,
       isPosDevice: isPosDevice,
       isLoggedIn: isLoggedIn,
-      isPinVerified: isPinVerified,
+      canAccessManagerTabs: canAccessManagerTabs,
       kioskLoginPath: RouterHelper.kioskLoginScreen,
       kioskWelcomePath: RouterHelper.kioskWelcomeScreen,
     );
@@ -42,8 +42,6 @@ void main() {
     test('an unbound POS terminal is sent to the shared device login', () {
       expect(redirect(PosRoutes.home, isLoggedIn: false),
           RouterHelper.kioskLoginScreen);
-      expect(redirect(PosRoutes.login, isLoggedIn: false),
-          RouterHelper.kioskLoginScreen);
     });
 
     test('device login itself is allowed through, so it can be completed', () {
@@ -54,50 +52,21 @@ void main() {
     });
   });
 
-  group('gate 2: shift PIN', () {
-    test('every POS path funnels to the PIN screen until it is entered', () {
+  group('logged-in terminal', () {
+    test('every non-manager POS path is reachable with no PIN at all', () {
       for (final path in [
         PosRoutes.home,
         PosRoutes.browse,
         PosRoutes.orders,
         PosRoutes.receipts,
-        PosRoutes.report,
-        PosRoutes.settings,
         PosRoutes.payment,
         PosRoutes.paymentCash,
         PosRoutes.paymentWait,
         PosRoutes.paymentSuccess,
       ]) {
-        expect(redirect(path, isPinVerified: false), PosRoutes.login,
-            reason: '$path should be locked behind the PIN');
+        expect(redirect(path, canAccessManagerTabs: false), isNull,
+            reason: '$path should need no manager access');
       }
-    });
-
-    test('the PIN screen itself renders rather than redirecting to itself', () {
-      expect(redirect(PosRoutes.login, isPinVerified: false), isNull);
-    });
-  });
-
-  group('unlocked terminal', () {
-    test('every POS path is reachable', () {
-      for (final path in [
-        PosRoutes.home,
-        PosRoutes.browse,
-        PosRoutes.orders,
-        PosRoutes.receipts,
-        PosRoutes.report,
-        PosRoutes.settings,
-        PosRoutes.payment,
-        PosRoutes.paymentCash,
-        PosRoutes.paymentWait,
-        PosRoutes.paymentSuccess,
-      ]) {
-        expect(redirect(path), isNull, reason: '$path should be reachable');
-      }
-    });
-
-    test('the PIN screen is unreachable, so Back cannot re-lock the till', () {
-      expect(redirect(PosRoutes.login), PosRoutes.home);
     });
 
     test('kiosk paths resolve to the POS home', () {
@@ -114,12 +83,38 @@ void main() {
     });
   });
 
+  group('gate 2: manager-only tabs', () {
+    test('with no step-up grant, Report and Settings bounce to home', () {
+      for (final path in [PosRoutes.report, PosRoutes.settings]) {
+        expect(
+          redirect(path, canAccessManagerTabs: false),
+          PosRoutes.home,
+          reason: '$path should be Manager/Owner-only',
+        );
+      }
+    });
+
+    test('with a step-up grant, both tabs are reachable', () {
+      for (final path in [PosRoutes.report, PosRoutes.settings]) {
+        expect(redirect(path, canAccessManagerTabs: true), isNull);
+      }
+    });
+
+    test('the manager-only set matches the real route constants', () {
+      expect(
+        PosRoutePolicy.managerOnlyPaths,
+        {PosRoutes.report, PosRoutes.settings},
+      );
+    });
+  });
+
   group('system states outrank both gates', () {
     test('maintenance and force-update pass through at every gate state', () {
       for (final path in [RouterHelper.maintain, RouterHelper.update]) {
         expect(redirect(path), isNull);
-        expect(redirect(path, isPinVerified: false), isNull);
-        expect(redirect(path, isLoggedIn: false, isPinVerified: false), isNull);
+        expect(redirect(path, canAccessManagerTabs: false), isNull);
+        expect(redirect(path, isLoggedIn: false, canAccessManagerTabs: false),
+            isNull);
       }
     });
 
@@ -136,14 +131,15 @@ void main() {
   group('no redirect loops', () {
     test('following a redirect always reaches a settled path', () {
       final states = [
-        (loggedIn: false, pin: false),
-        (loggedIn: true, pin: false),
-        (loggedIn: true, pin: true),
+        (loggedIn: false, manager: true),
+        (loggedIn: true, manager: true),
+        (loggedIn: true, manager: false),
       ];
       final paths = [
-        PosRoutes.login,
         PosRoutes.home,
         PosRoutes.browse,
+        PosRoutes.report,
+        PosRoutes.settings,
         PosRoutes.payment,
         RouterHelper.kioskMenuScreen,
         RouterHelper.kioskLoginScreen,
@@ -158,14 +154,17 @@ void main() {
           // Resolve until settled; a cycle or a long chain is the bug.
           for (var hop = 0; hop < 5; hop++) {
             final next = redirect(current,
-                isLoggedIn: state.loggedIn, isPinVerified: state.pin);
+                isLoggedIn: state.loggedIn,
+                canAccessManagerTabs: state.manager);
             if (next == null) break;
             expect(seen.add(next), isTrue,
                 reason: 'redirect loop from $start in $state via $next');
             current = next;
           }
-          expect(redirect(current,
-              isLoggedIn: state.loggedIn, isPinVerified: state.pin),
+          expect(
+              redirect(current,
+                  isLoggedIn: state.loggedIn,
+                  canAccessManagerTabs: state.manager),
               isNull,
               reason: 'did not settle from $start in $state (stuck at $current)');
         }

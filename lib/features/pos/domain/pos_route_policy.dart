@@ -19,13 +19,21 @@ class PosRoutePolicy {
     '/update',
   };
 
+  /// Reachable only by a Manager/Owner (or an Employee with a temporary
+  /// step-up grant) — see `PosSessionProvider.canAccessManagerTabs`. Hiding
+  /// the tab in the nav bar stops a tap; this stops a typed URL or Back.
+  static const Set<String> managerOnlyPaths = {
+    PosRoutes.report,
+    PosRoutes.settings,
+  };
+
   static String? redirect({
     required String path,
     required bool isPosDevice,
     required bool isLoggedIn,
-    required bool isPinVerified,
     required String kioskLoginPath,
     required String kioskWelcomePath,
+    bool canAccessManagerTabs = true,
   }) {
     // A kiosk device that lands on a POS path — a stale bookmark, a typed URL —
     // goes back to its own tree rather than being shown a staff interface.
@@ -41,15 +49,19 @@ class PosRoutePolicy {
       return path == kioskLoginPath ? null : kioskLoginPath;
     }
 
-    // Gate 2: the shift PIN (the device's `configuration_code`).
-    if (!isPinVerified) {
-      return path == PosRoutes.login ? null : PosRoutes.login;
+    // Logged in: the till is usable by anyone at the counter (POS, Orders,
+    // Receipts) with no PIN gate. Any kiosk path this device wandered onto
+    // resolves to the POS home.
+    if (!PosRoutes.matches(path)) {
+      return PosRoutes.home;
     }
 
-    // Unlocked. The PIN screen becomes unreachable so a stray Back cannot
-    // re-lock the till mid-sale, and any kiosk path this device wandered onto
-    // resolves to the POS home.
-    if (path == PosRoutes.login || !PosRoutes.matches(path)) {
+    // Gate 2: Report/Settings are Manager/Owner-only, reached only via the
+    // nav bar's lock icon (a temporary step-up grant) — see
+    // `PosSessionProvider.canAccessManagerTabs`. An Employee typing the URL
+    // or hitting Back into one of these lands on the home tab rather than
+    // seeing a locked/broken screen.
+    if (managerOnlyPaths.contains(path) && !canAccessManagerTabs) {
       return PosRoutes.home;
     }
 

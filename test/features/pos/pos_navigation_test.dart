@@ -17,7 +17,7 @@ import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/pos_router.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
-import 'package:acafe_customer/features/pos/screens/pos_login_screen.dart';
+import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -34,27 +34,21 @@ import '../../helpers/kiosk_layout_harness.dart';
 /// so this exercises the route splice, the guard branch and the shell swap
 /// together rather than any of them in isolation.
 
-/// Manager provider whose PIN gate can be set directly. Verifying a PIN for
-/// real would need a network round trip; the gate's effect on routing is the
-/// thing under test.
-class _UnlockedManagerProvider extends KioskManagerProvider {
-  _UnlockedManagerProvider(KioskManagerRepo repo)
+/// Session provider whose manager step-up can be granted directly.
+/// Authenticating for real would need a network round trip; the gate's
+/// effect on routing is the thing under test.
+class _UnlockedSessionProvider extends PosSessionProvider {
+  _UnlockedSessionProvider(KioskManagerRepo repo)
       : super(kioskManagerRepo: repo);
 
-  bool _unlocked = false;
-  @override
-  bool get isPinVerified => _unlocked;
-
-  void unlock() {
-    _unlocked = true;
-    notifyListeners();
-  }
+  void unlock() => debugSetElevated(true);
 }
 
 Future<
     ({
       KioskAuthProvider auth,
-      _UnlockedManagerProvider manager,
+      KioskManagerProvider manager,
+      _UnlockedSessionProvider session,
       SharedPreferences prefs,
       DioClient dio,
     })> _providers({
@@ -94,7 +88,9 @@ Future<
   return (
     auth: KioskAuthProvider(
         kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs)),
-    manager: _UnlockedManagerProvider(
+    manager: KioskManagerProvider(
+        kioskManagerRepo: KioskManagerRepo(dioClient: dio, sharedPreferences: prefs)),
+    session: _UnlockedSessionProvider(
         KioskManagerRepo(dioClient: dio, sharedPreferences: prefs)),
     prefs: prefs,
     dio: dio,
@@ -105,6 +101,7 @@ Future<
 Widget _app({
   required KioskAuthProvider auth,
   required KioskManagerProvider manager,
+  required PosSessionProvider session,
   required SharedPreferences prefs,
   required DioClient dio,
 }) {
@@ -112,6 +109,7 @@ Widget _app({
     providers: [
       ChangeNotifierProvider<KioskAuthProvider>.value(value: auth),
       ChangeNotifierProvider<KioskManagerProvider>.value(value: manager),
+      ChangeNotifierProvider<PosSessionProvider>.value(value: session),
       ChangeNotifierProvider<SplashProvider>(
         create: (_) => KioskStubSplashProvider(
           splashRepo: SplashRepo(dioClient: dio, sharedPreferences: prefs),
@@ -166,7 +164,7 @@ void main() {
     }
   });
 
-  testWidgets('a POS device boots into the PIN screen, not the kiosk',
+  testWidgets('a POS device boots straight into the shell, not the kiosk',
       (tester) async {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;
@@ -174,28 +172,34 @@ void main() {
 
     final p = await _providers(category: 'pos');
     await tester.pumpWidget(_app(
-        auth: p.auth, manager: p.manager, prefs: p.prefs, dio: p.dio));
+        auth: p.auth,
+        manager: p.manager,
+        session: p.session,
+        prefs: p.prefs,
+        dio: p.dio));
     await tester.pumpAndSettle();
 
-    expect(find.byType(PosLoginScreen), findsOneWidget);
+    // No PIN gate: the counter (POS/Orders/Receipts) needs no one to sign in.
     expect(find.byType(PosShell), findsOneWidget);
     expect(find.byType(KioskShell), findsNothing);
-    // The nav chrome is behind the PIN gate.
-    expect(find.byType(PosTopNavBar), findsNothing);
+    expect(find.byType(PosTopNavBar), findsOneWidget);
   });
 
-  testWidgets('an unlocked POS terminal reaches the shell and every tab',
-      (tester) async {
+  testWidgets('a stepped-up terminal reaches every tab', (tester) async {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     final p = await _providers(category: 'pos');
     await tester.pumpWidget(_app(
-        auth: p.auth, manager: p.manager, prefs: p.prefs, dio: p.dio));
+        auth: p.auth,
+        manager: p.manager,
+        session: p.session,
+        prefs: p.prefs,
+        dio: p.dio));
     await tester.pumpAndSettle();
 
-    p.manager.unlock();
+    p.session.unlock();
     RouterHelper.goRoutes.go(PosRoutes.home);
     await tester.pumpAndSettle();
 
@@ -221,8 +225,12 @@ void main() {
 
     final p = await _providers(category: 'pos');
     await tester.pumpWidget(_app(
-        auth: p.auth, manager: p.manager, prefs: p.prefs, dio: p.dio));
-    p.manager.unlock();
+        auth: p.auth,
+        manager: p.manager,
+        session: p.session,
+        prefs: p.prefs,
+        dio: p.dio));
+    p.session.unlock();
     await tester.pumpAndSettle();
 
     for (final path in [
@@ -342,8 +350,12 @@ void main() {
 
     final p = await _providers(category: 'pos');
     await tester.pumpWidget(_app(
-        auth: p.auth, manager: p.manager, prefs: p.prefs, dio: p.dio));
-    p.manager.unlock();
+        auth: p.auth,
+        manager: p.manager,
+        session: p.session,
+        prefs: p.prefs,
+        dio: p.dio));
+    p.session.unlock();
     RouterHelper.goRoutes.go(PosRoutes.home);
     await tester.pumpAndSettle();
 

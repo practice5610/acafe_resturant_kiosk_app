@@ -129,7 +129,6 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
                 onRoleChanged: provider.setRole,
                 onActiveChanged: provider.setActive,
                 onPermissionChanged: provider.setPermission,
-                onGeneratePasscode: provider.regeneratePasscode,
                 onRemove: member == null
                     ? null
                     : () => provider.removeMember(member.id),
@@ -600,7 +599,6 @@ class _RightColumn extends StatelessWidget {
   final ValueChanged<String> onRoleChanged;
   final ValueChanged<bool> onActiveChanged;
   final void Function(String key, bool value) onPermissionChanged;
-  final VoidCallback onGeneratePasscode;
   final VoidCallback? onRemove;
 
   const _RightColumn({
@@ -611,7 +609,6 @@ class _RightColumn extends StatelessWidget {
     required this.onRoleChanged,
     required this.onActiveChanged,
     required this.onPermissionChanged,
-    required this.onGeneratePasscode,
     this.onRemove,
   });
 
@@ -654,7 +651,6 @@ class _RightColumn extends StatelessWidget {
               onRoleChanged: onRoleChanged,
               active: m.active,
               onActiveChanged: onActiveChanged,
-              onGeneratePasscode: onGeneratePasscode,
               onRemove: onRemove,
             ),
             const SizedBox(height: 24),
@@ -665,7 +661,8 @@ class _RightColumn extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           Text(
-            'Restricted actions on POS will prompt a manager override passcode.',
+            'Restricted actions on POS prompt the manager PIN set for this '
+            'device in Kiosk settings.',
             style: loewRegular.copyWith(
               fontSize: 13,
               height: 1.5,
@@ -686,7 +683,6 @@ class _MemberDetailsCard extends StatelessWidget {
   final ValueChanged<String> onRoleChanged;
   final bool active;
   final ValueChanged<bool> onActiveChanged;
-  final VoidCallback onGeneratePasscode;
   final VoidCallback? onRemove;
 
   const _MemberDetailsCard({
@@ -697,7 +693,6 @@ class _MemberDetailsCard extends StatelessWidget {
     required this.onRoleChanged,
     required this.active,
     required this.onActiveChanged,
-    required this.onGeneratePasscode,
     this.onRemove,
   });
 
@@ -722,46 +717,6 @@ class _MemberDetailsCard extends StatelessWidget {
               value: role,
               options: PosStaffRoles.options,
               onChanged: onRoleChanged,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'POS ACCESS PASSCODE',
-              style: loewExtraBold.copyWith(
-                fontSize: PosSettingsSpec.labelSize,
-                letterSpacing: PosSettingsSpec.labelTracking,
-                color: PosSettingsSpec.ink,
-              ),
-            ),
-            const SizedBox(height: PosSettingsSpec.labelGap),
-            Row(
-              children: [
-                Expanded(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(
-                        PosSettingsSpec.fieldRadius,
-                      ),
-                      border: Border.all(color: PosSettingsSpec.fieldBorder),
-                    ),
-                    child: Padding(
-                      padding: PosSettingsSpec.fieldPadding,
-                      child: Text(
-                        // Never shown in the clear: the code goes to the member
-                        // when it is generated, not to whoever walks past the
-                        // settings screen.
-                        '****',
-                        style: loewBold.copyWith(
-                          fontSize: PosSettingsSpec.fieldTextSize,
-                          color: PosSettingsSpec.ink,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _GenerateButton(onPressed: onGeneratePasscode),
-              ],
             ),
             const SizedBox(height: 12),
             Row(
@@ -798,53 +753,6 @@ class _MemberDetailsCard extends StatelessWidget {
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GenerateButton extends StatefulWidget {
-  final VoidCallback onPressed;
-
-  const _GenerateButton({required this.onPressed});
-
-  @override
-  State<_GenerateButton> createState() => _GenerateButtonState();
-}
-
-class _GenerateButtonState extends State<_GenerateButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onPressed,
-        child: AnimatedScale(
-          scale: _pressed ? 0.97 : 1,
-          duration: const Duration(milliseconds: 90),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: PosSettingsSpec.fieldBorder),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Text(
-                'Generate',
-                style: loewBold.copyWith(
-                  fontSize: 13,
-                  color: PosSettingsSpec.ink,
-                ),
-              ),
-            ),
-          ),
         ),
       ),
     );

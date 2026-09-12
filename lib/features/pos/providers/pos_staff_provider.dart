@@ -126,19 +126,6 @@ class PosStaffProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Issues a fresh passcode for the selected member, unique across the roster.
-  String? regeneratePasscode() {
-    final PosStaffMember? current = selected;
-    if (current == null) return null;
-    final String code = PosStaffPasscode.generate([
-      for (final m in _roster.members)
-        if (m.id != current.id) m.passcode,
-    ]);
-    _updateSelected((m) => m.copyWith(passcode: code));
-    notifyListeners();
-    return code;
-  }
-
   void _updateSelected(
     PosStaffMember Function(PosStaffMember) transform, {
     bool persist = true,
@@ -180,9 +167,9 @@ class PosStaffProvider extends ChangeNotifier {
       name: trimmed,
       role: safeRole,
       active: true,
-      passcode: PosStaffPasscode.generate(
-        [for (final m in _roster.members) m.passcode],
-      ),
+      // POS manager access is gated by the device's own configuration_code,
+      // not a per-staff code, so new members no longer get one generated.
+      passcode: '',
       permissions: PosStaffRoles.defaultPermissions(safeRole),
     );
 

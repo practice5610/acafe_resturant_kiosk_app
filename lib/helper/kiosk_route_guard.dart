@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
-import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_route_policy.dart';
+import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:provider/provider.dart';
@@ -93,15 +93,16 @@ class KioskRouteGuard {
     required bool isPosDevice,
     required bool isLoggedIn,
   }) {
+    final PosSessionProvider? session = isPosDevice
+        ? Provider.of<PosSessionProvider>(context, listen: false)
+        : null;
+
     return PosRoutePolicy.redirect(
       path: path,
       isPosDevice: isPosDevice,
       isLoggedIn: isLoggedIn,
-      // In-memory by design: a reload re-locks the terminal, which is the point
-      // of a shift PIN on a counter device left unattended.
-      isPinVerified: isPosDevice &&
-          Provider.of<KioskManagerProvider>(context, listen: false)
-              .isPinVerified,
+      // In-memory by design: a reload drops any manager step-up grant.
+      canAccessManagerTabs: session?.canAccessManagerTabs ?? false,
       kioskLoginPath: RouterHelper.kioskLoginScreen,
       kioskWelcomePath: RouterHelper.kioskWelcomeScreen,
     );

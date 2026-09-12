@@ -20,6 +20,7 @@ import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_scope.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
+import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
@@ -126,6 +127,7 @@ Future<void> main() async {
           create: (context) => di.sl<LocalizationProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<KioskAuthProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<KioskManagerProvider>()),
+      ChangeNotifierProvider(create: (context) => di.sl<PosSessionProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<KioskDealProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<AuthProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<CartProvider>()),

@@ -3,7 +3,6 @@ import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/screens/pos_browse_products_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_cash_payment_entry_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_home_cart_screen.dart';
-import 'package:acafe_customer/features/pos/screens/pos_login_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_orders_list_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_success_screen.dart';
@@ -30,12 +29,6 @@ class PosRouter {
 
   /// Spliced into `RouterHelper.goRoutes.routes`.
   static List<RouteBase> routes() => [
-        // Outside the shell: no nav chrome before the shift PIN.
-        GoRoute(
-          path: PosRoutes.login,
-          builder: (context, state) => const PosLoginScreen(),
-        ),
-
         // Tabs. The chrome is mounted once by the ShellRoute so switching tabs
         // does not rebuild the nav bar or lose its state.
         ShellRoute(

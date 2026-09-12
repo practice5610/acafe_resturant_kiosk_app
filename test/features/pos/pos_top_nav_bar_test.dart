@@ -5,9 +5,10 @@ import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.da
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
-import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_nav_pill.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pin_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_wordmark.dart';
@@ -36,23 +37,26 @@ Future<void> _loadFonts() async {
   await loader.load();
 }
 
-/// Records whether the shift lock was actually cleared.
-class _SpyManagerProvider extends KioskManagerProvider {
-  _SpyManagerProvider(KioskManagerRepo repo) : super(kioskManagerRepo: repo);
+/// Records whether a step-up grant was actually dropped.
+class _SpySessionProvider extends PosSessionProvider {
+  _SpySessionProvider(KioskManagerRepo repo) : super(kioskManagerRepo: repo);
 
   int lockCalls = 0;
 
   @override
-  void lockManagerAccess() {
+  void lock() {
     lockCalls++;
-    super.lockManagerAccess();
+    super.lock();
   }
 }
 
 late KioskAuthProvider auth;
-late _SpyManagerProvider manager;
+late _SpySessionProvider session;
 
-Future<void> _buildProviders() async {
+/// A granted step-up by default, so the existing "all five tabs" geometry
+/// tests keep their original meaning; tests for the locked state opt in
+/// explicitly via `elevated: false`.
+Future<void> _buildProviders({bool elevated = true}) async {
   SharedPreferences.setMockInitialValues({
     AppConstants.token: 'device-token',
     AppConstants.branch: 1,
@@ -69,8 +73,9 @@ Future<void> _buildProviders() async {
   );
   auth = KioskAuthProvider(
       kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
-  manager = _SpyManagerProvider(
+  session = _SpySessionProvider(
       KioskManagerRepo(dioClient: dio, sharedPreferences: prefs));
+  session.debugSetElevated(elevated);
 }
 
 Future<void> pumpBar(
@@ -78,15 +83,16 @@ Future<void> pumpBar(
   String currentPath = PosRoutes.home,
   DateTime Function()? now,
   double width = 1366,
+  bool elevated = true,
 }) async {
   tester.view.physicalSize = Size(width, 800);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  await _buildProviders();
+  await _buildProviders(elevated: elevated);
 
-  // A real GoRouter, because locking the terminal navigates to the lock screen
-  // and `context.go` asserts on an ancestor router.
+  // A real GoRouter: locking on Report/Settings navigates home, and
+  // `context.go` asserts on an ancestor router.
   final router = GoRouter(
     initialLocation: '/host',
     routes: [
@@ -104,9 +110,17 @@ Future<void> pumpBar(
         ),
       ),
       GoRoute(
-        path: PosRoutes.login,
-        builder: (context, state) =>
-            const Scaffold(body: Center(child: Text('LOCK SCREEN'))),
+        path: PosRoutes.home,
+        builder: (context, state) => Scaffold(
+          body: Column(
+            children: [
+              PosTopNavBar(
+                currentPath: PosRoutes.home,
+                now: now ?? () => DateTime(2026, 6, 23, 23, 59, 50),
+              ),
+            ],
+          ),
+        ),
       ),
     ],
   );
@@ -116,7 +130,7 @@ Future<void> pumpBar(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<KioskAuthProvider>.value(value: auth),
-        ChangeNotifierProvider<KioskManagerProvider>.value(value: manager),
+        ChangeNotifierProvider<PosSessionProvider>.value(value: session),
       ],
       child: MaterialApp.router(
         debugShowCheckedModeBanner: false,
@@ -209,15 +223,24 @@ void main() {
       }
     });
 
-    testWidgets('16px from pills to scan, and scan to avatar',
+    testWidgets('16px from pills to scan, scan to lock, lock to avatar',
         (tester) async {
-      await pumpBar(tester);
+      // The lock icon added ~52px (gap + icon) beyond what fit in the
+      // original 1366 design-width fixture, which pushes the pill row's
+      // internal SingleChildScrollView into scrolling and detaches the last
+      // pill's position from the fixed-size cluster this test measures. A
+      // few dozen extra px of viewport is enough for everything to render
+      // unscrolled again, same as "at the design width nothing scrolls"
+      // originally meant before this cluster grew a fourth fixed element.
+      await pumpBar(tester, width: 1430);
       final lastPill = tester.getRect(find.byType(PosNavPill).at(4));
       final scan = tester.getRect(find.byKey(PosNavBarSpec.scanButtonKey));
+      final lock = tester.getRect(find.byKey(PosNavBarSpec.lockButtonKey));
       final avatar = tester.getRect(find.byType(PosAvatar));
 
       expect(scan.left - lastPill.right, closeTo(16, 0.01));
-      expect(avatar.left - scan.right, closeTo(16, 0.01));
+      expect(lock.left - scan.right, closeTo(16, 0.01));
+      expect(avatar.left - lock.right, closeTo(16, 0.01));
     });
 
     testWidgets('scan is 36 and avatar is 40', (tester) async {
@@ -274,37 +297,48 @@ void main() {
   });
 
   group('actions', () {
-    testWidgets('avatar opens the menu and locks the terminal',
+    testWidgets('unlocked: the lock icon drops the step-up grant',
         (tester) async {
-      await pumpBar(tester);
-      expect(manager.lockCalls, 0);
+      await pumpBar(tester); // Elevated by default -> unlocked icon.
+      expect(session.lockCalls, 0);
+      expect(find.byIcon(Icons.lock_open), findsOneWidget);
 
-      await tester.tap(find.byType(PosAvatar));
-      await tester.pumpAndSettle();
-      expect(find.text('Lock terminal'), findsOneWidget);
-
-      await tester.tap(find.text('Lock terminal'));
+      await tester.tap(find.byKey(PosNavBarSpec.lockButtonKey));
       await tester.pumpAndSettle();
 
-      expect(manager.lockCalls, 1);
-      expect(manager.isPinVerified, isFalse);
-      // ...and the terminal is actually sent to the lock screen, rather than
-      // sitting unlocked-looking until the next navigation.
-      expect(find.text('LOCK SCREEN'), findsOneWidget);
-      expect(find.byType(PosTopNavBar), findsNothing);
+      expect(session.lockCalls, 1);
+      expect(session.canAccessManagerTabs, isFalse);
+      // Home isn't a manager-only path, so re-locking here stays put rather
+      // than navigating anywhere.
+      expect(find.byType(PosTopNavBar), findsOneWidget);
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
     });
 
-    testWidgets('the avatar menu can be dismissed without locking',
+    testWidgets(
+        'unlocked on a manager-only tab: locking sends the terminal home',
         (tester) async {
-      await pumpBar(tester);
-      await tester.tap(find.byType(PosAvatar));
+      await pumpBar(tester, currentPath: PosRoutes.report);
+
+      await tester.tap(find.byKey(PosNavBarSpec.lockButtonKey));
       await tester.pumpAndSettle();
 
-      await tester.tapAt(const Offset(400, 400));
+      expect(session.lockCalls, 1);
+      // Settled on home with Report/Settings hidden again.
+      expect(find.text('Report'), findsNothing);
+    });
+
+    testWidgets('locked (no grant): the lock icon opens the step-up modal',
+        (tester) async {
+      await pumpBar(tester, elevated: false);
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+
+      await tester.tap(find.byKey(PosNavBarSpec.lockButtonKey));
       await tester.pumpAndSettle();
 
-      expect(find.text('Lock terminal'), findsNothing);
-      expect(manager.lockCalls, 0);
+      expect(find.byType(PosPinCard), findsOneWidget);
+      expect(session.lockCalls, 0);
+      // The nav bar underneath is untouched -- this is a modal, not a route.
+      expect(find.byType(PosTopNavBar), findsOneWidget);
     });
 
     testWidgets('scan is inert — tapping it does nothing and does not throw',
@@ -315,8 +349,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(manager.lockCalls, 0);
+      expect(session.lockCalls, 0);
       expect(find.byType(PosTopNavBar), findsOneWidget);
+    });
+  });
+
+  group('manager-gated tabs', () {
+    testWidgets('no step-up grant: only POS, Orders, Receipts show',
+        (tester) async {
+      await pumpBar(tester, elevated: false);
+      expect(find.byType(PosNavPill), findsNWidgets(3));
+      expect(find.text('POS'), findsOneWidget);
+      expect(find.text('Orders'), findsOneWidget);
+      expect(find.text('Receipts'), findsOneWidget);
+      expect(find.text('Report'), findsNothing);
+      expect(find.text('Settings'), findsNothing);
+    });
+
+    testWidgets('a step-up grant shows all five tabs', (tester) async {
+      await pumpBar(tester, elevated: true);
+      expect(find.byType(PosNavPill), findsNWidgets(5));
     });
   });
 
