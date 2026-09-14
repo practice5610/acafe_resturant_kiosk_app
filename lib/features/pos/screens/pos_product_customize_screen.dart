@@ -674,10 +674,14 @@ class _CustomizePane extends StatelessWidget {
                     ],
                     for (final entry in sections.dietary) ...[
                       _VariationSection(
+                        // 'choose_your_dietary' has no entry in any locale
+                        // file; getTranslated() throws on a missing key and
+                        // echoes the raw key back rather than returning null,
+                        // so the `?? fallback` idiom never actually fires —
+                        // use the fallback text directly instead.
                         title: entry.value.name?.isNotEmpty == true
                             ? entry.value.name!
-                            : (getTranslated('choose_your_dietary', context) ??
-                                'Choose your dietary'),
+                            : 'Choose your dietary',
                         variation: entry.value,
                         variationIndex: entry.key,
                         product: product,

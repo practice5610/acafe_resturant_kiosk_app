@@ -469,7 +469,7 @@ class _PosAllergenFilterDialogState extends State<PosAllergenFilterDialog> {
               ),
             const SizedBox(height: PosAllergenDialogSpec.sectionGap),
             PosAllergenPrimaryButton(
-              label: (getTranslated('allergen_apply', context) ??
+              label: (getTranslated('allergen_apply_filters', context) ??
                       'Apply filters')
                   .toUpperCase(),
               onTap: _apply,
