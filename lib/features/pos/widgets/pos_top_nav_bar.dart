@@ -623,6 +623,10 @@ class _PosNavMoreButton extends StatelessWidget {
       key: PosNavBarSpec.moreButtonKey,
       enabled: interactive,
       tooltip: 'More',
+      // Without this, PopupMenuButton's default anchor is the button's own
+      // top-left, which opens the menu overlapping the pill instead of below
+      // it — same fix as the avatar menu.
+      position: PopupMenuPosition.under,
       // Not PosNavPill.radius (100, the fully-rounded pill *trigger*'s own
       // corner radius) -- this `shape` controls the dropdown *panel*, and a
       // 100 radius on a menu that size rendered as a near-circle. A normal
@@ -724,6 +728,10 @@ class _PosAvatarMenuButton extends StatelessWidget {
       key: PosNavBarSpec.avatarMenuButtonKey,
       enabled: interactive,
       tooltip: 'Account',
+      // Without this, PopupMenuButton's default anchor is the button's own
+      // top-left, which opens the menu overlapping the avatar and the icons
+      // beside it instead of below them.
+      position: PopupMenuPosition.under,
       onSelected: (_) => onLogout(),
       itemBuilder: (context) => const [
         PopupMenuItem<String>(value: 'logout', child: Text('Logout')),
