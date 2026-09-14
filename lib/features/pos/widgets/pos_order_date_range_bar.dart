@@ -1,5 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -90,6 +92,94 @@ class PosOrderDateRangeBar extends StatelessWidget {
   static String formatTime(DateTime value) => _time.format(value);
 }
 
+/// Quick date-range presets as rectangular buttons in the same row as the
+/// From/To fields — Figma's `date-filter-pills` family from the admin
+/// dashboard, translated to this screen's small square-cornered field style
+/// (Figma 1641:2878) rather than the fully-rounded section pills below the
+/// board, so the row reads as one connected control instead of two different
+/// button languages sitting side by side.
+class PosOrderDatePresetBar extends StatelessWidget {
+  final PosOrderDateRangePreset value;
+  final ValueChanged<PosOrderDateRangePreset> onChanged;
+
+  const PosOrderDatePresetBar({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: PosOrdersSpec.dateGap,
+      runSpacing: PosOrdersSpec.dateGap,
+      children: [
+        for (final option in PosOrderFilters.dateRangePresets)
+          _PresetChip(
+            label: option.label,
+            active: option.value == value,
+            onTap: () => onChanged(option.value),
+          ),
+      ],
+    );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _PresetChip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: active ? PosHomeSpec.ink : Colors.white,
+      borderRadius: BorderRadius.circular(PosOrdersSpec.dateFieldRadius),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(PosOrdersSpec.dateFieldRadius),
+        child: Container(
+          height: PosOrdersSpec.dateFieldHeight,
+          padding: const EdgeInsets.symmetric(
+            horizontal: PosOrdersSpec.dateFieldPaddingH,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(PosOrdersSpec.dateFieldRadius),
+            border: Border.all(
+              color: active ? PosHomeSpec.ink : PosReceiptsSpec.fieldBorder,
+            ),
+          ),
+          // A Row that shrink-wraps, not `alignment: center` on the Container
+          // directly — an aligned Container with no explicit width expands to
+          // fill whatever the Wrap hands it, which is exactly how this chip
+          // ended up stretched across the full row width.
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: loewBold.copyWith(
+                  fontSize: PosOrdersSpec.dateTextSize,
+                  color: active ? Colors.white : PosHomeSpec.ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Same square-cornered chip style as [_PresetChip] — NOW is just another
+/// button in this row, not a differently-shaped toggle, so it carries the
+/// identical radius, border and active treatment.
 class _NowPill extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
@@ -99,20 +189,24 @@ class _NowPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: active ? PosHomeSpec.ink : Colors.transparent,
-      borderRadius: BorderRadius.circular(PosOrdersSpec.pillRadius),
+      color: active ? PosHomeSpec.ink : Colors.white,
+      borderRadius: BorderRadius.circular(PosOrdersSpec.dateFieldRadius),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(PosOrdersSpec.pillRadius),
+        borderRadius: BorderRadius.circular(PosOrdersSpec.dateFieldRadius),
         child: Container(
           height: PosOrdersSpec.dateFieldHeight,
           constraints: const BoxConstraints(
             minWidth: PosOrdersSpec.nowButtonWidth,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(
+            horizontal: PosOrdersSpec.dateFieldPaddingH,
+          ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(PosOrdersSpec.pillRadius),
-            border: Border.all(color: PosHomeSpec.ink),
+            borderRadius: BorderRadius.circular(PosOrdersSpec.dateFieldRadius),
+            border: Border.all(
+              color: active ? PosHomeSpec.ink : PosReceiptsSpec.fieldBorder,
+            ),
           ),
           // A Row that shrink-wraps rather than `alignment: center` on the
           // Container: an aligned Container with no width expands to fill its
@@ -223,7 +317,7 @@ class _DateTimeField extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(PosOrdersSpec.dateFieldRadius),
-            border: Border.all(color: PosHomeSpec.tableFieldBorder),
+            border: Border.all(color: PosReceiptsSpec.fieldBorder),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

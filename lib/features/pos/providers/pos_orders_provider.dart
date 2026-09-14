@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
+import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:flutter/foundation.dart';
@@ -67,6 +68,13 @@ class PosOrdersProvider extends ChangeNotifier {
   /// than being pinned to a chosen end time.
   bool _now = true;
   bool get now => _now;
+
+  /// The dropdown's own selection, tracked separately from `_from`/`_to` so it
+  /// can be reset to `custom` the moment the operator edits the date fields
+  /// directly — otherwise the pill would keep naming a preset ("Yesterday")
+  /// next to a window it no longer describes.
+  PosOrderDateRangePreset _datePreset = PosOrderDateRangePreset.custom;
+  PosOrderDateRangePreset get datePreset => _datePreset;
 
   String _search = '';
   String get search => _search;
@@ -194,6 +202,7 @@ class PosOrdersProvider extends ChangeNotifier {
     _from = from;
     _to = to;
     if (now != null) _now = now;
+    _datePreset = PosOrderDateRangePreset.custom;
     unawaited(load());
   }
 
@@ -204,6 +213,25 @@ class PosOrdersProvider extends ChangeNotifier {
       _from = _startOfToday();
       _to = null;
     }
+    _datePreset = PosOrderDateRangePreset.custom;
+    unawaited(load());
+  }
+
+  /// Applies a quick date-range preset. `custom` is not a computed range — it
+  /// only marks the dropdown back to its neutral state, leaving whatever
+  /// From/To the operator already set untouched.
+  void setDatePreset(PosOrderDateRangePreset preset) {
+    if (_datePreset == preset) return;
+    _datePreset = preset;
+
+    if (preset == PosOrderDateRangePreset.custom) {
+      notifyListeners();
+      return;
+    }
+
+    _from = preset.from;
+    _to = preset.to;
+    _now = preset.liveNow;
     unawaited(load());
   }
 

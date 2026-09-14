@@ -51,4 +51,58 @@ class PosOrderFilters {
     PosReceiptFilterOption('Ready to collect', 'item_to_collect'),
     PosReceiptFilterOption('Completed', 'completed'),
   ];
+
+  /// Quick date-range presets, mirroring the admin dashboard's
+  /// `date-filter-pills` (Yesterday / Last 7 days / This month). No "Custom"
+  /// button — the From/To fields already sitting in this row are the custom
+  /// picker, so a third way to say "custom" would just be a dead click.
+  static const List<PosReceiptFilterOption<PosOrderDateRangePreset>>
+      dateRangePresets = [
+    PosReceiptFilterOption('Yesterday', PosOrderDateRangePreset.yesterday),
+    PosReceiptFilterOption('Last 7 days', PosOrderDateRangePreset.last7Days),
+    PosReceiptFilterOption('This month', PosOrderDateRangePreset.thisMonth),
+  ];
+}
+
+/// A quick preset for the Orders date range bar. `custom` is not a computed
+/// range — it is what the preset resets to the moment the operator edits the
+/// From/To fields by hand, so the dropdown never shows a stale preset label
+/// next to a window that preset no longer describes.
+enum PosOrderDateRangePreset { custom, yesterday, last7Days, thisMonth }
+
+/// Resolves a [PosOrderDateRangePreset] to the From/To/NOW state
+/// [PosOrdersProvider.setDatePreset] applies.
+///
+/// Yesterday is the only preset with a fixed end — Last 7 days and This month
+/// leave `to` unset and turn NOW mode on instead, the same way the existing
+/// NOW pill works, so a terminal left open through service keeps showing
+/// orders placed after the preset was picked.
+extension PosOrderDateRangePresetQuery on PosOrderDateRangePreset {
+  static DateTime get _today {
+    final DateTime now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  DateTime? get from {
+    switch (this) {
+      case PosOrderDateRangePreset.custom:
+        return null;
+      case PosOrderDateRangePreset.yesterday:
+        return _today.subtract(const Duration(days: 1));
+      case PosOrderDateRangePreset.last7Days:
+        return _today.subtract(const Duration(days: 6));
+      case PosOrderDateRangePreset.thisMonth:
+        return DateTime(_today.year, _today.month, 1);
+    }
+  }
+
+  DateTime? get to {
+    if (this != PosOrderDateRangePreset.yesterday) return null;
+    final DateTime yesterday = _today.subtract(const Duration(days: 1));
+    return DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
+  }
+
+  bool get liveNow =>
+      this == PosOrderDateRangePreset.last7Days ||
+      this == PosOrderDateRangePreset.thisMonth;
 }

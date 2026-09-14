@@ -23,14 +23,22 @@ class PosOrdersSpec {
   static const double filtersBottomGap = 20;
 
   // ── Date row (1641:2878) ─────────────────────────────────────────────
+  /// Matches the dropdown-row pills below (`PosReceiptsSpec.filterRadius` /
+  /// `filterPaddingV` / `filterPaddingH`) so the two rows read as one design
+  /// language — square-cornered fields, not a mix of pills and rectangles.
   static const double nowButtonWidth = 62;
-  static const double dateFieldHeight = 30;
-  static const double dateFieldRadius = 6;
-  static const double dateFieldPaddingH = 10;
+  static const double dateFieldHeight = 36;
+  static const double dateFieldRadius = 8;
+  static const double dateFieldPaddingH = 16;
   static const double dateIconSize = 14;
   static const double dateGap = 8;
   static const double dateLabelSize = 12;
-  static const double dateTextSize = 12;
+  static const double dateTextSize = 13;
+
+  /// Fixed rather than `Expanded` — this row also carries the date-preset
+  /// chips and a search box that fills whatever space is left would crowd
+  /// them at every width, so it gets a deliberately modest budget instead.
+  static const double searchFieldWidth = 220;
 
   // ── Dropdown row (1641:2903) ─────────────────────────────────────────
   static const double dropdownHeight = 32;
@@ -118,7 +126,4 @@ class PosOrdersSpec {
   /// Below this the fixed 288px card is wider than the content area, so cards
   /// stretch to the available width instead of overflowing.
   static const double cardStretchBelowWidth = 320;
-
-  /// Below this the filter rows stop fitting on one line and wrap.
-  static const double filtersWrapBelowWidth = 900;
 }

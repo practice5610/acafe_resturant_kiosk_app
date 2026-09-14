@@ -245,12 +245,24 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final bool wrap =
-                  constraints.maxWidth < PosOrdersSpec.filtersWrapBelowWidth;
-
-              final Widget range = PosOrderDateRangeBar(
+          // A Wrap, not a Row: the date fields, the preset chips and the
+          // search box together are too wide to hold on one line below
+          // roughly tablet width, and a Wrap reflows the overflow onto its
+          // own line instead of clipping it — no breakpoint to maintain.
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: PosOrdersSpec.dropdownGap,
+            runSpacing: PosOrdersSpec.filterRowGap,
+            children: [
+              // Quick presets lead the row, ahead of the explicit picker they
+              // are shortcuts for — an operator reaches for "Yesterday" far
+              // more often than for hand-picked dates, so the fast path reads
+              // first, left to right.
+              PosOrderDatePresetBar(
+                value: provider.datePreset,
+                onChanged: provider.setDatePreset,
+              ),
+              PosOrderDateRangeBar(
                 from: provider.from,
                 to: provider.to,
                 now: provider.now,
@@ -265,36 +277,17 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
                   to: value,
                   now: false,
                 ),
-              );
-
-              final Widget search = PosSearchField(
-                controller: _searchController,
-                hintText: 'Search in orders...',
-                style: PosSearchFieldStyle.settings,
-                onChanged: provider.setSearch,
-              );
-
-              // Below the break the search bar cannot share a row with the
-              // date fields without either being squeezed to nothing.
-              if (wrap) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    range,
-                    const SizedBox(height: PosOrdersSpec.filterRowGap),
-                    search,
-                  ],
-                );
-              }
-
-              return Row(
-                children: [
-                  range,
-                  const SizedBox(width: PosOrdersSpec.dropdownGap),
-                  Expanded(child: search),
-                ],
-              );
-            },
+              ),
+              SizedBox(
+                width: PosOrdersSpec.searchFieldWidth,
+                child: PosSearchField(
+                  controller: _searchController,
+                  hintText: 'Search in orders...',
+                  style: PosSearchFieldStyle.settings,
+                  onChanged: provider.setSearch,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: PosOrdersSpec.filterRowGap),
           Wrap(
