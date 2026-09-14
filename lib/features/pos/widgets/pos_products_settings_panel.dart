@@ -1,8 +1,10 @@
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_products_settings_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_availability_list.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_toggle.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -45,6 +47,11 @@ class _PosProductsSettingsPanelState extends State<PosProductsSettingsPanel> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<KioskManagerProvider>().loadAllProductsWithCache();
+      // Re-pulls /device/me so the allergen toggle always reflects the
+      // server's current value on entry, rather than whatever this device
+      // last cached — the branch-admin panel can change it out from under a
+      // POS session that never re-logs-in.
+      context.read<KioskAuthProvider>().refreshDeviceSettings();
     });
   }
 
@@ -82,6 +89,8 @@ class _PosProductsSettingsPanelState extends State<PosProductsSettingsPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _ProductsHeader(),
+        const SizedBox(height: PosProductsSettingsSpec.sectionGap),
+        const _AllergenTagToggleRow(),
         const SizedBox(height: PosProductsSettingsSpec.sectionGap),
         PosSearchField(
           controller: _search,
@@ -170,6 +179,89 @@ class _ProductsHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Allergen tag toggle ─────────────────────────────────────────────────────
+
+/// Branch-wide "show allergen tags" toggle — the same `allergen_tag_enabled`
+/// column the branch-admin Business Settings page writes, editable here too
+/// so a manager on the floor doesn't need back-office access. Gates the
+/// allergen disclosure on both the kiosk and POS product-customize screens.
+class _AllergenTagToggleRow extends StatefulWidget {
+  const _AllergenTagToggleRow();
+
+  @override
+  State<_AllergenTagToggleRow> createState() => _AllergenTagToggleRowState();
+}
+
+class _AllergenTagToggleRowState extends State<_AllergenTagToggleRow> {
+  bool _busy = false;
+
+  Future<void> _onChanged(bool next) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final bool ok =
+        await context.read<KioskManagerProvider>().setAllergenTagEnabled(next);
+    if (ok && mounted) {
+      await context.read<KioskAuthProvider>().applyAllergenTagEnabled(next);
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enabled = context.watch<KioskAuthProvider>().allergenTagEnabled;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: PosSettingsSpec.ink.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SHOW ALLERGEN TAG',
+                  style: loewBold.copyWith(
+                    fontSize: 14,
+                    color: PosSettingsSpec.ink,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Shows allergen info on the product customize screen, on '
+                  'both the kiosk and this terminal.',
+                  style: loewRegular.copyWith(
+                    fontSize: 12,
+                    color: PosSettingsSpec.inkMuted(),
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _busy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : PosToggle(
+                  value: enabled,
+                  semanticLabel: 'Show allergen tag',
+                  onChanged: _onChanged,
+                ),
+        ],
+      ),
     );
   }
 }

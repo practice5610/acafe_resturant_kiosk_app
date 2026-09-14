@@ -157,6 +157,13 @@ class PosReportData {
   List<PosReportCategoryRow> get categorySales =>
       _rows(_categorySection['buckets']).map(PosReportCategoryRow.new).toList();
 
+  // ── Device breakdown (per POS/kiosk terminal + Web/App) ───────────────
+  Map<String, dynamic> get _deviceSection => _map(raw['device_breakdown']);
+  bool get deviceBreakdownRecorded => _sectionRecorded(raw, 'device_breakdown');
+  double get deviceBreakdownTotal => _d(_deviceSection['total']);
+  List<PosReportDeviceRow> get deviceBreakdown =>
+      _rows(_deviceSection['rows']).map(PosReportDeviceRow.new).toList();
+
   // ── Cash drawer (reduced — see Decision 1) ────────────────────────────
   Map<String, dynamic> get _cashSection => _map(raw['cash_drawer']);
   bool get cashRecorded => _sectionRecorded(raw, 'cash_drawer');
@@ -268,4 +275,34 @@ class PosReportCategoryRow {
   String get name => (_row['category'] ?? '').toString();
   double get amount => _d(_row['amount']);
   double get percentage => _d(_row['percentage']);
+}
+
+/// One row of `device_breakdown.rows[]` — one physical POS/kiosk terminal,
+/// the trailing `Web/App` row (`device_id: null`), or the trailing
+/// `Unknown device` row for orders whose device has since been deleted.
+///
+/// The backend deliberately lists every device registered to the branch,
+/// including ones that took nothing today — a silent terminal is information
+/// a manager wants, not a row to omit. There is no per-device payment-method
+/// split in this payload (`ZReportService::deviceBreakdown()` does not
+/// compute one), so this model does not expose one rather than inventing a
+/// number the API never sent.
+class PosReportDeviceRow {
+  final Map<String, dynamic> _row;
+  const PosReportDeviceRow(this._row);
+
+  int? get deviceId =>
+      _row['device_id'] == null ? null : _i(_row['device_id']);
+  String get name => (_row['device_name'] ?? '').toString();
+
+  /// `pos`, `kiosk`, `web_app` or `unknown` — see
+  /// `ZReportService::deviceCategoryLabel()`.
+  String get category => (_row['category'] ?? '').toString();
+  String get categoryLabel => (_row['category_label'] ?? '').toString();
+  int get orderCount => _i(_row['order_count']);
+  double get amount => _d(_row['amount']);
+  double get percentage => _d(_row['percentage']);
+
+  /// Derived client-side (the API sends amount + count, not this directly).
+  double get averageOrderValue => orderCount > 0 ? amount / orderCount : 0;
 }

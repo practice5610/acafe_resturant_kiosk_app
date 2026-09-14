@@ -9,6 +9,182 @@ import 'package:acafe_customer/utill/images.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+// ── Revenue by Terminal (device breakdown) ────────────────────────────────
+
+/// One row per POS/kiosk terminal registered to the branch, plus the trailing
+/// `Web/App` bucket — from `device_breakdown.rows[]`. This is display-only:
+/// the branch total above it is already summed across every device (see
+/// `ZReportService::preview()`), this panel just shows the same total split
+/// out per source so a manager can see which terminal is actually selling.
+///
+/// A horizontally-scrolling row of cards rather than a table: at most a
+/// handful of terminals exist per branch, and a card reads at a glance
+/// (name, revenue, count) faster than a table row would.
+class PosReportDeviceBreakdownPanel extends StatelessWidget {
+  final PosReportData data;
+
+  const PosReportDeviceBreakdownPanel({super.key, required this.data});
+
+  /// Reuses the existing category palette rather than introducing new
+  /// colours — `categoryColors[0]` (near-black) for staffed counters,
+  /// `categoryColors[4]` (tan/gold, closest to the brand secondary) for
+  /// self-service kiosks, `categoryColors[5]` (grey-brown) for Web/App and
+  /// any orphaned "Unknown device" row.
+  static Color _accentFor(String category) {
+    switch (category) {
+      case 'pos':
+        return PosReportSpec.categoryColors[0];
+      case 'kiosk':
+        return PosReportSpec.categoryColors[4];
+      default:
+        return PosReportSpec.categoryColors[5];
+    }
+  }
+
+  static IconData _iconFor(String category) {
+    switch (category) {
+      case 'pos':
+        return Icons.point_of_sale_rounded;
+      case 'kiosk':
+        return Icons.tablet_mac_rounded;
+      case 'web_app':
+        return Icons.language_rounded;
+      default:
+        return Icons.device_unknown_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<PosReportDeviceRow> rows = data.deviceBreakdown;
+    final double total = data.deviceBreakdownTotal;
+
+    return PosReportCard(
+      title: 'Revenue by Terminal',
+      trailing: total > 0
+          ? Align(
+              alignment: Alignment.centerRight,
+              child: PosReportBadge(
+                'Total ${PosHomeSpec.formatPrice(total, padZero: false)}',
+                textSize: PosReportSpec.tableHeaderSize,
+              ),
+            )
+          : null,
+      child: !data.deviceBreakdownRecorded
+          ? const PosReportEmptyState.notRecorded()
+          : rows.isEmpty
+              ? const PosReportEmptyState(
+                  message: 'No terminals registered',
+                  detail: 'Revenue splits by terminal once devices are added '
+                      'to this branch.',
+                )
+              : SizedBox(
+                  height: posPx(context, PosReportSpec.deviceCardHeight),
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: rows.length,
+                    separatorBuilder: (_, __) =>
+                        SizedBox(width: posPx(context, PosReportSpec.cardGap)),
+                    itemBuilder: (BuildContext context, int i) =>
+                        _DeviceCard(row: rows[i]),
+                  ),
+                ),
+    );
+  }
+}
+
+class _DeviceCard extends StatelessWidget {
+  final PosReportDeviceRow row;
+
+  const _DeviceCard({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent =
+        PosReportDeviceBreakdownPanel._accentFor(row.category);
+
+    return Container(
+      width: posPx(context, PosReportSpec.deviceCardWidth),
+      padding: EdgeInsets.all(posPx(context, PosReportSpec.deviceCardPadding)),
+      decoration: BoxDecoration(
+        color: PosReportSpec.rowFill,
+        borderRadius: BorderRadius.circular(
+          posPx(context, PosReportSpec.featuredRowRadius),
+        ),
+        border: Border(left: BorderSide(color: accent, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(
+                PosReportDeviceBreakdownPanel._iconFor(row.category),
+                size: posPx(context, PosReportSpec.paymentIconSize),
+                color: accent,
+              ),
+              SizedBox(width: posPx(context, 6)),
+              Expanded(
+                child: Text(
+                  row.name,
+                  style: PosUI.text(
+                    context,
+                    size: PosReportSpec.paymentNameSize,
+                    weight: FontWeight.w700,
+                    color: PosReportSpec.ink,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            PosHomeSpec.formatPrice(row.amount, padZero: false),
+            style: PosUI.text(
+              context,
+              size: PosReportSpec.kpiValueSize * 0.77,
+              weight: FontWeight.w800,
+              color: PosReportSpec.ink,
+            ),
+            maxLines: 1,
+          ),
+          Text(
+            '${row.orderCount} order${row.orderCount == 1 ? '' : 's'}'
+            ' · avg ${PosHomeSpec.formatPrice(row.averageOrderValue, padZero: false)}',
+            style: PosUI.text(
+              context,
+              size: PosReportSpec.paymentSubSize,
+              weight: FontWeight.w400,
+              color: PosReportSpec.inkMuted,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(
+              posPx(context, PosReportSpec.stackedBarRadius),
+            ),
+            child: SizedBox(
+              height: posPx(context, PosReportSpec.stackedBarHeight) * 0.6,
+              child: Stack(
+                children: <Widget>[
+                  Container(color: PosReportSpec.cardBorder),
+                  FractionallySizedBox(
+                    widthFactor: (row.percentage / 100).clamp(0, 1),
+                    child: Container(color: accent),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Payment Methods ─────────────────────────────────────────────────────
 
 /// `payment-methods-card` (Figma **1641:5518**).

@@ -168,6 +168,20 @@ class KioskManagerRepo {
     }
   }
 
+  /// POS Settings -> Products: turns the allergen tag disclosure on/off for
+  /// this device's branch. Mirrors the branch-admin Business Settings toggle.
+  Future<ApiResponseModel> setAllergenTagEnabled(bool enabled) async {
+    try {
+      final response = await dioClient.post(
+        '/api/v1/kiosk/manager/settings/allergen-tag',
+        data: {'enabled': enabled},
+      );
+      return ApiResponseModel.withSuccess(response);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
+
   /// Add-ons this terminal's branch may manage, for POS Settings -> Add-Ons.
   /// Branch scoping is server-side, from the device token -- nothing here
   /// says which branch.

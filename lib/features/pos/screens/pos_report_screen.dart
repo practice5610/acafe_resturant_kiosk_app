@@ -467,6 +467,8 @@ class _Dashboard extends StatelessWidget {
                 ],
               ),
               SizedBox(height: gap),
+              PosReportDeviceBreakdownPanel(data: data),
+              SizedBox(height: gap),
               _Grid(
                 columns: midColumns,
                 gap: gap,

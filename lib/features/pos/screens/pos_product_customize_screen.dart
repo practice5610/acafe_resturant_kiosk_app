@@ -9,9 +9,11 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.da
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_customize_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_allergen_notice.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_coupon_apply_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
@@ -30,7 +32,8 @@ import 'package:provider/provider.dart';
 ///
 /// Reuses [ProductProvider] + [buildKioskCartModel] — the same selection and
 /// price math as the kiosk — but presents the POS layout and pops back to the
-/// counter after save (no allergen gate, no kiosk confirmation beat).
+/// counter after save (no kiosk confirmation beat). Shows [PosAllergenNotice]
+/// when the branch admin has turned the allergen tag toggle on.
 void openPosCustomize(
   BuildContext context,
   Product product, {
@@ -538,6 +541,12 @@ class _CustomizePane extends StatelessWidget {
   Widget build(BuildContext context) {
     final splash = context.read<SplashProvider>();
     final String? imageBase = splash.baseUrls?.productImageUrl;
+    final bool allergenTagEnabled =
+        context.read<KioskAuthProvider>().allergenTagEnabled;
+    final Widget? allergenNotice = PosAllergenNotice.maybe(
+      product: product,
+      enabled: allergenTagEnabled,
+    );
 
     return ColoredBox(
       color: PosCustomizeSpec.pageBg,
@@ -562,6 +571,10 @@ class _CustomizePane extends StatelessWidget {
               },
               onPlus: () => productProvider.setQuantity(true),
             ),
+            if (allergenNotice != null) ...[
+              const SizedBox(height: PosCustomizeSpec.sectionTitleGap),
+              allergenNotice,
+            ],
             const SizedBox(height: PosCustomizeSpec.sectionGap),
             Expanded(
               child: SingleChildScrollView(

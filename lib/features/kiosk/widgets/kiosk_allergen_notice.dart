@@ -31,9 +31,15 @@ class KioskAllergenNotice extends StatelessWidget {
     required this.allergens,
   });
 
-  /// Builds the strip for [product], or null when it declares no allergens.
+  /// Builds the strip for [product], or null when [enabled] is false (the
+  /// branch admin toggle is off) or the product declares no allergens.
   /// Callers use this so an ordinary product costs no layout at all.
-  static Widget? maybe({required double s, required Product product}) {
+  static Widget? maybe({
+    required double s,
+    required Product product,
+    required bool enabled,
+  }) {
+    if (!enabled) return null;
     final Set<KioskAllergen> found = kioskProductAllergens(product);
     if (found.isEmpty) return null;
     return KioskAllergenNotice(s: s, allergens: found);

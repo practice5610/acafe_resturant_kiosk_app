@@ -55,6 +55,18 @@ class KioskAuthProvider extends ChangeNotifier {
   KioskOrderingExperience get orderingExperience =>
       KioskOrderingExperience.fromApi(kioskAuthRepo.getOrderingExperience());
 
+  /// Per-branch "show allergen tags" toggle, set by branch admin or from
+  /// POS Settings → Products.
+  bool get allergenTagEnabled => kioskAuthRepo.getAllergenTagEnabled();
+
+  /// Applies a POS Settings toggle locally after the server call in
+  /// [KioskManagerProvider.setAllergenTagEnabled] has already succeeded.
+  Future<void> applyAllergenTagEnabled(bool enabled) async {
+    if (allergenTagEnabled == enabled) return;
+    await kioskAuthRepo.saveAllergenTagEnabled(enabled);
+    notifyListeners();
+  }
+
   /// 'kiosk' or 'pos' -- gates whether the manager icon is shown.
   String get category => kioskAuthRepo.getDeviceCategory();
   bool get isPosDevice => category == 'pos';
@@ -101,6 +113,7 @@ class KioskAuthProvider extends ChangeNotifier {
     String status = '',
     String name = '',
     String orderingExperience = '',
+    bool? allergenTagEnabled,
     bool signOut = false,
   }) async {
     if (deviceId <= 0) {
@@ -133,11 +146,14 @@ class KioskAuthProvider extends ChangeNotifier {
         category.isNotEmpty && category != kioskAuthRepo.getDeviceCategory();
     final bool nameChanged =
         name.isNotEmpty && name != kioskAuthRepo.getDeviceName();
+    final bool allergenChanged = allergenTagEnabled != null &&
+        allergenTagEnabled != kioskAuthRepo.getAllergenTagEnabled();
 
     if (!branchChanged &&
         !experienceChanged &&
         !categoryChanged &&
         !nameChanged &&
+        !allergenChanged &&
         localDeviceId != null) {
       return KioskDeviceSettingsOutcome.ignored;
     }
@@ -152,6 +168,7 @@ class KioskAuthProvider extends ChangeNotifier {
       deviceId: deviceId,
       category: category.isEmpty ? null : category,
       orderingExperience: nextExperience,
+      allergenTagEnabled: allergenTagEnabled,
     );
     notifyListeners();
 
@@ -221,6 +238,8 @@ class KioskAuthProvider extends ChangeNotifier {
       // not "reset to Version A" -- fromApi() would fall back and silently
       // downgrade a Version B kiosk on every reconnect.
       orderingExperience: device['ordering_experience']?.toString() ?? '',
+      allergenTagEnabled:
+          branch is Map ? branch['allergen_tag_enabled'] == true : null,
     );
   }
 
@@ -277,6 +296,7 @@ class KioskAuthProvider extends ChangeNotifier {
             : int.tryParse('${device['id']}'),
         category: device['category']?.toString(),
         orderingExperience: device['ordering_experience']?.toString(),
+        allergenTagEnabled: branch['allergen_tag_enabled'] == true,
       );
       responseModel = ResponseModel(true, 'logged_in');
     } else {
@@ -322,6 +342,7 @@ class KioskAuthProvider extends ChangeNotifier {
               : int.tryParse('${device['id']}'),
           category: device['category']?.toString(),
           orderingExperience: device['ordering_experience']?.toString(),
+          allergenTagEnabled: branch['allergen_tag_enabled'] == true,
         );
       }
       // ProductRealtimeScope watches this provider, so the restored session has

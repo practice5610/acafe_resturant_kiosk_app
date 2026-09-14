@@ -981,8 +981,13 @@ class _KioskProductCustomizeScreenState
                 // Prepended to this list rather than inserted into each of the
                 // two layout branches below, so the pinned page and the
                 // scrolling page place it identically.
-                final Widget? allergenNotice =
-                    KioskAllergenNotice.maybe(s: s, product: product);
+                final Widget? allergenNotice = KioskAllergenNotice.maybe(
+                  s: s,
+                  product: product,
+                  enabled: Provider.of<KioskAuthProvider>(context,
+                          listen: false)
+                      .allergenTagEnabled,
+                );
 
                 // Size first, then each dietary group, each in its own panel.
                 final List<Widget> variationPanels = [

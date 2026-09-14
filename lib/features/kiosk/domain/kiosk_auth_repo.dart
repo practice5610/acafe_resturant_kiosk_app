@@ -65,6 +65,7 @@ class KioskAuthRepo {
     int? deviceId,
     String? category,
     String? orderingExperience,
+    bool? allergenTagEnabled,
   }) async {
     final previousBranch = getBranchId();
     await sharedPreferences.setString(AppConstants.token, token);
@@ -107,6 +108,10 @@ class KioskAuthRepo {
     if (orderingExperience != null) {
       await sharedPreferences.setString(
           AppConstants.kioskOrderingExperience, orderingExperience);
+    }
+    if (allergenTagEnabled != null) {
+      await sharedPreferences.setBool(
+          AppConstants.kioskAllergenTagEnabled, allergenTagEnabled);
     }
     // Refresh dio headers so the new token + branch take effect immediately.
     await dioClient.updateHeader(getToken: token);
@@ -155,11 +160,24 @@ class KioskAuthRepo {
   String? getOrderingExperience() =>
       sharedPreferences.getString(AppConstants.kioskOrderingExperience);
 
+  /// Per-branch "show allergen tags" toggle, set by branch admin. Defaults to
+  /// false so a session persisted before this field existed (or a branch that
+  /// never turned it on) shows no allergen disclosure.
+  bool getAllergenTagEnabled() =>
+      sharedPreferences.getBool(AppConstants.kioskAllergenTagEnabled) ?? false;
+
   /// Persist a live Ordering Experience update from the websocket (admin
   /// changed Device Update without forcing a re-login).
   Future<void> saveOrderingExperience(String orderingExperience) async {
     await sharedPreferences.setString(
         AppConstants.kioskOrderingExperience, orderingExperience);
+  }
+
+  /// Persist an allergen tag toggle made from POS Settings, without a
+  /// re-login -- mirrors [saveOrderingExperience].
+  Future<void> saveAllergenTagEnabled(bool enabled) async {
+    await sharedPreferences.setBool(
+        AppConstants.kioskAllergenTagEnabled, enabled);
   }
 
   /// Persist the device id when an older session never stored it.
@@ -180,6 +198,7 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskDeviceId);
     await sharedPreferences.remove(AppConstants.kioskDeviceCategory);
     await sharedPreferences.remove(AppConstants.kioskOrderingExperience);
+    await sharedPreferences.remove(AppConstants.kioskAllergenTagEnabled);
     await sharedPreferences.remove(AppConstants.cartList);
     await sharedPreferences.remove(AppConstants.kioskMenuCacheKey);
     await sharedPreferences.remove(AppConstants.kioskDealsCacheKey);

@@ -443,8 +443,13 @@ class _KioskProductCustomizeStepScreenState
       {EdgeInsets padding = EdgeInsets.zero}) {
     switch (step) {
       case _CustomizeStep.milks:
-        final Widget? allergenNotice =
-            KioskAllergenNotice.maybe(s: s, product: product);
+        final Widget? allergenNotice = KioskAllergenNotice.maybe(
+          s: s,
+          product: product,
+          enabled:
+              Provider.of<KioskAuthProvider>(context, listen: false)
+                  .allergenTagEnabled,
+        );
         final List<Widget> panels = [
           // Above Size, exactly as in Version A — the two flows are an A/B
           // switch on presentation, so a disclosure must not depend on which

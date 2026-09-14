@@ -724,4 +724,17 @@ class KioskManagerProvider extends ChangeNotifier {
     }
     return success;
   }
+
+  /// POS Settings → Products: branch-wide allergen tag visibility toggle.
+  /// Caller applies the result locally via
+  /// [KioskAuthProvider.applyAllergenTagEnabled] on success.
+  Future<bool> setAllergenTagEnabled(bool enabled) async {
+    final apiResponse = await kioskManagerRepo.setAllergenTagEnabled(enabled);
+    final success =
+        apiResponse.response != null && apiResponse.response!.statusCode == 200;
+    if (!success) {
+      ApiCheckerHelper.checkApi(apiResponse);
+    }
+    return success;
+  }
 }

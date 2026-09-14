@@ -155,6 +155,11 @@ class PosReportSpec {
   static const double staffRowPadding = 6;
   static const double staffColumnWidth = 80;
 
+  // ── Device breakdown cards ("Revenue by Terminal") ────────────────────
+  static const double deviceCardWidth = 176;
+  static const double deviceCardHeight = 116;
+  static const double deviceCardPadding = 12;
+
   // ── Responsive breakpoints (logical px of the content area) ──────────
   /// The KPI row's own `1040` and the bottom row's own `1180` seams are
   /// gone — both now go to 4 columns at `PosResponsive.desktopFloor` (1024)
