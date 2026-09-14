@@ -4,7 +4,6 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_line_copy.dart';
-import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -253,6 +252,13 @@ class _NoteRow extends StatelessWidget {
   }
 }
 
+/// Outlined pill, same visual family as the category chips above the grid
+/// ([PosFilterPill]) — a real button with its own tap target and breathing
+/// room, not a bare icon+label pair squeezed against the qty row beneath it.
+///
+/// The pencil is `Icons.edit_outlined` rather than the old raster/SVG asset:
+/// at 9px that asset read as a smudge, and a vector glyph stays crisp at any
+/// size without shipping another image.
 class _EditButton extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -261,46 +267,36 @@ class _EditButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(PosHomeSpec.editRadius),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(PosHomeSpec.editRadius),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 4),
+        child: Container(
+          height: PosHomeSpec.editHeight,
+          padding: const EdgeInsets.symmetric(
+            horizontal: PosHomeSpec.editPaddingH,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(PosHomeSpec.editRadius),
+            border: Border.all(color: PosHomeSpec.inkAlpha(0.35)),
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: PosHomeSpec.editIconSize,
-                height: PosHomeSpec.editIconSize,
-                child: Image.asset(
-                  Images.posEditPng,
-                  width: PosHomeSpec.editIconSize,
-                  height: PosHomeSpec.editIconSize,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    // Figma pencil PNG may be missing from a stale web
-                    // AssetManifest (hot reload does not pick up new files).
-                    // `edit.svg` is already in the bundle.
-                    return SvgPicture.asset(
-                      Images.editSvg,
-                      width: PosHomeSpec.editIconSize,
-                      height: PosHomeSpec.editIconSize,
-                      colorFilter: const ColorFilter.mode(
-                        Colors.black,
-                        BlendMode.srcIn,
-                      ),
-                    );
-                  },
-                ),
+              const Icon(
+                Icons.edit_outlined,
+                size: PosHomeSpec.editIconSize,
+                color: PosHomeSpec.ink,
               ),
               const SizedBox(width: PosHomeSpec.editGap),
               Text(
                 'EDIT',
                 style: loewBold.copyWith(
                   fontSize: PosHomeSpec.editLabelSize,
-                  color: Colors.black,
+                  color: PosHomeSpec.ink,
                   height: 1.0,
+                  letterSpacing: 0.2,
                 ),
               ),
             ],

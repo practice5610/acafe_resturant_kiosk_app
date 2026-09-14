@@ -208,13 +208,22 @@ class PosHomeSpec {
   static const double lineActionsWidth =
       qtyMinusWidth + qtyGap + qtyDigitWidth + qtyGap + qtyPlusWidth;
 
-  static const double editWidth = 51.09;
-  static const double editHeight = 16.77;
-  static const double editRadius = 16;
-  static const double editIconSize = 9.36;
-  static const double editLabelSize = 10;
+  /// A proper outlined pill — same family as the category chips above the
+  /// grid ([PosFilterPill]) — rather than the old bare icon+text pair, which
+  /// read as an accidental fragment sitting on top of the qty controls.
+  /// `editRadius` is set well past half of `editHeight` on purpose so the
+  /// pill stays fully rounded even if the height tweaks later.
+  static const double editHeight = 24;
+  static const double editRadius = 100;
+  static const double editIconSize = 12;
+  static const double editLabelSize = 11;
+  static const double editPaddingH = 10;
   static const double editGap = 4;
-  static const double editGapBelow = 5;
+
+  /// Below `editGapBelow`'s old value of 5 the pill visually collided with
+  /// the qty/delete row under it — this is the gap that keeps them read as
+  /// two separate controls.
+  static const double editGapBelow = 10;
 
   static const double payHeight = 56;
   static const double payRadius = 28;
