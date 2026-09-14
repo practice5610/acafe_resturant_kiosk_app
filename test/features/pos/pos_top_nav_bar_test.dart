@@ -12,6 +12,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_pin_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_wordmark.dart';
+import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -82,7 +83,12 @@ Future<void> pumpBar(
   WidgetTester tester, {
   String currentPath = PosRoutes.home,
   DateTime Function()? now,
-  double width = 1366,
+  // Not the 1366 Figma frame width: the lock icon (added after that frame
+  // was drawn) needs ~52px more than the frame ever budgeted, so 1366 no
+  // longer fits all five pills even before considering how narrow a real
+  // window can get. Every geometry test below assumes nothing has collapsed
+  // into the "More" pill; dedicated overflow tests use their own widths.
+  double width = 1430,
   bool elevated = true,
 }) async {
   tester.view.physicalSize = Size(width, 800);
@@ -120,6 +126,12 @@ Future<void> pumpBar(
               ),
             ],
           ),
+        ),
+      ),
+      GoRoute(
+        path: RouterHelper.kioskLoginScreen,
+        builder: (context, state) => const Scaffold(
+          body: Center(child: Text('KIOSK LOGIN SCREEN')),
         ),
       ),
     ],
@@ -202,7 +214,7 @@ void main() {
       // Avatar ends at the 32px right padding.
       expect(
         tester.getBottomRight(find.byType(PosAvatar)).dx,
-        1366 - 32,
+        1430 - 32,
       );
     });
 
@@ -309,7 +321,9 @@ void main() {
       expect(session.lockCalls, 1);
       expect(session.canAccessManagerTabs, isFalse);
       // Home isn't a manager-only path, so re-locking here stays put rather
-      // than navigating anywhere.
+      // than navigating anywhere, and the device stays logged in -- the lock
+      // icon is a pure manager/employee toggle now, never a logout.
+      expect(auth.isLoggedIn(), isTrue);
       expect(find.byType(PosTopNavBar), findsOneWidget);
       expect(find.byIcon(Icons.lock_outline), findsOneWidget);
     });
@@ -323,6 +337,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(session.lockCalls, 1);
+      expect(auth.isLoggedIn(), isTrue);
       // Settled on home with Report/Settings hidden again.
       expect(find.text('Report'), findsNothing);
     });
@@ -354,6 +369,83 @@ void main() {
     });
   });
 
+  group('avatar menu', () {
+    testWidgets('tapping the avatar shows a single Logout option',
+        (tester) async {
+      await pumpBar(tester);
+
+      await tester.tap(find.byKey(PosNavBarSpec.avatarMenuButtonKey));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Logout'), findsOneWidget);
+      // No logout happened yet -- opening the menu is not confirming it.
+      expect(auth.isLoggedIn(), isTrue);
+    });
+
+    testWidgets('Logout asks for confirmation before doing anything',
+        (tester) async {
+      await pumpBar(tester);
+
+      await tester.tap(find.byKey(PosNavBarSpec.avatarMenuButtonKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Logout'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Log out this terminal?'), findsOneWidget);
+      expect(auth.isLoggedIn(), isTrue);
+    });
+
+    testWidgets('cancelling the confirmation changes nothing', (tester) async {
+      await pumpBar(tester);
+
+      await tester.tap(find.byKey(PosNavBarSpec.avatarMenuButtonKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Logout'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(session.lockCalls, 0);
+      expect(session.canAccessManagerTabs, isTrue);
+      expect(auth.isLoggedIn(), isTrue);
+      expect(find.byType(PosTopNavBar), findsOneWidget);
+    });
+
+    testWidgets(
+        'confirming logs the terminal out and returns to device login, without needing manager access first',
+        (tester) async {
+      // Not elevated: a plain employee can log the device out without ever
+      // stepping up to manager -- logout and manager access are unrelated.
+      await pumpBar(tester, elevated: false);
+
+      await tester.tap(find.byKey(PosNavBarSpec.avatarMenuButtonKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Logout'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Log Out'));
+      await tester.pumpAndSettle();
+
+      expect(auth.isLoggedIn(), isFalse);
+      expect(find.text('KIOSK LOGIN SCREEN'), findsOneWidget);
+    });
+
+    testWidgets(
+        'confirming from a manager-only tab still returns to device login',
+        (tester) async {
+      await pumpBar(tester, currentPath: PosRoutes.report);
+
+      await tester.tap(find.byKey(PosNavBarSpec.avatarMenuButtonKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Logout'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Log Out'));
+      await tester.pumpAndSettle();
+
+      expect(auth.isLoggedIn(), isFalse);
+      expect(find.text('KIOSK LOGIN SCREEN'), findsOneWidget);
+    });
+  });
+
   group('manager-gated tabs', () {
     testWidgets('no step-up grant: only POS, Orders, Receipts show',
         (tester) async {
@@ -376,5 +468,35 @@ void main() {
       (tester) async {
     await pumpBar(tester, width: 1024);
     expect(tester.takeException(), isNull);
+  });
+
+  group('overflow', () {
+    testWidgets(
+        'too narrow for all five tabs: the rest tuck into "More" instead of vanishing',
+        (tester) async {
+      await pumpBar(tester, width: 1024);
+
+      // Whatever didn't fit is reachable, not just gone.
+      expect(find.byKey(PosNavBarSpec.moreButtonKey), findsOneWidget);
+      expect(find.byType(PosNavPill).evaluate().length, lessThan(5));
+
+      await tester.tap(find.byKey(PosNavBarSpec.moreButtonKey));
+      await tester.pumpAndSettle();
+      expect(find.text('Settings'), findsOneWidget);
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Report'), findsNothing);
+    });
+
+    testWidgets('the active tab is never the one tucked away',
+        (tester) async {
+      await pumpBar(tester, width: 1024, currentPath: PosRoutes.settings);
+
+      // Settings is active and narrow enough that something has to give --
+      // it must not be the tab the operator is standing on.
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.byKey(PosNavBarSpec.moreButtonKey), findsOneWidget);
+    });
   });
 }

@@ -4,17 +4,20 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart
 import 'package:acafe_customer/features/pos/domain/pos_route_policy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_nav_pill.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pin_modal.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_wordmark.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
+import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 
 /// Design constants for the nav bar, measured from Figma `MAIN_NAV_BAR`
@@ -51,6 +54,8 @@ class PosNavBarSpec {
   static const double lockSize = 36;
   static const Key scanButtonKey = Key('pos-scan-button');
   static const Key lockButtonKey = Key('pos-lock-button');
+  static const Key moreButtonKey = Key('pos-nav-more-button');
+  static const Key avatarMenuButtonKey = Key('pos-avatar-menu-button');
 
   /// Report is 18/10 in the frame; every other pill is 20/12.
   static const EdgeInsets reportPadding =
@@ -176,12 +181,13 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
 
   /// Default `intl` locale on purpose: `initializeDateFormatting()` is never
   /// called in this app, so any other locale would throw `LocaleDataException`.
-  String get _formattedDate => DateFormat('EEEE, d MMMM').format(_today);
+  String get _formattedDate => intl.DateFormat('EEEE, d MMMM').format(_today);
 
   /// Locked (no step-up): opens the manager PIN modal. Unlocked (a manager
   /// step-up is active): drops the grant, re-hiding Report/Settings without
   /// leaving the current screen -- there's no shift to end, just a temporary
-  /// grant to give up.
+  /// grant to give up. This is a pure manager/employee toggle now; it does
+  /// not sign the device out (see [_onAvatarLogout] for that).
   Future<void> _onLockTap() async {
     final session = context.read<PosSessionProvider>();
     if (session.canAccessManagerTabs) {
@@ -195,6 +201,31 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
       return;
     }
     await PosPinModal.show(context);
+  }
+
+  /// The only way to sign this device out. Deliberately gated behind the
+  /// avatar rather than the manager lock icon: elevating to manager access
+  /// and then logging the whole terminal out from that same control read as
+  /// one continuous "become manager, now log out" action, which is not what
+  /// tapping the lock was ever meant to do -- it only ever toggled the
+  /// manager step-up. A logout is its own, unrelated action, so it gets its
+  /// own control.
+  Future<void> _onAvatarLogout() async {
+    final bool? confirmed = await PosCompleteConfirmationDialog.show(
+      context,
+      heading: 'Log out this terminal?',
+      subtext: 'You will need to sign back in to use this device.',
+      confirmLabel: 'Log Out',
+    );
+    if (confirmed != true || !mounted) return;
+
+    context.read<PosSessionProvider>().lock();
+    await context.read<KioskAuthProvider>().logout();
+    if (!mounted) return;
+    // The route guard only re-evaluates on navigation, so a signed-out
+    // session sitting on any screen would otherwise keep showing it until
+    // the next tap. Send the terminal to the login screen explicitly.
+    context.go(RouterHelper.kioskLoginScreen);
   }
 
   @override
@@ -242,45 +273,23 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
             ),
           ),
           const SizedBox(width: PosNavBarSpec.groupGap),
-          // Right cluster. Flexible, with the pill row scrolling inside it:
+          // Right cluster. Flexible, with the pill row giving way inside it:
           // five pills plus scan and avatar need roughly a 1000px window, so
-          // below that the tabs have to give way somehow. Scrolling keeps every
-          // tab reachable, where clipping or shrinking would hide Settings on a
-          // narrow staff tablet. At the design width nothing scrolls.
+          // below that the tabs have to give way somehow. Whatever doesn't fit
+          // collapses into the "More" pill rather than scrolling off with no
+          // indication it exists — that silently hid Settings on a narrow
+          // staff tablet before this. At the design width nothing collapses.
           Flexible(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Flexible(
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context)
-                        .copyWith(scrollbars: false),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (final item
-                              in visiblePosNavItems(
-                                  session.canAccessManagerTabs)) ...[
-                            if (item != kPosNavItems.first)
-                              const SizedBox(width: PosNavBarSpec.pillGap),
-                            PosNavPill(
-                              label: item.label,
-                              active: PosTopNavBar.isSelected(
-                                  item, widget.currentPath),
-                              bold: item.path == PosRoutes.report,
-                              padding: item.path == PosRoutes.report
-                                  ? PosNavBarSpec.reportPadding
-                                  : PosNavPill.defaultPadding,
-                              onTap: widget.interactive
-                                  ? () => context.go(item.path)
-                                  : null,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
+                  child: _PosNavPillRow(
+                    items:
+                        visiblePosNavItems(session.canAccessManagerTabs),
+                    currentPath: widget.currentPath,
+                    interactive: widget.interactive,
+                    onSelect: (path) => context.go(path),
                   ),
                 ),
                 const SizedBox(width: PosNavBarSpec.groupGap),
@@ -291,8 +300,10 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
                   onTap: widget.interactive ? _onLockTap : null,
                 ),
                 const SizedBox(width: PosNavBarSpec.groupGap),
-                PosAvatar(
+                _PosAvatarMenuButton(
                   initial: _initialFor(auth),
+                  interactive: widget.interactive,
+                  onLogout: _onAvatarLogout,
                 ),
               ],
             ),
@@ -311,10 +322,333 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
   }
 }
 
+/// Lays the visible nav pills out left to right, and -- whenever they don't
+/// all fit -- tucks whichever ones don't into a trailing "More" pill instead
+/// of letting them scroll silently out of view.
+///
+/// The currently active tab is always kept visible even if that means an
+/// earlier, inactive tab is the one that gets tucked away: a manager sitting
+/// on Settings should never see that tab vanish out from under them just
+/// because the window narrowed.
+///
+/// Fit is decided from each pill's *real* rendered width, measured by laying
+/// an [Offstage] copy of every pill out every build, rather than guessing
+/// with a [TextPainter]: a guess landed a few px under what `Text` (default
+/// `TextWidthBasis.parent`) actually renders at, which is exactly enough
+/// drift to tip a hairline-tight fit (this bar has none to spare at the
+/// design width) into a genuine `RenderFlex` overflow.
+class _PosNavPillRow extends StatefulWidget {
+  final List<PosNavItem> items;
+  final String currentPath;
+  final bool interactive;
+  final ValueChanged<String> onSelect;
+
+  const _PosNavPillRow({
+    required this.items,
+    required this.currentPath,
+    required this.interactive,
+    required this.onSelect,
+  });
+
+  static EdgeInsets _padding(PosNavItem item) =>
+      item.path == PosRoutes.report
+          ? PosNavBarSpec.reportPadding
+          : PosNavPill.defaultPadding;
+
+  static TextStyle _labelStyle(PosNavItem item) {
+    final bool bold = item.path == PosRoutes.report;
+    return (bold ? loewBold : loewMedium).copyWith(
+      fontSize: PosNavPill.labelSize,
+      color: PosUI.ink,
+      height: PosNavPill.labelHeight,
+    );
+  }
+
+  @override
+  State<_PosNavPillRow> createState() => _PosNavPillRowState();
+}
+
+class _PosNavPillRowState extends State<_PosNavPillRow> {
+  static const String _moreKey = '__more__';
+
+  final Map<String, double> _widths = {};
+
+  bool get _allMeasured =>
+      _widths.containsKey(_moreKey) &&
+      widget.items.every((item) => _widths.containsKey(item.path));
+
+  void _report(String key, double width) {
+    if (_widths[key] == width) return;
+    setState(() => _widths[key] = width);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Offstage(
+          // Offstage still hands its child whatever constraints it receives
+          // -- "offstage" only suppresses painting, not layout-time overflow
+          // checks. A bounded max width here (from this Stack) with content
+          // that exceeds it still throws, offstage or not. OverflowBox breaks
+          // that chain so the measuring row lays out at its true width
+          // instead of asserting over the very thing it exists to measure.
+          child: OverflowBox(
+            alignment: Alignment.centerLeft,
+            minWidth: 0,
+            maxWidth: double.infinity,
+            minHeight: 0,
+            maxHeight: double.infinity,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final item in widget.items)
+                  _MeasureSize(
+                    onChange: (size) => _report(item.path, size.width),
+                    child: PosNavPill(
+                      label: item.label,
+                      active: false,
+                      bold: item.path == PosRoutes.report,
+                      padding: _PosNavPillRow._padding(item),
+                    ),
+                  ),
+                _MeasureSize(
+                  onChange: (size) => _report(_moreKey, size.width),
+                  child: const _MorePillVisual(active: false),
+                ),
+              ],
+            ),
+          ),
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // First frame before the offstage pass has reported real sizes:
+            // nothing is known to be safe yet, so render nothing rather than
+            // risk an overflow on a guess. Settles within the same frame.
+            if (!_allMeasured) return const SizedBox.shrink();
+
+            // The decision (not the render) gets a few px of headroom taken
+            // off the budget: real glyph widths shift a little with device
+            // pixel ratio, so the same layout can measure a couple of px
+            // different across two host windows. Erring toward tucking a
+            // pill away one tap too early is harmless; erring the other way
+            // is a RenderFlex overflow. The widget actually rendered below
+            // always shrink-wraps to whatever this picks, so it can never
+            // overflow the real budget even though the check is stricter
+            // than it.
+            const double decisionMargin = 4;
+            final double budget = constraints.maxWidth - decisionMargin;
+            final double moreWidth = _widths[_moreKey]!;
+
+            double widthOf(Iterable<PosNavItem> subset) {
+              double total = 0;
+              bool first = true;
+              for (final item in subset) {
+                if (!first) total += PosNavBarSpec.pillGap;
+                total += _widths[item.path]!;
+                first = false;
+              }
+              return total;
+            }
+
+            if (widthOf(widget.items) <= budget) {
+              return _row(widget.items, const []);
+            }
+
+            final int activeIndex = widget.items.indexWhere(
+              (item) => PosTopNavBar.isSelected(item, widget.currentPath),
+            );
+
+            // The More button renders AFTER the shown pills, separated by its
+            // own gap -- not before them -- so that gap-plus-button overhead
+            // has to be reserved up front and checked against every
+            // candidate pill, not prepended as if it were the first pill.
+            // Seeding `used` with moreWidth alone (an earlier version of this
+            // did exactly that) undercounts by one pillGap and was exactly
+            // what let a chosen combination render wider than the budget it
+            // was just checked against.
+            final double reserved = moreWidth + PosNavBarSpec.pillGap;
+            final List<int> shown = [];
+            double used = 0;
+
+            void tryAdd(int index) {
+              if (shown.contains(index)) return;
+              final double gap = shown.isEmpty ? 0 : PosNavBarSpec.pillGap;
+              final double next =
+                  used + gap + _widths[widget.items[index].path]!;
+              if (next + reserved <= budget) {
+                used = next;
+                shown.add(index);
+              }
+            }
+
+            if (activeIndex >= 0) tryAdd(activeIndex);
+            for (int i = 0; i < widget.items.length; i++) {
+              tryAdd(i);
+            }
+
+            final Set<int> shownSet = shown.toSet();
+            final List<PosNavItem> visible = [
+              for (int i = 0; i < widget.items.length; i++)
+                if (shownSet.contains(i)) widget.items[i],
+            ];
+            final List<PosNavItem> hidden = [
+              for (int i = 0; i < widget.items.length; i++)
+                if (!shownSet.contains(i)) widget.items[i],
+            ];
+
+            return _row(visible, hidden);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _row(List<PosNavItem> visible, List<PosNavItem> hidden) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final item in visible) ...[
+          if (item != visible.first)
+            const SizedBox(width: PosNavBarSpec.pillGap),
+          PosNavPill(
+            label: item.label,
+            active: PosTopNavBar.isSelected(item, widget.currentPath),
+            bold: item.path == PosRoutes.report,
+            padding: _PosNavPillRow._padding(item),
+            onTap:
+                widget.interactive ? () => widget.onSelect(item.path) : null,
+          ),
+        ],
+        if (hidden.isNotEmpty) ...[
+          if (visible.isNotEmpty) const SizedBox(width: PosNavBarSpec.pillGap),
+          _PosNavMoreButton(
+            items: hidden,
+            currentPath: widget.currentPath,
+            interactive: widget.interactive,
+            onSelect: widget.onSelect,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Reports [child]'s laid-out size after every layout pass in which it
+/// changes. The callback fires post-frame, never mid-layout, so it is safe
+/// to call `setState` from it.
+class _MeasureSize extends SingleChildRenderObjectWidget {
+  final ValueChanged<Size> onChange;
+
+  const _MeasureSize({required this.onChange, required Widget super.child});
+
+  @override
+  _RenderMeasureSize createRenderObject(BuildContext context) =>
+      _RenderMeasureSize(onChange);
+
+  @override
+  void updateRenderObject(
+      BuildContext context, _RenderMeasureSize renderObject) {
+    renderObject.onChange = onChange;
+  }
+}
+
+class _RenderMeasureSize extends RenderProxyBox {
+  ValueChanged<Size> onChange;
+  Size? _last;
+
+  _RenderMeasureSize(this.onChange);
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final Size current = child?.size ?? Size.zero;
+    if (_last == current) return;
+    _last = current;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onChange(current));
+  }
+}
+
+/// The pill visual shared by the real "More" button and its offstage
+/// measurement copy, so both are guaranteed to be the same size.
+class _MorePillVisual extends StatelessWidget {
+  final bool active;
+
+  const _MorePillVisual({required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color background = active ? PosUI.ink : Colors.white;
+    final Color foreground = active ? PosUI.pageBg : PosUI.ink;
+
+    return Container(
+      padding: PosNavPill.defaultPadding,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(PosNavPill.radius),
+      ),
+      child: Text(
+        'More',
+        style: loewMedium.copyWith(
+          fontSize: PosNavPill.labelSize,
+          color: foreground,
+          height: PosNavPill.labelHeight,
+        ),
+      ),
+    );
+  }
+}
+
+/// The pill any tabs that don't fit collapse into. Its own tap surface (not
+/// [PosNavPill]'s) since [PopupMenuButton] already provides one.
+class _PosNavMoreButton extends StatelessWidget {
+  final List<PosNavItem> items;
+  final String currentPath;
+  final bool interactive;
+  final ValueChanged<String> onSelect;
+
+  const _PosNavMoreButton({
+    required this.items,
+    required this.currentPath,
+    required this.interactive,
+    required this.onSelect,
+  });
+
+  bool get _active =>
+      items.any((item) => PosTopNavBar.isSelected(item, currentPath));
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      key: PosNavBarSpec.moreButtonKey,
+      enabled: interactive,
+      tooltip: 'More',
+      // Not PosNavPill.radius (100, the fully-rounded pill *trigger*'s own
+      // corner radius) -- this `shape` controls the dropdown *panel*, and a
+      // 100 radius on a menu that size rendered as a near-circle. A normal
+      // small menu radius here, same family as any other dropdown card.
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      onSelected: onSelect,
+      itemBuilder: (context) => [
+        for (final item in items)
+          PopupMenuItem<String>(
+            value: item.path,
+            child: Text(item.label, style: _PosNavPillRow._labelStyle(item)),
+          ),
+      ],
+      child: _MorePillVisual(active: _active),
+    );
+  }
+}
+
 /// Locked (an Employee): tapping opens the manager step-up PIN modal.
-/// Unlocked (Manager/Owner, or a stepped-up Employee): tapping logs the
-/// terminal out. Placeholder glyphs pending real icon design, same status as
-/// the older kiosk manager lock icon it replaces.
+/// Unlocked (Manager/Owner, or a stepped-up Employee): tapping drops the
+/// step-up grant. Never signs the device out -- that is the avatar menu's
+/// job (see [_PosAvatarMenuButton]), not this icon's. Placeholder glyphs
+/// pending real icon design, same status as the older kiosk manager lock
+/// icon it replaces.
 class _PosLockButton extends StatelessWidget {
   final bool unlocked;
   final VoidCallback? onTap;
@@ -366,6 +700,35 @@ class _ScanButton extends StatelessWidget {
           color: PosUI.ink,
         ),
       ),
+    );
+  }
+}
+
+/// The avatar's tap surface: the only way to log this device out. Opens a
+/// one-item dropdown ("Logout") rather than acting on a single tap, so a
+/// stray tap on the avatar can never fire a destructive action by accident.
+class _PosAvatarMenuButton extends StatelessWidget {
+  final String initial;
+  final bool interactive;
+  final Future<void> Function() onLogout;
+
+  const _PosAvatarMenuButton({
+    required this.initial,
+    required this.interactive,
+    required this.onLogout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      key: PosNavBarSpec.avatarMenuButtonKey,
+      enabled: interactive,
+      tooltip: 'Account',
+      onSelected: (_) => onLogout(),
+      itemBuilder: (context) => const [
+        PopupMenuItem<String>(value: 'logout', child: Text('Logout')),
+      ],
+      child: PosAvatar(initial: initial),
     );
   }
 }

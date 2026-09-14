@@ -11,6 +11,18 @@ import 'package:flutter/material.dart';
 /// Geometry is the Figma tile (221.33×320): 16px inset, a 220px image block,
 /// 12px to a 70px info block (19+3+16 text, 10px gap, 22px action row), and
 /// 2px under the info — not a uniform 16px bottom pad.
+///
+/// `PosProductGrid`'s cells lock `childAspectRatio` to this tile's design
+/// ratio, so the cell's *height* always tracks its *width* — but the grid's
+/// column count is a fixed constant (not derived from measured width, see
+/// that file's own doc comment), so the cell itself renders narrower (and
+/// therefore shorter) than the 221.33×320 design below the 1366px design
+/// width. Every dimension here used to be an absolute pixel literal, which
+/// never shrank to match — the mismatch overflowed the Column by however
+/// many px the cell fell short of 320. A single width-derived `scale`
+/// (`constraints.maxWidth / tileWidth`) applied to every one of those
+/// literals keeps the tile's content proportional to whatever size the cell
+/// actually got, so it can never demand more height than the cell has.
 class PosProductTile extends StatelessWidget {
   final Product product;
   final String imageUrl;
@@ -30,140 +42,150 @@ class PosProductTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: PosHomeSpec.tileBg,
-      borderRadius: BorderRadius.circular(PosHomeSpec.tileRadius),
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(PosHomeSpec.tileRadius),
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                PosHomeSpec.tilePadding,
-                PosHomeSpec.tilePadding,
-                PosHomeSpec.tilePadding,
-                PosHomeSpec.tileBottomPadding,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    height: PosHomeSpec.tileImageHeight,
-                    width: double.infinity,
-                    child: ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(PosHomeSpec.tileImageRadius),
-                      child: Center(
-                        child: CustomImageWidget(
-                          image: imageUrl,
-                          height: PosHomeSpec.tileImageHeight,
-                          fit: BoxFit.contain,
-                          useShimmer: true,
-                          cacheWidth:
-                              CustomImageWidget.kKioskProductCacheWidth,
-                        ),
-                      ),
-                    ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double s = constraints.maxWidth / PosHomeSpec.tileWidth;
+
+        return Material(
+          color: PosHomeSpec.tileBg,
+          borderRadius: BorderRadius.circular(PosHomeSpec.tileRadius * s),
+          clipBehavior: Clip.antiAlias,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(PosHomeSpec.tileRadius * s),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    PosHomeSpec.tilePadding * s,
+                    PosHomeSpec.tilePadding * s,
+                    PosHomeSpec.tilePadding * s,
+                    PosHomeSpec.tileBottomPadding * s,
                   ),
-                  const SizedBox(height: PosHomeSpec.tileImageGap),
-                  SizedBox(
-                    height: PosHomeSpec.tileInfoHeight,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(
-                          height: PosHomeSpec.tileTextBlockHeight,
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: PosHomeSpec.tileNameBox,
-                                child: Text(
-                                  product.name ?? '',
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: loewExtraBold.copyWith(
-                                    fontSize: PosHomeSpec.tileNameSize,
-                                    color: PosHomeSpec.ink,
-                                    height: PosHomeSpec.tileNameHeight,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: PosHomeSpec.tileNameGap),
-                              SizedBox(
-                                height: PosHomeSpec.tilePriceBox,
-                                child: Text(
-                                  PosHomeSpec.formatPrice(
-                                    PriceConverterHelper.convertWithDiscount(
-                                          ProductHelper
-                                                  .getBranchProductVariationWithPrice(
-                                                      product)
-                                              .price ??
-                                              product.price,
-                                          product.discount,
-                                          product.discountType,
-                                        ) ??
-                                        product.price ??
-                                        0,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: swiss721Light.copyWith(
-                                    fontSize: PosHomeSpec.tilePriceSize,
-                                    color: PosHomeSpec.inkAlpha(0.6),
-                                    height: PosHomeSpec.tilePriceHeight,
-                                  ),
-                                ),
-                              ),
-                            ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        height: PosHomeSpec.tileImageHeight * s,
+                        width: double.infinity,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                              PosHomeSpec.tileImageRadius * s),
+                          child: Center(
+                            child: CustomImageWidget(
+                              image: imageUrl,
+                              height: PosHomeSpec.tileImageHeight * s,
+                              fit: BoxFit.contain,
+                              useShimmer: true,
+                              cacheWidth:
+                                  CustomImageWidget.kKioskProductCacheWidth,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: PosHomeSpec.tileInfoGap),
-                        const SizedBox(height: PosHomeSpec.tileActionRowHeight),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: PosHomeSpec.tileImageGap * s),
+                      SizedBox(
+                        height: PosHomeSpec.tileInfoHeight * s,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              height: PosHomeSpec.tileTextBlockHeight * s,
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height: PosHomeSpec.tileNameBox * s,
+                                    child: Text(
+                                      product.name ?? '',
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: loewExtraBold.copyWith(
+                                        fontSize: PosHomeSpec.tileNameSize * s,
+                                        color: PosHomeSpec.ink,
+                                        height: PosHomeSpec.tileNameHeight,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: PosHomeSpec.tileNameGap * s),
+                                  SizedBox(
+                                    height: PosHomeSpec.tilePriceBox * s,
+                                    child: Text(
+                                      PosHomeSpec.formatPrice(
+                                        PriceConverterHelper
+                                                .convertWithDiscount(
+                                              ProductHelper
+                                                      .getBranchProductVariationWithPrice(
+                                                          product)
+                                                  .price ??
+                                                  product.price,
+                                              product.discount,
+                                              product.discountType,
+                                            ) ??
+                                            product.price ??
+                                            0,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: swiss721Light.copyWith(
+                                        fontSize:
+                                            PosHomeSpec.tilePriceSize * s,
+                                        color: PosHomeSpec.inkAlpha(0.6),
+                                        height: PosHomeSpec.tilePriceHeight,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: PosHomeSpec.tileInfoGap * s),
+                            SizedBox(
+                                height: PosHomeSpec.tileActionRowHeight * s),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                if (cartQuantity > 0)
+                  Positioned(
+                    top: PosHomeSpec.qtyBadgeInset * s,
+                    right: PosHomeSpec.qtyBadgeInset * s,
+                    child: _QtyBadge(quantity: cartQuantity, scale: s),
+                  ),
+              ],
             ),
-            if (cartQuantity > 0)
-              Positioned(
-                top: PosHomeSpec.qtyBadgeInset,
-                right: PosHomeSpec.qtyBadgeInset,
-                child: _QtyBadge(quantity: cartQuantity),
-              ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _QtyBadge extends StatelessWidget {
   final int quantity;
+  final double scale;
 
-  const _QtyBadge({required this.quantity});
+  const _QtyBadge({required this.quantity, required this.scale});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: PosHomeSpec.qtyBadgeSize,
-      height: PosHomeSpec.qtyBadgeSize,
+      width: PosHomeSpec.qtyBadgeSize * scale,
+      height: PosHomeSpec.qtyBadgeSize * scale,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: PosHomeSpec.ink,
-        borderRadius: BorderRadius.circular(PosHomeSpec.qtyBadgeSize / 2),
+        borderRadius: BorderRadius.circular(PosHomeSpec.qtyBadgeSize * scale / 2),
       ),
       child: Text(
         '$quantity',
         style: loewBold.copyWith(
-          fontSize: PosHomeSpec.qtyBadgeLabelSize,
+          fontSize: PosHomeSpec.qtyBadgeLabelSize * scale,
           color: Colors.white,
           height: 16 / 13.2,
         ),
