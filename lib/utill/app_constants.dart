@@ -178,6 +178,8 @@ class AppConstants {
   static const String kioskMenuCacheKey = 'kiosk_menu_cache_v3';
   static const String kioskDealsCacheKey = 'kiosk_deals_cache_v1';
   static const String kioskManagerStockCacheKey = 'kiosk_manager_stock_cache_v2';
+  static const String kioskManagerUnlockExpiryKey = 'kiosk_manager_unlock_expiry_v1';
+  static const String posManagerUnlockExpiryKey = 'pos_manager_unlock_expiry_v1';
   /// POS Settings → General form (local overlay on ConfigModel).
   static const String posGeneralSettingsKey = 'pos_general_settings_v1';
 

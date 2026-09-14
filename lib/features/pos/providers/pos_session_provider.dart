@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
+import 'package:acafe_customer/utill/app_constants.dart';
 
 /// Manager step-up for a POS terminal.
 ///
@@ -13,15 +16,26 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 /// the same single-code gate the POS Manager subtree has always used, not a
 /// second auth scheme.
 ///
-/// In-memory only, on purpose: a reload re-locks the terminal. No idle
-/// timeout in this pass.
+/// Persisted (with an expiry) so a reload doesn't re-lock the terminal --
+/// the grant still times out rather than being a permanent bypass.
 class PosSessionProvider extends ChangeNotifier {
   final KioskManagerRepo kioskManagerRepo;
 
-  PosSessionProvider({required this.kioskManagerRepo});
+  static const Duration _unlockTtl = Duration(minutes: 30);
 
-  bool _elevated = false;
+  PosSessionProvider({required this.kioskManagerRepo}) {
+    _elevated = _hasUnexpiredUnlock();
+  }
+
+  late bool _elevated;
   bool get canAccessManagerTabs => _elevated;
+
+  bool _hasUnexpiredUnlock() {
+    final expiryMillis =
+        kioskManagerRepo.sharedPreferences.getInt(AppConstants.posManagerUnlockExpiryKey);
+    if (expiryMillis == null) return false;
+    return DateTime.now().millisecondsSinceEpoch < expiryMillis;
+  }
 
   bool _verifying = false;
   bool get verifying => _verifying;
@@ -41,6 +55,9 @@ class PosSessionProvider extends ChangeNotifier {
 
     if (response != null && response.statusCode == 200) {
       _elevated = true;
+      final expiry = DateTime.now().add(_unlockTtl).millisecondsSinceEpoch;
+      unawaited(kioskManagerRepo.sharedPreferences
+          .setInt(AppConstants.posManagerUnlockExpiryKey, expiry));
       notifyListeners();
       return true;
     }
@@ -57,6 +74,8 @@ class PosSessionProvider extends ChangeNotifier {
   void lock() {
     _elevated = false;
     _error = null;
+    unawaited(
+        kioskManagerRepo.sharedPreferences.remove(AppConstants.posManagerUnlockExpiryKey));
     notifyListeners();
   }
 

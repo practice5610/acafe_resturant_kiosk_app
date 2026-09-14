@@ -13,12 +13,21 @@ import 'package:acafe_customer/utill/app_constants.dart';
 class KioskManagerProvider extends ChangeNotifier {
   final KioskManagerRepo kioskManagerRepo;
 
-  KioskManagerProvider({required this.kioskManagerRepo});
+  // How long a verified PIN keeps the manager subtree unlocked across a
+  // reload. Persisted to disk (not just memory) so a browser/app reload
+  // doesn't re-prompt for the PIN, but it still expires rather than being a
+  // permanent bypass.
+  static const Duration _unlockTtl = Duration(minutes: 30);
+
+  KioskManagerProvider({required this.kioskManagerRepo}) {
+    _isPinVerified = _hasUnexpiredUnlock();
+  }
 
   // ---- PIN gate -------------------------------------------------------
-  // Verified only for the current visit to the manager subtree; cleared
-  // whenever the manager leaves back to the menu (no idle timeout for v1).
-  bool _isPinVerified = false;
+  // Verified for the current visit to the manager subtree, and persisted
+  // (with an expiry) so a reload doesn't drop the grant. Cleared whenever
+  // the manager leaves back to the menu, or the grant expires.
+  late bool _isPinVerified;
   bool get isPinVerified => _isPinVerified;
 
   bool _verifyingPin = false;
@@ -26,6 +35,13 @@ class KioskManagerProvider extends ChangeNotifier {
 
   String? _pinError;
   String? get pinError => _pinError;
+
+  bool _hasUnexpiredUnlock() {
+    final expiryMillis =
+        kioskManagerRepo.sharedPreferences.getInt(AppConstants.kioskManagerUnlockExpiryKey);
+    if (expiryMillis == null) return false;
+    return DateTime.now().millisecondsSinceEpoch < expiryMillis;
+  }
 
   Future<bool> verifyPin(String code) async {
     _verifyingPin = true;
@@ -38,6 +54,9 @@ class KioskManagerProvider extends ChangeNotifier {
     _verifyingPin = false;
     if (response != null && response.statusCode == 200) {
       _isPinVerified = true;
+      final expiry = DateTime.now().add(_unlockTtl).millisecondsSinceEpoch;
+      unawaited(kioskManagerRepo.sharedPreferences
+          .setInt(AppConstants.kioskManagerUnlockExpiryKey, expiry));
       notifyListeners();
       return true;
     }
@@ -81,6 +100,8 @@ class KioskManagerProvider extends ChangeNotifier {
   void lockManagerAccess() {
     _isPinVerified = false;
     _pinError = null;
+    unawaited(
+        kioskManagerRepo.sharedPreferences.remove(AppConstants.kioskManagerUnlockExpiryKey));
     notifyListeners();
   }
 
