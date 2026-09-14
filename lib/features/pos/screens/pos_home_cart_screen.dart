@@ -4,9 +4,11 @@ import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/domain/category_model.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
@@ -84,6 +86,14 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     // precache in `_loadMenu` below is joining warming that is already in
     // flight, instead of starting cold.
     WidgetsBinding.instance.addPostFrameCallback((_) => _warmMenuEarly());
+    // The allergen filter is a shared, app-wide selection (same singleton the
+    // kiosk uses) -- rebuild the grid the moment it changes, same as kiosk's
+    // menu screen does via ListenableBuilder.
+    KioskAllergenPreferences.instance.addListener(_onAllergenPreferencesChanged);
+  }
+
+  void _onAllergenPreferencesChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -107,6 +117,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   @override
   void dispose() {
     _search.dispose();
+    KioskAllergenPreferences.instance
+        .removeListener(_onAllergenPreferencesChanged);
     // _customerName / _table are owned by PosSaleSession and outlive this
     // screen — disposing them would break the payment screen still using them.
     super.dispose();
@@ -248,6 +260,17 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
       products = products
           .where((p) => (p.name ?? '').toLowerCase().contains(q))
           .toList();
+    }
+
+    // Same hard constraint as the kiosk grid: whatever the staff member has
+    // ticked in the allergen filter is dropped, unconditionally. Only when
+    // the branch admin's toggle is on -- with it off, POS shows nothing
+    // allergen-related, same as if the selection were never made.
+    if (context.read<KioskAuthProvider>().allergenTagEnabled) {
+      products = filterKioskProductsByAllergens(
+        products: products,
+        avoided: KioskAllergenPreferences.instance.avoided,
+      );
     }
 
     return products;

@@ -64,6 +64,10 @@ Future<void> _buildProviders({bool elevated = true}) async {
     AppConstants.kioskDeviceCategory: 'pos',
     AppConstants.kioskBranchName: 'Amsterdam',
     AppConstants.kioskDeviceName: 'Till 1',
+    // Geometry tests measure the allergen nav button as part of the fixed
+    // icon cluster, so it must be on by default here -- same as it would be
+    // for any branch that has turned the feature on.
+    AppConstants.kioskAllergenTagEnabled: true,
   });
   final prefs = await SharedPreferences.getInstance();
   final dio = DioClient(
@@ -246,11 +250,14 @@ void main() {
       // originally meant before this cluster grew a fourth fixed element.
       await pumpBar(tester, width: 1430);
       final lastPill = tester.getRect(find.byType(PosNavPill).at(4));
+      final allergen =
+          tester.getRect(find.byKey(PosNavBarSpec.allergenButtonKey));
       final scan = tester.getRect(find.byKey(PosNavBarSpec.scanButtonKey));
       final lock = tester.getRect(find.byKey(PosNavBarSpec.lockButtonKey));
       final avatar = tester.getRect(find.byType(PosAvatar));
 
-      expect(scan.left - lastPill.right, closeTo(16, 0.01));
+      expect(allergen.left - lastPill.right, closeTo(16, 0.01));
+      expect(scan.left - allergen.right, closeTo(16, 0.01));
       expect(lock.left - scan.right, closeTo(16, 0.01));
       expect(avatar.left - lock.right, closeTo(16, 0.01));
     });

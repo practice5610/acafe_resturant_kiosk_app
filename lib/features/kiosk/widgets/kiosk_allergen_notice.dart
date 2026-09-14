@@ -182,7 +182,17 @@ class _InfoDot extends StatelessWidget {
 class KioskAllergenInfoDialog extends StatelessWidget {
   final Set<KioskAllergen> allergens;
 
-  const KioskAllergenInfoDialog({super.key, required this.allergens});
+  /// Overrides the computed artboard scale. The default computation divides
+  /// by [_Spec.artboardHeight] (4530px — a tall kiosk touchscreen), which
+  /// collapses to a sliver on a short landscape window (POS). POS callers
+  /// pass a width-only scale instead; kiosk callers leave this null.
+  final double? scaleOverride;
+
+  const KioskAllergenInfoDialog({
+    super.key,
+    required this.allergens,
+    this.scaleOverride,
+  });
 
   List<KioskAllergen> get _ordered =>
       KioskAllergen.values.where(allergens.contains).toList();
@@ -197,10 +207,11 @@ class KioskAllergenInfoDialog extends StatelessWidget {
           // The dialog is authored against the same 2572 artboard as the
           // filter popup, at roughly two thirds its width: it carries a list
           // and one button, not a form.
-          final double s = math.min(
-            constraints.maxWidth / _Spec.artboardWidth,
-            constraints.maxHeight / _Spec.artboardHeight,
-          );
+          final double s = scaleOverride ??
+              math.min(
+                constraints.maxWidth / _Spec.artboardWidth,
+                constraints.maxHeight / _Spec.artboardHeight,
+              );
           final double cardWidth = math.min(
             _Spec.cardWidth * s,
             constraints.maxWidth - _Spec.cardMargin * s,
@@ -406,11 +417,13 @@ class _Spec {
   static const Color rowLabel = Color(0xFF1F1F1F);
 }
 
-/// Opens the informational allergen dialog.
+/// Opens the informational allergen dialog. [scale] overrides the computed
+/// artboard scale — see [KioskAllergenInfoDialog.scaleOverride].
 Future<void> showKioskAllergenInfo(
   BuildContext context,
-  Set<KioskAllergen> allergens,
-) {
+  Set<KioskAllergen> allergens, {
+  double? scale,
+}) {
   return Navigator.of(context).push<void>(
     PageRouteBuilder<void>(
       opaque: false,
@@ -418,7 +431,8 @@ Future<void> showKioskAllergenInfo(
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 240),
       reverseTransitionDuration: const Duration(milliseconds: 160),
-      pageBuilder: (_, __, ___) => KioskAllergenInfoDialog(allergens: allergens),
+      pageBuilder: (_, __, ___) =>
+          KioskAllergenInfoDialog(allergens: allergens, scaleOverride: scale),
       transitionsBuilder: (_, animation, __, child) {
         final Animation<double> eased = CurvedAnimation(
           parent: animation,

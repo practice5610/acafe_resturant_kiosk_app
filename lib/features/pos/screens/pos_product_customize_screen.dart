@@ -4,9 +4,11 @@ import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -35,6 +37,81 @@ import 'package:provider/provider.dart';
 /// counter after save (no kiosk confirmation beat). Shows [PosAllergenNotice]
 /// when the branch admin has turned the allergen tag toggle on.
 void openPosCustomize(
+  BuildContext context,
+  Product product, {
+  CartModel? cart,
+  int? cartIndex,
+  TextEditingController? customerNameController,
+  TextEditingController? tableController,
+  PosOrderType orderType = PosOrderType.dineIn,
+  ValueChanged<PosOrderType>? onOrderTypeChanged,
+}) {
+  // THE ALLERGEN GATE — mirrors openKioskCustomize exactly: the first time
+  // this order reaches for a product, ask what to avoid before showing
+  // anything. Once per order (reset in endKioskCustomerSession, same as
+  // kiosk), not once per product. Guarded on `cart == null` so this only
+  // fires on a NEW product selection, never on re-opening an existing cart
+  // line for editing.
+  //
+  // The one difference from kiosk: the branch admin's "Show Allergen Tag"
+  // toggle gates this entirely for POS. Kiosk has no such toggle.
+  final bool allergenTagEnabled =
+      Provider.of<KioskAuthProvider>(context, listen: false)
+          .allergenTagEnabled;
+  if (allergenTagEnabled &&
+      cart == null &&
+      !KioskAllergenPreferences.instance.asked) {
+    _askAllergensThenOpenPosCustomize(
+      context,
+      product,
+      customerNameController: customerNameController,
+      tableController: tableController,
+      orderType: orderType,
+      onOrderTypeChanged: onOrderTypeChanged,
+    );
+    return;
+  }
+  _openPosCustomizeNow(
+    context,
+    product,
+    cart: cart,
+    cartIndex: cartIndex,
+    customerNameController: customerNameController,
+    tableController: tableController,
+    orderType: orderType,
+    onOrderTypeChanged: onOrderTypeChanged,
+  );
+}
+
+/// Shows the allergen popup, then opens the product the staff member
+/// tapped — unless what was just declared rules it out. Mirrors
+/// `_askAllergensThenOpenKioskCustomize`.
+Future<void> _askAllergensThenOpenPosCustomize(
+  BuildContext context,
+  Product product, {
+  TextEditingController? customerNameController,
+  TextEditingController? tableController,
+  PosOrderType orderType = PosOrderType.dineIn,
+  ValueChanged<PosOrderType>? onOrderTypeChanged,
+}) async {
+  await showKioskAllergenFilter(context, scale: posAllergenDialogScale(context));
+  if (!context.mounted) return;
+
+  if (kioskProductHasAllergen(
+      product, KioskAllergenPreferences.instance.avoided)) {
+    return;
+  }
+  _openPosCustomizeNow(
+    context,
+    product,
+    customerNameController: customerNameController,
+    tableController: tableController,
+    orderType: orderType,
+    onOrderTypeChanged: onOrderTypeChanged,
+  );
+}
+
+void _openPosCustomizeNow(
   BuildContext context,
   Product product, {
   CartModel? cart,

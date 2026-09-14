@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
 import 'package:acafe_customer/features/pos/domain/pos_route_policy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_allergen_notice.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_nav_pill.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pin_modal.dart';
@@ -53,6 +56,7 @@ class PosNavBarSpec {
   static const double avatarSize = 40;
   static const double lockSize = 36;
   static const Key scanButtonKey = Key('pos-scan-button');
+  static const Key allergenButtonKey = Key('pos-allergen-button');
   static const Key lockButtonKey = Key('pos-lock-button');
   static const Key moreButtonKey = Key('pos-nav-more-button');
   static const Key avatarMenuButtonKey = Key('pos-avatar-menu-button');
@@ -251,7 +255,12 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
         children: [
           // Left cluster. Flexible so a window narrower than the design does
           // not overflow: the date is the only element here with slack, so it
-          // ellipsises rather than the bar throwing.
+          // ellipsises rather than the bar throwing. flex: 1 against the
+          // right cluster's flex: 3 (not an even split) -- this side only
+          // ever needs ~300-400px (wordmark + date), so an even split capped
+          // it at half the window and starved the pill row of width the
+          // window actually had free, tipping tabs into "More" well before
+          // the bar was actually full. See the right cluster's own comment.
           Flexible(
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -279,7 +288,10 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
           // collapses into the "More" pill rather than scrolling off with no
           // indication it exists — that silently hid Settings on a narrow
           // staff tablet before this. At the design width nothing collapses.
+          // flex: 2 -- see the left cluster's comment for why this is not an
+          // even split with it.
           Flexible(
+            flex: 2,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -292,6 +304,8 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
                     onSelect: (path) => context.go(path),
                   ),
                 ),
+                const SizedBox(width: PosNavBarSpec.groupGap),
+                const _AllergenNavButton(),
                 const SizedBox(width: PosNavBarSpec.groupGap),
                 const _ScanButton(),
                 const SizedBox(width: PosNavBarSpec.groupGap),
@@ -678,6 +692,85 @@ class _PosLockButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Reopens the shared allergen filter ([KioskAllergenPreferences] /
+/// [showKioskAllergenFilter], the exact same popup the kiosk uses and the
+/// once-per-order gate in `openPosCustomize` opens automatically).
+///
+/// Lives in the persistent top nav rather than any one screen's toolbar so a
+/// staff member who missed it (or dismissed it) on the first product of an
+/// order — the popup only auto-opens once — always has somewhere to reopen
+/// it and change or clear the selection, from any tab. Available to every
+/// staff member and manager alike; hidden entirely only when the branch
+/// admin's "Show Allergen Tag" toggle is off, same as the rest of this
+/// feature in POS.
+class _AllergenNavButton extends StatelessWidget {
+  const _AllergenNavButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enabled = context.watch<KioskAuthProvider>().allergenTagEnabled;
+    if (!enabled) return const SizedBox.shrink();
+
+    return ListenableBuilder(
+      listenable: KioskAllergenPreferences.instance,
+      builder: (context, _) {
+        final bool active = KioskAllergenPreferences.instance.hasSelection;
+        final int count = KioskAllergenPreferences.instance.avoided.length;
+
+        return SizedBox(
+          key: PosNavBarSpec.allergenButtonKey,
+          width: PosNavBarSpec.lockSize,
+          height: PosNavBarSpec.lockSize,
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => showKioskAllergenFilter(context,
+                  scale: posAllergenDialogScale(context)),
+              child: Tooltip(
+                message: 'Allergens',
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      Icons.health_and_safety_outlined,
+                      size: PosNavBarSpec.lockSize * 0.6,
+                      color: active ? PosUI.accent : PosUI.ink,
+                    ),
+                    if (active)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: PosUI.accent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$count',
+                            style: loewBold.copyWith(
+                              fontSize: 9,
+                              color: Colors.white,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

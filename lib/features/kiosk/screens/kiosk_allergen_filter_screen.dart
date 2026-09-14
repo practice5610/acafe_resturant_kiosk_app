@@ -54,9 +54,15 @@ class KioskAllergenFilterScreen extends StatefulWidget {
   /// menu's filter affordance) should show what is already active.
   final Set<KioskAllergen> initialSelection;
 
+  /// Overrides [KioskLayout.scaleOf]. That computation is calibrated for a
+  /// tall kiosk touchscreen and collapses to a sliver on a short landscape
+  /// window (POS); POS callers pass a width-only scale instead.
+  final double? scaleOverride;
+
   const KioskAllergenFilterScreen({
     super.key,
     this.initialSelection = const <KioskAllergen>{},
+    this.scaleOverride,
   });
 
   @override
@@ -110,7 +116,8 @@ class _KioskAllergenFilterScreenState extends State<KioskAllergenFilterScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final _CardMetrics card = _CardMetrics.resolve(
-            KioskLayout.scaleOf(context, constraints),
+            widget.scaleOverride ??
+                KioskLayout.scaleOf(context, constraints),
             constraints,
           );
 
@@ -729,8 +736,9 @@ class _Spec {
 /// Shows the allergen popup over the current screen.
 ///
 /// Returns true when the customer tapped APPLY, false when they backed out.
-/// Either way the popup is marked as asked for this order.
-Future<bool> showKioskAllergenFilter(BuildContext context) async {
+/// Either way the popup is marked as asked for this order. [scale] overrides
+/// the computed artboard scale — see [KioskAllergenFilterScreen.scaleOverride].
+Future<bool> showKioskAllergenFilter(BuildContext context, {double? scale}) async {
   final bool? applied = await Navigator.of(context).push<bool>(
     PageRouteBuilder<bool>(
       opaque: false,
@@ -740,6 +748,7 @@ Future<bool> showKioskAllergenFilter(BuildContext context) async {
       reverseTransitionDuration: const Duration(milliseconds: 180),
       pageBuilder: (_, __, ___) => KioskAllergenFilterScreen(
         initialSelection: KioskAllergenPreferences.instance.avoided,
+        scaleOverride: scale,
       ),
       transitionsBuilder: (_, animation, __, child) {
         final Animation<double> eased = CurvedAnimation(

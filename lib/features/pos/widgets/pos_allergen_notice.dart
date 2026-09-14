@@ -7,6 +7,19 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_allergen_notice.dart
     show showKioskAllergenInfo;
 import 'package:acafe_customer/localization/language_constrants.dart';
 
+/// Scale for the shared kiosk allergen dialogs ([showKioskAllergenInfo],
+/// [showKioskAllergenFilter]) when opened from POS.
+///
+/// Those dialogs compute their own scale from the *height* of a tall kiosk
+/// touchscreen artboard (2572×4530), which collapses to a sliver on POS's
+/// short landscape window. POS instead scales off width only, against the
+/// same 2572 artboard, clamped to a size that reads well on a staff-facing
+/// desktop/tablet window rather than a customer kiosk at arm's length.
+double posAllergenDialogScale(BuildContext context) {
+  final double width = MediaQuery.sizeOf(context).width;
+  return (width / 2572).clamp(0.28, 0.5);
+}
+
 /// Compact allergen disclosure for the POS product-customize pane — same
 /// data and tap-through dialog as the kiosk's [KioskAllergenNotice], but
 /// sized for a staff-facing pane read at arm's length rather than the
@@ -34,7 +47,8 @@ class PosAllergenNotice extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: GestureDetector(
-        onTap: () => showKioskAllergenInfo(context, allergens),
+        onTap: () => showKioskAllergenInfo(context, allergens,
+            scale: posAllergenDialogScale(context)),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
