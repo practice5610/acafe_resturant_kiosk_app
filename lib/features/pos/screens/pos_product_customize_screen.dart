@@ -8,7 +8,6 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -94,7 +93,7 @@ Future<void> _askAllergensThenOpenPosCustomize(
   PosOrderType orderType = PosOrderType.dineIn,
   ValueChanged<PosOrderType>? onOrderTypeChanged,
 }) async {
-  await showKioskAllergenFilter(context, scale: posAllergenDialogScale(context));
+  await showPosAllergenFilter(context);
   if (!context.mounted) return;
 
   if (kioskProductHasAllergen(

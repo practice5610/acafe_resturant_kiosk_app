@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
 import 'package:acafe_customer/features/pos/domain/pos_route_policy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
@@ -696,9 +695,10 @@ class _PosLockButton extends StatelessWidget {
   }
 }
 
-/// Reopens the shared allergen filter ([KioskAllergenPreferences] /
-/// [showKioskAllergenFilter], the exact same popup the kiosk uses and the
-/// once-per-order gate in `openPosCustomize` opens automatically).
+/// Reopens the allergen filter ([KioskAllergenPreferences] /
+/// [showPosAllergenFilter] — same selection state as the kiosk's own filter,
+/// POS-sized presentation) that the once-per-order gate in `openPosCustomize`
+/// opens automatically.
 ///
 /// Lives in the persistent top nav rather than any one screen's toolbar so a
 /// staff member who missed it (or dismissed it) on the first product of an
@@ -730,8 +730,7 @@ class _AllergenNavButton extends StatelessWidget {
             shape: const CircleBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: () => showKioskAllergenFilter(context,
-                  scale: posAllergenDialogScale(context)),
+              onTap: () => showPosAllergenFilter(context),
               child: Tooltip(
                 message: 'Allergens',
                 child: Stack(
