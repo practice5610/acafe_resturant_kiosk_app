@@ -51,11 +51,13 @@ class _PosWelcomeScreenState extends State<PosWelcomeScreen> {
     final locale = context.read<LocalizationProvider>().locale.languageCode;
     category.warmKioskMenuFromDisk(locale).then((_) {
       if (!mounted) return;
-      KioskMenuImageHelper.precacheAroundSelected(context, category, splash);
+      KioskMenuImageHelper.precacheAroundSelected(context, category, splash,
+          includeOptions: true);
     });
   }
 
-  /// Awaited half: products ready, first category's images decoded, then go.
+  /// Awaited half: products ready, first category's product, size and add-on
+  /// images decoded, then go.
   /// Each step is bounded and failure-tolerant — a bad network still opens
   /// the till, which shows its own loading state.
   Future<void> _onContinue() async {
@@ -77,6 +79,9 @@ class _PosWelcomeScreenState extends State<PosWelcomeScreen> {
         category,
         splash,
         awaitVisible: true,
+        // Size + add-on images too, so the first product opened needs no
+        // download — the till's customize screen reads straight from cache.
+        includeOptions: true,
       ).timeout(const Duration(seconds: 3), onTimeout: () {});
     } catch (_) {}
     if (!mounted) return;

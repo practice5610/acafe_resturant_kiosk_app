@@ -89,7 +89,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     // The allergen filter is a shared, app-wide selection (same singleton the
     // kiosk uses) -- rebuild the grid the moment it changes, same as kiosk's
     // menu screen does via ListenableBuilder.
-    KioskAllergenPreferences.instance.addListener(_onAllergenPreferencesChanged);
+    KioskAllergenPreferences.instance
+        .addListener(_onAllergenPreferencesChanged);
   }
 
   void _onAllergenPreferencesChanged() {
@@ -139,7 +140,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
 
     category.warmKioskMenuFromDisk(locale).then((_) {
       if (!mounted) return;
-      KioskMenuImageHelper.precacheAroundSelected(context, category, splash);
+      KioskMenuImageHelper.precacheAroundSelected(context, category, splash,
+          includeOptions: true);
     });
   }
 
@@ -155,7 +157,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
         _menuReady = true;
         _gridCategoryId = category.selectedSubCategoryId;
       });
-      KioskMenuImageHelper.precacheAroundSelected(context, category, splash);
+      KioskMenuImageHelper.precacheAroundSelected(context, category, splash,
+          includeOptions: true);
       return;
     }
 
@@ -171,6 +174,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
         category,
         splash,
         awaitVisible: true,
+        includeOptions: true,
         // Longer than the PIN screen's/kiosk welcome's 3s: unlike those
         // paths, nothing has been warming since before this screen existed
         // except `_warmMenuEarly` above, so this cap gets less of a head
@@ -201,6 +205,10 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     final targetProducts = numericId == null
         ? const <Product>[]
         : category.kioskProductsForCategoryIds([numericId]);
+    // Size + add-on images for the target category start now, in the
+    // background, so opening one of its products is instant too.
+    KioskMenuImageHelper.precacheProductOptions(
+        context, splash, targetProducts);
     try {
       await KioskMenuImageHelper.precacheProducts(
         context,
@@ -224,10 +232,32 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     _categorySwitching = false;
 
     // 4) Warm neighbours for the next tap.
-    KioskMenuImageHelper.precacheAroundSelected(context, category, splash);
+    KioskMenuImageHelper.precacheAroundSelected(context, category, splash,
+        includeOptions: true);
   }
 
-  void _addToCart(Product product) {
+  bool _openingProduct = false;
+
+  /// Safety net for anything the background warm has not reached yet (a
+  /// category far from the selected one, a slow network): finish this
+  /// product's size and add-on images before the customize screen paints.
+  /// Cached images resolve immediately, so the usual case adds no delay; the
+  /// cap keeps a bad network from freezing the tap.
+  Future<void> _addToCart(Product product) async {
+    if (_openingProduct) return;
+    _openingProduct = true;
+    try {
+      await KioskMenuImageHelper.precacheProductOptions(
+        context,
+        context.read<SplashProvider>(),
+        [product],
+        awaitAll: true,
+      ).timeout(const Duration(milliseconds: 1500), onTimeout: () {});
+    } catch (_) {
+    } finally {
+      _openingProduct = false;
+    }
+    if (!mounted) return;
     openPosCustomize(
       context,
       product,
@@ -241,11 +271,12 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   /// Products for the grid category, narrowed by the active tag pill and
   /// the search box.
   List<Product> _visibleProducts(CategoryProvider category) {
-    final String? selectedId = _gridCategoryId ?? category.selectedSubCategoryId;
+    final String? selectedId =
+        _gridCategoryId ?? category.selectedSubCategoryId;
     if (selectedId == null) return const [];
 
-    List<Product> products = category
-        .kioskProductsForCategoryIds([int.tryParse(selectedId) ?? -1]);
+    List<Product> products =
+        category.kioskProductsForCategoryIds([int.tryParse(selectedId) ?? -1]);
 
     if (_selectedTag != null) {
       final filtered = filterKioskProductsByTag(
@@ -276,11 +307,9 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     return products;
   }
 
-  List<CartModel?> get _cartLines =>
-      context.read<CartProvider>().cartList;
+  List<CartModel?> get _cartLines => context.read<CartProvider>().cartList;
 
-  bool get _cartHasItems =>
-      _cartLines.any((line) => line != null);
+  bool get _cartHasItems => _cartLines.any((line) => line != null);
 
   void _incrementLine(int index) {
     final CartProvider cart = context.read<CartProvider>();
@@ -473,22 +502,19 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
                 Expanded(
                   child: _ContentArea(
                     searchController: _search,
-                    onSearchChanged: (value) =>
-                        setState(() => _query = value),
+                    onSearchChanged: (value) => setState(() => _query = value),
                     selectedTag: _selectedTag,
                     onTagSelected: (label) => setState(() =>
                         _selectedTag = _selectedTag == label ? null : label),
                     products: products,
                     isLoading: !_menuReady &&
-                        (category.isKioskMenuPrefetching ||
-                            categories.isEmpty),
+                        (category.isKioskMenuPrefetching || categories.isEmpty),
                     imageBaseUrl: splash.baseUrls?.productImageUrl,
                     cartQuantityOf: cart.getCartProductQuantityCount,
                     onProductTap: _addToCart,
                   ),
                 ),
-                if (sideReceipt)
-                  ClipRect(child: receipt),
+                if (sideReceipt) ClipRect(child: receipt),
               ],
             ),
           ),
@@ -535,95 +561,95 @@ class _ContentArea extends StatelessWidget {
     return ClipRect(
       child: Stack(
         children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            PosHomeSpec.contentPaddingLeft,
-            PosHomeSpec.contentPaddingTop,
-            PosHomeSpec.scrollbarInset,
-            0,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(
-                    right: PosHomeSpec.searchPaddingRight -
-                        PosHomeSpec.scrollbarInset),
-                child: PosSearchField(
-                  controller: searchController,
-                  onChanged: onSearchChanged,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              PosHomeSpec.contentPaddingLeft,
+              PosHomeSpec.contentPaddingTop,
+              PosHomeSpec.scrollbarInset,
+              0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(
+                      right: PosHomeSpec.searchPaddingRight -
+                          PosHomeSpec.scrollbarInset),
+                  child: PosSearchField(
+                    controller: searchController,
+                    onChanged: onSearchChanged,
+                  ),
                 ),
-              ),
-              const SizedBox(height: PosHomeSpec.sectionGap),
-              Padding(
-                padding: const EdgeInsets.only(
-                    right: PosHomeSpec.searchPaddingRight -
-                        PosHomeSpec.scrollbarInset),
-                child: SizedBox(
-                  height: PosHomeSpec.pillHeight,
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context)
-                        .copyWith(scrollbars: false),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (int i = 0;
-                              i < PosHomeSpec.filterPillLabels.length;
-                              i++) ...[
-                            if (i > 0)
-                              const SizedBox(width: PosHomeSpec.pillGap),
-                            PosFilterPill(
-                              label: PosHomeSpec.filterPillLabels[i],
-                              active: selectedTag ==
-                                  PosHomeSpec.filterPillLabels[i],
-                              onTap: () => onTagSelected(
-                                  PosHomeSpec.filterPillLabels[i]),
-                            ),
+                const SizedBox(height: PosHomeSpec.sectionGap),
+                Padding(
+                  padding: const EdgeInsets.only(
+                      right: PosHomeSpec.searchPaddingRight -
+                          PosHomeSpec.scrollbarInset),
+                  child: SizedBox(
+                    height: PosHomeSpec.pillHeight,
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context)
+                          .copyWith(scrollbars: false),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (int i = 0;
+                                i < PosHomeSpec.filterPillLabels.length;
+                                i++) ...[
+                              if (i > 0)
+                                const SizedBox(width: PosHomeSpec.pillGap),
+                              PosFilterPill(
+                                label: PosHomeSpec.filterPillLabels[i],
+                                active: selectedTag ==
+                                    PosHomeSpec.filterPillLabels[i],
+                                onTap: () => onTagSelected(
+                                    PosHomeSpec.filterPillLabels[i]),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: PosHomeSpec.sectionGap),
-              Expanded(
-                child: isLoading
-                    ? const Center(
-                        child:
-                            CircularProgressIndicator(color: PosHomeSpec.ink),
-                      )
-                    : PosProductGrid(
-                        products: products,
-                        imageBaseUrl: imageBaseUrl,
-                        cartQuantityOf: cartQuantityOf,
-                        onProductTap: onProductTap,
-                      ),
-              ),
-            ],
+                const SizedBox(height: PosHomeSpec.sectionGap),
+                Expanded(
+                  child: isLoading
+                      ? const Center(
+                          child:
+                              CircularProgressIndicator(color: PosHomeSpec.ink),
+                        )
+                      : PosProductGrid(
+                          products: products,
+                          imageBaseUrl: imageBaseUrl,
+                          cartQuantityOf: cartQuantityOf,
+                          onProductTap: onProductTap,
+                        ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: PosHomeSpec.contentFadeHeight,
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x00F7F1DE),
-                    PosHomeSpec.pageBg,
-                  ],
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: PosHomeSpec.contentFadeHeight,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x00F7F1DE),
+                      PosHomeSpec.pageBg,
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
         ],
       ),
     );
@@ -646,8 +672,8 @@ class _CompactReceiptBar extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: 56,
-          padding: const EdgeInsets.symmetric(
-              horizontal: PosHomeSpec.panelPaddingH),
+          padding:
+              const EdgeInsets.symmetric(horizontal: PosHomeSpec.panelPaddingH),
           decoration: const BoxDecoration(
             border: Border(
               top: BorderSide(

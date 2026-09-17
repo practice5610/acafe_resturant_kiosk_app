@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/category/domain/category_model.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
+import 'package:acafe_customer/helper/product_helper.dart';
 
 /// Warms Flutter's image cache for kiosk menu product/category images.
 ///
@@ -26,6 +27,7 @@ class KioskMenuImageHelper {
     SplashProvider splash, {
     bool awaitVisible = false,
     int neighbours = 1,
+    bool includeOptions = false,
   }) async {
     _precacheCategoryThumbnails(context, categories, splash);
 
@@ -39,18 +41,28 @@ class KioskMenuImageHelper {
     // Visible category first (awaited when requested).
     final visible = _productsForIndex(categories, list, index);
     if (awaitVisible) {
-      await precacheProducts(context, splash, visible, awaitAll: true);
+      await Future.wait([
+        precacheProducts(context, splash, visible, awaitAll: true),
+        if (includeOptions)
+          precacheProductOptions(context, splash, visible, awaitAll: true),
+      ]);
     } else {
       precacheProducts(context, splash, visible);
+      if (includeOptions) precacheProductOptions(context, splash, visible);
     }
+
+    if (!context.mounted) return;
 
     // Neighbours (previous/next categories) in the background so the next tap is
     // instant too, without churning the cache with every category at once.
     for (int d = 1; d <= neighbours; d++) {
       for (final n in [index - d, index + d]) {
         if (n >= 0 && n < list.length) {
-          precacheProducts(
-              context, splash, _productsForIndex(categories, list, n));
+          final neighbour = _productsForIndex(categories, list, n);
+          precacheProducts(context, splash, neighbour);
+          if (includeOptions) {
+            precacheProductOptions(context, splash, neighbour);
+          }
         }
       }
     }
@@ -74,6 +86,80 @@ class KioskMenuImageHelper {
       if (awaitAll) futures.add(f);
     }
     if (awaitAll && futures.isNotEmpty) await Future.wait(futures);
+  }
+
+  /// Cache widths the POS customize screen renders option cards at — they are
+  /// part of the cache key on native, so these must match the widgets
+  /// (`_DietaryCard` 200, `_VesselCard` 320, `_AddOnCard` 240 in
+  /// `pos_product_customize_screen.dart`). On web the width is ignored.
+  static const int posVariationCacheWidth = 200;
+  static const int posVesselCacheWidth = 320;
+  static const int posAddonCacheWidth = 240;
+
+  /// Precache the images the customize screen shows for [products]: every
+  /// variation option (size / dietary / cup) and every add-on. Add-ons are
+  /// shared across many products, so URLs are de-duplicated first — a
+  /// category of 20 drinks usually needs only a handful of downloads.
+  static Future<void> precacheProductOptions(
+    BuildContext context,
+    SplashProvider splash,
+    List<Product> products, {
+    bool awaitAll = false,
+  }) async {
+    final urls = optionImageUrls(
+      products,
+      productImageBase: splash.baseUrls?.productImageUrl,
+      addonImageBase: splash.baseUrls?.addonImageUrl,
+    );
+    final Set<String> variationUrls = urls.variations;
+    final Set<String> addonUrls = urls.addons;
+
+    final List<Future<void>> futures = [
+      for (final url in variationUrls) ...[
+        _precache(context, url, cacheWidth: posVariationCacheWidth),
+        _precache(context, url, cacheWidth: posVesselCacheWidth),
+      ],
+      for (final url in addonUrls)
+        _precache(context, url, cacheWidth: posAddonCacheWidth),
+    ];
+    if (awaitAll && futures.isNotEmpty) await Future.wait(futures);
+  }
+
+  /// The de-duplicated option image URLs for [products] — variation values
+  /// (under the product image base) and add-ons (under the add-on base).
+  /// Pure, so it is testable without a network or a widget tree.
+  @visibleForTesting
+  static ({Set<String> variations, Set<String> addons}) optionImageUrls(
+    List<Product> products, {
+    required String? productImageBase,
+    required String? addonImageBase,
+  }) {
+    final Set<String> variations = {};
+    final Set<String> addons = {};
+    for (final product in products) {
+      if (productImageBase != null) {
+        for (final variation
+            in ProductHelper.effectiveVariations(product) ?? const []) {
+          for (final value in variation.variationValues ?? const []) {
+            final String? image = value.image;
+            if (image != null && image.isNotEmpty && image != 'def.png') {
+              variations.add('$productImageBase/$image');
+            }
+          }
+        }
+      }
+      if (addonImageBase != null) {
+        for (final group in product.effectiveAddOnGroups) {
+          for (final addon in group.addons) {
+            if (addon.hasImage) addons.add('$addonImageBase/${addon.image}');
+          }
+        }
+        for (final addon in product.addOns ?? const []) {
+          if (addon.hasImage) addons.add('$addonImageBase/${addon.image}');
+        }
+      }
+    }
+    return (variations: variations, addons: addons);
   }
 
   static List<Product> _productsForIndex(
