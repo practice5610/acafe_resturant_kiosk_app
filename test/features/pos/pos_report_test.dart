@@ -162,11 +162,36 @@ Map<String, dynamic> _reportPayload({
         // the exact bug this asserts against.
         'peak_hours': <int>[9],
         'hours': <Map<String, dynamic>>[
-          <String, dynamic>{'hour': 8, 'label': '08', 'amount': 120, 'order_count': 9},
-          <String, dynamic>{'hour': 9, 'label': '09', 'amount': 320, 'order_count': 24},
-          <String, dynamic>{'hour': 10, 'label': '10', 'amount': 0, 'order_count': 0},
-          <String, dynamic>{'hour': 11, 'label': '11', 'amount': 210, 'order_count': 17},
-          <String, dynamic>{'hour': 12, 'label': '12', 'amount': 180, 'order_count': 15},
+          <String, dynamic>{
+            'hour': 8,
+            'label': '08',
+            'amount': 120,
+            'order_count': 9
+          },
+          <String, dynamic>{
+            'hour': 9,
+            'label': '09',
+            'amount': 320,
+            'order_count': 24
+          },
+          <String, dynamic>{
+            'hour': 10,
+            'label': '10',
+            'amount': 0,
+            'order_count': 0
+          },
+          <String, dynamic>{
+            'hour': 11,
+            'label': '11',
+            'amount': 210,
+            'order_count': 17
+          },
+          <String, dynamic>{
+            'hour': 12,
+            'label': '12',
+            'amount': 180,
+            'order_count': 15
+          },
         ],
       },
       'top_products': <String, dynamic>{
@@ -192,9 +217,21 @@ Map<String, dynamic> _reportPayload({
         'recorded': categoryRecorded,
         'total': 1568.13,
         'buckets': <Map<String, dynamic>>[
-          <String, dynamic>{'category': 'Matcha', 'amount': 465.5, 'percentage': 42},
-          <String, dynamic>{'category': 'Coffee', 'amount': 310, 'percentage': 28},
-          <String, dynamic>{'category': 'Poffertjes', 'amount': 236, 'percentage': 22},
+          <String, dynamic>{
+            'category': 'Matcha',
+            'amount': 465.5,
+            'percentage': 42
+          },
+          <String, dynamic>{
+            'category': 'Coffee',
+            'amount': 310,
+            'percentage': 28
+          },
+          <String, dynamic>{
+            'category': 'Poffertjes',
+            'amount': 236,
+            'percentage': 22
+          },
         ],
       },
       'cash_drawer': <String, dynamic>{
@@ -428,8 +465,8 @@ void main() {
 
     test('tax rows sum to the headline tax figure', () {
       final PosReportData data = PosReportData(_reportPayload());
-      final double summed =
-          data.taxRows.fold(0.0, (double sum, PosReportTaxRow r) => sum + r.amount);
+      final double summed = data.taxRows
+          .fold(0.0, (double sum, PosReportTaxRow r) => sum + r.amount);
 
       expect(summed, closeTo(data.totalTax, 0.01));
     });
@@ -493,7 +530,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(manager.requestedDates, hasLength(2));
-      expect(manager.requestedDates.last, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+      expect(
+          manager.requestedDates.last, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
     });
 
     testWidgets('next-day is disabled on today', (tester) async {
@@ -546,7 +584,8 @@ void main() {
       expect(manager.closedPayloads.single['closing_cash_counted'], 842.5);
       // No opening float is sent: the server derives it from yesterday's
       // counted close, so there is nothing here for a client to disagree with.
-      expect(manager.closedPayloads.single.containsKey('opening_cash'), isFalse);
+      expect(
+          manager.closedPayloads.single.containsKey('opening_cash'), isFalse);
       expect(manager.requestedDates, hasLength(2));
     });
 
@@ -574,7 +613,8 @@ void main() {
       await tester.tap(find.text('Accept difference'));
       await tester.pumpAndSettle();
       await tester.enterText(
-          find.widgetWithText(TextField, 'Reason for difference'), 'Short till');
+          find.widgetWithText(TextField, 'Reason for difference'),
+          'Short till');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
@@ -897,7 +937,8 @@ void main() {
       await tester.pump();
       await tester.tap(find.byTooltip('Previous day'));
       await tester.pump();
-      expect(manager.requestedDates, <String>['2026-06-23', '2026-06-22', '2026-06-21']);
+      expect(manager.requestedDates,
+          <String>['2026-06-23', '2026-06-22', '2026-06-21']);
 
       // The 22nd answers late, after the user has already moved to the 21st.
       manager.completeLoad('2026-06-22');
@@ -942,7 +983,8 @@ void main() {
       expect(find.text('€ 1,842.50'), findsWidgets);
     });
 
-    testWidgets('an unrelated provider notification does not rebuild the panels',
+    testWidgets(
+        'an unrelated provider notification does not rebuild the panels',
         (tester) async {
       final _StubManager manager = await pumpAt(
         tester,
@@ -950,16 +992,16 @@ void main() {
         initialDate: DateTime(2026, 6, 23),
       );
 
-      final PosReportHourlyChart before =
-          tester.widget<PosReportHourlyChart>(find.byType(PosReportHourlyChart));
+      final PosReportHourlyChart before = tester
+          .widget<PosReportHourlyChart>(find.byType(PosReportHourlyChart));
 
       // Something else on the shared KioskManagerProvider changed — a Receipts
       // page load, a stock toggle. This screen reads none of it.
       manager.notifyUnrelated();
       await tester.pump();
 
-      final PosReportHourlyChart after =
-          tester.widget<PosReportHourlyChart>(find.byType(PosReportHourlyChart));
+      final PosReportHourlyChart after = tester
+          .widget<PosReportHourlyChart>(find.byType(PosReportHourlyChart));
 
       // Identical instance => the subtree was never rebuilt. A Consumer here
       // would have rebuilt all nine panels and the chart.
@@ -986,7 +1028,10 @@ void main() {
     testWidgets('an empty payment split on a day with orders says so',
         (tester) async {
       final Map<String, dynamic> broken = _reportPayload()
-        ..['payment_methods'] = <String, dynamic>{'total': 0, 'methods': <dynamic>[]};
+        ..['payment_methods'] = <String, dynamic>{
+          'total': 0,
+          'methods': <dynamic>[]
+        };
 
       await pumpAt(tester, const Size(1366, 926),
           payload: broken, initialDate: DateTime(2026, 6, 23));
@@ -1054,13 +1099,15 @@ void main() {
       // to each other is comparing containers to containers, not a container
       // top to a text baseline nested inside a differently-padded sibling.
       final List<Element> kpiCards = find
-          .byWidgetPredicate((w) => w.runtimeType.toString() == 'PosReportKpiCard')
+          .byWidgetPredicate(
+              (w) => w.runtimeType.toString() == 'PosReportKpiCard')
           .evaluate()
           .toList();
       expect(kpiCards, hasLength(4),
           reason: 'expected Revenue, Total Orders, Average Order Value, Tips');
 
-      final double firstY = tester.getTopLeft(find.byWidget(kpiCards.first.widget)).dy;
+      final double firstY =
+          tester.getTopLeft(find.byWidget(kpiCards.first.widget)).dy;
       for (final Element card in kpiCards.skip(1)) {
         final double y = tester.getTopLeft(find.byWidget(card.widget)).dy;
         expect(y, closeTo(firstY, 1),
@@ -1077,8 +1124,8 @@ void main() {
         initialDate: DateTime(2026, 6, 23),
       );
 
-      final PosReportHourlyChart before =
-          tester.widget<PosReportHourlyChart>(find.byType(PosReportHourlyChart));
+      final PosReportHourlyChart before = tester
+          .widget<PosReportHourlyChart>(find.byType(PosReportHourlyChart));
 
       // A busy shared provider: 200 notifications this screen reads nothing
       // from. None of them may reconstruct the dashboard.
@@ -1089,7 +1136,8 @@ void main() {
       expect(
         identical(
           before,
-          tester.widget<PosReportHourlyChart>(find.byType(PosReportHourlyChart)),
+          tester
+              .widget<PosReportHourlyChart>(find.byType(PosReportHourlyChart)),
         ),
         isTrue,
         reason: '200 unrelated notifications rebuilt the dashboard',
@@ -1107,7 +1155,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('repeated visits leave nothing subscribed behind', (tester) async {
+    testWidgets('repeated visits leave nothing subscribed behind',
+        (tester) async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         AppConstants.languageCode: 'en',
         AppConstants.countryCode: 'NL',
@@ -1136,7 +1185,8 @@ void main() {
                       SplashRepo(dioClient: dio, sharedPreferences: prefs),
                 ),
               ),
-              ChangeNotifierProvider<KioskManagerProvider>.value(value: manager),
+              ChangeNotifierProvider<KioskManagerProvider>.value(
+                  value: manager),
             ],
             child: MediaQuery(
               data: const MediaQueryData(size: Size(1366, 926)),
@@ -1179,7 +1229,8 @@ void main() {
       expect(
         listenersWhileClosed.toSet(),
         hasLength(1),
-        reason: 'subscriptions were not released on leave: $listenersWhileClosed',
+        reason:
+            'subscriptions were not released on leave: $listenersWhileClosed',
       );
       // Bounded, not merely flat. The one listener is ChangeNotifierProvider's
       // own — it subscribes once and fans out through element dependencies, so

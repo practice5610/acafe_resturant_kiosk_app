@@ -120,10 +120,10 @@ void main() {
     });
 
     test('shows the derived method, never the cash_on_delivery wire value', () {
-      expect(PosReceiptRow.fromJson(_rowJson(method: 'card')).methodLabel,
-          'Card');
-      expect(PosReceiptRow.fromJson(_rowJson(method: 'cash')).methodLabel,
-          'Cash');
+      expect(
+          PosReceiptRow.fromJson(_rowJson(method: 'card')).methodLabel, 'Card');
+      expect(
+          PosReceiptRow.fromJson(_rowJson(method: 'cash')).methodLabel, 'Cash');
     });
 
     test('a missing timestamp does not crash the row', () {
@@ -165,7 +165,9 @@ void main() {
 
     test('a chosen extra reads +, a removed default reads −', () {
       final detail = PosReceiptDetail.fromJson(_receiptJson(
-        details: [_detailJson(chosenAddOns: [70])],
+        details: [
+          _detailJson(chosenAddOns: [70])
+        ],
       ));
 
       final notes = posReceiptNotes(detail.lines.single);
@@ -276,8 +278,7 @@ void main() {
 
     testWidgets('tapping a row reports that row', (tester) async {
       PosReceiptRow? picked;
-      await pumpTable(tester,
-          width: 960, onSelect: (row) => picked = row);
+      await pumpTable(tester, width: 960, onSelect: (row) => picked = row);
 
       await tester.tap(find.text('#2'));
       await tester.pump();
@@ -287,8 +288,7 @@ void main() {
 
     testWidgets('the selected row is ink-filled and its text goes white',
         (tester) async {
-      await pumpTable(tester,
-          width: 960, selectedId: 1, onSelect: (_) {});
+      await pumpTable(tester, width: 960, selectedId: 1, onSelect: (_) {});
 
       final Text customer = tester.widget<Text>(find.text('Dylan'));
       expect(customer.style?.color, PosReceiptsSpec.selectedInk);
@@ -427,8 +427,7 @@ void main() {
 
     testWidgets('switching receipts replaces every field', (tester) async {
       await pumpPanel(tester,
-          receipt: PosReceiptDetail.fromJson(
-              _receiptJson(id: 1, table: 'B1')));
+          receipt: PosReceiptDetail.fromJson(_receiptJson(id: 1, table: 'B1')));
       expect(find.text('#1'), findsOneWidget);
 
       await pumpPanel(tester,
@@ -450,9 +449,10 @@ void main() {
     testWidgets('no overflow while a receipt is on screen', (tester) async {
       await pumpPanel(tester,
           receipt: PosReceiptDetail.fromJson(_receiptJson(details: [
-        _detailJson(name: 'A very long product name that will not fit at all'),
-        _detailJson(name: 'Second line', chosenAddOns: [70, 71]),
-      ])));
+            _detailJson(
+                name: 'A very long product name that will not fit at all'),
+            _detailJson(name: 'Second line', chosenAddOns: [70, 71]),
+          ])));
 
       expect(tester.takeException(), isNull);
     });

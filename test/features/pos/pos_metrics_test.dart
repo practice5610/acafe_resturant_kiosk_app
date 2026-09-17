@@ -105,8 +105,7 @@ void main() {
     test('is bounded at both ends', () {
       expect(PosResponsive.receiptPanelWidth(1000),
           greaterThanOrEqualTo(PosResponsive.receiptMin));
-      expect(PosResponsive.receiptPanelWidth(8000),
-          PosResponsive.receiptMax);
+      expect(PosResponsive.receiptPanelWidth(8000), PosResponsive.receiptMax);
     });
 
     test('leaves the majority of a counter terminal to the content pane', () {
@@ -120,9 +119,19 @@ void main() {
     // window portrait — must never flip the composition between "3 panes"
     // and "compact bar", and the two side panes must move continuously
     // rather than snapping between a flat design pixel and a proportion.
-    const List<double> desktopWidths = [1024, 1180, 1300, 1366, 1440, 1920, 2199];
+    const List<double> desktopWidths = [
+      1024,
+      1180,
+      1300,
+      1366,
+      1440,
+      1920,
+      2199
+    ];
 
-    test('the side receipt never drops at/above the floor, in either orientation', () {
+    test(
+        'the side receipt never drops at/above the floor, in either orientation',
+        () {
       for (final width in desktopWidths) {
         for (final height in [width * 0.5, width * 0.75, width, width * 1.5]) {
           final m = PosMetrics.resolve(Size(width, height));

@@ -237,7 +237,10 @@ void main() {
     repo.statusCode = 422;
     repo.statusBody = {
       'errors': [
-        {'code': 'order-status', 'message': 'An order cannot be moved backwards'}
+        {
+          'code': 'order-status',
+          'message': 'An order cannot be moved backwards'
+        }
       ]
     };
 
@@ -303,7 +306,8 @@ void main() {
     provider.setSearch('an');
     provider.setSearch('ann');
 
-    expect(repo.getCalls, before, reason: 'nothing fetched before the debounce');
+    expect(repo.getCalls, before,
+        reason: 'nothing fetched before the debounce');
 
     await Future<void>.delayed(
       PosOrdersProvider.searchDebounce + const Duration(milliseconds: 60),

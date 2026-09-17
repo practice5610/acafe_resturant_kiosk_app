@@ -15,7 +15,8 @@ Future<PosStaffProvider> _provider() async {
     AppConstants.posStaffRosterKey,
     jsonEncode(PosStaffRoster.seed().toJson()),
   );
-  final provider = PosStaffProvider(repo: PosStaffRepo(sharedPreferences: prefs));
+  final provider =
+      PosStaffProvider(repo: PosStaffRepo(sharedPreferences: prefs));
   await provider.hydrate();
   return provider;
 }
@@ -45,7 +46,8 @@ void main() {
       final roster = PosStaffRoster.seed();
       for (final shift in roster.shifts) {
         for (final id in shift.memberIds) {
-          expect(roster.memberById(id), isNotNull, reason: '$id on ${shift.id}');
+          expect(roster.memberById(id), isNotNull,
+              reason: '$id on ${shift.id}');
         }
       }
     });
@@ -79,10 +81,10 @@ void main() {
 
       expect(id, 'sanne-bakker');
       expect(provider.selectedId, id);
-      expect(provider.membersOf(PosStaffShift.morning).length,
-          morningBefore + 1);
-      expect(provider.membersOf(PosStaffShift.evening).length,
-          eveningBefore + 1);
+      expect(
+          provider.membersOf(PosStaffShift.morning).length, morningBefore + 1);
+      expect(
+          provider.membersOf(PosStaffShift.evening).length, eveningBefore + 1);
       // Not asked for, so not rostered.
       expect(
         provider.shiftsOf(id!),
@@ -199,7 +201,8 @@ void main() {
 
       final reloaded = PosStaffRoster.fromJson((await _stored())!)!;
       expect(
-        reloaded.memberById('sophie')!
+        reloaded
+            .memberById('sophie')!
             .permissions[PosStaffPermissions.processRefunds],
         isTrue,
       );
@@ -208,8 +211,7 @@ void main() {
     test('a half-typed name is not persisted, a valid one is', () async {
       final provider = await _provider();
       provider.select('sophie');
-      final String before =
-          provider.roster.memberById('sophie')!.name;
+      final String before = provider.roster.memberById('sophie')!.name;
 
       provider.setName('');
       await Future<void>.delayed(Duration.zero);

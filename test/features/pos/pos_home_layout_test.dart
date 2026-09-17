@@ -179,9 +179,8 @@ void main() {
       (tester) async {
     await _pumpHome(tester);
 
-    final CartProvider cart = tester
-        .element(find.byType(PosHomeCartScreen))
-        .read<CartProvider>();
+    final CartProvider cart =
+        tester.element(find.byType(PosHomeCartScreen)).read<CartProvider>();
     cart.replaceCartList([
       CartModel(
         5.5,

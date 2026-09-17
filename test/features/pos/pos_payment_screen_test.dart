@@ -278,10 +278,12 @@ void main() {
     await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
 
     final Size button = tester.getSize(
-      find.ancestor(
-        of: find.text('Confirm Payment'),
-        matching: find.byType(SizedBox),
-      ).first,
+      find
+          .ancestor(
+            of: find.text('Confirm Payment'),
+            matching: find.byType(SizedBox),
+          )
+          .first,
     );
     expect(button.height, PosPaymentSpec.confirmHeight);
   });
@@ -324,10 +326,13 @@ void main() {
       expect(find.text('Change Due'), findsOneWidget);
       expect(find.byType(PosKeypad), findsOneWidget);
       for (final String key in const ['1', '5', '9', '0', ',']) {
-        expect(find.descendant(
-          of: find.byType(PosKeypad),
-          matching: find.text(key),
-        ), findsOneWidget, reason: 'key $key');
+        expect(
+            find.descendant(
+              of: find.byType(PosKeypad),
+              matching: find.text(key),
+            ),
+            findsOneWidget,
+            reason: 'key $key');
       }
       expect(tester.takeException(), isNull);
     });
@@ -336,11 +341,12 @@ void main() {
       await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
       await selectCash(tester);
 
-      expect(find.text(PosHomeSpec.formatPrice(6, padZero: false)),
-          findsWidgets,
+      expect(
+          find.text(PosHomeSpec.formatPrice(6, padZero: false)), findsWidgets,
           reason: 'exact is the common case, so it is the default, not €0');
       expect(
-        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+        tester
+            .widget<PosCashPanel>(find.byType(PosCashPanel))
             .selectedDenomination,
         const PosCashDenomination.exact(),
       );
@@ -355,8 +361,8 @@ void main() {
       // keypad is building up a manual amount from scratch.
       await tester.tap(find.bySemanticsLabel('Clear amount tendered'));
       await tester.pump();
-      expect(find.text(PosHomeSpec.formatPrice(0, padZero: false)),
-          findsWidgets);
+      expect(
+          find.text(PosHomeSpec.formatPrice(0, padZero: false)), findsWidgets);
 
       await tapKey(tester, '2');
       await tapKey(tester, '0');
@@ -379,14 +385,14 @@ void main() {
       expect(find.text(PosHomeSpec.formatPrice(20, padZero: false)),
           findsOneWidget);
       expect(
-        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+        tester
+            .widget<PosCashPanel>(find.byType(PosCashPanel))
             .selectedDenomination,
         const PosCashDenomination.note(2000),
       );
     });
 
-    testWidgets('Exact tenders the total and leaves no change',
-        (tester) async {
+    testWidgets('Exact tenders the total and leaves no change', (tester) async {
       await _pump(tester, lines: [_line('Oat Milk Matcha', 6.5)]);
       await selectCash(tester);
 
@@ -410,7 +416,8 @@ void main() {
       await tester.pump();
 
       expect(
-        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+        tester
+            .widget<PosCashPanel>(find.byType(PosCashPanel))
             .selectedDenomination,
         const PosCashDenomination.note(5000),
         reason: 'the later chip wins; both must not be lit',
@@ -418,7 +425,8 @@ void main() {
 
       await tapKey(tester, '7');
       expect(
-        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+        tester
+            .widget<PosCashPanel>(find.byType(PosCashPanel))
             .selectedDenomination,
         isNull,
         reason: 'manual entry clears the chip highlight',
@@ -448,8 +456,8 @@ void main() {
 
       await tapKey(tester, '2');
       // €2 against a €6 total.
-      expect(find.text(PosHomeSpec.formatPrice(0, padZero: false)),
-          findsWidgets);
+      expect(
+          find.text(PosHomeSpec.formatPrice(0, padZero: false)), findsWidgets);
       expect(find.textContaining('-'), findsNothing);
     });
 
@@ -485,7 +493,8 @@ void main() {
       // Back on Cash, the €20 chip is gone — the tender re-defaults to
       // Exact, not to whatever the operator had chosen before switching away.
       expect(
-        tester.widget<PosCashPanel>(find.byType(PosCashPanel))
+        tester
+            .widget<PosCashPanel>(find.byType(PosCashPanel))
             .selectedDenomination,
         const PosCashDenomination.exact(),
       );
@@ -823,8 +832,8 @@ void main() {
     // the same 1024 floor Home uses, so nothing below 1364 (the width at
     // which the 1300 content cap engages) should show a slope change.
     Future<double> methodCardWidth(WidgetTester tester, double width) async {
-      await _pump(tester, size: Size(width, 900),
-          lines: [_line('Oat Milk Matcha', 6)]);
+      await _pump(tester,
+          size: Size(width, 900), lines: [_line('Oat Milk Matcha', 6)]);
       return tester.getSize(find.byType(PosPaymentMethodCard).first).width;
     }
 
@@ -849,7 +858,8 @@ void main() {
           reason: 'growth rate changed past the old 1180 seam');
     });
 
-    testWidgets('the card keeps growing (not stuck on the medium ratio) up to the cap',
+    testWidgets(
+        'the card keeps growing (not stuck on the medium ratio) up to the cap',
         (tester) async {
       final double w1024 = await methodCardWidth(tester, 1024);
       final double w1364 = await methodCardWidth(tester, 1364);

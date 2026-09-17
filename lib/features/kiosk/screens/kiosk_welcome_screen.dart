@@ -281,7 +281,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
           : const Duration(milliseconds: 400),
       child: image == null
           ? const SizedBox.shrink()
-          : CustomPaint(painter: _IntroBackgroundPainter(image)),
+          : CustomPaint(painter: KioskIntroBackgroundPainter(image)),
     );
   }
 }
@@ -298,10 +298,10 @@ const Color _introEdgeFallback = Color(0xFFE9EAF2);
 /// invisible: the result reads as one image reaching every edge, on a phone, a
 /// wide desktop window or the portrait kiosk panel, with no blurred backdrop
 /// and no letterbox bars.
-class _IntroBackgroundPainter extends CustomPainter {
+class KioskIntroBackgroundPainter extends CustomPainter {
   final ui.Image image;
 
-  const _IntroBackgroundPainter(this.image);
+  const KioskIntroBackgroundPainter(this.image);
 
   /// Width, in source pixels, of the edge strip that gets stretched outwards,
   /// and how far inside the border it is sampled from. The inset skips the
@@ -369,6 +369,6 @@ class _IntroBackgroundPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_IntroBackgroundPainter oldDelegate) =>
+  bool shouldRepaint(KioskIntroBackgroundPainter oldDelegate) =>
       oldDelegate.image != image;
 }

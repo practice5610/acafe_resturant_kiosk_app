@@ -78,8 +78,7 @@ void main() {
         providers: [
           ChangeNotifierProvider<SplashProvider>(
             create: (_) => _SettingsSplash(
-              splashRepo:
-                  SplashRepo(dioClient: dio, sharedPreferences: prefs),
+              splashRepo: SplashRepo(dioClient: dio, sharedPreferences: prefs),
             ),
           ),
           ChangeNotifierProvider<LocalizationProvider>(
@@ -139,8 +138,7 @@ void main() {
         providers: [
           ChangeNotifierProvider<SplashProvider>(
             create: (_) => _SettingsSplash(
-              splashRepo:
-                  SplashRepo(dioClient: dio, sharedPreferences: prefs),
+              splashRepo: SplashRepo(dioClient: dio, sharedPreferences: prefs),
             ),
           ),
           ChangeNotifierProvider<LocalizationProvider>(

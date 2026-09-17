@@ -25,8 +25,10 @@ class _StubOrdersRepo implements PosOrdersRepo {
 
   Map<String, dynamic> _row(int id, String status) => {
         'id': id,
-        'created_at':
-            DateTime.now().toUtc().subtract(const Duration(minutes: 5)).toIso8601String(),
+        'created_at': DateTime.now()
+            .toUtc()
+            .subtract(const Duration(minutes: 5))
+            .toIso8601String(),
         'order_status': status,
         'order_type': 'pos',
         'channel_key': 'counter_pos',
@@ -39,8 +41,15 @@ class _StubOrdersRepo implements PosOrdersRepo {
 
   @override
   Future<ApiResponseModel> getOrders({
-    String? dateFrom, String? dateTo, String? search, String? section,
-    String? status, String? source, String? type, String? method, int limit = 200,
+    String? dateFrom,
+    String? dateTo,
+    String? search,
+    String? section,
+    String? status,
+    String? source,
+    String? type,
+    String? method,
+    int limit = 200,
   }) async =>
       ApiResponseModel.withSuccess(Response<dynamic>(
         requestOptions: RequestOptions(path: '/'),
@@ -235,7 +244,8 @@ void main() {
         home: Scaffold(body: PosCompleteConfirmationDialog()),
       ));
 
-      final Finder complete = find.widgetWithText(PosPaymentCardButton, 'Complete');
+      final Finder complete =
+          find.widgetWithText(PosPaymentCardButton, 'Complete');
       final Container box = tester.widget<Container>(
         find.descendant(of: complete, matching: find.byType(Container)),
       );

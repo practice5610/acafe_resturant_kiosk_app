@@ -15,6 +15,7 @@ import 'package:acafe_customer/features/pos/domain/pos_mode.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/screens/pos_welcome_screen.dart';
 import 'package:acafe_customer/features/pos/pos_router.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
@@ -89,7 +90,8 @@ Future<
     auth: KioskAuthProvider(
         kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs)),
     manager: KioskManagerProvider(
-        kioskManagerRepo: KioskManagerRepo(dioClient: dio, sharedPreferences: prefs)),
+        kioskManagerRepo:
+            KioskManagerRepo(dioClient: dio, sharedPreferences: prefs)),
     session: _UnlockedSessionProvider(
         KioskManagerRepo(dioClient: dio, sharedPreferences: prefs)),
     prefs: prefs,
@@ -164,7 +166,7 @@ void main() {
     }
   });
 
-  testWidgets('a POS device boots straight into the shell, not the kiosk',
+  testWidgets('a POS device boots into the welcome screen, not the kiosk',
       (tester) async {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;
@@ -179,9 +181,17 @@ void main() {
         dio: p.dio));
     await tester.pumpAndSettle();
 
-    // No PIN gate: the counter (POS/Orders/Receipts) needs no one to sign in.
+    // Lands on the welcome screen — POS mode, but outside the tab chrome.
     expect(find.byType(PosShell), findsOneWidget);
     expect(find.byType(KioskShell), findsNothing);
+    expect(find.byType(PosWelcomeScreen), findsOneWidget);
+    expect(find.byType(PosTopNavBar), findsNothing);
+
+    // No PIN gate: one tap anywhere goes straight to the till and its chrome.
+    await tester.tap(find.byKey(PosWelcomeScreen.tapTargetKey));
+    await tester.pumpAndSettle();
+    expect(RouterHelper.goRoutes.routeInformationProvider.value.uri.path,
+        PosRoutes.home);
     expect(find.byType(PosTopNavBar), findsOneWidget);
   });
 
@@ -340,8 +350,7 @@ void main() {
     expect(find.byType(KioskShell), findsNothing);
   });
 
-  testWidgets('POS lays out against the real window, uncapped',
-      (tester) async {
+  testWidgets('POS lays out against the real window, uncapped', (tester) async {
     // The kiosk shell would cap this at its 2572 artboard and rewrite
     // MediaQuery.size to match. POS must see the window it actually has.
     tester.view.physicalSize = const Size(3000, 1400);
@@ -359,8 +368,7 @@ void main() {
     RouterHelper.goRoutes.go(PosRoutes.home);
     await tester.pumpAndSettle();
 
-    final metrics = PosMetrics.of(
-        tester.element(find.byType(PosTopNavBar)));
+    final metrics = PosMetrics.of(tester.element(find.byType(PosTopNavBar)));
     expect(metrics.window.width, 3000);
     expect(metrics.showsSideReceipt, isTrue);
   });

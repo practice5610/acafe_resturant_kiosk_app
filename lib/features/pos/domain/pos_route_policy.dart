@@ -50,10 +50,12 @@ class PosRoutePolicy {
     }
 
     // Logged in: the till is usable by anyone at the counter (POS, Orders,
-    // Receipts) with no PIN gate. Any kiosk path this device wandered onto
-    // resolves to the POS home.
+    // Receipts) with no PIN gate. Any kiosk path this device wandered onto —
+    // including the one device login hands off to — resolves to the welcome
+    // screen. Finished sales and the manager bounce below still go to the
+    // till directly.
     if (!PosRoutes.matches(path)) {
-      return PosRoutes.home;
+      return PosRoutes.welcome;
     }
 
     // Gate 2: Report/Settings are Manager/Owner-only, reached only via the

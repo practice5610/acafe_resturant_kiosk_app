@@ -105,9 +105,8 @@ class _FakeManager extends KioskManagerProvider {
     toggles.add((id: productId, status: nextStatus));
     if (failNextToggle) return false;
     _rows = _rows
-        .map((row) => row['id'] == productId
-            ? {...row, 'is_available': nextStatus}
-            : row)
+        .map((row) =>
+            row['id'] == productId ? {...row, 'is_available': nextStatus} : row)
         .toList();
     notifyListeners();
     return true;
@@ -255,10 +254,12 @@ void main() {
     expect(toggleFor('Double Matcha').value, isFalse);
 
     await tester.tap(find.descendant(
-      of: find.ancestor(
-        of: find.text('Double Matcha'),
-        matching: find.byType(Row),
-      ).first,
+      of: find
+          .ancestor(
+            of: find.text('Double Matcha'),
+            matching: find.byType(Row),
+          )
+          .first,
       matching: find.byType(PosToggle),
     ));
     await tester.pumpAndSettle();

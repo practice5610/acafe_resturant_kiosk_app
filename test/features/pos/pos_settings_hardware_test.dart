@@ -362,8 +362,7 @@ void main() {
     expect(repo.loadSaved(storeName: 'x')?.sameAs(original), isTrue);
   });
 
-  test('repo returns null rather than throwing on a corrupt payload',
-      () async {
+  test('repo returns null rather than throwing on a corrupt payload', () async {
     SharedPreferences.setMockInitialValues({
       AppConstants.posHardwareSettingsKey: '{{{',
     });
@@ -605,7 +604,8 @@ void main() {
     expect(map['order_number_prefix'], 'TILL-');
     expect(map['use_store_name'], isTrue);
 
-    await _pumpHardware(tester, seed: {AppConstants.posHardwareSettingsKey: raw});
+    await _pumpHardware(tester,
+        seed: {AppConstants.posHardwareSettingsKey: raw});
     expect(find.text('Preview: TILL-0001'), findsOneWidget);
   });
 
@@ -621,8 +621,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Kitchen Ticket Printing is flagged as unbacked',
-      (tester) async {
+  testWidgets('Kitchen Ticket Printing is flagged as unbacked', (tester) async {
     await _pumpHardware(tester);
     expect(
       find.textContaining('No kitchen printer is paired'),
@@ -636,8 +635,7 @@ void main() {
     expect(find.textContaining('Sample transaction'), findsOneWidget);
   });
 
-  testWidgets('other Settings sections still route correctly',
-      (tester) async {
+  testWidgets('other Settings sections still route correctly', (tester) async {
     await _pumpHardware(tester);
 
     await tester.tap(find.text('GENERAL'));

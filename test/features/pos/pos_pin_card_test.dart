@@ -42,8 +42,8 @@ Future<void> pumpCard(
   tester.view.physicalSize = surface;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(
-      host(onSubmit: onSubmit, pinLength: pinLength, width: width));
+  await tester
+      .pumpWidget(host(onSubmit: onSubmit, pinLength: pinLength, width: width));
   await tester.pumpAndSettle();
 }
 
@@ -85,10 +85,12 @@ void main() {
     await pumpCard(tester, onSubmit: (_) async => true);
 
     Opacity confirmOpacity() => tester.widget<Opacity>(
-          find.ancestor(
-            of: find.text('VERIFY & LOGIN'),
-            matching: find.byType(Opacity),
-          ).last,
+          find
+              .ancestor(
+                of: find.text('VERIFY & LOGIN'),
+                matching: find.byType(Opacity),
+              )
+              .last,
         );
 
     expect(confirmOpacity().opacity, 0.4);

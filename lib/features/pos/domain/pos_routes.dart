@@ -15,6 +15,9 @@ class PosRoutes {
   /// Every POS path starts with this.
   static const String prefix = '/pos-';
 
+  /// Post-login landing screen. Outside the shell: it carries its own header.
+  static const String welcome = '/pos-welcome';
+
   // Shell tabs (persistent top nav)
   static const String home = '/pos-home';
   static const String browse = '/pos-browse';

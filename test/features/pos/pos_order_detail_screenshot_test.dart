@@ -162,9 +162,21 @@ Map<String, dynamic> _payload({
       'customer_email': withContact ? 'max.mustermann@example.com' : null,
       'order_note': note,
       'items': [
-        _item(name: 'Cappuccino', price: 4.5, variation: 'Cup', addons: ['Oat Milk']),
-        _item(name: 'Croissant', price: 3.2, variation: 'Can', instruction: 'Warmed up'),
-        _item(name: 'Flat White', price: 4.0, variation: 'Cup', addons: ['Extra hot']),
+        _item(
+            name: 'Cappuccino',
+            price: 4.5,
+            variation: 'Cup',
+            addons: ['Oat Milk']),
+        _item(
+            name: 'Croissant',
+            price: 3.2,
+            variation: 'Can',
+            instruction: 'Warmed up'),
+        _item(
+            name: 'Flat White',
+            price: 4.0,
+            variation: 'Cup',
+            addons: ['Extra hot']),
       ],
       'subtotal': 11.7,
       'discount': 0,

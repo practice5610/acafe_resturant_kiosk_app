@@ -23,7 +23,8 @@ String? redirect(
 
 void main() {
   group('kiosk devices are never shown POS', () {
-    test('a logged-in kiosk device on a POS path goes to the kiosk welcome', () {
+    test('a logged-in kiosk device on a POS path goes to the kiosk welcome',
+        () {
       expect(
         redirect(PosRoutes.home, isPosDevice: false),
         RouterHelper.kioskWelcomeScreen,
@@ -55,6 +56,7 @@ void main() {
   group('logged-in terminal', () {
     test('every non-manager POS path is reachable with no PIN at all', () {
       for (final path in [
+        PosRoutes.welcome,
         PosRoutes.home,
         PosRoutes.browse,
         PosRoutes.orders,
@@ -69,7 +71,7 @@ void main() {
       }
     });
 
-    test('kiosk paths resolve to the POS home', () {
+    test('kiosk paths resolve to the POS welcome screen', () {
       for (final path in [
         RouterHelper.kioskMenuScreen,
         RouterHelper.kioskWelcomeScreen,
@@ -77,8 +79,8 @@ void main() {
         RouterHelper.kioskLoginScreen,
         RouterHelper.dashboard,
       ]) {
-        expect(redirect(path), PosRoutes.home,
-            reason: '$path should send a POS terminal home');
+        expect(redirect(path), PosRoutes.welcome,
+            reason: '$path should send a POS terminal to the welcome screen');
       }
     });
   });
@@ -166,7 +168,8 @@ void main() {
                   isLoggedIn: state.loggedIn,
                   canAccessManagerTabs: state.manager),
               isNull,
-              reason: 'did not settle from $start in $state (stuck at $current)');
+              reason:
+                  'did not settle from $start in $state (stuck at $current)');
         }
       }
     });

@@ -58,8 +58,8 @@ Future<void> _loadFonts() async {
 }
 
 Future<void> _loadMaterialIcons() async {
-  final String? flutterRoot = Platform.environment['FLUTTER_ROOT'] ??
-      _flutterRootFromDartExecutable();
+  final String? flutterRoot =
+      Platform.environment['FLUTTER_ROOT'] ?? _flutterRootFromDartExecutable();
   if (flutterRoot == null) return;
 
   final File font = File(

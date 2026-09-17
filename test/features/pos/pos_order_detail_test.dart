@@ -85,7 +85,8 @@ void main() {
 
     test('a carrier naming someone else is kept, not silently eaten', () {
       final d = PosOrderDetail.fromJson(
-        _payload(customerName: 'Sanne de Vries', note: 'Kiosk order — Someone Else'),
+        _payload(
+            customerName: 'Sanne de Vries', note: 'Kiosk order — Someone Else'),
       );
       expect(d.displayNote, 'Kiosk order — Someone Else');
     });
@@ -100,14 +101,21 @@ void main() {
 
     test('empty / whitespace notes render nothing', () {
       expect(PosOrderDetail.fromJson(_payload(note: null)).displayNote, isNull);
-      expect(PosOrderDetail.fromJson(_payload(note: '   ')).displayNote, isNull);
+      expect(
+          PosOrderDetail.fromJson(_payload(note: '   ')).displayNote, isNull);
     });
   });
 
   group('Item notes only appear where the line has them', () {
     test('a line with no add-ons and no instruction has no notes', () {
       final d = PosOrderDetail.fromJson(_payload(items: [
-        {'name': 'Flat White', 'quantity': 1, 'unit_price': 5.0, 'addons': [], 'variations': []},
+        {
+          'name': 'Flat White',
+          'quantity': 1,
+          'unit_price': 5.0,
+          'addons': [],
+          'variations': []
+        },
       ]));
       expect(d.items.single.hasNotes, isFalse);
     });
@@ -134,7 +142,14 @@ void main() {
 
     test('a per-line instruction alone is enough', () {
       final d = PosOrderDetail.fromJson(_payload(items: [
-        {'name': 'Latte', 'quantity': 1, 'unit_price': 4.0, 'instruction': 'more ice hige', 'addons': [], 'variations': []},
+        {
+          'name': 'Latte',
+          'quantity': 1,
+          'unit_price': 4.0,
+          'instruction': 'more ice hige',
+          'addons': [],
+          'variations': []
+        },
       ]));
       expect(d.items.single.hasNotes, isTrue);
     });
@@ -147,7 +162,12 @@ void main() {
           'unit_price': 4.5,
           'addons': [],
           'variations': [
-            {'name': 'Size', 'options': [{'label': 'Cup', 'price': 0}]},
+            {
+              'name': 'Size',
+              'options': [
+                {'label': 'Cup', 'price': 0}
+              ]
+            },
           ],
         },
       ]));
@@ -165,7 +185,8 @@ void main() {
 
     test('item_to_collect is the rung that completes', () {
       expect(PosOrderGrouping.nextStatusFor('item_to_collect'), 'completed');
-      expect(PosOrderGrouping.actionLabelFor('item_to_collect'), 'Mark as complete');
+      expect(PosOrderGrouping.actionLabelFor('item_to_collect'),
+          'Mark as complete');
     });
 
     test('on_hold resumes', () {

@@ -496,8 +496,7 @@ void main() {
       expect(find.text('Report'), findsNothing);
     });
 
-    testWidgets('the active tab is never the one tucked away',
-        (tester) async {
+    testWidgets('the active tab is never the one tucked away', (tester) async {
       await pumpBar(tester, width: 1024, currentPath: PosRoutes.settings);
 
       // Settings is active and narrow enough that something has to give --

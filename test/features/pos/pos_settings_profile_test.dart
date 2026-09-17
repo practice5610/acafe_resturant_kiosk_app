@@ -77,8 +77,7 @@ Future<void> _pumpProfile(WidgetTester tester) async {
       providers: [
         ChangeNotifierProvider<SplashProvider>(
           create: (_) => _Splash(
-            splashRepo:
-                SplashRepo(dioClient: dio, sharedPreferences: prefs),
+            splashRepo: SplashRepo(dioClient: dio, sharedPreferences: prefs),
           ),
         ),
         ChangeNotifierProvider<LocalizationProvider>(

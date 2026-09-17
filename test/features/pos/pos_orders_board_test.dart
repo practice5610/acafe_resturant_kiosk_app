@@ -25,7 +25,8 @@ void main() {
       );
     });
 
-    test('item_to_collect, completed and legacy delivered land in FINISHED', () {
+    test('item_to_collect, completed and legacy delivered land in FINISHED',
+        () {
       expect(
         PosOrderGrouping.sectionOf('item_to_collect'),
         PosOrderSection.finished,
@@ -242,7 +243,8 @@ void main() {
       );
     });
 
-    test('an order with no address falls back to channel and branch, not a '
+    test(
+        'an order with no address falls back to channel and branch, not a '
         'fabricated table label', () {
       expect(build().subtitleLines, ['Point of sale', 'Acafe/Amsterdam']);
     });

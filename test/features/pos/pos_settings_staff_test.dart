@@ -66,8 +66,7 @@ Future<void> _pumpStaff(WidgetTester tester) async {
     AppConstants.kioskUsername: 'till1',
     // Widget tests still use the Figma seed as fixture data; production
     // loads from the DB and starts empty when none exist.
-    AppConstants.posStaffRosterKey:
-        jsonEncode(PosStaffRoster.seed().toJson()),
+    AppConstants.posStaffRosterKey: jsonEncode(PosStaffRoster.seed().toJson()),
   });
   final prefs = await SharedPreferences.getInstance();
   final dio = DioClient(
@@ -82,8 +81,7 @@ Future<void> _pumpStaff(WidgetTester tester) async {
       providers: [
         ChangeNotifierProvider<SplashProvider>(
           create: (_) => _Splash(
-            splashRepo:
-                SplashRepo(dioClient: dio, sharedPreferences: prefs),
+            splashRepo: SplashRepo(dioClient: dio, sharedPreferences: prefs),
           ),
         ),
         ChangeNotifierProvider<LocalizationProvider>(
@@ -177,7 +175,8 @@ void main() {
     expect(find.text('ADD STAFF MEMBER'), findsOneWidget);
 
     await tester.enterText(
-      find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
+      find.descendant(
+          of: find.byType(Dialog), matching: find.byType(TextField)),
       'Amir Morning',
     );
     await tester.tap(find.text('Add Member'));
@@ -199,7 +198,8 @@ void main() {
     expect(find.text('ADD STAFF MEMBER'), findsOneWidget);
 
     await tester.enterText(
-      find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
+      find.descendant(
+          of: find.byType(Dialog), matching: find.byType(TextField)),
       'Lea Afternoon',
     );
     await tester.tap(find.text('Add Member'));
@@ -218,7 +218,8 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
+      find.descendant(
+          of: find.byType(Dialog), matching: find.byType(TextField)),
       'Sanne Bakker',
     );
     // Morning is selected by default; also pick Evening.
@@ -253,7 +254,8 @@ void main() {
     expect(find.text('Select at least one shift'), findsOneWidget);
 
     await tester.enterText(
-      find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)),
+      find.descendant(
+          of: find.byType(Dialog), matching: find.byType(TextField)),
       'Amir',
     );
     await tester.tap(find.text('Add Member'));

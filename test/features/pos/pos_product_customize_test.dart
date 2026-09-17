@@ -124,8 +124,8 @@ void main() {
               create: (_) =>
                   CartProvider(cartRepo: CartRepo(sharedPreferences: prefs))),
           ChangeNotifierProvider<CouponProvider>(
-              create: (_) => CouponProvider(
-                  couponRepo: CouponRepo(dioClient: dio))),
+              create: (_) =>
+                  CouponProvider(couponRepo: CouponRepo(dioClient: dio))),
         ],
         child: MaterialApp(
           navigatorKey: navigatorKey,

@@ -346,8 +346,7 @@ void main() {
         expect(find.text(trigger), findsWidgets);
       });
 
-      testWidgets('confirming "$trigger" sends the transition',
-          (tester) async {
+      testWidgets('confirming "$trigger" sends the transition', (tester) async {
         final repo = _StubOrdersRepo();
         await pumpBoard(tester, repo, size: tall);
 

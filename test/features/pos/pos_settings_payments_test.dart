@@ -198,11 +198,13 @@ void main() {
         giftCardsEnabled: true,
         defaultTaxRate: '9%',
       );
-      final back = PosPaymentSettings.fromJson(jsonDecode(jsonEncode(s.toJson())));
+      final back =
+          PosPaymentSettings.fromJson(jsonDecode(jsonEncode(s.toJson())));
       expect(back.sameAs(s), isTrue);
     });
 
-    test('a stored payload with no tenders restores cash rather than bricking '
+    test(
+        'a stored payload with no tenders restores cash rather than bricking '
         'checkout', () {
       final back = PosPaymentSettings.fromJson(const {
         'cash_enabled': false,
@@ -213,7 +215,8 @@ void main() {
     });
 
     test('a malformed payload falls back to defaults field by field', () {
-      final back = PosPaymentSettings.fromJson(const {'default_tax_rate': '  '});
+      final back =
+          PosPaymentSettings.fromJson(const {'default_tax_rate': '  '});
       expect(back.defaultTaxRate, PosPaymentSettings.defaultTaxRateLabel);
       expect(back.cashEnabled, isTrue);
     });
@@ -344,7 +347,8 @@ void main() {
       expect(saved.taxModel, 'exclude');
     });
 
-    test('auto-print writes into Hardware\'s record, the flag the payment '
+    test(
+        'auto-print writes into Hardware\'s record, the flag the payment '
         'flow already reads', () async {
       SharedPreferences.setMockInitialValues({});
       final p = await SharedPreferences.getInstance();

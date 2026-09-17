@@ -130,7 +130,8 @@ class _StubManager extends KioskManagerProvider {
         'discount': 8.30,
         'total': 16.70,
         'details': [
-          _line('Oat Milk Matcha', 6.00, 'Cup', const ['Extra Oat Milk option']),
+          _line(
+              'Oat Milk Matcha', 6.00, 'Cup', const ['Extra Oat Milk option']),
           _line('Vanilla Matcha Latte', 6.50, 'Can',
               const ['Premium Vanilla syrup']),
           _line('Mango Matcha Specialty', 7.00, 'Cup', const [
@@ -138,7 +139,9 @@ class _StubManager extends KioskManagerProvider {
             'Coconut milk',
             'Honey drizzle',
             'Chia seeds',
-          ], removed: const ['Whipped cream']),
+          ], removed: const [
+            'Whipped cream'
+          ]),
         ],
       };
 
