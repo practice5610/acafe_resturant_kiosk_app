@@ -613,7 +613,7 @@ void main() {
       await tester.tap(find.text('Accept difference'));
       await tester.pumpAndSettle();
       await tester.enterText(
-          find.widgetWithText(TextField, 'Reason for difference'),
+          find.widgetWithText(TextField, 'Reason for difference (optional)'),
           'Short till');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirm & Close Day'));
@@ -632,7 +632,7 @@ void main() {
       expect(rows.first['subtotal'], 100.0);
     });
 
-    testWidgets('accepting a difference needs a reason before it can confirm',
+    testWidgets('a cash difference can be accepted without a reason',
         (tester) async {
       final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
 
@@ -650,31 +650,69 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Cash difference detected'), findsOneWidget);
+      expect(find.text('Accept the cash difference or recount first'),
+          findsOneWidget);
 
       await tester.tap(find.text('Accept difference'));
       await tester.pumpAndSettle();
 
-      // Accepted, but unexplained: still gated, and the hint says why.
-      expect(find.text('Add a reason for the cash difference first'),
-          findsOneWidget);
-      await tester.tap(find.text('Confirm & Close Day'));
-      await tester.pumpAndSettle();
-      expect(manager.closedDates, isEmpty);
-
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Reason for difference'),
-        'Change error at morning shift',
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Add a reason for the cash difference first'),
-          findsNothing);
+      expect(find.text('Difference accepted ✓'), findsOneWidget);
       await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
+      expect(manager.closedPayloads.single['closing_cash_counted'], 800.0);
+      expect(manager.closedPayloads.single['difference_reason'], isNull);
+    });
+
+    testWidgets('an optional difference reason is sent when given',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      for (final String key in <String>['9', '0', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Accept difference'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Reason for difference (optional)'),
+        'Tip left in drawer',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+
+      expect(manager.closedPayloads.single['closing_cash_counted'], 900.0);
       expect(manager.closedPayloads.single['difference_reason'],
-          'Change error at morning shift');
+          'Tip left in drawer');
+    });
+
+    testWidgets('the amount field shows typed decimals as they are keyed',
+        (tester) async {
+      await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      for (final String key in <String>['6', '2', ',']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('€ 62.'), findsOneWidget);
+
+      await tester.tap(find.text('5').first);
+      await tester.pumpAndSettle();
+      expect(find.text('€ 62.5'), findsOneWidget);
+
+      await tester.tap(find.text('0').first);
+      await tester.pumpAndSettle();
+      expect(find.text('€ 62.50'), findsOneWidget);
     });
 
     testWidgets('a wrong manager PIN blocks the close and says so',
@@ -734,7 +772,7 @@ void main() {
       expect(manager.closedDates, hasLength(1));
     });
 
-    testWidgets('an unsent accountant email is reported, not implied',
+    testWidgets('an unsent admin email is reported, not implied',
         (tester) async {
       final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
 
@@ -748,8 +786,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Email report to accountant'));
-      await tester.pumpAndSettle();
+      // Ticked by default: admins get the report unless opted out.
       await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 

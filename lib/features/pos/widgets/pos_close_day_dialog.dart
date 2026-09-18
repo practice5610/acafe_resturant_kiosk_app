@@ -446,6 +446,23 @@ class _AmountField extends StatelessWidget {
 
   const _AmountField({required this.entry});
 
+  /// Formatted like every other price, except that once the decimal key has
+  /// been pressed the fraction shows exactly what was typed: `62.`, `62.5`,
+  /// `62.50`. Always rendering the rounded `62.00` made the `,` key look dead.
+  static String _display(PosCashEntry entry) {
+    final String formatted = PosHomeSpec.formatPrice(
+      posCentsToMoney(entry.cents, decimals: entry.decimals),
+      padZero: false,
+    );
+    final int mark = entry.raw.indexOf(PosCashEntry.decimalMark);
+    if (mark < 0) return formatted;
+    final String typedFraction = entry.raw.substring(mark + 1);
+    return formatted.replaceFirstMapped(
+      RegExp(r'\.\d+'),
+      (_) => '.$typedFraction',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool empty = entry.isEmpty;
@@ -461,12 +478,7 @@ class _AmountField extends StatelessWidget {
         ),
       ),
       child: Text(
-        empty
-            ? 'Enter counted amount'
-            : PosHomeSpec.formatPrice(
-                posCentsToMoney(entry.cents, decimals: entry.decimals),
-                padZero: false,
-              ),
+        empty ? 'Enter counted amount' : _display(entry),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: loewRegular.copyWith(

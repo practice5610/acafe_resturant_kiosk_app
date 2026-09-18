@@ -72,26 +72,17 @@ class _PosCloseDayStep2PanelState extends State<PosCloseDayStep2Panel> {
   bool _acceptedDifference = false;
   bool _closeAnyway = false;
   bool _printZReport = false;
-  bool _emailReport = false;
+
+  /// On by default: a closed day is reported to the admins unless the
+  /// operator deliberately opts out.
+  bool _emailReport = true;
   bool _verifyingPin = false;
   String? _pinError;
   final TextEditingController _reason = TextEditingController();
   final TextEditingController _pin = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    // The reason is part of the confirm gate below, so the footer has to
-    // re-evaluate as it is typed rather than only when some other control
-    // moves.
-    _reason.addListener(_onReasonChanged);
-  }
-
-  void _onReasonChanged() => setState(() {});
-
-  @override
   void dispose() {
-    _reason.removeListener(_onReasonChanged);
     _reason.dispose();
     _pin.dispose();
     super.dispose();
@@ -104,14 +95,11 @@ class _PosCloseDayStep2PanelState extends State<PosCloseDayStep2Panel> {
 
   bool get _hasPending => widget.data.pendingPrepCount > 0;
 
-  /// Accepting a difference has to say why. The note is the only record of
-  /// what happened to the missing (or surplus) cash, and it is what
-  /// `cash_drawer.discrepancy_note` persists — accepting silently would close
-  /// the day with a variance and no explanation attached to it.
-  bool get _reasonGiven => _reason.text.trim().isNotEmpty;
-
-  bool get _cashResolved =>
-      !_hasDiscrepancy || (_acceptedDifference && _reasonGiven);
+  /// A short or over drawer is a normal business outcome, so accepting it is
+  /// enough to close. The reason is optional; when given it is persisted as
+  /// `cash_drawer.discrepancy_note`, and the counted/expected/discrepancy
+  /// figures are stored either way.
+  bool get _cashResolved => !_hasDiscrepancy || _acceptedDifference;
 
   bool get _ordersResolved => !_hasPending || _closeAnyway;
 
@@ -124,9 +112,7 @@ class _PosCloseDayStep2PanelState extends State<PosCloseDayStep2Panel> {
       return 'Resolve the cash difference and open orders first';
     }
     if (!_cashResolved) {
-      return _acceptedDifference
-          ? 'Add a reason for the cash difference first'
-          : 'Resolve the cash difference first';
+      return 'Accept the cash difference or recount first';
     }
     return 'Resolve open orders first';
   }
@@ -433,9 +419,11 @@ class _DiscrepancySection extends StatelessWidget {
             const SizedBox(width: PosCloseDaySpec.discrepancyActionGap),
             Expanded(
               child: _SecondaryButton(
-                label: 'Accept difference',
+                label: accepted ? 'Difference accepted ✓' : 'Accept difference',
                 filled: true,
-                onTap: accepted ? null : onAccept,
+                // Stays fully opaque once accepted so it reads as a
+                // confirmed choice rather than a disabled button.
+                onTap: accepted ? () {} : onAccept,
               ),
             ),
           ],
@@ -449,7 +437,7 @@ class _DiscrepancySection extends StatelessWidget {
               color: PosCloseDaySpec.ink,
             ),
             decoration: InputDecoration(
-              hintText: 'Reason for difference',
+              hintText: 'Reason for difference (optional)',
               hintStyle: loewRegular.copyWith(
                 fontSize: PosCloseDaySpec.inputTextSize,
                 color: PosCloseDaySpec.inputPlaceholder,
@@ -601,7 +589,7 @@ class _ActionsList extends StatelessWidget {
         ),
         const SizedBox(height: PosCloseDaySpec.actionsListGap),
         _CheckboxRow(
-          label: 'Email report to accountant',
+          label: 'Email report to admin',
           value: emailReport,
           onChanged: onEmailChanged,
         ),
