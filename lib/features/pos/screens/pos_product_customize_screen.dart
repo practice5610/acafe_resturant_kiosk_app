@@ -54,24 +54,22 @@ void openPosCustomize(
   //
   // The one difference from kiosk: the branch admin's "Show Allergen Tag"
   // toggle gates this entirely for POS. Kiosk has no such toggle.
-  // DISABLED (2026-09-23, product decision): the popup was firing on every
-  // first product tap. Restore by un-commenting this block.
-  // final bool allergenTagEnabled =
-  //     Provider.of<KioskAuthProvider>(context, listen: false)
-  //         .allergenTagEnabled;
-  // if (allergenTagEnabled &&
-  //     cart == null &&
-  //     !KioskAllergenPreferences.instance.asked) {
-  //   _askAllergensThenOpenPosCustomize(
-  //     context,
-  //     product,
-  //     customerNameController: customerNameController,
-  //     tableController: tableController,
-  //     orderType: orderType,
-  //     onOrderTypeChanged: onOrderTypeChanged,
-  //   );
-  //   return;
-  // }
+  final bool allergenTagEnabled =
+      Provider.of<KioskAuthProvider>(context, listen: false)
+          .allergenTagEnabled;
+  if (allergenTagEnabled &&
+      cart == null &&
+      !KioskAllergenPreferences.instance.asked) {
+    _askAllergensThenOpenPosCustomize(
+      context,
+      product,
+      customerNameController: customerNameController,
+      tableController: tableController,
+      orderType: orderType,
+      onOrderTypeChanged: onOrderTypeChanged,
+    );
+    return;
+  }
   _openPosCustomizeNow(
     context,
     product,
@@ -87,7 +85,6 @@ void openPosCustomize(
 /// Shows the allergen popup, then opens the product the staff member
 /// tapped — unless what was just declared rules it out. Mirrors
 /// `_askAllergensThenOpenKioskCustomize`.
-// ignore: unused_element
 Future<void> _askAllergensThenOpenPosCustomize(
   BuildContext context,
   Product product, {

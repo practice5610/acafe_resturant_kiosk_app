@@ -308,21 +308,18 @@ void openKioskCustomize(BuildContext context, Product product,
   // Guarded on `cart == null` so this only fires on a NEW product selection.
   // Re-opening an existing cart line is an edit, and someone with a line in the
   // cart has necessarily already been asked.
-  // DISABLED (2026-09-23, product decision): the popup was firing on every
-  // first product tap. Restore by un-commenting this block.
-  // if (cart == null &&
-  //     onConfigured == null &&
-  //     !KioskAllergenPreferences.instance.asked) {
-  //   _askAllergensThenOpenKioskCustomize(context, product);
-  //   return;
-  // }
+  if (cart == null &&
+      onConfigured == null &&
+      !KioskAllergenPreferences.instance.asked) {
+    _askAllergensThenOpenKioskCustomize(context, product);
+    return;
+  }
   _openKioskCustomizeNow(context, product,
       cart: cart, cartIndex: cartIndex, onConfigured: onConfigured);
 }
 
 /// Shows the allergen popup, then opens the product the customer tapped —
 /// unless what they just declared rules it out.
-// ignore: unused_element
 Future<void> _askAllergensThenOpenKioskCustomize(
     BuildContext context, Product product) async {
   await showKioskAllergenFilter(context);
