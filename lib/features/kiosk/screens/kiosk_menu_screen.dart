@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_logout_button.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
@@ -368,6 +369,11 @@ class _KioskTopBar extends StatelessWidget {
               onTap: () => openKioskMenuFilterSheet(context)),
           SizedBox(width: 38 * s),
           _LanguageFlagButton(s: s),
+          SizedBox(width: 38 * s),
+          // Staff sign-out — the same avatar + "Logout" dropdown +
+          // confirmation the POS nav bar carries, and the same control the
+          // kiosk welcome screen shows. Sized to the other top-bar circles.
+          KioskLogoutButton(size: _topBarActionDiameter(s)),
         ],
       ),
     );
