@@ -132,8 +132,13 @@ void _openPosCustomizeNow(
       addOns.isNotEmpty ||
       product.effectiveAddOnGroups.isNotEmpty;
 
-  if (!hasModifiers) {
-    if (cart != null || cartIndex != null) return;
+  // A line already in the receipt always opens, even when the product has no
+  // variations or add-ons (merchandise: t-shirts, mugs, bags). Returning here
+  // is what made EDIT a dead tap on live, where such products exist; the
+  // screen still edits quantity and the kitchen note.
+  final bool editingExistingLine = cart != null || cartIndex != null;
+
+  if (!hasModifiers && !editingExistingLine) {
     productProvider.initData(product, null);
     productProvider.initProductVariationStatus(0);
     cartProvider.addToCart(
