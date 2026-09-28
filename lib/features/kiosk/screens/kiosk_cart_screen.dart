@@ -240,6 +240,11 @@ class _CartBody extends StatelessWidget {
                               padding:
                                   EdgeInsets.only(bottom: layout.lineGap * s),
                               child: KioskOrderLineCard(
+                                // Keyed on the LINE, not its position. A merge
+                                // (editing line 2 into line 1's milk) shortens
+                                // the list, and an index key would hand the
+                                // surviving card the removed line's state.
+                                key: ValueKey(cartList[i]!.lineId),
                                 s: s,
                                 cart: cartList[i]!,
                                 index: i,

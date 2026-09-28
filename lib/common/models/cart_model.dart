@@ -1,6 +1,10 @@
 import 'package:acafe_customer/common/models/product_model.dart';
 
 class CartModel {
+  /// Source of [lineId]. Process-local and never persisted — see [lineId].
+  static int _nextLineId = 1;
+
+  int? _lineId;
   double? _price;
   double? _discountedPrice;
   List<Variation>? _variation;
@@ -35,6 +39,7 @@ class CartModel {
       double? bundlePrice,
       List<CartModel>? components,
       }) {
+    _lineId = _nextLineId++;
     _price = price;
     _discountedPrice = discountedPrice;
     _variation = variation;
@@ -51,6 +56,25 @@ class CartModel {
     _bundlePrice = bundlePrice;
     _components = components;
   }
+
+  /// Identity of THIS cart line, distinct from the product it holds.
+  ///
+  /// Two lines of the same product with different milk are two different lines,
+  /// so nothing downstream may key off `product.id`. Use this for widget keys
+  /// and for naming a line in a log; the *index* into `CartProvider.cartList`
+  /// is still what mutating calls take, because the list is the cart.
+  ///
+  /// TRANSIENT on purpose: never written by [toJson], never read by
+  /// [CartModel.fromJson]. Persisting it would hand a restored cart ids minted
+  /// by a previous process, which the counter here is free to mint again. A
+  /// line restored from SharedPreferences is re-stamped by
+  /// `CartProvider.getCartData`; the `??=` below is the backstop that keeps
+  /// this non-null for any other path (a deal component, a test) so a
+  /// `ValueKey` can never collide on null.
+  int get lineId => _lineId ??= _nextLineId++;
+
+  /// Gives this line a brand-new [lineId]. Called on restore.
+  void stampFreshLineId() => _lineId = _nextLineId++;
 
   double? get price => _price;
   double? get discountedPrice => _discountedPrice;

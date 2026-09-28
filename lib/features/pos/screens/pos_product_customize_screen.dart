@@ -149,19 +149,21 @@ void _openPosCustomizeNow(
     return;
   }
 
-  bool replaceOtherProductLines = false;
-  if (cart == null) {
-    for (int i = cartProvider.cartList.length - 1; i >= 0; i--) {
-      final line = cartProvider.cartList[i];
-      if (line?.product?.id == product.id && line?.isDeal != true) {
-        cart = line;
-        cartIndex = i;
-        replaceOtherProductLines = true;
-        break;
-      }
-    }
-  }
-
+  // A NEW product tap opens a BLANK configuration, even when the receipt
+  // already holds this product. `cart == null` means the caller did not hand us
+  // a line to edit, and a tap on the product grid is exactly that.
+  //
+  // This is where "Americano, Small" used to become an edit of "Americano,
+  // Large": the code here searched the receipt by product.id, seeded this
+  // screen with that line's picks and set cartIndex, so saving overwrote it —
+  // and `removeOtherLinesForProduct` then deleted every other Americano line.
+  // One product could only ever occupy one receipt line.
+  //
+  // Nothing replaces it. Whether the new line stacks onto an existing one or
+  // stands on its own is [CartProvider.addToCart]'s decision, made on the full
+  // configuration signature (see `cart_line_matcher.dart`) rather than on the
+  // product id. Editing still works — it comes in through `openPosCartLine`,
+  // which passes the line and its index explicitly.
   productProvider.initData(product, cart);
   productProvider.initProductVariationStatus(
       ProductHelper.effectiveVariations(product)?.length ?? 0);
@@ -172,7 +174,6 @@ void _openPosCustomizeNow(
         product: product,
         cartIndex: cartIndex,
         initialInstruction: cart?.instruction,
-        replaceOtherProductLines: replaceOtherProductLines,
         customerNameController: customerNameController,
         tableController: tableController,
         orderType: orderType,
@@ -212,7 +213,6 @@ class PosProductCustomizeScreen extends StatefulWidget {
   final Product product;
   final int? cartIndex;
   final String? initialInstruction;
-  final bool replaceOtherProductLines;
   final TextEditingController? customerNameController;
   final TextEditingController? tableController;
   final PosOrderType orderType;
@@ -223,7 +223,6 @@ class PosProductCustomizeScreen extends StatefulWidget {
     required this.product,
     this.cartIndex,
     this.initialInstruction,
-    this.replaceOtherProductLines = false,
     this.customerNameController,
     this.tableController,
     this.orderType = PosOrderType.dineIn,
@@ -348,12 +347,6 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     final int index = widget.cartIndex ?? productProvider.cartIndex;
     cartProvider.addToCart(built, index, showMessage: false);
-    if (widget.replaceOtherProductLines &&
-        _product.id != null &&
-        index != null &&
-        index >= 0) {
-      cartProvider.removeOtherLinesForProduct(_product.id!, index);
-    }
     Navigator.of(context).pop();
   }
 
@@ -401,7 +394,6 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
           product: product,
           cartIndex: index,
           initialInstruction: line.instruction,
-          replaceOtherProductLines: false,
           customerNameController: widget.customerNameController,
           tableController: widget.tableController,
           orderType: _orderType,
