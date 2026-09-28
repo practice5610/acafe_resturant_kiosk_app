@@ -45,6 +45,12 @@ class CartProvider extends ChangeNotifier {
         cartRepo?.addToCartList(_cartList);
       } catch (_) {}
     }
+    // A restored line carries no lineId — it is never persisted (see
+    // CartModel.lineId). Stamp every line now, before anything can key a
+    // widget off it, so ids stay unique within this process.
+    for (final cart in _cartList) {
+      cart?.stampFreshLineId();
+    }
     _amount = 0;
     for (final cart in _cartList) {
       if (cart == null) continue;
@@ -52,11 +58,42 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
-  void addToCart(CartModel cartModel, int? index, {bool showMessage = true}) {
+  /// Writes [cartModel] into the cart and returns the index it ended up at, or
+  /// -1 if the cart was left untouched.
+  ///
+  /// [index] null or -1 means ADD: the line stacks onto an existing line with
+  /// the same configuration signature, or becomes a new line. A real [index]
+  /// means EDIT that line in place.
+  ///
+  /// RETURN THE INDEX, DO NOT REUSE THE ONE YOU PASSED IN. An edit can merge
+  /// the line it just wrote into another line that now carries the same
+  /// configuration (a customer switching line 2 back to the milk line 1
+  /// already has), which shortens the list — so the caller's [index] may point
+  /// at a different line, or past the end, the moment this returns.
+  int addToCart(CartModel cartModel, int? index, {bool showMessage = true}) {
     final bool isUpdate = index != null && index != -1;
+    int resultIndex;
 
     if (isUpdate) {
+      if (index < 0 || index >= _cartList.length) return -1;
       _cartList.replaceRange(index, index + 1, [cartModel]);
+
+      // The edited line may now be configured exactly like another line. Two
+      // identical lines side by side is not a cart state the customer can
+      // reach any other way, so fold them together — the mirror image of the
+      // stacking the ADD path does.
+      final int survivor = _matchingLineExcluding(cartModel, index);
+      if (survivor >= 0) {
+        final CartModel keep = _cartList[survivor]!;
+        keep.quantity = (keep.quantity ?? 0) + (cartModel.quantity ?? 1);
+        _cartList.removeAt(index);
+        resultIndex = survivor > index ? survivor - 1 : survivor;
+      } else {
+        resultIndex = index;
+      }
+      // An edit changes a line's price, not just its quantity, so the running
+      // delta arithmetic the ADD path uses cannot express it. Rebuild.
+      _recomputeAmount();
     } else {
       final int matchIndex = findMatchingCartLineIndex(_cartList, cartModel);
       if (matchIndex >= 0) {
@@ -64,9 +101,11 @@ class CartProvider extends ChangeNotifier {
         final CartModel existing = _cartList[matchIndex]!;
         existing.quantity = (existing.quantity ?? 0) + addQty;
         _amount = _amount + (existing.discountedPrice ?? 0) * addQty;
+        resultIndex = matchIndex;
       } else {
         _cartList.add(cartModel);
         _amount = _amount + (cartModel.discountedPrice ?? 0) * (cartModel.quantity ?? 1);
+        resultIndex = _cartList.length - 1;
       }
     }
     cartRepo!.addToCartList(_cartList);
@@ -77,6 +116,22 @@ class CartProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+    return resultIndex;
+  }
+
+  /// Index of a line configured like [candidate], ignoring the line at
+  /// [skipIndex]. Used to fold an edited line into its new twin.
+  ///
+  /// Goes through [cartLinesMatch] so the rule stays in one place; the skip is
+  /// here rather than in the matcher because "same configuration" and "a
+  /// different slot in this list" are two different questions.
+  int _matchingLineExcluding(CartModel candidate, int skipIndex) {
+    for (int i = 0; i < _cartList.length; i++) {
+      if (i == skipIndex) continue;
+      final CartModel? line = _cartList[i];
+      if (line != null && cartLinesMatch(line, candidate)) return i;
+    }
+    return -1;
   }
 
   void setQuantity(
@@ -159,30 +214,6 @@ class CartProvider extends ChangeNotifier {
   void removeFromCart(int index) {
     _amount = _amount - (_cartList[index]!.discountedPrice! * _cartList[index]!.quantity!);
     _cartList.removeAt(index);
-    cartRepo!.addToCartList(_cartList);
-    if (_cartList.isEmpty) _dropAttachedCoupon();
-    notifyListeners();
-  }
-
-  void removeOtherLinesForProduct(int productId, int keepIndex) {
-    if (keepIndex < 0 || keepIndex >= _cartList.length) {
-      return;
-    }
-    final remaining = <CartModel?>[];
-    for (int i = 0; i < _cartList.length; i++) {
-      final line = _cartList[i];
-      if (i != keepIndex &&
-          line?.isDeal != true &&
-          line?.product?.id == productId) {
-        _amount = _amount - ((line!.discountedPrice ?? 0) * (line.quantity ?? 1));
-      } else {
-        remaining.add(line);
-      }
-    }
-    if (remaining.length == _cartList.length) {
-      return;
-    }
-    _cartList = remaining;
     cartRepo!.addToCartList(_cartList);
     if (_cartList.isEmpty) _dropAttachedCoupon();
     notifyListeners();
@@ -314,45 +345,42 @@ class CartProvider extends ChangeNotifier {
       return;
     }
 
-    if(!_isProductInCart(product)) {
-      final ProductProvider productProvider = Provider.of<ProductProvider>(Get.context!, listen: false);
-      int quantity = getCartProductQuantityCount(product) + (isRemove ? -1 : 1);
+    // ONE LINE, NOT ONE PRODUCT. This used to refuse outright when the cart
+    // held more than one line of the product ("update quantity from cart
+    // list"), and on the path that did run it wrote the total across every
+    // line of the product onto the single line being tapped — so "+" on one of
+    // two Americanos made that line qty 3. Both were product-id thinking.
+    final CartModel? line =
+        (index >= 0 && index < _cartList.length) ? _cartList[index] : null;
+    if (line == null) return;
 
-
-      if(!isRemove && productProvider.checkStock(product, quantity: quantity) || isRemove) {
-
-        if(isRemove && quantity == 0) {
-          removeFromCart(index);
-          showCustomSnackBarHelper(getTranslated('this_item_removed_form_cart', Get.context!));
-
-        }else {
-          _cartList[index]?.quantity = quantity;
-          addToCart(_cartList[index]!, index);
-
-        }
-      }else {
+    // Stock is held against the PRODUCT, not the configuration, so the check
+    // has to ask what the whole cart would hold: every line of this product
+    // plus the unit being added. Keeping this per-line instead would let a
+    // customer walk past a stock limit by splitting one product across three
+    // different milks.
+    if (!isRemove) {
+      final ProductProvider productProvider =
+          Provider.of<ProductProvider>(Get.context!, listen: false);
+      final int productTotal = getCartProductQuantityCount(product) + 1;
+      if (!productProvider.checkStock(product, quantity: productTotal)) {
         showCustomSnackBarHelper(getTranslated('out_of_stock', Get.context!));
-
-      }
-    }else{
-      showCustomSnackBarHelper(getTranslated('update_quantity_from_cart_list', Get.context!));
-    }
-
-  }
-
-  bool _isProductInCart(Product product){
-    int count = 0;
-    for(int index = 0; index < _cartList.length; index ++) {
-      if(_cartList[index]?.isDeal == true) continue;
-      if(_cartList[index]!.product!.id == product.id ) {
-        count++;
-        if(count > 1) {
-          return true;
-        }
+        return;
       }
     }
-    return false;
 
+    // Only the tapped line's own quantity is written back.
+    if (isRemove && (line.quantity ?? 1) <= 1) {
+      removeFromCart(index);
+      showCustomSnackBarHelper(
+          getTranslated('this_item_removed_form_cart', Get.context!));
+      return;
+    }
+    setQuantity(
+      isIncrement: !isRemove,
+      cart: line,
+      fromProductView: false,
+    );
   }
 
 }

@@ -9,6 +9,51 @@ int findMatchingCartLineIndex(List<CartModel?> cartList, CartModel candidate) {
   return -1;
 }
 
+/// Human-readable configuration signature of a cart line.
+///
+/// DIAGNOSTIC ONLY. [cartLinesMatch] stays the single authority on whether two
+/// lines are the same configuration — comparing signature strings instead would
+/// silently change the rules (null vs false in a variation grid, add-on order,
+/// whitespace in an instruction). This exists so a test failure names the two
+/// configurations it was comparing, and so a log line can say which line the
+/// customer is looking at.
+///
+/// Two lines match under [cartLinesMatch] if and only if their signatures are
+/// equal; `cart_line_matcher_test.dart` holds that invariant.
+String cartLineSignature(CartModel cart) {
+  if (cart.isDeal) {
+    final List<String> parts = (cart.components ?? const [])
+        .map(cartLineSignature)
+        .toList();
+    return 'deal:${cart.dealId}[${parts.join('|')}]';
+  }
+
+  // The grid's SHAPE is part of the signature, not just the ticked boxes.
+  // [cartLinesMatch] rejects two lines whose grids differ in length, which is
+  // what happens when the product's variation groups changed between the two
+  // adds (a live catalog update). Recording only the ticks would make the
+  // signature say "same" where the matcher says "different".
+  final List<String> picks = [];
+  final List<String> shape = [];
+  final List<List<bool?>> grid = cart.variations ?? const [];
+  for (int i = 0; i < grid.length; i++) {
+    shape.add('${grid[i].length}');
+    for (int j = 0; j < grid[i].length; j++) {
+      if (grid[i][j] ?? false) picks.add('$i.$j');
+    }
+  }
+
+  final List<AddOn> addOns = List<AddOn>.from(cart.addOnIds ?? const <AddOn>[])
+    ..sort((x, y) => (x.id ?? 0).compareTo(y.id ?? 0));
+  final List<String> extras =
+      addOns.map((a) => '${a.id}x${a.quantity ?? 1}').toList();
+
+  return 'p:${cart.product?.id}'
+      '|v:${shape.join('x')}/${picks.join(',')}'
+      '|a:${extras.join(',')}'
+      '|n:${(cart.instruction ?? '').trim()}';
+}
+
 /// Same product + same variation picks + same add-ons + same instruction
 /// => one cart line. Deal lines match on deal id + every component instead.
 bool cartLinesMatch(CartModel a, CartModel b) {

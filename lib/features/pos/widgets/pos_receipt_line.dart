@@ -54,6 +54,10 @@ class PosReceiptOrderList extends StatelessWidget {
         itemBuilder: (context, i) {
           final int index = indices[i];
           return PosReceiptLine(
+            // Keyed on the LINE, not its position. A merge (editing a line into
+            // another line's configuration) shortens the list, and an index key
+            // would hand the surviving row the removed line's state.
+            key: ValueKey(lines[index]!.lineId),
             line: lines[index]!,
             imageUrl: KioskProductImageHelper.cartLineImageUrl(
               cart: lines[index]!,

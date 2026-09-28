@@ -59,16 +59,12 @@ class KioskProductCustomizeStepScreen extends StatefulWidget {
   final Product product;
   final int? cartIndex;
   final String? initialInstruction;
-
-  /// See [KioskProductCustomizeScreen.replaceOtherProductLines].
-  final bool replaceOtherProductLines;
   final ValueChanged<CartModel>? onConfigured;
   const KioskProductCustomizeStepScreen({
     super.key,
     required this.product,
     this.cartIndex,
     this.initialInstruction,
-    this.replaceOtherProductLines = false,
     this.onConfigured,
   });
 
@@ -106,8 +102,6 @@ class _KioskProductCustomizeStepScreenState
   int? get cartIndex => widget.cartIndex;
   @override
   String? get instruction => _instruction;
-  @override
-  bool get replaceOtherProductLines => widget.replaceOtherProductLines;
   @override
   ValueChanged<CartModel>? get onConfigured => widget.onConfigured;
 
@@ -242,7 +236,6 @@ class _KioskProductCustomizeStepScreenState
         product: product,
         cartIndex: cartIndex,
         initialInstruction: _instruction,
-        replaceOtherProductLines: replaceOtherProductLines,
         onConfigured: onConfigured,
       );
     }

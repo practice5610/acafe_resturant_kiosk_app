@@ -295,9 +295,11 @@ String _addonGroupTitle(BuildContext context, AddOnGroup group) {
 /// identical to a web order. Products with no variations and no add-ons are
 /// added straight to the cart (e.g. merchandise).
 ///
-/// If this product is already in the cart (and the caller did not pass a line),
-/// reopen that line so previous add-ons / variations stay selected and Add to
-/// Cart updates it instead of inserting a duplicate.
+/// A NEW tap always opens a blank configuration, even when the cart already
+/// holds this product — whether the resulting line stacks onto an existing one
+/// or stands alone is [CartProvider.addToCart]'s call, made on the
+/// configuration signature. Editing comes in through `openKioskCartLine`, which
+/// passes both [cart] and [cartIndex].
 void openKioskCustomize(BuildContext context, Product product,
     {CartModel? cart, int? cartIndex, ValueChanged<CartModel>? onConfigured}) {
   // THE ALLERGEN GATE. The first time a customer reaches for a product in an
@@ -373,19 +375,21 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
     return;
   }
 
-  bool replaceOtherProductLines = false;
-  if (onConfigured == null && cart == null) {
-    for (int i = cartProvider.cartList.length - 1; i >= 0; i--) {
-      final line = cartProvider.cartList[i];
-      if (line?.product?.id == product.id && line?.isDeal != true) {
-        cart = line;
-        cartIndex = i;
-        replaceOtherProductLines = true;
-        break;
-      }
-    }
-  }
-
+  // A NEW product tap opens a BLANK configuration, even when the cart already
+  // holds this product. `cart == null` means the caller did not hand us a line
+  // to edit, and that is exactly what a new tap is.
+  //
+  // This is where "Americano with coconut milk" used to become an edit of
+  // "Americano with regular milk": the code here searched the cart by
+  // product.id, seeded the screen with that line's picks and set cartIndex, so
+  // saving overwrote it — and `removeOtherLinesForProduct` then deleted every
+  // other Americano. One product could only ever hold one cart line.
+  //
+  // Nothing replaces it. Whether the new line stacks onto an existing one or
+  // stands on its own is [CartProvider.addToCart]'s decision, made on the full
+  // configuration signature (see `cart_line_matcher.dart`) rather than on the
+  // product id. Editing still works — it comes in through `openKioskCartLine`,
+  // which passes the line and its index explicitly.
   productProvider.initData(product, cart);
   productProvider.initProductVariationStatus(
       ProductHelper.effectiveVariations(product)?.length ?? 0);
@@ -393,8 +397,8 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
   // THE A/B SWITCH. Which customization flow this kiosk renders is a back-office
   // setting on the device (Device Update -> Ordering Experience), delivered as
   // `device.ordering_experience` (login/me + live websocket) and cached in
-  // SharedPreferences. Everything above this line — the cart lookup, the
-  // ProductProvider seeding, the no-modifiers shortcut — is shared, so the two
+  // SharedPreferences. Everything above this line — the ProductProvider
+  // seeding, the no-modifiers shortcut — is shared, so the two
   // versions can only ever differ in presentation. A live admin change remounts
   // the correct flow via [KioskCustomizeExperienceHost] without a full reload.
   Navigator.of(context).push(
@@ -403,7 +407,6 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
         product: product,
         cartIndex: cartIndex,
         initialInstruction: cart?.instruction,
-        replaceOtherProductLines: replaceOtherProductLines,
         onConfigured: onConfigured,
       ),
     ),
@@ -420,7 +423,6 @@ class KioskCustomizeExperienceHost extends StatefulWidget {
   final Product product;
   final int? cartIndex;
   final String? initialInstruction;
-  final bool replaceOtherProductLines;
   final ValueChanged<CartModel>? onConfigured;
 
   const KioskCustomizeExperienceHost({
@@ -428,7 +430,6 @@ class KioskCustomizeExperienceHost extends StatefulWidget {
     required this.product,
     this.cartIndex,
     this.initialInstruction,
-    this.replaceOtherProductLines = false,
     this.onConfigured,
   });
 
@@ -529,14 +530,12 @@ class _KioskCustomizeExperienceHostState
                   product: _product,
                   cartIndex: widget.cartIndex,
                   initialInstruction: widget.initialInstruction,
-                  replaceOtherProductLines: widget.replaceOtherProductLines,
                   onConfigured: widget.onConfigured,
                 )
               : KioskProductCustomizeScreen(
                   product: _product,
                   cartIndex: widget.cartIndex,
                   initialInstruction: widget.initialInstruction,
-                  replaceOtherProductLines: widget.replaceOtherProductLines,
                   onConfigured: widget.onConfigured,
                 ),
         );
@@ -615,7 +614,6 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
   Product get product;
   int? get cartIndex;
   String? get instruction;
-  bool get replaceOtherProductLines;
   ValueChanged<CartModel>? get onConfigured => null;
 
   /// The ordering experience an ADMIN chose for this device. Both versions read
@@ -777,12 +775,6 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     final int index = cartIndex ?? productProvider.cartIndex;
     cartProvider.addToCart(built, index);
-    if (replaceOtherProductLines &&
-        product.id != null &&
-        index != null &&
-        index >= 0) {
-      cartProvider.removeOtherLinesForProduct(product.id!, index);
-    }
 
     // Confirmation beat, then back to the menu. pushReplacement swaps THIS
     // screen for the confirmation, so the stack stays [menu] -> [confirmation]
@@ -812,14 +804,12 @@ class KioskProductCustomizeScreen extends StatefulWidget {
 
   /// When true, saving replaces this product's cart line and drops any other
   /// leftover lines for the same product (menu tap reopened an existing item).
-  final bool replaceOtherProductLines;
   final ValueChanged<CartModel>? onConfigured;
   const KioskProductCustomizeScreen({
     super.key,
     required this.product,
     this.cartIndex,
     this.initialInstruction,
-    this.replaceOtherProductLines = false,
     this.onConfigured,
   });
 
@@ -842,8 +832,6 @@ class _KioskProductCustomizeScreenState
   int? get cartIndex => widget.cartIndex;
   @override
   String? get instruction => _instruction;
-  @override
-  bool get replaceOtherProductLines => widget.replaceOtherProductLines;
   @override
   ValueChanged<CartModel>? get onConfigured => widget.onConfigured;
 
