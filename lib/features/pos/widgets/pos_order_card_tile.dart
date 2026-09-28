@@ -1,5 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
+import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_timer.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
@@ -116,6 +118,13 @@ class PosOrderCardTile extends StatelessWidget {
           _customerBlock(),
           const SizedBox(height: PosOrdersSpec.cardBlockGap),
           _timerRow(urgency, finished),
+          // Item progress sits between the timer and the price, under the
+          // existing subtitle block -- an extra line inside the card, not a
+          // change to how the card is sized or laid out.
+          if (order.itemStates.isNotEmpty) ...[
+            const SizedBox(height: PosOrdersSpec.progressGap),
+            _itemProgress(),
+          ],
           const SizedBox(height: PosOrdersSpec.cardBlockGap),
           _footer(),
         ],
@@ -126,33 +135,65 @@ class PosOrderCardTile extends StatelessWidget {
   Widget _topRow() {
     final String statusLabel = PosOrderGrouping.labelFor(order.section);
 
+    // The leading cluster is one Expanded row rather than a Spacer before the
+    // source badge: a Spacer would compete for the same free space the number
+    // and the chip shrink into, so at narrow card widths the chip would be
+    // clipped instead of ellipsised.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: PosOrdersSpec.statusDotSize,
-          height: PosOrdersSpec.statusDotSize,
-          decoration: BoxDecoration(color: _sectionColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: PosOrdersSpec.clockGap),
-        // The order's clock time — `10:36` in Figma. Blank rather than "--:--"
-        // when created_at is unparseable; a fake time on an order card is worse
-        // than none.
-        Text(
-          order.createdAt == null ? '' : _clock.format(order.createdAt!),
-          style: loewBold.copyWith(
-            fontSize: PosOrdersSpec.clockTextSize,
-            color: PosHomeSpec.ink,
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: PosOrdersSpec.statusDotSize,
+                height: PosOrdersSpec.statusDotSize,
+                decoration: BoxDecoration(
+                  color: _sectionColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: PosOrdersSpec.clockGap),
+              // The order's clock time — `10:36` in Figma. Blank rather than
+              // "--:--" when created_at is unparseable; a fake time on an order
+              // card is worse than none.
+              Text(
+                order.createdAt == null ? '' : _clock.format(order.createdAt!),
+                style: loewBold.copyWith(
+                  fontSize: PosOrdersSpec.clockTextSize,
+                  color: PosHomeSpec.ink,
+                ),
+              ),
+              // The number staff read back to the customer. Same formatting as
+              // the detail modal's title, from [PosOrderCard.numberLabelFor],
+              // so the board and the modal can never disagree about it.
+              const SizedBox(width: PosOrdersSpec.orderNumberGap),
+              Text(
+                order.numberLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: loewBold.copyWith(
+                  fontSize: PosOrdersSpec.orderNumberTextSize,
+                  color: PosHomeSpec.inkAlpha(0.55),
+                ),
+              ),
+              // The section dot alone reads as decoration, not status — this
+              // spells it out. `excluded` orders never reach the board, so an
+              // empty label here is only a defensive no-op, not a real case.
+              if (statusLabel.isNotEmpty) ...[
+                const SizedBox(width: PosOrdersSpec.statusChipGap),
+                // Flexible so a long status word gives way before the order
+                // number does; the number is the one thing on this row that
+                // must stay readable in full.
+                Flexible(
+                  child: _StatusChip(label: statusLabel, color: _sectionColor),
+                ),
+              ],
+            ],
           ),
         ),
-        // The section dot alone reads as decoration, not status — this spells
-        // it out. `excluded` orders never reach the board, so an empty label
-        // here is only a defensive no-op, not a real case.
-        if (statusLabel.isNotEmpty) ...[
-          const SizedBox(width: PosOrdersSpec.statusChipGap),
-          _StatusChip(label: statusLabel, color: _sectionColor),
-        ],
-        const Spacer(),
+        const SizedBox(width: PosOrdersSpec.statusChipGap),
         // Figma draws only the source badge here — no ⋮ menu on this card.
         PosOrderSourceIcon(channelKey: order.channelKey),
       ],
@@ -212,6 +253,63 @@ class PosOrderCardTile extends StatelessWidget {
     );
   }
 
+  /// "2/3 ready" plus one segment per item, coloured by that item's state.
+  ///
+  /// Segmented rather than a single filled bar because an order is not a
+  /// percentage to the person reading it -- it is a small number of things,
+  /// each either done or not, and the segments say how many at a glance.
+  Widget _itemProgress() {
+    final PrepProgress progress = order.progress;
+
+    return Column(
+      // Stretch so the bar spans the card rather than shrink-wrapping to the
+      // label above it.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${progress.ready}/${progress.total} ready',
+          textAlign: TextAlign.left,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: loewMedium.copyWith(
+            fontSize: PosOrdersSpec.progressLabelSize,
+            color: progress.allReady
+                ? PosOrderDetailSpec.badgeFinished
+                : PosHomeSpec.inkAlpha(0.5),
+          ),
+        ),
+        const SizedBox(height: PosOrdersSpec.progressGap),
+        SizedBox(
+          height: PosOrdersSpec.progressBarHeight,
+          child: Row(
+            // A childless DecoratedBox collapses under the Row's default
+            // centre alignment; stretch gives each segment the full 4px.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (int i = 0; i < order.itemStates.length; i++) ...[
+                if (i > 0)
+                  const SizedBox(width: PosOrdersSpec.progressSegmentGap),
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: order.itemStates[i] == PrepStatus.pending
+                          ? PosOrdersSpec.progressTrack
+                          : order.itemStates[i].color,
+                      borderRadius: BorderRadius.circular(
+                        PosOrdersSpec.progressBarRadius,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _footer() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -250,7 +348,11 @@ class PosOrderCardTile extends StatelessWidget {
       );
     }
 
-    final String? label = PosOrderGrouping.actionLabelFor(order.orderStatus);
+    // The card's CTA names the bulk item move it now performs (see
+    // PosOrdersListScreen._advance); only the final handover rung still comes
+    // from the order-status ladder.
+    final String? label = order.bulkAction?.label ??
+        PosOrderGrouping.actionLabelFor(order.orderStatus);
     if (label == null) {
       // completed / delivered — the end of the ladder. Figma draws price only.
       return const SizedBox.shrink();

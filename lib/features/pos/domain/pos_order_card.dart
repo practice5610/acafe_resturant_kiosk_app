@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 
 /// One row of `GET /api/v1/kiosk/manager/orders` — a single card on the board.
@@ -21,6 +22,11 @@ class PosOrderCard {
   final String displayMethod;
   final String? branchName;
 
+  /// Each line's prep status, in line order, from the board feed's
+  /// `item_states`. Empty for an order the feed did not expand, in which case
+  /// the card simply draws no progress line rather than a hollow one.
+  final List<PrepStatus> itemStates;
+
   const PosOrderCard({
     required this.id,
     required this.createdAt,
@@ -32,9 +38,27 @@ class PosOrderCard {
     required this.addressLines,
     required this.displayMethod,
     this.branchName,
+    this.itemStates = const <PrepStatus>[],
   });
 
   PosOrderSection get section => PosOrderGrouping.sectionOf(orderStatus);
+
+  /// `#1000189` — the order's public number.
+  ///
+  /// Formatted in one place so the board card and the detail modal's title can
+  /// never spell the same order two different ways; the modal simply prefixes
+  /// it with "Order ".
+  static String numberLabelFor(int id) => '#$id';
+
+  String get numberLabel => numberLabelFor(id);
+
+  /// "2 of 3 ready" for the card's progress line.
+  PrepProgress get progress => PrepProgress.fromStatuses(itemStates);
+
+  /// The bulk move this card's CTA performs, or null when nothing is left to
+  /// move -- at which point the order-level action (Mark as collected) takes
+  /// over. See [PosBulkItemAction].
+  PosBulkItemAction? get bulkAction => PosBulkItemAction.forStatuses(itemStates);
 
   /// The lines drawn under the customer name.
   ///
@@ -83,6 +107,7 @@ class PosOrderCard {
         addressLines: addressLines,
         displayMethod: displayMethod,
         branchName: branchName,
+        itemStates: itemStates,
       );
 
   factory PosOrderCard.fromJson(Map<String, dynamic> json) {
@@ -102,6 +127,12 @@ class PosOrderCard {
           : const <String>[],
       displayMethod: json['display_method']?.toString() ?? '',
       branchName: json['branch_name']?.toString(),
+      itemStates: (json['item_states'] is List)
+          ? (json['item_states'] as List)
+              .whereType<Map>()
+              .map((e) => PrepStatus.fromWire(e['prep_status']))
+              .toList(growable: false)
+          : const <PrepStatus>[],
     );
   }
 }

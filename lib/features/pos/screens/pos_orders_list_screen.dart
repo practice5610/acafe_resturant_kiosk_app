@@ -6,6 +6,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_advance_outcome.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
+import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
@@ -112,9 +113,20 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     }
   }
 
+  /// Listeners belonging to an open detail overlay, plus the order it is
+  /// showing. An `order.changed` for that id is handed straight to it.
+  final Set<VoidCallback> _detailListeners = <VoidCallback>{};
+  int? _openDetailOrderId;
+
   void _onOrderEvent(OrderChangedEvent event) {
     if (!mounted) return;
     _provider.onRealtimeChange();
+
+    if (event.orderId == _openDetailOrderId) {
+      for (final VoidCallback listener in _detailListeners.toList()) {
+        listener();
+      }
+    }
   }
 
   void _onRealtimeReconnect() {
@@ -148,6 +160,40 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
   /// surfaces report failure differently — the board floats one over the
   /// grid, the overlay shows it without closing.
   Future<PosAdvanceResult> _advance(PosOrderCard order) async {
+    // The forward rungs go through the ITEMS, not through order_status.
+    //
+    // "Accept order" and "Mark as ready" used to write `preparing` /
+    // `item_to_collect` directly, which let an order be marked ready while its
+    // items were still pending -- and the next item write would then recompute
+    // the aggregate and pull it straight back. Moving the items instead makes
+    // the order status a consequence, exactly as it is when the kitchen works
+    // the same order. Only the last rung is still an order-level write:
+    // "collected" is a fact about the handover, not about any item.
+    final PosBulkItemAction? bulk = order.bulkAction;
+
+    if (bulk != null) {
+      final _AdvanceConfirmation? confirmation =
+          _AdvanceConfirmation.forBulk(bulk.target);
+      if (confirmation != null) {
+        final bool? confirmed = await PosCompleteConfirmationDialog.show(
+          context,
+          heading: confirmation.heading,
+          subtext: confirmation.subtext,
+          confirmLabel: confirmation.confirmLabel,
+        );
+        if (confirmed != true || !mounted) {
+          return const PosAdvanceResult.cancelled();
+        }
+      }
+
+      final String? message =
+          await _provider.bulkItemStatus(order, bulk.target);
+
+      return message == null
+          ? const PosAdvanceResult.advanced()
+          : PosAdvanceResult.failed(message);
+    }
+
     final String? target = PosOrderGrouping.nextStatusFor(order.orderStatus);
     if (target == null) return const PosAdvanceResult.cancelled();
 
@@ -172,6 +218,10 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
         ? const PosAdvanceResult.advanced()
         : PosAdvanceResult.failed(message);
   }
+
+  /// Pause / resume / cancel, from the overlay's More menu.
+  Future<String?> _setOrderStatus(PosOrderCard order, String status) =>
+      _provider.setOrderStatus(order, status);
 
   /// The board's own way of reporting a rejected transition.
   void _showAdvanceError(PosOrderCard order, String message) {
@@ -203,7 +253,12 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
   /// offset, filters and live subscription all survive, because the board is
   /// not torn down to show a route on top of it.
   Future<void> _openDetail(PosOrderCard order) async {
-    if (!di.sl.isRegistered<KioskManagerRepo>()) return;
+    if (!di.sl.isRegistered<KioskManagerRepo>() ||
+        !di.sl.isRegistered<PosOrdersRepo>()) {
+      return;
+    }
+
+    _openDetailOrderId = order.id;
 
     await showDialog<void>(
       context: context,
@@ -213,9 +268,19 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
       builder: (_) => PosOrderDetailOverlay(
         order: order,
         repo: di.sl<KioskManagerRepo>(),
+        ordersRepo: di.sl<PosOrdersRepo>(),
         onAdvance: _advance,
+        onSetStatus: _setOrderStatus,
+        registerRefresh: _detailListeners.add,
+        unregisterRefresh: _detailListeners.remove,
+        // Every item write refreshes the board underneath, so the card and the
+        // modal on top of it never disagree.
+        onChanged: () => _provider.load(silent: true),
       ),
     );
+
+    _openDetailOrderId = null;
+    _detailListeners.clear();
   }
 
   @override
@@ -562,6 +627,29 @@ class _AdvanceConfirmation {
 
     // on_hold -> preparing (Resume): un-pausing is not progressing the order.
     return null;
+  }
+
+  /// Copy for the two bulk item moves that replaced the direct status writes.
+  /// Named for what they do to the items, because that is what the operator is
+  /// actually about to change; the order status follows on its own.
+  static _AdvanceConfirmation? forBulk(PrepStatus target) {
+    switch (target) {
+      case PrepStatus.preparing:
+        return const _AdvanceConfirmation(
+          heading: 'Start all items?',
+          subtext: 'Every item on this order will be marked as preparing.',
+          confirmLabel: 'Start all',
+        );
+      case PrepStatus.ready:
+        return const _AdvanceConfirmation(
+          heading: 'Mark all items ready?',
+          subtext: 'This will notify the customer their order is ready to '
+              'collect.',
+          confirmLabel: 'Mark ready',
+        );
+      case PrepStatus.pending:
+        return null;
+    }
   }
 }
 

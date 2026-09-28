@@ -260,6 +260,57 @@ class _StubOrdersRepo implements PosOrdersRepo {
         statusCode: 200,
         data: <String, dynamic>{'message': 'Order status updated!'},
       ));
+
+  // ── Item-status endpoints ──────────────────────────────────────────────
+  int itemStatusCalls = 0;
+  int bulkItemStatusCalls = 0;
+  String? lastItemStatus;
+  int? lastItemDetailId;
+
+  /// Swap in a non-200 to exercise the rejection paths.
+  int itemStatusCode = 200;
+  Map<String, dynamic>? itemStatusBody;
+
+  @override
+  Future<ApiResponseModel> updateItemStatus({
+    required int orderId,
+    required int orderDetailId,
+    required String status,
+  }) async {
+    itemStatusCalls++;
+    lastItemDetailId = orderDetailId;
+    lastItemStatus = status;
+    return _itemResponse(orderId, orderDetailId, status);
+  }
+
+  @override
+  Future<ApiResponseModel> bulkUpdateItemStatus({
+    required int orderId,
+    required String status,
+  }) async {
+    bulkItemStatusCalls++;
+    lastItemStatus = status;
+    return _itemResponse(orderId, null, status);
+  }
+
+  ApiResponseModel _itemResponse(int orderId, int? detailId, String status) {
+    return ApiResponseModel.withSuccess(Response(
+      requestOptions: RequestOptions(path: '/items/status'),
+      statusCode: itemStatusCode,
+      data: itemStatusBody ??
+          <String, dynamic>{
+            'order_id': orderId,
+            'order_detail_id': detailId,
+            'prep_status': detailId == null ? null : status,
+            'order_status': status == 'ready' ? 'item_to_collect' : 'preparing',
+            'advanced_to': status == 'ready' ? 'item_to_collect' : 'preparing',
+            'item_states': <Map<String, dynamic>>[],
+            'items_ready': status == 'ready' ? 1 : 0,
+            'items_total': 1,
+            'message': 'Item status updated!',
+          },
+    ));
+  }
 }
 
 void main() {

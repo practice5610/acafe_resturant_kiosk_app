@@ -12,6 +12,8 @@
 /// uses to omit the whole section. See [hasContact] and [displayNote].
 library;
 
+import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
+
 class PosOrderDetail {
   final int id;
   final DateTime? createdAt;
@@ -33,6 +35,13 @@ class PosOrderDetail {
   final String? orderNote;
 
   final List<PosOrderDetailItem> items;
+
+  /// Server-side "n of m ready" (`items_ready` / `items_total`), counted the
+  /// same way `KitchenOrderProgressService` aggregates the order status — so
+  /// the counter on screen can never disagree with the status beside it.
+  final int itemsReady;
+  final int itemsTotal;
+
   final double subtotal;
   final double discount;
   final double total;
@@ -51,6 +60,8 @@ class PosOrderDetail {
     required this.customerEmail,
     required this.orderNote,
     required this.items,
+    required this.itemsReady,
+    required this.itemsTotal,
     required this.subtotal,
     required this.discount,
     required this.total,
@@ -59,6 +70,18 @@ class PosOrderDetail {
   /// Whether the Customer Details card has anything to put in it beyond the
   /// name, which is already in the header. A guest order has neither, so the
   /// section is dropped rather than drawn empty.
+  /// Prefers the server's counts, falling back to counting the lines we were
+  /// given -- an older build of the API omits the counters but still sends the
+  /// per-item statuses, and a progress bar that silently reads 0 of 0 would be
+  /// worse than one derived locally.
+  PrepProgress get progress => itemsTotal > 0
+      ? PrepProgress(ready: itemsReady, total: itemsTotal)
+      : PrepProgress.fromStatuses(items.map((i) => i.prepStatus));
+
+  /// The bulk move this order offers, or null when every item is ready.
+  PosBulkItemAction? get bulkAction =>
+      PosBulkItemAction.forStatuses(items.map((i) => i.prepStatus));
+
   bool get hasContact =>
       (customerPhone?.trim().isNotEmpty ?? false) ||
       (customerEmail?.trim().isNotEmpty ?? false);
@@ -100,6 +123,36 @@ class PosOrderDetail {
     return rest.isEmpty ? null : rest;
   }
 
+  /// Replace the lines and the counters after a write, keeping the header,
+  /// money and customer blocks the overlay already drew. Used to apply an
+  /// item-status response without a second fetch.
+  PosOrderDetail copyWith({
+    String? orderStatus,
+    List<PosOrderDetailItem>? items,
+    int? itemsReady,
+    int? itemsTotal,
+  }) =>
+      PosOrderDetail(
+        id: id,
+        createdAt: createdAt,
+        orderStatus: orderStatus ?? this.orderStatus,
+        orderType: orderType,
+        channelKey: channelKey,
+        displayMethod: displayMethod,
+        paymentStatus: paymentStatus,
+        table: table,
+        customerName: customerName,
+        customerPhone: customerPhone,
+        customerEmail: customerEmail,
+        orderNote: orderNote,
+        items: items ?? this.items,
+        itemsReady: itemsReady ?? this.itemsReady,
+        itemsTotal: itemsTotal ?? this.itemsTotal,
+        subtotal: subtotal,
+        discount: discount,
+        total: total,
+      );
+
   factory PosOrderDetail.fromJson(Map<String, dynamic> json) {
     return PosOrderDetail(
       id: int.tryParse('${json['id']}') ?? 0,
@@ -118,6 +171,8 @@ class PosOrderDetail {
           .whereType<Map>()
           .map((e) => PosOrderDetailItem.fromJson(Map<String, dynamic>.from(e)))
           .toList(growable: false),
+      itemsReady: int.tryParse('${json['items_ready']}') ?? 0,
+      itemsTotal: int.tryParse('${json['items_total']}') ?? 0,
       subtotal: _asDouble(json['subtotal']) ?? 0,
       discount: _asDouble(json['discount']) ?? 0,
       total: _asDouble(json['total']) ?? 0,
@@ -131,6 +186,16 @@ class PosOrderDetail {
 /// `OrderPreviewPresenter` — the raw `order_details.add_on_ids` column holds
 /// bare ids, so nothing here decodes them.
 class PosOrderDetailItem {
+  /// `order_details.id` -- what the item-status endpoint addresses. Nullable
+  /// because a line the server could not identify must still render; it simply
+  /// offers no action.
+  final int? id;
+
+  /// This line's own kitchen state, independent of every other line and of the
+  /// order's status. Mixed orders (one coffee ready, one dish still cooking)
+  /// are the normal case, not the exception.
+  final PrepStatus prepStatus;
+
   final String name;
   final String? image;
   final int quantity;
@@ -145,6 +210,8 @@ class PosOrderDetailItem {
   final List<PosOrderDetailAddon> addons;
 
   const PosOrderDetailItem({
+    required this.id,
+    required this.prepStatus,
     required this.name,
     required this.image,
     required this.quantity,
@@ -159,6 +226,25 @@ class PosOrderDetailItem {
   /// nothing to put there, so the row is omitted rather than left blank.
   bool get hasNotes => addons.isNotEmpty || (instruction?.trim().isNotEmpty ?? false);
 
+  /// Only a line the server can address is actionable.
+  bool get isActionable => id != null;
+
+  /// Copy with a different prep status -- the optimistic move, before the
+  /// server has confirmed it. A copy rather than a mutation so a rollback is
+  /// just putting the original back, the same shape [PosOrderCard.withStatus]
+  /// uses on the board.
+  PosOrderDetailItem withPrepStatus(PrepStatus status) => PosOrderDetailItem(
+        id: id,
+        prepStatus: status,
+        name: name,
+        image: image,
+        quantity: quantity,
+        unitPrice: unitPrice,
+        instruction: instruction,
+        variationLabels: variationLabels,
+        addons: addons,
+      );
+
   factory PosOrderDetailItem.fromJson(Map<String, dynamic> json) {
     final List<String> labels = <String>[];
 
@@ -172,6 +258,8 @@ class PosOrderDetailItem {
     }
 
     return PosOrderDetailItem(
+      id: int.tryParse('${json['id']}'),
+      prepStatus: PrepStatus.fromWire(json['prep_status']),
       name: '${json['name'] ?? ''}',
       image: _nullableString(json['image']),
       quantity: int.tryParse('${json['quantity']}') ?? 1,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:acafe_customer/common/models/api_response_model.dart';
+import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
@@ -297,6 +298,74 @@ class PosOrdersProvider extends ChangeNotifier {
     _applyLocal(order.id, original);
     _adjustCounts(from: PosOrderGrouping.sectionOf(target), to: original.section);
     notifyListeners();
+
+    return _messageFrom(response?.data) ??
+        apiResponse.error?.toString() ??
+        'Could not update the order';
+  }
+
+  /// Move every eligible item on the order forward ("Start all items" /
+  /// "Mark all ready").
+  ///
+  /// This is what the board's forward CTA now does instead of writing
+  /// `order_status`: the items move, and the server derives the order status
+  /// from their aggregate exactly as it does when the kitchen moves them. That
+  /// is what stops an order being marked ready while its items are still
+  /// pending, only to be dragged back by the next item write.
+  ///
+  /// Not applied optimistically: which items actually move is the server's
+  /// forward-only decision, and guessing it here would show a state the
+  /// response might contradict a moment later. The board refetches instead.
+  Future<String?> bulkItemStatus(PosOrderCard order, PrepStatus target) async {
+    if (_pending.contains(order.id)) return null;
+
+    _pending.add(order.id);
+    notifyListeners();
+
+    final ApiResponseModel apiResponse = await posOrdersRepo.bulkUpdateItemStatus(
+      orderId: order.id,
+      status: target.wire,
+    );
+
+    _pending.remove(order.id);
+    notifyListeners();
+
+    final response = apiResponse.response;
+    if (response != null && response.statusCode == 200) {
+      unawaited(load(silent: true));
+      return null;
+    }
+
+    return _messageFrom(response?.data) ??
+        apiResponse.error?.toString() ??
+        'Could not update the order';
+  }
+
+  /// The order's side exits: pause, resume and cancel.
+  ///
+  /// Routed through the same endpoint and the same [OrderTransitionService] the
+  /// kitchen's own menu uses, so a POS pause and a kitchen pause land the order
+  /// in identical states. Resume sends `preparing`, which the server treats as
+  /// provisional and re-derives from the item aggregate.
+  Future<String?> setOrderStatus(PosOrderCard order, String status) async {
+    if (_pending.contains(order.id)) return null;
+
+    _pending.add(order.id);
+    notifyListeners();
+
+    final ApiResponseModel apiResponse = await posOrdersRepo.updateStatus(
+      orderId: order.id,
+      orderStatus: status,
+    );
+
+    _pending.remove(order.id);
+    notifyListeners();
+
+    final response = apiResponse.response;
+    if (response != null && response.statusCode == 200) {
+      unawaited(load(silent: true));
+      return null;
+    }
 
     return _messageFrom(response?.data) ??
         apiResponse.error?.toString() ??

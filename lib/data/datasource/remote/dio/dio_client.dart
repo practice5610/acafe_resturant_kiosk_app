@@ -110,6 +110,10 @@ class DioClient {
   Future<Response> put(String uri, {
     data,
     Map<String, dynamic>? queryParameters,
+    // Mirrors [post]: a caller that has to treat a 4xx as a normal response
+    // rather than a throw passes its own validateStatus here. Without it the
+    // global API checker force-logs-out a device over an ordinary rejection.
+    Options? options,
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
@@ -119,6 +123,7 @@ class DioClient {
         uri,
         data: data,
         queryParameters: queryParameters,
+        options: options,
         cancelToken: cancelToken,
         onSendProgress: onSendProgress,
         onReceiveProgress: onReceiveProgress,

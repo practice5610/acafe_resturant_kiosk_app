@@ -121,9 +121,17 @@ void main() {
     if (!di.sl.isRegistered<KioskManagerRepo>()) {
       di.sl.registerLazySingleton<KioskManagerRepo>(() => _StubManagerRepo());
     }
+    // The overlay writes item status through the board's own repo, so the
+    // locator needs it too before a card can open its detail.
+    if (!di.sl.isRegistered<PosOrdersRepo>()) {
+      di.sl.registerLazySingleton<PosOrdersRepo>(() => _StubOrdersRepo());
+    }
   });
 
   tearDown(() {
+    if (di.sl.isRegistered<PosOrdersRepo>()) {
+      di.sl.unregister<PosOrdersRepo>();
+    }
     if (di.sl.isRegistered<KioskManagerRepo>()) {
       di.sl.unregister<KioskManagerRepo>();
     }
