@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/pos/domain/pos_general_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_provider.dart';
@@ -5,6 +6,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_settings_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_text_field.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 /// Settings → STAFF (Figma **1641:8484**).
@@ -70,19 +72,58 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
 
   Future<void> _openAddStaff({String? shiftId}) async {
     final PosStaffProvider provider = context.read<PosStaffProvider>();
+    // Header → the first shift the branch defines; shift-row "+ Add" → that
+    // shift. Shifts come from the catalogue, so there is no hardcoded default.
+    final String? defaultShift = shiftId ??
+        (provider.shifts.isNotEmpty ? provider.shifts.first.id : null);
     final _NewStaff? result = await showDialog<_NewStaff>(
       context: context,
       builder: (_) => _AddStaffDialog(
         shifts: provider.shifts,
-        // Header → Morning; shift-row "+ Add" → that shift.
-        initialShiftIds: {shiftId ?? PosStaffShift.morning},
+        roleOptions: provider.catalogue.roleOptions,
+        pinLength: provider.pinLength,
+        initialShiftIds: {if (defaultShift != null) defaultShift},
       ),
     );
     if (result == null || !mounted) return;
-    provider.addMember(
+    await provider.addMember(
       name: result.name,
       role: result.role,
       shiftIds: result.shiftIds,
+      pin: result.pin,
+    );
+    if (!mounted) return;
+    final String? error = provider.syncError;
+    if (error != null) _toast(error);
+  }
+
+  Future<void> _openSetPin() async {
+    final PosStaffProvider provider = context.read<PosStaffProvider>();
+    final PosStaffMember? member = provider.selected;
+    if (member == null) return;
+    final bool? saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => ChangeNotifierProvider<PosStaffProvider>.value(
+        value: provider,
+        child: _SetPinDialog(
+          memberName: member.name,
+          resetting: member.hasPin,
+          pinLength: provider.pinLength,
+        ),
+      ),
+    );
+    if (saved == true && mounted) {
+      _toast(member.hasPin ? 'PIN reset' : 'PIN set');
+    }
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(message, style: loewBold.copyWith(fontSize: 13)),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 
@@ -108,7 +149,11 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _StaffHeader(onAdd: _openAddStaff),
+        _StaffHeader(
+          onAdd: _openAddStaff,
+          branchName: provider.branchName,
+          staffLoginRequired: provider.staffLoginRequired,
+        ),
         const SizedBox(height: 32),
         Expanded(
           child: LayoutBuilder(
@@ -123,12 +168,14 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
               );
               final Widget right = _RightColumn(
                 member: member,
+                catalogue: provider.catalogue,
                 nameController: _name,
                 nameError: provider.errors['name'],
                 onNameChanged: provider.setName,
                 onRoleChanged: provider.setRole,
                 onActiveChanged: provider.setActive,
                 onPermissionChanged: provider.setPermission,
+                onSetPin: _openSetPin,
                 onRemove: member == null
                     ? null
                     : () => provider.removeMember(member.id),
@@ -171,7 +218,19 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
 class _StaffHeader extends StatefulWidget {
   final VoidCallback onAdd;
 
-  const _StaffHeader({required this.onAdd});
+  /// Read-only. The roster is always this device's branch — the server never
+  /// takes a branch from the client — so this is a label, not a picker.
+  final String branchName;
+
+  /// Also read-only: whether staff sign in on this branch's tills is an admin
+  /// decision, shown here so an operator is not left guessing.
+  final bool staffLoginRequired;
+
+  const _StaffHeader({
+    required this.onAdd,
+    this.branchName = '',
+    this.staffLoginRequired = false,
+  });
 
   @override
   State<_StaffHeader> createState() => _StaffHeaderState();
@@ -213,6 +272,28 @@ class _StaffHeaderState extends State<_StaffHeader> {
                       color: PosSettingsSpec.inkMuted(),
                     ),
                   ),
+                  if (widget.branchName.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _InfoPill(
+                          icon: Icons.storefront_outlined,
+                          label: widget.branchName,
+                        ),
+                        _InfoPill(
+                          icon: widget.staffLoginRequired
+                              ? Icons.lock_outline
+                              : Icons.lock_open_outlined,
+                          label: widget.staffLoginRequired
+                              ? 'Staff sign-in on'
+                              : 'Staff sign-in off',
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -593,22 +674,26 @@ class _TeamRow extends StatelessWidget {
 
 class _RightColumn extends StatelessWidget {
   final PosStaffMember? member;
+  final PosStaffCatalogue catalogue;
   final TextEditingController nameController;
   final String? nameError;
   final ValueChanged<String> onNameChanged;
   final ValueChanged<String> onRoleChanged;
   final ValueChanged<bool> onActiveChanged;
   final void Function(String key, bool value) onPermissionChanged;
+  final VoidCallback onSetPin;
   final VoidCallback? onRemove;
 
   const _RightColumn({
     required this.member,
+    required this.catalogue,
     required this.nameController,
     required this.nameError,
     required this.onNameChanged,
     required this.onRoleChanged,
     required this.onActiveChanged,
     required this.onPermissionChanged,
+    required this.onSetPin,
     this.onRemove,
   });
 
@@ -648,21 +733,28 @@ class _RightColumn extends StatelessWidget {
               nameError: nameError,
               onNameChanged: onNameChanged,
               role: m.role,
+              roleOptions: catalogue.roleOptions,
               onRoleChanged: onRoleChanged,
               active: m.active,
               onActiveChanged: onActiveChanged,
+              hasPin: m.hasPin,
+              onSetPin: onSetPin,
               onRemove: onRemove,
             ),
             const SizedBox(height: 24),
             _PermissionsCard(
+              catalogue: catalogue,
               permissions: m.permissions,
               onPermissionChanged: onPermissionChanged,
             ),
           ],
           const SizedBox(height: 16),
           Text(
-            'Restricted actions on POS prompt the manager PIN set for this '
-            'device in Kiosk settings.',
+            catalogue.staffLoginRequired
+                ? 'Staff sign in on this branch\'s tills with their PIN, and '
+                    'their role and permissions decide what they can do.'
+                : 'Staff sign-in is off for this branch. Restricted actions '
+                    'prompt the manager code set for this device.',
             style: loewRegular.copyWith(
               fontSize: 13,
               height: 1.5,
@@ -680,9 +772,12 @@ class _MemberDetailsCard extends StatelessWidget {
   final String? nameError;
   final ValueChanged<String> onNameChanged;
   final String role;
+  final List<PosSettingsOption> roleOptions;
   final ValueChanged<String> onRoleChanged;
   final bool active;
   final ValueChanged<bool> onActiveChanged;
+  final bool hasPin;
+  final VoidCallback onSetPin;
   final VoidCallback? onRemove;
 
   const _MemberDetailsCard({
@@ -690,9 +785,12 @@ class _MemberDetailsCard extends StatelessWidget {
     required this.nameError,
     required this.onNameChanged,
     required this.role,
+    required this.roleOptions,
     required this.onRoleChanged,
     required this.active,
     required this.onActiveChanged,
+    required this.hasPin,
+    required this.onSetPin,
     this.onRemove,
   });
 
@@ -714,10 +812,14 @@ class _MemberDetailsCard extends StatelessWidget {
             const SizedBox(height: 12),
             PosSettingsDropdown(
               label: 'Role',
+              // A role the branch no longer offers still shows as itself
+              // rather than silently snapping to another.
               value: role,
-              options: PosStaffRoles.options,
+              options: _withCurrent(roleOptions, role),
               onChanged: onRoleChanged,
             ),
+            const SizedBox(height: 12),
+            _PinRow(hasPin: hasPin, onPressed: onSetPin),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -760,17 +862,20 @@ class _MemberDetailsCard extends StatelessWidget {
 }
 
 class _PermissionsCard extends StatelessWidget {
+  final PosStaffCatalogue catalogue;
   final Map<String, bool> permissions;
   final void Function(String key, bool value) onPermissionChanged;
 
   const _PermissionsCard({
+    required this.catalogue,
     required this.permissions,
     required this.onPermissionChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    const List<String> keys = PosStaffPermissions.keys;
+    // Served by the branch, in the branch's order — never a list in this app.
+    final List<String> keys = catalogue.permissionKeys;
     return _Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -786,9 +891,18 @@ class _PermissionsCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            if (keys.isEmpty)
+              Text(
+                'Permissions could not be loaded. Check the connection and '
+                'reopen Settings.',
+                style: loewRegular.copyWith(
+                  fontSize: 13,
+                  color: PosSettingsSpec.inkMuted(),
+                ),
+              ),
             for (int i = 0; i < keys.length; i++)
               _PermissionRow(
-                label: keys[i],
+                label: catalogue.labelFor(keys[i]),
                 value: permissions[keys[i]] ?? false,
                 showDivider: i < keys.length - 1,
                 onChanged: (v) => onPermissionChanged(keys[i], v),
@@ -856,23 +970,31 @@ class _NewStaff {
   final String role;
   final List<String> shiftIds;
 
+  /// Optional: a manager can hire now and set the PIN later.
+  final String? pin;
+
   const _NewStaff({
     required this.name,
     required this.role,
     required this.shiftIds,
+    this.pin,
   });
 }
 
 class _AddStaffDialog extends StatefulWidget {
   final List<PosStaffShift> shifts;
+  final List<PosSettingsOption> roleOptions;
+  final int pinLength;
 
-  /// Shifts pre-selected when the dialog opens. Header hire defaults to
-  /// Morning; a shift-row "+ Add" passes that shift alone.
+  /// Shifts pre-selected when the dialog opens. Header hire defaults to the
+  /// branch's first shift; a shift-row "+ Add" passes that shift alone.
   final Set<String> initialShiftIds;
 
   const _AddStaffDialog({
     required this.shifts,
-    this.initialShiftIds = const {PosStaffShift.morning},
+    required this.roleOptions,
+    required this.pinLength,
+    this.initialShiftIds = const {},
   });
 
   @override
@@ -881,18 +1003,20 @@ class _AddStaffDialog extends StatefulWidget {
 
 class _AddStaffDialogState extends State<_AddStaffDialog> {
   final TextEditingController _name = TextEditingController();
-  late final Set<String> _shiftIds = Set<String>.from(
-    widget.initialShiftIds.isEmpty
-        ? const {PosStaffShift.morning}
-        : widget.initialShiftIds,
-  );
-  String _role = PosStaffRoles.employee;
+  final TextEditingController _pin = TextEditingController();
+  late final Set<String> _shiftIds = Set<String>.from(widget.initialShiftIds);
+
+  /// The branch's own role list decides the default: its first entry.
+  late String _role =
+      widget.roleOptions.isNotEmpty ? widget.roleOptions.first.value : '';
   String? _error;
+  String? _pinError;
   String? _shiftError;
 
   @override
   void dispose() {
     _name.dispose();
+    _pin.dispose();
     super.dispose();
   }
 
@@ -918,8 +1042,18 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
       setState(() => _error = error);
       return;
     }
-    if (_shiftIds.isEmpty) {
+    final String? pinError =
+        PosStaffValidation.pin(_pin.text, length: widget.pinLength);
+    if (pinError != null) {
+      setState(() => _pinError = pinError);
+      return;
+    }
+    if (widget.shifts.isNotEmpty && _shiftIds.isEmpty) {
       setState(() => _shiftError = 'Select at least one shift');
+      return;
+    }
+    if (_role.isEmpty) {
+      setState(() => _error = 'No roles are available for this branch');
       return;
     }
     Navigator.of(context).pop(
@@ -927,6 +1061,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
         name: _name.text.trim(),
         role: _role,
         shiftIds: _shiftIds.toList(),
+        pin: _pin.text.trim().isEmpty ? null : _pin.text.trim(),
       ),
     );
   }
@@ -952,8 +1087,34 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
         PosSettingsDropdown(
           label: 'Role',
           value: _role,
-          options: PosStaffRoles.options,
+          options: widget.roleOptions,
           onChanged: (v) => setState(() => _role = v),
+        ),
+        const SizedBox(height: 12),
+        PosSettingsTextField(
+          label: 'PIN',
+          optionalLabel: 'optional',
+          controller: _pin,
+          errorText: _pinError,
+          hintText: '${widget.pinLength} digits',
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(widget.pinLength),
+          ],
+          textInputAction: TextInputAction.done,
+          onChanged: (_) {
+            if (_pinError != null) setState(() => _pinError = null);
+          },
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'They sign in on the till with this. You can set it later.',
+          style: loewRegular.copyWith(
+            fontSize: 12,
+            color: PosSettingsSpec.inkMuted(),
+          ),
         ),
         const SizedBox(height: 16),
         Text(
@@ -1660,6 +1821,180 @@ class _PosToggle extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+// ── Unified staff additions ────────────────────────────────────────────────
+
+/// Keeps a member's current role visible in the dropdown even if the branch no
+/// longer offers it, rather than letting the dropdown silently pick another.
+List<PosSettingsOption> _withCurrent(List<PosSettingsOption> options, String current) {
+  if (current.isEmpty || options.any((o) => o.value == current)) return options;
+  return [PosSettingsOption(value: current, label: current), ...options];
+}
+
+class _InfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _InfoPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: PosSettingsSpec.ink.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: PosSettingsSpec.ink),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: loewBold.copyWith(fontSize: 12, color: PosSettingsSpec.ink),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// PIN row in Member Details. Masked as in Figma — the PIN itself is never on
+/// the device, so all this can know is whether one is set.
+class _PinRow extends StatelessWidget {
+  final bool hasPin;
+  final VoidCallback onPressed;
+
+  const _PinRow({required this.hasPin, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          'PIN',
+          style: loewExtraBold.copyWith(
+            fontSize: PosSettingsSpec.labelSize,
+            letterSpacing: PosSettingsSpec.labelTracking,
+            color: PosSettingsSpec.ink,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            hasPin ? '\u2022\u2022\u2022\u2022' : 'Not set',
+            style: (hasPin ? loewBold : loewRegular).copyWith(
+              fontSize: hasPin ? 18 : 13,
+              letterSpacing: hasPin ? 4 : 0,
+              color: hasPin
+                  ? PosSettingsSpec.ink
+                  : const Color(0xFFB54708),
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            foregroundColor: PosSettingsSpec.ink,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            minimumSize: const Size(48, 40),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(
+            hasPin ? 'Reset PIN' : 'Set PIN',
+            style: loewBold.copyWith(fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Set or reset a member's PIN. Server-validated: uniqueness across the branch
+/// is something only the server can see.
+class _SetPinDialog extends StatefulWidget {
+  final String memberName;
+  final bool resetting;
+  final int pinLength;
+
+  const _SetPinDialog({
+    required this.memberName,
+    required this.resetting,
+    required this.pinLength,
+  });
+
+  @override
+  State<_SetPinDialog> createState() => _SetPinDialogState();
+}
+
+class _SetPinDialogState extends State<_SetPinDialog> {
+  final TextEditingController _pin = TextEditingController();
+  final ValueNotifier<String?> _error = ValueNotifier<String?>(null);
+  final ValueNotifier<bool> _busy = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    _error.dispose();
+    _busy.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy.value) return;
+    _busy.value = true;
+    final String? error = await context.read<PosStaffProvider>().setPin(_pin.text);
+    if (!mounted) return;
+    _busy.value = false;
+    if (error != null) {
+      _error.value = error;
+      return;
+    }
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _DialogFrame(
+      title: widget.resetting ? 'RESET PIN' : 'SET PIN',
+      subtitle: 'For ${widget.memberName}. They type this to sign in on the till.',
+      onConfirm: _submit,
+      confirmLabel: widget.resetting ? 'Reset PIN' : 'Set PIN',
+      children: [
+        ValueListenableBuilder<String?>(
+          valueListenable: _error,
+          builder: (context, error, _) => PosSettingsTextField(
+            label: 'New PIN',
+            controller: _pin,
+            errorText: error,
+            hintText: '${widget.pinLength} digits',
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(widget.pinLength),
+            ],
+            textInputAction: TextInputAction.done,
+            onChanged: (_) {
+              if (_error.value != null) _error.value = null;
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        ValueListenableBuilder<bool>(
+          valueListenable: _busy,
+          builder: (context, busy, _) => busy
+              ? const LinearProgressIndicator(minHeight: 2)
+              : const SizedBox(height: 2),
+        ),
+      ],
     );
   }
 }

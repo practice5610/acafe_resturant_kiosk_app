@@ -26,6 +26,13 @@ class PosSettingsTextField extends StatefulWidget {
   /// nothing render exactly as before.
   final Widget? trailing;
 
+  /// Masks what is typed — a staff PIN being set on a shared till. Additive and
+  /// off by default, so every existing field renders exactly as before.
+  final bool obscureText;
+
+  /// Placeholder shown while empty. Null by default for the same reason.
+  final String? hintText;
+
   const PosSettingsTextField({
     super.key,
     required this.label,
@@ -40,6 +47,8 @@ class PosSettingsTextField extends StatefulWidget {
     this.readOnly = false,
     this.suffixText,
     this.trailing,
+    this.obscureText = false,
+    this.hintText,
   });
 
   @override
@@ -154,6 +163,7 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
               textInputAction: widget.textInputAction,
               maxLines: widget.maxLines,
               readOnly: widget.readOnly,
+              obscureText: widget.obscureText,
               enableInteractiveSelection: !widget.readOnly,
               cursorColor: PosSettingsSpec.ink,
               style: loewBold.copyWith(
@@ -163,9 +173,17 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
                 ),
                 height: 1.2,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isCollapsed: true,
                 border: InputBorder.none,
+                hintText: widget.hintText,
+                hintStyle: widget.hintText == null
+                    ? null
+                    : loewRegular.copyWith(
+                        fontSize: PosSettingsSpec.fieldTextSize,
+                        color: PosSettingsSpec.inkMuted(0.45),
+                        height: 1.2,
+                      ),
               ),
             )),
           ),

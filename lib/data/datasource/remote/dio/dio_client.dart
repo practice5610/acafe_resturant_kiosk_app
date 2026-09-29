@@ -136,9 +136,36 @@ class DioClient {
     }
   }
 
+  /// Partial update. Mirrors [put], including [options], so a caller can treat
+  /// a 4xx as an ordinary response rather than a throw that the global API
+  /// checker would turn into a forced logout.
+  Future<Response> patch(String uri, {
+    data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      var response = await dio!.patch(
+        uri,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      );
+      return response;
+    } on FormatException catch (_) {
+      throw const FormatException("Unable to process the data");
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<Response> delete(String uri, {
     data,
     Map<String, dynamic>? queryParameters,
+    // Additive, for the same reason as [patch]: existing callers pass nothing.
+    Options? options,
     CancelToken? cancelToken,
   }) async {
     try {
@@ -146,6 +173,7 @@ class DioClient {
         uri,
         data: data,
         queryParameters: queryParameters,
+        options: options,
         cancelToken: cancelToken,
       );
       return response;

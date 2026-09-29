@@ -1,100 +1,194 @@
-import 'dart:math';
-
 import 'package:acafe_customer/features/pos/domain/pos_general_settings.dart';
 
-/// Roles a POS staff member can hold.
+/// One POS permission, as the backend defines it.
 ///
-/// Deliberately a fixed trio rather than a mirror of `admin_roles`: the POS
-/// terminal grants floor permissions, and the admin role table carries
-/// back-office module access that has no meaning here.
-class PosStaffRoles {
-  PosStaffRoles._();
+/// The key is stable and is what gets stored and checked; the label is
+/// presentation and arrives already translated. Nothing here is declared in the
+/// app: this list used to be hardcoded in Dart *and* retyped in PHP, so the two
+/// had to be kept in step by hand and a permission could not be added without
+/// shipping a build.
+class PosStaffPermission {
+  final String key;
+  final String label;
+  final String description;
 
-  static const String owner = 'Owner';
-  static const String manager = 'Manager';
-  static const String employee = 'Employee';
+  const PosStaffPermission({
+    required this.key,
+    required this.label,
+    this.description = '',
+  });
 
-  static const List<String> all = [owner, manager, employee];
-
-  static const List<PosSettingsOption> options = [
-    PosSettingsOption(value: owner, label: owner),
-    PosSettingsOption(value: manager, label: manager),
-    PosSettingsOption(value: employee, label: employee),
-  ];
-
-  static bool isValid(String role) => all.contains(role);
-
-  /// Permission preset a newly added member of [role] starts on. The operator
-  /// can override any of them afterwards — this is a starting point, not a
-  /// constraint enforced on save.
-  static Map<String, bool> defaultPermissions(String role) {
-    switch (role) {
-      case owner:
-        return {for (final k in PosStaffPermissions.keys) k: true};
-      case manager:
-        return {
-          for (final k in PosStaffPermissions.keys)
-            k: k != PosStaffPermissions.voidOrders &&
-                k != PosStaffPermissions.manageStaff,
-        };
-      default:
-        return {
-          for (final k in PosStaffPermissions.keys)
-            k: k == PosStaffPermissions.applyDiscounts ||
-                k == PosStaffPermissions.accessCashDrawer,
-        };
-    }
+  static PosStaffPermission? fromJson(Map<String, dynamic> json) {
+    final String key = (json['key'] ?? '').toString();
+    if (key.isEmpty) return null;
+    return PosStaffPermission(
+      key: key,
+      label: (json['label'] ?? key).toString(),
+      description: (json['description'] ?? '').toString(),
+    );
   }
 }
 
-/// The permission rows shown in Member Details, in Figma order.
-class PosStaffPermissions {
-  PosStaffPermissions._();
+/// A role this branch may put someone on.
+///
+/// The backend withholds any role that grants admin-panel modules, so a till
+/// cannot hand out back-office access.
+class PosStaffRole {
+  final int id;
+  final String name;
 
-  static const String processRefunds = 'Process refunds';
-  static const String applyDiscounts = 'Apply discounts';
-  static const String voidOrders = 'Void orders';
-  static const String accessReports = 'Access reports';
-  static const String manageInventory = 'Manage inventory';
-  static const String accessCashDrawer = 'Access cash drawer';
-  static const String manageStaff = 'Manage staff';
+  const PosStaffRole({required this.id, required this.name});
 
-  static const List<String> keys = [
-    processRefunds,
-    applyDiscounts,
-    voidOrders,
-    accessReports,
-    manageInventory,
-    accessCashDrawer,
-    manageStaff,
-  ];
+  static PosStaffRole? fromJson(Map<String, dynamic> json) {
+    final int id = int.tryParse('${json['id']}') ?? 0;
+    final String name = (json['name'] ?? '').toString();
+    if (id == 0 || name.isEmpty) return null;
+    return PosStaffRole(id: id, name: name);
+  }
+}
 
-  /// Fills in any key the stored record predates and drops any it no longer
-  /// knows, so a roster written by an older build still loads.
-  static Map<String, bool> normalize(Map<String, bool> raw) =>
-      {for (final k in keys) k: raw[k] ?? false};
+/// Everything the Staff screen used to hardcode, served by the branch.
+class PosStaffCatalogue {
+  final List<PosStaffPermission> permissions;
+  final List<PosStaffRole> roles;
+  final List<PosStaffShift> shifts;
+  final String branchName;
+
+  /// Whether this branch asks staff to sign in on the till. Shown read-only —
+  /// it is an admin decision, made per branch.
+  final bool staffLoginRequired;
+
+  final int pinLength;
+
+  const PosStaffCatalogue({
+    required this.permissions,
+    required this.roles,
+    required this.shifts,
+    required this.branchName,
+    required this.staffLoginRequired,
+    required this.pinLength,
+  });
+
+  /// What the screen renders before the catalogue arrives, and if it never
+  /// does: no invented permissions, no invented roles.
+  factory PosStaffCatalogue.empty() => const PosStaffCatalogue(
+        permissions: [],
+        roles: [],
+        shifts: [],
+        branchName: '',
+        staffLoginRequired: false,
+        pinLength: 4,
+      );
+
+  bool get isEmpty => permissions.isEmpty && roles.isEmpty;
+
+  List<String> get permissionKeys => [for (final p in permissions) p.key];
+
+  List<PosSettingsOption> get roleOptions =>
+      [for (final r in roles) PosSettingsOption(value: r.name, label: r.name)];
+
+  String labelFor(String key) {
+    for (final p in permissions) {
+      if (p.key == key) return p.label;
+    }
+    return key;
+  }
+
+  int? roleIdFor(String name) {
+    for (final r in roles) {
+      if (r.name == name) return r.id;
+    }
+    return null;
+  }
+
+  static PosStaffCatalogue? fromJson(Map<String, dynamic> json) {
+    final Object? rawPermissions = json['permissions'];
+    if (rawPermissions is! List) return null;
+
+    final List<PosStaffPermission> permissions = [];
+    for (final entry in rawPermissions) {
+      if (entry is! Map) continue;
+      final p = PosStaffPermission.fromJson(Map<String, dynamic>.from(entry));
+      if (p != null) permissions.add(p);
+    }
+
+    final List<PosStaffRole> roles = [];
+    if (json['roles'] is List) {
+      for (final entry in json['roles'] as List) {
+        if (entry is! Map) continue;
+        final r = PosStaffRole.fromJson(Map<String, dynamic>.from(entry));
+        if (r != null) roles.add(r);
+      }
+    }
+
+    final List<PosStaffShift> shifts = [];
+    if (json['shifts'] is List) {
+      for (final entry in json['shifts'] as List) {
+        if (entry is! Map) continue;
+        final s = PosStaffShift.fromJson(Map<String, dynamic>.from(entry));
+        if (s != null) shifts.add(s);
+      }
+    }
+
+    final Object? branch = json['branch'];
+    final Map<String, dynamic> branchMap =
+        branch is Map ? Map<String, dynamic>.from(branch) : const {};
+
+    return PosStaffCatalogue(
+      permissions: permissions,
+      roles: roles,
+      shifts: shifts,
+      branchName: (branchMap['name'] ?? '').toString(),
+      staffLoginRequired: branchMap['staff_login_required'] == true,
+      pinLength: int.tryParse('${json['pin_length']}') ?? 4,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'permissions': [
+          for (final p in permissions)
+            {'key': p.key, 'label': p.label, 'description': p.description},
+        ],
+        'roles': [
+          for (final r in roles) {'id': r.id, 'name': r.name},
+        ],
+        'shifts': [for (final s in shifts) s.toJson()],
+        'branch': {'name': branchName, 'staff_login_required': staffLoginRequired},
+        'pin_length': pinLength,
+      };
 }
 
 /// One member of the POS roster.
 class PosStaffMember {
   final String id;
   final String name;
+
+  /// The role's display name. The id travels alongside so a save does not have
+  /// to match on a string the operator can see.
   final String role;
+  final int roleId;
+
   final bool active;
 
-  /// Four-digit POS access passcode. Never rendered — Member Details masks it
-  /// as `****` exactly as Figma shows.
-  final String passcode;
+  /// Whether a PIN is set. The PIN itself never leaves the server, so this is
+  /// the only thing the app can know about it.
+  final bool hasPin;
 
+  /// Effective permissions, keyed by stable key: the role's grant merged with
+  /// this member's own overrides.
   final Map<String, bool> permissions;
+
+  final List<String> shiftIds;
 
   const PosStaffMember({
     required this.id,
     required this.name,
     required this.role,
+    this.roleId = 0,
     required this.active,
-    required this.passcode,
+    this.hasPin = false,
     required this.permissions,
+    this.shiftIds = const [],
   });
 
   /// What the shift chips show. Shifts are read at a glance across a busy
@@ -105,20 +199,35 @@ class PosStaffMember {
     return trimmed.split(RegExp(r'\s+')).first;
   }
 
+  String get initials {
+    final parts = name.trim().split(RegExp(r'\s+'))
+      ..removeWhere((p) => p.isEmpty);
+    if (parts.isEmpty) return '?';
+    // By code point rather than code unit, so an accented initial is not split.
+    final String first = String.fromCharCode(parts.first.runes.first);
+    final String last =
+        parts.length > 1 ? String.fromCharCode(parts.last.runes.first) : '';
+    return (first + last).toUpperCase();
+  }
+
   PosStaffMember copyWith({
     String? name,
     String? role,
+    int? roleId,
     bool? active,
-    String? passcode,
+    bool? hasPin,
     Map<String, bool>? permissions,
+    List<String>? shiftIds,
   }) {
     return PosStaffMember(
       id: id,
       name: name ?? this.name,
       role: role ?? this.role,
+      roleId: roleId ?? this.roleId,
       active: active ?? this.active,
-      passcode: passcode ?? this.passcode,
+      hasPin: hasPin ?? this.hasPin,
       permissions: permissions ?? this.permissions,
+      shiftIds: shiftIds ?? this.shiftIds,
     );
   }
 
@@ -126,9 +235,11 @@ class PosStaffMember {
         'id': id,
         'name': name,
         'role': role,
+        'role_id': roleId,
         'active': active,
-        'passcode': passcode,
+        'has_pin': hasPin,
         'permissions': permissions,
+        'shift_ids': shiftIds,
       };
 
   static PosStaffMember? fromJson(Map<String, dynamic> json) {
@@ -136,7 +247,6 @@ class PosStaffMember {
     final String name = (json['name'] ?? '').toString();
     if (id.isEmpty || name.isEmpty) return null;
 
-    final String role = (json['role'] ?? '').toString();
     final Object? rawPerms = json['permissions'];
     final Map<String, bool> perms = rawPerms is Map
         ? {
@@ -145,21 +255,30 @@ class PosStaffMember {
           }
         : const {};
 
+    final Object? rawShifts = json['shift_ids'];
+
     return PosStaffMember(
       id: id,
       name: name,
-      role: PosStaffRoles.isValid(role) ? role : PosStaffRoles.employee,
+      role: (json['role'] ?? '').toString(),
+      roleId: int.tryParse('${json['role_id']}') ?? 0,
       active: json['active'] != false,
-      passcode: (json['passcode'] ?? '').toString(),
-      permissions: PosStaffPermissions.normalize(perms),
+      hasPin: json['has_pin'] == true,
+      permissions: perms,
+      shiftIds: rawShifts is List
+          ? [
+              for (final v in rawShifts)
+                if (v != null && v.toString().isNotEmpty) v.toString(),
+            ]
+          : const [],
     );
   }
 }
 
 /// A named service window and the members rostered onto it.
 ///
-/// Membership is stored as ids, not names, so renaming a member in Member
-/// Details cannot leave a stale label behind on a shift chip.
+/// Membership is stored as ids, not names, so renaming a member cannot leave a
+/// stale label behind on a shift chip.
 class PosStaffShift {
   final String id;
   final String name;
@@ -172,10 +291,6 @@ class PosStaffShift {
     required this.time,
     required this.memberIds,
   });
-
-  static const String morning = 'morning';
-  static const String afternoon = 'afternoon';
-  static const String evening = 'evening';
 
   PosStaffShift copyWith({List<String>? memberIds}) => PosStaffShift(
         id: id,
@@ -289,140 +404,13 @@ class PosStaffRoster {
       if (s != null) shifts.add(s);
     }
 
-    // Always ensure the three service windows exist, even on an empty hire.
-    final List<PosStaffShift> normalized =
-        shifts.isEmpty ? PosStaffRoster.emptyShifts() : shifts;
-
-    return PosStaffRoster(members: members, shifts: normalized);
-  }
-
-  /// Empty roster a new branch starts on — no demo staff.
-  factory PosStaffRoster.empty() => PosStaffRoster(
-        members: const [],
-        shifts: emptyShifts(),
-      );
-
-  static List<PosStaffShift> emptyShifts() => const [
-        PosStaffShift(
-          id: PosStaffShift.morning,
-          name: 'Morning',
-          time: '08:00-14:00',
-          memberIds: [],
-        ),
-        PosStaffShift(
-          id: PosStaffShift.afternoon,
-          name: 'Afternoon',
-          time: '14:00-20:00',
-          memberIds: [],
-        ),
-        PosStaffShift(
-          id: PosStaffShift.evening,
-          name: 'Evening',
-          time: '20:00-22:00',
-          memberIds: [],
-        ),
-      ];
-
-  /// Legacy Figma demo roster — kept for unit tests only. Production hydrate
-  /// never uses this; staff comes from the DB (or starts empty).
-  factory PosStaffRoster.seed() {
-    PosStaffMember member(
-      String id,
-      String name,
-      String role, {
-      bool active = true,
-      String passcode = '0000',
-    }) {
-      return PosStaffMember(
-        id: id,
-        name: name,
-        role: role,
-        active: active,
-        passcode: passcode,
-        permissions: PosStaffRoles.defaultPermissions(role),
-      );
-    }
-
-    final List<PosStaffMember> members = [
-      member('maria', 'Maria van den Berg', PosStaffRoles.owner),
-      member('thomas', 'Thomas de Vries', PosStaffRoles.manager),
-      member('sophie', 'Sophie Jansen', PosStaffRoles.employee),
-      member('liam', 'Liam Bakker', PosStaffRoles.employee),
-      member('emma', 'Emma Visser', PosStaffRoles.employee, active: false),
-      member('eva', 'Eva Smit', PosStaffRoles.employee),
-      member('noah', 'Noah Dekker', PosStaffRoles.employee),
-      member('olivia', 'Olivia Meijer', PosStaffRoles.employee),
-      member('lucas', 'Lucas Bos', PosStaffRoles.employee),
-      member('mila', 'Mila Vos', PosStaffRoles.employee),
-      member('finn', 'Finn Peters', PosStaffRoles.employee),
-      member('sara', 'Sara Willems', PosStaffRoles.employee),
-      member('jesse', 'Jesse Hendriks', PosStaffRoles.employee),
-      member('nina', 'Nina Kuipers', PosStaffRoles.employee),
-      member('ava', 'Ava Mulder', PosStaffRoles.employee),
-    ];
-
-    const List<PosStaffShift> shifts = [
-      PosStaffShift(
-        id: PosStaffShift.morning,
-        name: 'Morning',
-        time: '08:00-14:00',
-        memberIds: [
-          'maria',
-          'sophie',
-          'liam',
-          'eva',
-          'noah',
-          'olivia',
-          'lucas',
-          'mila',
-          'finn',
-          'sara',
-          'jesse',
-          'nina',
-        ],
-      ),
-      PosStaffShift(
-        id: PosStaffShift.afternoon,
-        name: 'Afternoon',
-        time: '14:00-20:00',
-        memberIds: [
-          'thomas',
-          'liam',
-          'ava',
-          'emma',
-          'noah',
-          'sophie',
-          'lucas',
-          'mila',
-          'finn',
-          'sara',
-          'jesse',
-        ],
-      ),
-      PosStaffShift(
-        id: PosStaffShift.evening,
-        name: 'Evening',
-        time: '20:00-22:00',
-        memberIds: [
-          'maria',
-          'thomas',
-          'noah',
-          'liam',
-          'sophie',
-          'ava',
-          'emma',
-          'olivia',
-          'lucas',
-          'mila',
-          'finn',
-          'sara',
-          'jesse',
-        ],
-      ),
-    ];
-
     return PosStaffRoster(members: members, shifts: shifts);
   }
+
+  /// Empty roster a new branch starts on. Shifts come from the catalogue, so
+  /// there is nothing to invent here either.
+  factory PosStaffRoster.empty() =>
+      const PosStaffRoster(members: [], shifts: []);
 }
 
 /// Field-level validation for the Member Details form and the add dialog.
@@ -439,26 +427,18 @@ class PosStaffValidation {
     }
     return null;
   }
-}
 
-/// Passcode helper — four digits, unique across the roster.
-class PosStaffPasscode {
-  PosStaffPasscode._();
-
-  static const int length = 4;
-
-  static String generate(
-    Iterable<String> taken, {
-    Random? random,
-  }) {
-    final Random rng = random ?? Random();
-    final Set<String> used = taken.toSet();
-    // 10k codes, a roster of dozens — collisions are rare, but bounded retries
-    // keep this from spinning if a venue ever fills the space.
-    for (int i = 0; i < 200; i++) {
-      final String code = rng.nextInt(10000).toString().padLeft(length, '0');
-      if (!used.contains(code)) return code;
+  /// The PIN is optional when hiring — a manager can set one later — but if one
+  /// is typed it has to be the right shape. The server is the authority on
+  /// uniqueness; it can see the whole branch and this screen cannot.
+  static String? pin(String value, {required int length, bool required = false}) {
+    final String trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return required ? 'A PIN is required' : null;
     }
-    return rng.nextInt(10000).toString().padLeft(length, '0');
+    if (!RegExp('^[0-9]{$length}\$').hasMatch(trimmed)) {
+      return 'The PIN must be exactly $length digits';
+    }
+    return null;
   }
 }

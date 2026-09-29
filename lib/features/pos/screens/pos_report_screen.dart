@@ -63,10 +63,10 @@ class _PosReportScreenState extends State<PosReportScreen> {
   late DateTime _today;
   bool _todayConfirmed = false;
 
-  /// Settings → Staff's roster, read once as the screen opens. It is a
-  /// per-terminal local cache (no server-side staff API exists yet — see
-  /// [PosStaffRepo]), and it does not vary with the report date, so there is
-  /// nothing to re-read when the operator steps between days.
+  /// Settings → Staff's roster, read once as the screen opens from
+  /// [PosStaffRepo]'s local cache of the branch roster. It does not vary with
+  /// the report date, so there is nothing to re-read when the operator steps
+  /// between days.
   late final PosStaffRoster _staffRoster = _loadStaffRoster();
 
   PosStaffRoster _loadStaffRoster() {
