@@ -16,6 +16,8 @@ import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
+import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
@@ -97,6 +99,18 @@ List<PosNavItem> visiblePosNavItems(bool canAccessManagerTabs) {
   return kPosNavItems
       .where((item) => _kAlwaysVisiblePaths.contains(item.path))
       .toList();
+}
+
+/// The same filter, driven by [PosAccess] so each manager tab can follow its
+/// own permission. With branch staff sign-in off, [PosAccess] answers both from
+/// the manager step-up, which makes this identical to [visiblePosNavItems].
+List<PosNavItem> visiblePosNavItemsFor(PosAccess access) {
+  return kPosNavItems.where((item) {
+    if (_kAlwaysVisiblePaths.contains(item.path)) return true;
+    if (item.path == PosRoutes.report) return access.canSeeReport;
+    if (item.path == PosRoutes.settings) return access.canSeeSettings;
+    return false;
+  }).toList();
 }
 
 /// Persistent POS chrome, mounted by the `ShellRoute` so it survives tab
@@ -206,6 +220,16 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
     await PosPinModal.show(context);
   }
 
+  /// Staff sign-in is on: "Lock" puts the PIN screen back up with the sale
+  /// intact; "Switch user" is the same with a different verb, for a hand-over.
+  Future<void> _onStaffLock() async {
+    await context.read<PosStaffSessionProvider>().lock();
+  }
+
+  Future<void> _onSwitchUser() async {
+    await context.read<PosStaffSessionProvider>().switchUser();
+  }
+
   /// The only way to sign this device out. Deliberately gated behind the
   /// avatar rather than the manager lock icon: elevating to manager access
   /// and then logging the whole terminal out from that same control read as
@@ -223,6 +247,8 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
     if (confirmed != true || !mounted) return;
 
     context.read<PosSessionProvider>().lock();
+    await Provider.of<PosStaffSessionProvider?>(context, listen: false)?.lock();
+    if (!mounted) return;
     await context.read<KioskAuthProvider>().logout();
     if (!mounted) return;
     // The route guard only re-evaluates on navigation, so a signed-out
@@ -235,6 +261,17 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
   Widget build(BuildContext context) {
     final auth = context.watch<KioskAuthProvider>();
     final session = context.watch<PosSessionProvider>();
+    // Nullable so a harness that never registers staff sign-in still builds.
+    final PosStaffSessionProvider? staff =
+        Provider.of<PosStaffSessionProvider?>(context);
+    final PosAccess access = staff?.access(
+          managerStepUp: session.canAccessManagerTabs,
+        ) ??
+        PosAccess(
+          loginRequired: false,
+          managerStepUp: session.canAccessManagerTabs,
+        );
+    final PosStaffSession? signedIn = staff?.session;
 
     return Container(
       height: PosNavBarSpec.height,
@@ -296,8 +333,7 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
               children: [
                 Flexible(
                   child: _PosNavPillRow(
-                    items:
-                        visiblePosNavItems(session.canAccessManagerTabs),
+                    items: visiblePosNavItemsFor(access),
                     currentPath: widget.currentPath,
                     interactive: widget.interactive,
                     onSelect: (path) => context.go(path),
@@ -308,16 +344,31 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
                 const SizedBox(width: PosNavBarSpec.groupGap),
                 const _ScanButton(),
                 const SizedBox(width: PosNavBarSpec.groupGap),
-                _PosLockButton(
-                  unlocked: session.canAccessManagerTabs,
-                  onTap: widget.interactive ? _onLockTap : null,
-                ),
-                const SizedBox(width: PosNavBarSpec.groupGap),
-                _PosAvatarMenuButton(
-                  initial: _initialFor(auth),
-                  interactive: widget.interactive,
-                  onLogout: _onAvatarLogout,
-                ),
+                // D4: the device manager code is the override for a branch
+                // that has NOT switched staff sign-in on. Once it has, what a
+                // person can open follows their own permissions, so the
+                // step-up lock would only be a second, contradicting answer.
+                if (!access.loginRequired) ...[
+                  _PosLockButton(
+                    unlocked: session.canAccessManagerTabs,
+                    onTap: widget.interactive ? _onLockTap : null,
+                  ),
+                  const SizedBox(width: PosNavBarSpec.groupGap),
+                ],
+                if (signedIn != null)
+                  _PosStaffMenuButton(
+                    staff: signedIn,
+                    interactive: widget.interactive,
+                    onSwitchUser: _onSwitchUser,
+                    onLock: _onStaffLock,
+                    onLogoutTerminal: _onAvatarLogout,
+                  )
+                else
+                  _PosAvatarMenuButton(
+                    initial: _initialFor(auth),
+                    interactive: widget.interactive,
+                    onLogout: _onAvatarLogout,
+                  ),
               ],
             ),
           ),
@@ -829,6 +880,121 @@ class _PosAvatarMenuButton extends StatelessWidget {
         PopupMenuItem<String>(value: 'logout', child: Text('Logout')),
       ],
       child: PosAvatar(initial: initial),
+    );
+  }
+}
+
+/// The signed-in staff member, and the three things they can do about it.
+///
+/// A chip rather than a bare circle: on a shared till, whose name is on the
+/// screen is the first thing anyone checks before ringing something up.
+class _PosStaffMenuButton extends StatelessWidget {
+  final PosStaffSession staff;
+  final bool interactive;
+  final Future<void> Function() onSwitchUser;
+  final Future<void> Function() onLock;
+  final Future<void> Function() onLogoutTerminal;
+
+  const _PosStaffMenuButton({
+    required this.staff,
+    required this.interactive,
+    required this.onSwitchUser,
+    required this.onLock,
+    required this.onLogoutTerminal,
+  });
+
+  static const Key buttonKey = Key('pos-staff-menu-button');
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      key: buttonKey,
+      enabled: interactive,
+      tooltip: 'Signed in as ${staff.name}',
+      position: PopupMenuPosition.under,
+      onSelected: (value) {
+        switch (value) {
+          case 'switch':
+            onSwitchUser();
+            break;
+          case 'lock':
+            onLock();
+            break;
+          case 'logout':
+            onLogoutTerminal();
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          enabled: false,
+          height: 56,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(staff.name, style: loewBold.copyWith(fontSize: 14, color: PosUI.ink)),
+              if (staff.role.isNotEmpty)
+                Text(staff.role,
+                    style: loewRegular.copyWith(fontSize: 12, color: PosUI.inkMuted)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'switch',
+          child: _menuRow(Icons.switch_account_outlined, 'Switch user'),
+        ),
+        PopupMenuItem<String>(
+          value: 'lock',
+          child: _menuRow(Icons.lock_outline_rounded, 'Lock'),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'logout',
+          child: _menuRow(Icons.logout_rounded, 'Log out terminal'),
+        ),
+      ],
+      child: Container(
+        height: PosNavBarSpec.avatarSize,
+        padding: const EdgeInsets.only(left: 4, right: 14),
+        decoration: BoxDecoration(
+          color: PosUI.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: PosUI.ink.withValues(alpha: 0.12)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PosAvatar(
+              initial: staff.initials,
+              size: PosNavBarSpec.avatarSize - 8,
+            ),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: Text(
+                staff.name.split(' ').first,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: loewBold.copyWith(fontSize: 14, color: PosUI.ink),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.expand_more_rounded, size: 18, color: PosUI.ink),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _menuRow(IconData icon, String label) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: PosUI.ink),
+        const SizedBox(width: 12),
+        Text(label, style: loewMedium.copyWith(fontSize: 14, color: PosUI.ink)),
+      ],
     );
   }
 }

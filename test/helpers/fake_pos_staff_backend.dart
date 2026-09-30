@@ -29,6 +29,16 @@ class FakePosStaffBackend implements HttpClientAdapter {
   /// Every request seen, for assertions about what the app actually sent.
   final List<RequestOptions> requests = [];
 
+  // Sign-in state, mirroring PosStaffTokenService: five wrong PINs per device
+  // lock it out; tokens are opaque and re-checked against the live member.
+  int failedPins = 0;
+  int lockoutSeconds = 0;
+  final Map<String, String> _tokens = {};
+  int _tokenSeq = 0;
+
+  /// Deactivate a member, as a manager would in the admin panel.
+  void deactivate(String memberId) => _find(memberId)?['active'] = false;
+
   static const List<Map<String, dynamic>> permissions = [
     {'key': 'process_refunds', 'label': 'Process refunds', 'description': ''},
     {'key': 'apply_discounts', 'label': 'Apply discounts', 'description': ''},
@@ -160,6 +170,71 @@ class FakePosStaffBackend implements HttpClientAdapter {
       return _json(200, _roster());
     }
 
+    if (method == 'GET' && path.endsWith('$base/sign-in-roster')) {
+      return _json(200, {
+        'staff_login_required': staffLoginRequired,
+        'pin_length': 4,
+        'lockout_seconds': lockoutSeconds,
+        'members': [
+          for (final m in _members)
+            if (m['active'] == true && _pins.containsKey(m['id']))
+              {
+                'id': m['id'],
+                'name': m['name'],
+                'initials': _initials(m['name'] as String),
+              },
+        ],
+      });
+    }
+
+    if (method == 'POST' && path.endsWith('$base/sign-in')) {
+      if (lockoutSeconds > 0) {
+        return _error(429, 'locked-out', 'Too many wrong PINs. Try again shortly.',
+            {'retry_after_seconds': lockoutSeconds});
+      }
+      final String pin = (data['pin'] ?? '').toString();
+      final String? memberId = data['member_id']?.toString();
+      String? matched;
+      for (final entry in _pins.entries) {
+        final Map<String, dynamic>? m = _find(entry.key);
+        if (m == null || m['active'] != true) continue;
+        if (memberId != null && memberId.isNotEmpty && entry.key != memberId) continue;
+        if (entry.value == pin) matched = entry.key;
+      }
+      if (matched == null) {
+        failedPins++;
+        final bool locked = failedPins >= 5;
+        if (locked) lockoutSeconds = 300;
+        return _error(422, 'incorrect-pin', 'That PIN was not recognised.', {
+          'attempts_remaining': (5 - failedPins).clamp(0, 5),
+          'locked_out': locked,
+          'retry_after_seconds': lockoutSeconds,
+        });
+      }
+      failedPins = 0;
+      final String token = 'tok-${++_tokenSeq}';
+      _tokens[token] = matched;
+      return _json(200, {
+        'token': token,
+        'expires_at': DateTime.now().add(const Duration(hours: 12)).toIso8601String(),
+        'staff': _sessionPayload(matched),
+      });
+    }
+
+    if (method == 'GET' && path.endsWith('$base/me')) {
+      final String? token = options.headers['X-Staff-Token']?.toString();
+      final String? id = token == null ? null : _tokens[token];
+      final Map<String, dynamic>? m = id == null ? null : _find(id);
+      if (m == null || m['active'] != true) {
+        return _error(401, 'no-staff-session', 'Sign in to continue.');
+      }
+      return _json(200, {'staff': _sessionPayload(id!)});
+    }
+
+    if (method == 'POST' && path.endsWith('$base/sign-out')) {
+      return _json(200, {'success': true});
+    }
+
     if (method == 'POST' && path.endsWith('$base/members')) {
       final String name = (data['name'] ?? '').toString().trim();
       if (name.isEmpty) return _error(422, 'validation', 'Name is required.');
@@ -238,6 +313,25 @@ class FakePosStaffBackend implements HttpClientAdapter {
     }
 
     return _error(404, 'not-found', 'No fake route for $method $path');
+  }
+
+  Map<String, dynamic> _sessionPayload(String id) {
+    final Map<String, dynamic> m = _find(id)!;
+    return {
+      'id': id,
+      'staff_id': _members.indexOf(m) + 100,
+      'name': m['name'],
+      'initials': _initials(m['name'] as String),
+      'role': m['role'],
+      'permissions': m['permissions'],
+    };
+  }
+
+  static String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    final String first = parts.first.substring(0, 1);
+    final String last = parts.length > 1 ? parts.last.substring(0, 1) : '';
+    return (first + last).toUpperCase();
   }
 
   Map<String, bool> _presetFor(String role) {

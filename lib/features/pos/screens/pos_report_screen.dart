@@ -5,6 +5,7 @@ import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
+import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_z_report_print.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_dialog.dart';
@@ -134,6 +135,7 @@ class _PosReportScreenState extends State<PosReportScreen> {
   }
 
   Future<void> _confirmCloseDay() async {
+    if (!PosAccessScope.guard(context, PosPermission.closeDay)) return;
     final KioskManagerProvider manager = context.read<KioskManagerProvider>();
 
     // Only render the count modal against data that belongs to this day —

@@ -14,6 +14,8 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
+import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_session_repo.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_gateway.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
@@ -86,6 +88,13 @@ Future<void> init() async {
   sl.registerLazySingleton(() => KioskAuthProvider(kioskAuthRepo: sl()));
   sl.registerLazySingleton(() => KioskManagerProvider(kioskManagerRepo: sl()));
   sl.registerLazySingleton(() => PosSessionProvider(kioskManagerRepo: sl()));
+  // Staff PIN sign-in for branches that switch it on. Registered for every
+  // device; it only ever does anything on a POS device whose branch asks.
+  sl.registerLazySingleton(() => PosStaffSessionProvider(
+        repo: PosStaffSessionRepo(dioClient: sl()),
+        tokenStore: const SecurePosStaffTokenStore(),
+        dioClient: sl(),
+      ));
   sl.registerLazySingleton(() => KioskDealProvider(dealRepo: sl()));
   sl.registerLazySingleton(() => ProductRealtimeGateway());
   sl.registerLazySingleton(() => ProductRealtimeController(

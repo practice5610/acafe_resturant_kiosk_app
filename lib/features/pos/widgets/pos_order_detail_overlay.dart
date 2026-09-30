@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'dart:async';
 
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
@@ -261,6 +262,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
   /// tap immediately, and the id is marked in flight before the first await so
   /// a poll cannot clobber it in the gap.
   Future<void> _setItemStatus(int detailId, PrepStatus target) async {
+    if (!PosAccessScope.guard(context, PosPermission.manageItemStatus)) return;
     final _ItemCell? cell = _cells[detailId];
     if (cell == null || cell.busy.value || _orderBusy.value || _locked) return;
 
@@ -301,6 +303,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
   /// Bulk: start everything, or mark everything ready.
   Future<void> _bulkItemStatus(PrepStatus target) async {
     if (_orderBusy.value || _locked) return;
+    if (!PosAccessScope.guard(context, PosPermission.manageItemStatus)) return;
 
     _orderBusy.value = true;
 
@@ -483,6 +486,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
     final Future<PosAdvanceResult> Function(PosOrderCard)? onAdvance =
         widget.onAdvance;
     if (onAdvance == null || _advancing) return;
+    if (!PosAccessScope.guard(context, PosPermission.manageOrders)) return;
 
     setState(() => _advancing = true);
     final PosAdvanceResult result =
@@ -941,6 +945,12 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
       _status != 'completed' && _status != 'canceled';
 
   Future<void> _onMoreAction(PosOrderMenuAction action) async {
+    // Cancelling is a void; pausing and resuming are ordinary order handling.
+    final String needed = action == PosOrderMenuAction.cancel
+        ? PosPermission.voidOrders
+        : PosPermission.manageOrders;
+    if (!PosAccessScope.guard(context, needed)) return;
+
     switch (action) {
       case PosOrderMenuAction.hold:
         await _setOrderStatus('on_hold');

@@ -34,6 +34,11 @@ class PosRoutePolicy {
     required String kioskLoginPath,
     required String kioskWelcomePath,
     bool canAccessManagerTabs = true,
+    // Per-tab answers from PosAccess. Null keeps the old behaviour, where one
+    // manager step-up opened both; with branch staff sign-in on, each tab
+    // follows its own permission instead.
+    bool? canAccessReport,
+    bool? canAccessSettings,
   }) {
     // A kiosk device that lands on a POS path — a stale bookmark, a typed URL —
     // goes back to its own tree rather than being shown a staff interface.
@@ -63,7 +68,11 @@ class PosRoutePolicy {
     // `PosSessionProvider.canAccessManagerTabs`. An Employee typing the URL
     // or hitting Back into one of these lands on the home tab rather than
     // seeing a locked/broken screen.
-    if (managerOnlyPaths.contains(path) && !canAccessManagerTabs) {
+    if (path == PosRoutes.report && !(canAccessReport ?? canAccessManagerTabs)) {
+      return PosRoutes.home;
+    }
+    if (path == PosRoutes.settings &&
+        !(canAccessSettings ?? canAccessManagerTabs)) {
       return PosRoutes.home;
     }
 

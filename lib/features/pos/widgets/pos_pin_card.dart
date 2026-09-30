@@ -102,10 +102,40 @@ class PosPinCard extends StatefulWidget {
   /// the host does not have to plumb a loading flag back down.
   final Future<bool> Function(String pin) onSubmit;
 
+  // The parameters below were added for the staff lock screen. Every one is
+  // optional and defaults to the card's original behaviour, so the manager
+  // step-up modal, which passes none of them, renders exactly as before.
+
+  /// Replaces the "Enter Personal PIN" heading.
+  final String? title;
+
+  /// A line under the PIN boxes -- a wrong-PIN note or a lockout countdown.
+  final String? message;
+
+  /// False freezes the keypad and the keyboard, for a lockout.
+  final bool enabled;
+
+  /// Submit on the last digit instead of waiting for Confirm. A till PIN is
+  /// four digits typed dozens of times a shift; the extra tap is friction.
+  final bool autoSubmit;
+
+  /// Shown above the heading -- the lock screen puts the chosen person here.
+  final Widget? header;
+
+  /// Keeps a fixed line free under the boxes for [message]. Off by default:
+  /// the step-up modal has no message and must keep its original height.
+  final bool reserveMessageSpace;
+
   const PosPinCard({
     super.key,
     required this.onSubmit,
     this.pinLength = 6,
+    this.title,
+    this.message,
+    this.enabled = true,
+    this.autoSubmit = false,
+    this.header,
+    this.reserveMessageSpace = false,
   });
 
   /// Identifies the painted card surface, so a test can measure the card itself
@@ -151,13 +181,18 @@ class _PosPinCardState extends State<PosPinCard>
   bool get _complete => _code.length == widget.pinLength;
 
   void _onDigit(String digit) {
-    if (_submitting || _code.length >= widget.pinLength) return;
+    if (!widget.enabled || _submitting || _code.length >= widget.pinLength) {
+      return;
+    }
     HapticFeedback.selectionClick();
     setState(() => _code += digit);
+    if (widget.autoSubmit && _complete) {
+      _submit();
+    }
   }
 
   void _onBackspace() {
-    if (_submitting || _code.isEmpty) return;
+    if (!widget.enabled || _submitting || _code.isEmpty) return;
     HapticFeedback.selectionClick();
     setState(() => _code = _code.substring(0, _code.length - 1));
   }
@@ -183,7 +218,7 @@ class _PosPinCardState extends State<PosPinCard>
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
-    if (_submitting) return KeyEventResult.ignored;
+    if (_submitting || !widget.enabled) return KeyEventResult.ignored;
 
     final LogicalKeyboardKey key = event.logicalKey;
 
@@ -319,7 +354,10 @@ class _PosPinCardState extends State<PosPinCard>
           // Width is derived from the height inside PosWordmark, which is what
           // keeps the ratio right on an asset that declares
           // preserveAspectRatio="none".
-          PosWordmark(height: PosPinSpec.wordmarkHeight * s),
+          if (widget.header != null)
+            widget.header!
+          else
+            PosWordmark(height: PosPinSpec.wordmarkHeight * s),
           SizedBox(height: PosPinSpec.sectionGap * s),
           _pinInstructions(s),
           SizedBox(height: PosPinSpec.sectionGap * s),
@@ -331,14 +369,14 @@ class _PosPinCardState extends State<PosPinCard>
             rows: PosKeypad.digitRows(),
             style: _pinKeypadStyle,
             scale: s,
-            enabled: !_submitting,
+            enabled: !_submitting && widget.enabled,
             onKey: _onDigit,
             onBackspace: _onBackspace,
           ),
           SizedBox(height: PosPinSpec.sectionGap * s),
           _ConfirmButton(
             scale: s,
-            enabled: _complete && !_submitting,
+            enabled: _complete && !_submitting && widget.enabled,
             busy: _submitting,
             onTap: _submit,
           ),
@@ -352,7 +390,7 @@ class _PosPinCardState extends State<PosPinCard>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'Enter Personal PIN',
+          widget.title ?? 'Enter Personal PIN',
           textAlign: TextAlign.center,
           style: loewBold.copyWith(
             fontSize: PosPinSpec.pinTitleSize * s,
@@ -366,6 +404,31 @@ class _PosPinCardState extends State<PosPinCard>
           length: widget.pinLength,
           filled: _code.length,
         ),
+        // When reserved, held even while empty, so a message appearing does not
+        // push the keypad down under the operator's finger mid-entry.
+        if (widget.reserveMessageSpace || widget.message != null) ...[
+          SizedBox(height: 12 * s),
+          SizedBox(
+            height: 36 * s,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 160),
+              child: widget.message == null
+                  ? const SizedBox.shrink()
+                  : Text(
+                      widget.message!,
+                      key: ValueKey<String>(widget.message!),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: loewMedium.copyWith(
+                        fontSize: 13 * s,
+                        height: 1.35,
+                        color: const Color(0xFFB4544A),
+                      ),
+                    ),
+            ),
+          ),
+        ],
       ],
     );
   }

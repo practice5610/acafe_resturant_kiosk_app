@@ -34,6 +34,15 @@ class ApiCheckerHelper {
           }
         });
 
+      } else if (error.errors![0].code == 'permission-denied') {
+        // A staff member tried something their role does not allow. The device
+        // session is fine and must not be touched -- this is an answer, not an
+        // auth failure, so it gets a plain sentence and nothing else.
+        showCustomSnackBarHelper("You don't have permission to do that.");
+      } else if (error.errors![0].code == 'no-staff-session') {
+        // The staff token no longer stands for anybody. The staff interceptor
+        // has already put the PIN screen back up; nothing to say here.
+        return;
       }else {
         // Background boot calls (config cache, policy pages, etc.) should not
         // flash errors on the kiosk login screen when the API is unreachable.

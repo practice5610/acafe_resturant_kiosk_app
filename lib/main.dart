@@ -17,6 +17,8 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_mode.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
+import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_staff_gate.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_scope.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -128,6 +130,7 @@ Future<void> main() async {
       ChangeNotifierProvider(create: (context) => di.sl<KioskAuthProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<KioskManagerProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<PosSessionProvider>()),
+      ChangeNotifierProvider(create: (context) => di.sl<PosStaffSessionProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<KioskDealProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<AuthProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<CartProvider>()),
@@ -284,7 +287,9 @@ class _MyAppState extends State<MyApp> {
             // wrong for a counter terminal that should lay out against the
             // real window.
             if (PosMode.of(context).isPos) {
-              return PosShell(child: content);
+              // Staff PIN sign-in lives inside the POS shell only, so a kiosk
+              // can never be shown it.
+              return PosShell(child: PosStaffGate(child: content));
             }
 
             return KioskShell(
