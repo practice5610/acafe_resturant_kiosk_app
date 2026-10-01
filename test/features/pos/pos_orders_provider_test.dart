@@ -5,6 +5,7 @@ import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/providers/pos_orders_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 class _FakeRepo implements PosOrdersRepo {
   @override
@@ -19,6 +20,7 @@ class _FakeRepo implements PosOrdersRepo {
   String? lastSection;
   String? lastMethod;
   String? lastSearch;
+  String? lastDateFrom;
   String? lastDateTo;
   String? lastOrderStatus;
 
@@ -80,6 +82,7 @@ class _FakeRepo implements PosOrdersRepo {
     lastSection = section;
     lastMethod = method;
     lastSearch = search;
+    lastDateFrom = dateFrom;
     lastDateTo = dateTo;
 
     return ApiResponseModel.withSuccess(Response(
@@ -178,11 +181,42 @@ void main() {
     );
   });
 
-  test('NOW mode leaves the window open-ended', () async {
+  test('NOW mode sends both bounds, device-derived, with from <= to', () async {
     await provider.load();
-    // Sending a frozen `date_to` would stop the board showing anything placed
-    // after the operator last touched the filter.
-    expect(repo.lastDateTo, isNull);
+
+    // Both bounds are sent (not a null date_to the server would fill from its
+    // own clock) and both come from the device clock, so from <= to holds at any
+    // time of day and for any device/server offset — no spurious date-range 422.
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    expect(repo.lastDateFrom, '$today 00:00:00');
+    expect(repo.lastDateTo, '$today 23:59:59');
+    // The wire format sorts lexically the same as chronologically.
+    expect(repo.lastDateFrom!.compareTo(repo.lastDateTo!) <= 0, isTrue);
+  });
+
+  test('NOW mode still ends the window at end-of-today after a silent refetch',
+      () async {
+    await provider.load();
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // A socket-driven refetch re-resolves the window rather than freezing it, so
+    // it keeps ending at the device's end-of-today — the board does not stop
+    // showing orders placed after the operator last touched the filter.
+    await provider.load(silent: true);
+    expect(repo.lastDateTo, '$today 23:59:59');
+  });
+
+  test('turning NOW off sends the explicit end bound the operator chose',
+      () async {
+    final DateTime from = DateTime(2026, 9, 1, 0, 0, 0);
+    final DateTime to = DateTime(2026, 9, 3, 18, 30, 0);
+    provider.setRange(from: from, to: to, now: false);
+    await Future<void>.delayed(Duration.zero);
+
+    // Not in NOW mode: the chosen From/To are sent verbatim, unchanged by the
+    // fix.
+    expect(repo.lastDateFrom, '2026-09-01 00:00:00');
+    expect(repo.lastDateTo, '2026-09-03 18:30:00');
   });
 
   test('advancing a NEW order moves it and calls the real transition',

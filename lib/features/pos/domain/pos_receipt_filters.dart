@@ -66,16 +66,21 @@ enum PosReceiptDateRange { today, yesterday, last7Days, thisMonth }
 
 /// Resolved query window for a [PosReceiptDateRange].
 ///
-/// Today stays a single `report_date` rather than a one-day range, so the
-/// default request is byte-for-byte the one the endpoint already served before
-/// these filters existed.
+/// "Today" sends no date params at all, letting the endpoint scope to its own
+/// (server) today. Sending a device-derived `report_date` instead broke on a
+/// terminal whose clock runs ahead of the server: the device's "today" reads as
+/// a future date and the server rejects it with `future-date`. Since a just-
+/// placed order's `created_at` is a server timestamp, the server's today is also
+/// the window that actually contains it. The other presets are past windows and
+/// stay device-derived.
 extension PosReceiptDateRangeQuery on PosReceiptDateRange {
   static final DateFormat _wire = DateFormat('yyyy-MM-dd');
 
   DateTime get _today => DateUtilsToday.value;
 
-  String? get reportDate =>
-      this == PosReceiptDateRange.today ? _wire.format(_today) : null;
+  /// Always null: "Today" is expressed by sending no date window, so the server
+  /// uses its own today rather than the device's (which may be a day ahead).
+  String? get reportDate => null;
 
   String? get dateFrom {
     switch (this) {

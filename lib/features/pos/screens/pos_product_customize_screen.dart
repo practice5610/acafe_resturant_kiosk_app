@@ -6,6 +6,7 @@ import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_scroll.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
@@ -241,6 +242,13 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
   late final bool _ownsCustomerControllers;
   String? _instruction;
 
+  /// One [GlobalKey] per rendered section, so a failed Add to Cart can scroll
+  /// the first invalid section into view. Created on demand, keyed by identity.
+  final Map<ProductSectionRef, GlobalKey> _sectionKeys = {};
+
+  GlobalKey _sectionKey(ProductSectionRef ref) =>
+      _sectionKeys.putIfAbsent(ref, () => GlobalKey());
+
   @override
   void initState() {
     super.initState();
@@ -338,7 +346,17 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
   }
 
   void _addToCart(ProductProvider productProvider) {
-    if (!_validate(context, productProvider)) return;
+    if (!_validate(context, productProvider)) {
+      // Validation already fired its snackbar. Scroll the first invalid section
+      // (in on-screen order) to the top so the customer can see what to fix.
+      final ProductSectionRef? invalid =
+          firstInvalidProductSection(_product, productProvider);
+      if (invalid != null) {
+        final GlobalKey? key = _sectionKeys[invalid];
+        if (key != null) scrollProductSectionIntoView(key);
+      }
+      return;
+    }
     final CartModel built = buildKioskCartModel(
       context,
       _product,
@@ -524,6 +542,7 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
                           product: _product,
                           productProvider: productProvider,
                           sections: sections,
+                          sectionKey: _sectionKey,
                           onBack: () => Navigator.of(context).pop(),
                         ),
                       ),
@@ -604,12 +623,14 @@ class _CustomizePane extends StatelessWidget {
   final Product product;
   final ProductProvider productProvider;
   final KioskCustomizeSections sections;
+  final GlobalKey Function(ProductSectionRef) sectionKey;
   final VoidCallback onBack;
 
   const _CustomizePane({
     required this.product,
     required this.productProvider,
     required this.sections,
+    required this.sectionKey,
     required this.onBack,
   });
 
@@ -660,20 +681,25 @@ class _CustomizePane extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final entry in sections.size) ...[
-                      _VariationSection(
-                        title: entry.value.name?.isNotEmpty == true
-                            ? entry.value.name!
-                            : 'Size',
-                        variation: entry.value,
-                        variationIndex: entry.key,
-                        product: product,
-                        productProvider: productProvider,
-                        imageBaseUrl: imageBase,
+                      KeyedSubtree(
+                        key: sectionKey(ProductSectionRef.size(entry.key)),
+                        child: _VariationSection(
+                          title: entry.value.name?.isNotEmpty == true
+                              ? entry.value.name!
+                              : 'Size',
+                          variation: entry.value,
+                          variationIndex: entry.key,
+                          product: product,
+                          productProvider: productProvider,
+                          imageBaseUrl: imageBase,
+                        ),
                       ),
                       const SizedBox(height: PosCustomizeSpec.sectionGap),
                     ],
                     for (final entry in sections.dietary) ...[
-                      _VariationSection(
+                      KeyedSubtree(
+                        key: sectionKey(ProductSectionRef.dietary(entry.key)),
+                        child: _VariationSection(
                         // 'choose_your_dietary' has no entry in any locale
                         // file; getTranslated() throws on a missing key and
                         // echoes the raw key back rather than returning null,
@@ -688,25 +714,34 @@ class _CustomizePane extends StatelessWidget {
                         productProvider: productProvider,
                         imageBaseUrl: imageBase,
                       ),
+                      ),
                       const SizedBox(height: PosCustomizeSpec.sectionGap),
                     ],
                     if (product.effectiveAddOnGroups.isNotEmpty) ...[
                       for (final group in product.effectiveAddOnGroups) ...[
-                        _AddOnsSection(
-                          group: group,
-                          product: product,
-                          productProvider: productProvider,
+                        KeyedSubtree(
+                          key: group.id != null
+                              ? sectionKey(ProductSectionRef.addOn(group.id!))
+                              : null,
+                          child: _AddOnsSection(
+                            group: group,
+                            product: product,
+                            productProvider: productProvider,
+                          ),
                         ),
                         const SizedBox(height: PosCustomizeSpec.sectionGap),
                       ],
                     ],
                     for (final entry in sections.cupCan) ...[
-                      _CupCanSection(
-                        variation: entry.value,
-                        variationIndex: entry.key,
-                        product: product,
-                        productProvider: productProvider,
-                        imageBaseUrl: imageBase,
+                      KeyedSubtree(
+                        key: sectionKey(ProductSectionRef.cupCan(entry.key)),
+                        child: _CupCanSection(
+                          variation: entry.value,
+                          variationIndex: entry.key,
+                          product: product,
+                          productProvider: productProvider,
+                          imageBaseUrl: imageBase,
+                        ),
                       ),
                       const SizedBox(height: PosCustomizeSpec.sectionGap),
                     ],

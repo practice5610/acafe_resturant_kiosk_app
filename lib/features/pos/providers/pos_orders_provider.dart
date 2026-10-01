@@ -62,6 +62,15 @@ class PosOrdersProvider extends ChangeNotifier {
     final DateTime now = DateTime.now();
     return DateTime(now.year, now.month, now.day);
   }
+
+  /// The end of the device's today, on the same clock as [_startOfToday]. Sent
+  /// as the NOW window's `date_to` so both bounds come from the device clock —
+  /// otherwise the server fills `date_to` from its own clock, and a device that
+  /// runs ahead of the server produces from > to and a spurious date-range 422.
+  static DateTime _endOfToday() {
+    final DateTime now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, 23, 59, 59);
+  }
   DateTime? get from => _from;
   DateTime? get to => _to;
 
@@ -129,8 +138,11 @@ class PosOrdersProvider extends ChangeNotifier {
       dateFrom: _from == null ? null : _wire.format(_from!),
       // In NOW mode the end of the window is resolved at request time, not when
       // the toggle was pressed — otherwise a terminal left open over lunch stops
-      // showing anything placed after the operator last touched the filter.
-      dateTo: _now ? null : (_to == null ? null : _wire.format(_to!)),
+      // showing anything placed after the operator last touched the filter. It is
+      // sent as the device's end-of-today rather than omitted so both bounds share
+      // the device clock; letting the server fill it from its own clock gives
+      // from > to (a date-range 422) whenever the device runs ahead of the server.
+      dateTo: _now ? _wire.format(_endOfToday()) : (_to == null ? null : _wire.format(_to!)),
       search: _search.isEmpty ? null : _search,
       section: _section == null
           ? null

@@ -229,10 +229,14 @@ void main() {
   });
 
   group('date filters', () {
-    test('Today stays a single report_date, as the endpoint already served',
-        () {
+    test('Today sends no date params so the server scopes to its own today', () {
+      // A device-derived report_date reads as a future date on a terminal whose
+      // clock runs ahead of the server, which the server rejects with
+      // future-date. Sending nothing lets the server use its own today, which is
+      // the window that actually contains a just-placed (server-timestamped)
+      // order.
       const range = PosReceiptDateRange.today;
-      expect(range.reportDate, isNotNull);
+      expect(range.reportDate, isNull);
       expect(range.dateFrom, isNull);
       expect(range.dateTo, isNull);
     });
