@@ -70,6 +70,24 @@ class PosLockScreenMember {
   }
 }
 
+/// A role the lock screen offers as its first step. Comes from the server's
+/// assignable-POS-roles list, never hardcoded, so a branch that renames or adds
+/// a role sees it on the till without a new build.
+class PosStaffRole {
+  final int id;
+  final String name;
+
+  const PosStaffRole({required this.id, required this.name});
+
+  static PosStaffRole? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final int? id = int.tryParse('${json['id']}');
+    final String name = (json['name'] ?? '').toString();
+    if (id == null || name.isEmpty) return null;
+    return PosStaffRole(id: id, name: name);
+  }
+}
+
 /// The lock screen's view of the branch: whether it asks for a PIN at all, and
 /// who may answer.
 class PosSignInRoster {
@@ -78,11 +96,17 @@ class PosSignInRoster {
   final int lockoutSeconds;
   final List<PosLockScreenMember> members;
 
+  /// The role cards the operator picks before typing a PIN. Empty on an older
+  /// server that does not send them, which the lock screen reads as "skip the
+  /// role step and sign in on the PIN alone" -- the pre-role behaviour.
+  final List<PosStaffRole> roles;
+
   const PosSignInRoster({
     required this.staffLoginRequired,
     required this.pinLength,
     required this.lockoutSeconds,
     required this.members,
+    this.roles = const [],
   });
 
   static const PosSignInRoster off = PosSignInRoster(
@@ -95,6 +119,7 @@ class PosSignInRoster {
   static PosSignInRoster? fromJson(Object? json) {
     if (json is! Map) return null;
     final Object? raw = json['members'];
+    final Object? rawRoles = json['roles'];
     return PosSignInRoster(
       staffLoginRequired: json['staff_login_required'] == true,
       pinLength: int.tryParse('${json['pin_length']}') ?? 4,
@@ -104,6 +129,12 @@ class PosSignInRoster {
               for (final m in raw)
                 if (PosLockScreenMember.fromJson(m) != null)
                   PosLockScreenMember.fromJson(m)!,
+            ]
+          : const [],
+      roles: rawRoles is List
+          ? [
+              for (final r in rawRoles)
+                if (PosStaffRole.fromJson(r) != null) PosStaffRole.fromJson(r)!,
             ]
           : const [],
     );

@@ -1,8 +1,14 @@
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_route_policy.dart';
+import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
+import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_staff_lock_screen.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 /// Puts the PIN screen in front of the till when, and only when, it is needed.
@@ -31,27 +37,38 @@ class PosStaffGate extends StatefulWidget {
 class _PosStaffGateState extends State<PosStaffGate> {
   bool _bootstrapRequested = false;
 
-  /// Who was signed in last build. When it changes, the router's redirect has
-  /// to run again: it only re-evaluates on navigation, so a cashier signing in
-  /// over a manager who left Settings open would otherwise be left on it.
+  /// Who was signed in last build. When it changes to a *new* signed-in member
+  /// we only need to act if they are sitting on a manager-only route they may
+  /// not see (a manager locked the till on Settings, an employee signed in).
   String? _lastStaffId;
-
-  void _reroute() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      try {
-        RouterHelper.goRoutes.refresh();
-      } catch (_) {
-        // No router in this tree (a test harness): nothing to re-run.
-      }
-    });
-  }
 
   void _ensureBootstrapped(PosStaffSessionProvider session, bool deviceLoggedIn) {
     if (!deviceLoggedIn || session.bootstrapped || _bootstrapRequested) return;
     _bootstrapRequested = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) session.bootstrap();
+    });
+  }
+
+  /// A fresh sign-in must never leave someone on a Report/Settings route their
+  /// permissions do not cover. The common case (the lock sat over /pos-home)
+  /// changes nothing and triggers no navigation; only a forbidden manager route
+  /// bounces, once, to the till home. This replaces the old imperative
+  /// `goRoutes.refresh()` so sign-in does not shove the router mid-transition.
+  void _bounceIfForbidden(PosStaffSessionProvider session) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || session.session == null) return;
+
+      final String path = RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
+      if (!PosRoutePolicy.managerOnlyPaths.contains(path)) return;
+
+      final bool stepUp =
+          context.read<PosSessionProvider?>()?.canAccessManagerTabs ?? false;
+      final PosAccess access = session.access(managerStepUp: stepUp);
+      final bool allowed =
+          path == PosRoutes.report ? access.canSeeReport : access.canSeeSettings;
+
+      if (!allowed) context.go(PosRoutes.home);
     });
   }
 
@@ -69,17 +86,26 @@ class _PosStaffGateState extends State<PosStaffGate> {
       // Device logged out: the next login starts from a fresh read of the
       // branch switch rather than whatever the previous device session saw.
       _bootstrapRequested = false;
+      _lastStaffId = null;
       return widget.child;
     }
 
     _ensureBootstrapped(session, deviceLoggedIn);
 
+    // Until the branch switch has been read, decide nothing from the default
+    // "off" roster -- that is exactly what made the PIN flash over the welcome
+    // screen. Hold a neutral branded surface instead, no content and no PIN.
+    if (!session.bootstrapped) {
+      return const ColoredBox(color: PosUI.pageBg, child: SizedBox.expand());
+    }
+
     final bool locked = session.loginRequired && !session.isSignedIn;
 
     final String? staffId = session.session?.id;
     if (staffId != _lastStaffId) {
+      final bool becameSignedIn = staffId != null;
       _lastStaffId = staffId;
-      _reroute();
+      if (becameSignedIn) _bounceIfForbidden(session);
     }
 
     return Listener(

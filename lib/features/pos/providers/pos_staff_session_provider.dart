@@ -57,6 +57,7 @@ class PosStaffSessionProvider extends ChangeNotifier {
   int get lockoutSecondsLeft => _lockoutSecondsLeft;
   bool get isLockedOut => _lockoutSecondsLeft > 0;
   List<PosLockScreenMember> get members => _roster.members;
+  List<PosStaffRole> get roles => _roster.roles;
   int get pinLength => _roster.pinLength;
 
   /// Read by the interceptor for every request.
@@ -119,7 +120,7 @@ class PosStaffSessionProvider extends ChangeNotifier {
 
   // ── Sign in / out ─────────────────────────────────────────────────────
 
-  Future<PosSignInResult> signIn(String pin, {String? memberId}) async {
+  Future<PosSignInResult> signIn(String pin, {String? memberId, int? roleId}) async {
     if (isLockedOut) {
       return PosSignInResult(
         PosSignInOutcome.lockedOut,
@@ -131,7 +132,7 @@ class PosStaffSessionProvider extends ChangeNotifier {
     notifyListeners();
 
     final (session, token, expiresAt, result) =
-        await repo.signIn(pin, memberId: memberId);
+        await repo.signIn(pin, memberId: memberId, roleId: roleId);
 
     _signingIn = false;
 

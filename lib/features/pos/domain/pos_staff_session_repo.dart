@@ -130,6 +130,7 @@ class PosStaffSessionRepo {
   Future<(PosStaffSession?, String?, DateTime?, PosSignInResult)> signIn(
     String pin, {
     String? memberId,
+    int? roleId,
   }) async {
     final DioClient? client = dioClient;
     if (client == null) {
@@ -141,6 +142,9 @@ class PosStaffSessionRepo {
         data: {
           'pin': pin,
           if (memberId != null && memberId.isNotEmpty) 'member_id': memberId,
+          // Optional: the role the operator tapped. Omitted entirely when null,
+          // so the request is byte-for-byte the old one on a role-less sign-in.
+          if (roleId != null) 'role': roleId,
         },
         options: _keepDevice,
       );

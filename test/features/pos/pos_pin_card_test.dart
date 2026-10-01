@@ -57,7 +57,7 @@ void main() {
       (tester) async {
     await pumpCard(tester, onSubmit: (_) async => true);
 
-    expect(find.text('Enter Personal PIN'), findsOneWidget);
+    expect(find.text('Enter Manager Code'), findsOneWidget);
     expect(find.text('VERIFY & LOGIN'), findsOneWidget);
     for (final d in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']) {
       expect(find.text(d), findsOneWidget, reason: 'key $d missing');

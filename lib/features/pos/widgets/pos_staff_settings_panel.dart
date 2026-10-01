@@ -2,6 +2,7 @@ import 'package:acafe_customer/features/pos/domain/pos_general_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_provider.dart';
+import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_text_field.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -72,6 +73,11 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
 
   Future<void> _openAddStaff({String? shiftId}) async {
     final PosStaffProvider provider = context.read<PosStaffProvider>();
+    // Re-fetch the catalogue first: roles and shifts created in the admin panel
+    // after this screen mounted are not in the once-hydrated copy, and a manager
+    // who just added a role expects to assign it straight away.
+    await provider.reloadCatalogue();
+    if (!mounted) return;
     // Header → the first shift the branch defines; shift-row "+ Add" → that
     // shift. Shifts come from the catalogue, so there is no hardcoded default.
     final String? defaultShift = shiftId ??
@@ -83,6 +89,7 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
         roleOptions: provider.catalogue.roleOptions,
         pinLength: provider.pinLength,
         initialShiftIds: {if (defaultShift != null) defaultShift},
+        loadError: provider.catalogueError,
       ),
     );
     if (result == null || !mounted) return;
@@ -90,6 +97,8 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
       name: result.name,
       role: result.role,
       shiftIds: result.shiftIds,
+      phone: result.phone,
+      active: result.active,
       pin: result.pin,
     );
     if (!mounted) return;
@@ -146,6 +155,17 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
     final PosStaffProvider provider = context.watch<PosStaffProvider>();
     final PosStaffMember? member = provider.selected;
 
+    // Only a signed-in manager (manage_staff) may hire. When staff sign-in is off
+    // the till is in device-manager mode and hiring stays available, matching how
+    // the rest of Settings behaves there. The provider is read nullably so a
+    // harness that does not wire it in (or a build without staff sign-in) still
+    // shows the button; the server enforces manage_staff regardless.
+    final PosStaffSessionProvider? session =
+        context.watch<PosStaffSessionProvider?>();
+    final bool canManageStaff = session == null || !session.loginRequired
+        ? true
+        : (session.session?.can('manage_staff') ?? false);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -153,6 +173,7 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
           onAdd: _openAddStaff,
           branchName: provider.branchName,
           staffLoginRequired: provider.staffLoginRequired,
+          canAdd: canManageStaff,
         ),
         const SizedBox(height: 32),
         Expanded(
@@ -226,10 +247,15 @@ class _StaffHeader extends StatefulWidget {
   /// decision, shown here so an operator is not left guessing.
   final bool staffLoginRequired;
 
+  /// Only a signed-in manager may hire. The server enforces this too; hiding the
+  /// button keeps a non-manager from reaching a dialog that would only 403.
+  final bool canAdd;
+
   const _StaffHeader({
     required this.onAdd,
     this.branchName = '',
     this.staffLoginRequired = false,
+    this.canAdd = true,
   });
 
   @override
@@ -297,6 +323,7 @@ class _StaffHeaderState extends State<_StaffHeader> {
                 ],
               ),
             ),
+            if (widget.canAdd) ...[
             const SizedBox(width: 16),
             MouseRegion(
               cursor: SystemMouseCursors.click,
@@ -337,6 +364,7 @@ class _StaffHeaderState extends State<_StaffHeader> {
                 ),
               ),
             ),
+            ],
           ],
         ),
       ),
@@ -970,6 +998,12 @@ class _NewStaff {
   final String role;
   final List<String> shiftIds;
 
+  /// Optional, like the admin form's Phone field.
+  final String? phone;
+
+  /// Active by default; a manager can hire someone switched off.
+  final bool active;
+
   /// Optional: a manager can hire now and set the PIN later.
   final String? pin;
 
@@ -977,6 +1011,8 @@ class _NewStaff {
     required this.name,
     required this.role,
     required this.shiftIds,
+    this.phone,
+    this.active = true,
     this.pin,
   });
 }
@@ -990,11 +1026,16 @@ class _AddStaffDialog extends StatefulWidget {
   /// branch's first shift; a shift-row "+ Add" passes that shift alone.
   final Set<String> initialShiftIds;
 
+  /// The last catalogue fetch failed, so an empty role list means "could not
+  /// load" rather than "the branch has no roles".
+  final bool loadError;
+
   const _AddStaffDialog({
     required this.shifts,
     required this.roleOptions,
     required this.pinLength,
     this.initialShiftIds = const {},
+    this.loadError = false,
   });
 
   @override
@@ -1003,12 +1044,17 @@ class _AddStaffDialog extends StatefulWidget {
 
 class _AddStaffDialogState extends State<_AddStaffDialog> {
   final TextEditingController _name = TextEditingController();
+  final TextEditingController _phone = TextEditingController();
   final TextEditingController _pin = TextEditingController();
   late final Set<String> _shiftIds = Set<String>.from(widget.initialShiftIds);
 
   /// The branch's own role list decides the default: its first entry.
   late String _role =
       widget.roleOptions.isNotEmpty ? widget.roleOptions.first.value : '';
+
+  /// Active by default, like the admin form's Status toggle.
+  bool _active = true;
+
   String? _error;
   String? _pinError;
   String? _shiftError;
@@ -1016,6 +1062,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
   @override
   void dispose() {
     _name.dispose();
+    _phone.dispose();
     _pin.dispose();
     super.dispose();
   }
@@ -1061,6 +1108,8 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
         name: _name.text.trim(),
         role: _role,
         shiftIds: _shiftIds.toList(),
+        phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+        active: _active,
         pin: _pin.text.trim().isEmpty ? null : _pin.text.trim(),
       ),
     );
@@ -1078,17 +1127,33 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           label: 'Name',
           controller: _name,
           errorText: _error,
-          textInputAction: TextInputAction.done,
+          textInputAction: TextInputAction.next,
           onChanged: (_) {
             if (_error != null) setState(() => _error = null);
           },
         ),
         const SizedBox(height: 12),
-        PosSettingsDropdown(
-          label: 'Role',
-          value: _role,
-          options: widget.roleOptions,
-          onChanged: (v) => setState(() => _role = v),
+        PosSettingsTextField(
+          label: 'Phone',
+          optionalLabel: 'optional',
+          controller: _phone,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.next,
+        ),
+        const SizedBox(height: 12),
+        if (widget.roleOptions.isEmpty)
+          _NoRolesNotice(loadError: widget.loadError)
+        else
+          PosSettingsDropdown(
+            label: 'Role',
+            value: _role,
+            options: widget.roleOptions,
+            onChanged: (v) => setState(() => _role = v),
+          ),
+        const SizedBox(height: 12),
+        _ActiveToggleRow(
+          value: _active,
+          onChanged: (v) => setState(() => _active = v),
         ),
         const SizedBox(height: 12),
         PosSettingsTextField(
@@ -1148,6 +1213,117 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Shown in place of the Role dropdown when the branch has no assignable roles
+/// (the catalogue came back empty). Keeps the field from being a blank control
+/// and tells the manager what to do, rather than letting a hire be attempted
+/// with no role.
+class _NoRolesNotice extends StatelessWidget {
+  final bool loadError;
+
+  const _NoRolesNotice({this.loadError = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final String message = loadError
+        ? "Couldn't load roles. Check the connection and reopen this dialog."
+        : 'No roles available. Ask an admin to create one.';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ROLE',
+          style: loewExtraBold.copyWith(
+            fontSize: PosSettingsSpec.labelSize,
+            letterSpacing: PosSettingsSpec.labelTracking,
+            color: PosSettingsSpec.ink,
+          ),
+        ),
+        const SizedBox(height: PosSettingsSpec.labelGap),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: PosSettingsSpec.fieldFill,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: PosSettingsSpec.fieldBorder),
+          ),
+          child: Text(
+            message,
+            style: loewRegular.copyWith(
+              fontSize: 13,
+              color: PosSettingsSpec.inkMuted(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Active/inactive switch for the hire dialog, mirroring the admin form's
+/// Status field: on by default, with the same explanatory line.
+class _ActiveToggleRow extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _ActiveToggleRow({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'STATUS',
+          style: loewExtraBold.copyWith(
+            fontSize: PosSettingsSpec.labelSize,
+            letterSpacing: PosSettingsSpec.labelTracking,
+            color: PosSettingsSpec.ink,
+          ),
+        ),
+        const SizedBox(height: PosSettingsSpec.labelGap),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: PosSettingsSpec.fieldFill,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: PosSettingsSpec.fieldBorder),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Active',
+                      style: loewBold.copyWith(fontSize: 14, color: PosSettingsSpec.ink),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Switch off to block every sign-in at once.',
+                      style: loewRegular.copyWith(
+                        fontSize: 12,
+                        color: PosSettingsSpec.inkMuted(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: PosSettingsSpec.ink,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1338,7 +1514,7 @@ class _DialogFrame extends StatelessWidget {
         side: const BorderSide(color: PosSettingsSpec.fieldBorder),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 620),
+        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 700),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(

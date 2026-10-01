@@ -117,12 +117,16 @@ class PosStaffRepo {
     required String name,
     required int roleId,
     required List<String> shiftIds,
+    String? phone,
+    bool active = true,
     String? pin,
   }) {
     return _send(() => dioClient!.post('$_base/members', options: _keepDevice, data: {
           'name': name,
           'role_id': roleId,
           'shift_ids': shiftIds,
+          'active': active,
+          if (phone != null && phone.isNotEmpty) 'phone': phone,
           if (pin != null && pin.isNotEmpty) 'pin': pin,
         }));
   }

@@ -28,6 +28,7 @@ class PosStaffProvider extends ChangeNotifier {
   bool _hydrated = false;
   bool _saving = false;
   bool _loading = false;
+  bool _catalogueError = false;
   String? _syncError;
 
   PosStaffRoster get roster => _roster;
@@ -38,6 +39,11 @@ class PosStaffProvider extends ChangeNotifier {
   bool get isHydrated => _hydrated;
   bool get isSaving => _saving;
   bool get isLoading => _loading;
+
+  /// True when the last catalogue fetch failed, so the UI can offer a retry
+  /// instead of a misleading "no roles" when the branch actually has roles.
+  bool get catalogueError => _catalogueError;
+
   String? get syncError => _syncError;
 
   /// Permission keys in the order the branch serves them.
@@ -76,9 +82,11 @@ class PosStaffProvider extends ChangeNotifier {
     final PosStaffCatalogue? catalogue = await repo.fetchCatalogue();
     if (catalogue != null) {
       _catalogue = catalogue;
+      _catalogueError = false;
       await repo.saveCatalogueLocal(catalogue);
     } else {
       _catalogue = repo.loadSavedCatalogue() ?? PosStaffCatalogue.empty();
+      _catalogueError = true;
     }
 
     final PosStaffRoster? remote = await repo.fetchRemote();
@@ -94,6 +102,26 @@ class PosStaffProvider extends ChangeNotifier {
     _hydrated = true;
     _loading = false;
     notifyListeners();
+  }
+
+  /// Re-fetch the catalogue on demand, so roles or shifts created in the admin
+  /// panel after this screen mounted show up without a full reload (the screen
+  /// only hydrates once). Returns true when fresh data was loaded; on a failed
+  /// fetch the existing catalogue is kept rather than being wiped to empty.
+  Future<bool> reloadCatalogue() async {
+    final PosStaffCatalogue? catalogue = await repo.fetchCatalogue();
+    if (catalogue == null) {
+      _catalogueError = true;
+      notifyListeners();
+      return false;
+    }
+    _catalogue = catalogue;
+    _catalogueError = false;
+    await repo.saveCatalogueLocal(catalogue);
+    // Keep the roster's shift names/times in step with the refreshed catalogue.
+    _roster = _withCatalogueShifts(_roster);
+    notifyListeners();
+    return true;
   }
 
   /// The roster carries shift membership; the catalogue carries their names and
@@ -209,6 +237,8 @@ class PosStaffProvider extends ChangeNotifier {
     required String name,
     required String role,
     List<String> shiftIds = const [],
+    String? phone,
+    bool active = true,
     String? pin,
   }) async {
     final String? nameError = PosStaffValidation.name(name);
@@ -244,6 +274,8 @@ class PosStaffProvider extends ChangeNotifier {
       name: name.trim(),
       roleId: roleId,
       shiftIds: shiftIds,
+      phone: phone?.trim(),
+      active: active,
       pin: pin,
     );
 

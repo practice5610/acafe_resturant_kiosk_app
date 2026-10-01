@@ -54,13 +54,14 @@ class PosRoutePolicy {
       return path == kioskLoginPath ? null : kioskLoginPath;
     }
 
-    // Logged in: the till is usable by anyone at the counter (POS, Orders,
-    // Receipts) with no PIN gate. Any kiosk path this device wandered onto —
-    // including the one device login hands off to — resolves to the welcome
-    // screen. Finished sales and the manager bounce below still go to the
-    // till directly.
+    // Logged in: a POS device goes straight to the till. Any kiosk path this
+    // device wandered onto — including the one device login hands off to
+    // (/welcome-kiosk) — resolves directly to /pos-home in this one redirect, so
+    // there is no visible hop through an intermediate screen. The PIN lock, when
+    // the branch requires it, is drawn over /pos-home by PosStaffGate. The
+    // /pos-welcome route still exists but is no longer part of the login flow.
     if (!PosRoutes.matches(path)) {
-      return PosRoutes.welcome;
+      return PosRoutes.home;
     }
 
     // Gate 2: Report/Settings are Manager/Owner-only, reached only via the

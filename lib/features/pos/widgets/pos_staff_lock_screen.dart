@@ -12,11 +12,11 @@ import 'package:provider/provider.dart';
 
 /// The till's front door when a branch has switched staff sign-in on.
 ///
-/// Faces first, then a PIN: a counter is shared, and "tap your name" is both
-/// faster than recalling which PIN is yours and a quiet check that the right
-/// person is signing in -- the server only accepts the tapped person's PIN, so
-/// a colleague's PIN typed under your face is simply wrong. "Enter PIN only"
-/// skips the faces for anyone who would rather just type.
+/// Role first, then a PIN: the operator taps whether they are an Employee or a
+/// Branch Manager, then types their own PIN. The role tap is only how the screen
+/// is organised -- the PIN alone identifies the person, and the server decides
+/// what they may do from their real role, so a branch can have any number of
+/// managers and employees and each just taps their role and signs in.
 ///
 /// Built on [PosPinCard] so the keypad, PIN boxes, press states and the shake
 /// on a wrong PIN are the same as the manager step-up, not a second design.
@@ -37,9 +37,9 @@ class PosStaffLockScreen extends StatefulWidget {
 }
 
 class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
-  /// The face tapped, or null. `_pinOnly` is the alternative to choosing one.
-  final ValueNotifier<PosLockScreenMember?> _selected = ValueNotifier(null);
-  final ValueNotifier<bool> _pinOnly = ValueNotifier(false);
+  /// The role tapped, or null while the operator is still choosing. The roles
+  /// themselves come from the roster, never a hardcoded list.
+  final ValueNotifier<PosStaffRole?> _role = ValueNotifier(null);
   final ValueNotifier<String?> _message = ValueNotifier(null);
 
   /// Bumped to remount the PIN card, which clears whatever was typed.
@@ -48,8 +48,8 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
   @override
   void initState() {
     super.initState();
-    // Someone may have been hired, or the switch flipped, since the till last
-    // looked. Cheap, and it is the moment the faces matter.
+    // The switch may have been flipped since the till last looked. Cheap, and
+    // this is the moment it matters.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<PosStaffSessionProvider>().refreshRoster();
     });
@@ -57,39 +57,40 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
 
   @override
   void dispose() {
-    _selected.dispose();
-    _pinOnly.dispose();
+    _role.dispose();
     _message.dispose();
     _cardEpoch.dispose();
     super.dispose();
   }
 
-  void _choose(PosLockScreenMember member) {
+  void _choose(PosStaffRole role) {
     _message.value = null;
-    _pinOnly.value = false;
-    _selected.value = member;
-    _cardEpoch.value++;
-  }
-
-  void _choosePinOnly() {
-    _message.value = null;
-    _selected.value = null;
-    _pinOnly.value = true;
+    _role.value = role;
+    // Changing the selected role clears whatever PIN was typed under the old one.
     _cardEpoch.value++;
   }
 
   void _back() {
     _message.value = null;
-    _selected.value = null;
-    _pinOnly.value = false;
+    _role.value = null;
+  }
+
+  /// The role this sign-in is bound to. With two or more roles the operator must
+  /// have tapped one (`_role`); with exactly one it is that role, implicitly;
+  /// with none the branch sends no roles and sign-in falls back to the PIN alone.
+  PosStaffRole? _effectiveRole(List<PosStaffRole> roles) {
+    if (roles.length >= 2) return _role.value;
+    if (roles.length == 1) return roles.first;
+    return null;
   }
 
   Future<bool> _submit(String pin) async {
-    final PosStaffSessionProvider session = context.read<PosStaffSessionProvider>();
-    final PosSignInResult result = await session.signIn(
-      pin,
-      memberId: _selected.value?.id,
-    );
+    final PosStaffSessionProvider session =
+        context.read<PosStaffSessionProvider>();
+    // The PIN identifies the person; the tapped role binds the sign-in to it, so
+    // a PIN belonging to another role is rejected as a wrong PIN by the server.
+    final PosSignInResult result =
+        await session.signIn(pin, roleId: _effectiveRole(session.roles)?.id);
     if (!mounted) return result.ok;
 
     switch (result.outcome) {
@@ -126,18 +127,37 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
       key: PosStaffLockScreen.rootKey,
       color: PosUI.pageBg,
       child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final bool wide = constraints.maxWidth >= 1024;
-            return wide ? _wide() : _narrow();
+        child: Consumer<PosStaffSessionProvider>(
+          builder: (context, session, _) {
+            final List<PosStaffRole> roles = session.roles;
+            // The role step only earns its place when there is a real choice. One
+            // role (or none) skips straight to the PIN, which sign-in still binds
+            // to that single role / to no role.
+            final bool hasRoleStep = roles.length >= 2;
+
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                if (!hasRoleStep) {
+                  return Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                    child: Center(
+                      child: _pinPane(showPlaceholder: false, hasRoleStep: false),
+                    ),
+                  );
+                }
+                final bool wide = constraints.maxWidth >= 1024;
+                return wide ? _wide(roles) : _narrow(roles);
+              },
+            );
           },
         ),
       ),
     );
   }
 
-  // Two panes side by side: who you are on the left, your PIN on the right.
-  Widget _wide() {
+  // Two panes side by side: your role on the left, your PIN on the right.
+  Widget _wide(List<PosStaffRole> roles) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(56, 40, 56, 40),
       child: Row(
@@ -145,56 +165,58 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
         children: [
           Expanded(
             flex: 11,
-            child: _PeoplePane(
-              now: widget.now,
-              selected: _selected,
-              pinOnly: _pinOnly,
-              onChoose: _choose,
-              onPinOnly: _choosePinOnly,
-            ),
+            child: _RolePane(
+                now: widget.now,
+                roles: roles,
+                selected: _role,
+                onChoose: _choose),
           ),
           const SizedBox(width: 48),
           Expanded(
             flex: 9,
-            child: Center(child: _pinPane(showPlaceholder: true)),
+            child: Center(
+                child: _pinPane(showPlaceholder: true, hasRoleStep: true)),
           ),
         ],
       ),
     );
   }
 
-  // One pane at a time: faces, then the PIN card in their place.
-  Widget _narrow() {
+  // One pane at a time: roles, then the PIN card in their place.
+  Widget _narrow(List<PosStaffRole> roles) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_selected, _pinOnly]),
+      animation: _role,
       builder: (context, _) {
-        final bool entering = _selected.value != null || _pinOnly.value;
+        final bool entering = _role.value != null;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: entering
-              ? Center(child: _pinPane(showPlaceholder: false))
-              : _PeoplePane(
+              ? Center(
+                  child: _pinPane(showPlaceholder: false, hasRoleStep: true))
+              : _RolePane(
                   now: widget.now,
-                  selected: _selected,
-                  pinOnly: _pinOnly,
-                  onChoose: _choose,
-                  onPinOnly: _choosePinOnly,
-                ),
+                  roles: roles,
+                  selected: _role,
+                  onChoose: _choose),
         );
       },
     );
   }
 
-  Widget _pinPane({required bool showPlaceholder}) {
+  Widget _pinPane({required bool showPlaceholder, required bool hasRoleStep}) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_selected, _pinOnly, _message, _cardEpoch]),
+      animation: Listenable.merge([_role, _message, _cardEpoch]),
       builder: (context, _) {
-        final PosLockScreenMember? member = _selected.value;
-        final bool pinOnly = _pinOnly.value;
+        final PosStaffRole? role = _role.value;
 
-        if (member == null && !pinOnly) {
-          return showPlaceholder ? const _ChooseSomeonePlaceholder() : const SizedBox.shrink();
+        // With a role step, wait for the tap before showing the PIN.
+        if (hasRoleStep && role == null) {
+          return showPlaceholder
+              ? const _ChooseRolePlaceholder()
+              : const SizedBox.shrink();
         }
+
+        final String cardId = role?.id.toString() ?? 'no-role';
 
         return Consumer<PosStaffSessionProvider>(
           builder: (context, session, _) {
@@ -205,16 +227,16 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
             return ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: PosPinSpec.board),
               child: PosPinCard(
-                key: ValueKey<String>('pin-${member?.id ?? 'any'}-${_cardEpoch.value}'),
+                key: ValueKey<String>('pin-$cardId-${_cardEpoch.value}'),
                 pinLength: session.pinLength,
                 autoSubmit: true,
                 reserveMessageSpace: true,
                 enabled: !locked && !session.signingIn,
-                title: member == null
-                    ? 'Enter your PIN'
-                    : 'Hi ${member.name.split(' ').first}, enter your PIN',
+                title: 'Enter your PIN',
                 message: message,
-                header: _PinHeader(member: member, onBack: _back),
+                // The back arrow only makes sense when there is a role step to
+                // return to; otherwise the card keeps its default wordmark header.
+                header: hasRoleStep ? _PinHeader(onBack: _back) : null,
                 onSubmit: _submit,
               ),
             );
@@ -225,133 +247,86 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
   }
 }
 
-// ── People pane ────────────────────────────────────────────────────────────
+// ── Role pane ────────────────────────────────────────────────────────────────
 
-class _PeoplePane extends StatelessWidget {
+class _RolePane extends StatelessWidget {
   final DateTime Function() now;
-  final ValueNotifier<PosLockScreenMember?> selected;
-  final ValueNotifier<bool> pinOnly;
-  final ValueChanged<PosLockScreenMember> onChoose;
-  final VoidCallback onPinOnly;
+  final List<PosStaffRole> roles;
+  final ValueNotifier<PosStaffRole?> selected;
+  final ValueChanged<PosStaffRole> onChoose;
 
-  const _PeoplePane({
+  const _RolePane({
     required this.now,
+    required this.roles,
     required this.selected,
-    required this.pinOnly,
     required this.onChoose,
-    required this.onPinOnly,
   });
 
   @override
   Widget build(BuildContext context) {
-    final PosStaffSessionProvider session = context.watch<PosStaffSessionProvider>();
-    final List<PosLockScreenMember> members = session.members;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const PosWordmark(height: 30),
-            const Spacer(),
-            _BranchBadge(),
-          ],
-        ),
-        const SizedBox(height: 36),
-        _Clock(now: now),
-        const SizedBox(height: 36),
-        Text(
-          'Who is on the till?',
-          style: loewExtraBold.copyWith(fontSize: 22, color: PosUI.ink),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          members.isEmpty
-              ? 'Nobody here can sign in yet.'
-              : 'Tap your name, then enter your PIN.',
-          style: loewRegular.copyWith(fontSize: 15, color: PosUI.inkMuted),
-        ),
-        const SizedBox(height: 20),
-        Expanded(
-          child: members.isEmpty
-              ? const _NobodyCanSignIn()
-              : AnimatedBuilder(
-                  animation: selected,
-                  builder: (context, _) => _AvatarGrid(
-                    members: members,
-                    selectedId: selected.value?.id,
-                    onChoose: onChoose,
+    // Scrolls rather than overflows: on a short window the clock and the role
+    // cards stay fully reachable instead of clipping at the bottom.
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const PosWordmark(height: 30),
+              const Spacer(),
+              _BranchBadge(),
+            ],
+          ),
+          const SizedBox(height: 36),
+          _Clock(now: now),
+          const SizedBox(height: 36),
+          Text(
+            'Who is on the till?',
+            style: loewExtraBold.copyWith(fontSize: 22, color: PosUI.ink),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Choose your role, then enter your PIN.',
+            style: loewRegular.copyWith(fontSize: 15, color: PosUI.inkMuted),
+          ),
+          const SizedBox(height: 24),
+          AnimatedBuilder(
+            animation: selected,
+            builder: (context, _) => Column(
+              children: [
+                for (int i = 0; i < roles.length; i++) ...[
+                  _RoleCard(
+                    role: roles[i],
+                    selected: selected.value?.id == roles[i].id,
+                    onTap: () => onChoose(roles[i]),
                   ),
-                ),
-        ),
-        if (members.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          TextButton.icon(
-            key: const Key('pos-lock-pin-only'),
-            onPressed: onPinOnly,
-            icon: const Icon(Icons.dialpad_rounded, size: 20),
-            label: Text('Enter PIN only', style: loewBold.copyWith(fontSize: 15)),
-            style: TextButton.styleFrom(
-              foregroundColor: PosUI.ink,
-              minimumSize: const Size(64, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+                  if (i != roles.length - 1) const SizedBox(height: 16),
+                ],
+              ],
             ),
           ),
         ],
-      ],
-    );
-  }
-}
-
-class _AvatarGrid extends StatelessWidget {
-  final List<PosLockScreenMember> members;
-  final String? selectedId;
-  final ValueChanged<PosLockScreenMember> onChoose;
-
-  const _AvatarGrid({
-    required this.members,
-    required this.selectedId,
-    required this.onChoose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // A scrolling region *inside* the pane, not around the screen: a large team
-    // scrolls its faces while the clock and the PIN card stay put.
-    return GridView.builder(
-      padding: const EdgeInsets.only(bottom: 8),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 148,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.86,
-      ),
-      itemCount: members.length,
-      itemBuilder: (context, i) => _AvatarTile(
-        member: members[i],
-        selected: members[i].id == selectedId,
-        onTap: () => onChoose(members[i]),
       ),
     );
   }
 }
 
-class _AvatarTile extends StatefulWidget {
-  final PosLockScreenMember member;
+class _RoleCard extends StatefulWidget {
+  final PosStaffRole role;
   final bool selected;
   final VoidCallback onTap;
 
-  const _AvatarTile({
-    required this.member,
+  const _RoleCard({
+    required this.role,
     required this.selected,
     required this.onTap,
   });
 
   @override
-  State<_AvatarTile> createState() => _AvatarTileState();
+  State<_RoleCard> createState() => _RoleCardState();
 }
 
-class _AvatarTileState extends State<_AvatarTile> {
+class _RoleCardState extends State<_RoleCard> {
   final ValueNotifier<bool> _pressed = ValueNotifier(false);
 
   @override
@@ -365,9 +340,9 @@ class _AvatarTileState extends State<_AvatarTile> {
     return Semantics(
       button: true,
       selected: widget.selected,
-      label: 'Sign in as ${widget.member.name}',
+      label: 'Sign in as ${widget.role.name}',
       child: GestureDetector(
-        key: Key('pos-lock-avatar-${widget.member.id}'),
+        key: Key('pos-lock-role-${widget.role.id}'),
         behavior: HitTestBehavior.opaque,
         onTapDown: (_) => _pressed.value = true,
         onTapUp: (_) => _pressed.value = false,
@@ -376,16 +351,17 @@ class _AvatarTileState extends State<_AvatarTile> {
         child: ValueListenableBuilder<bool>(
           valueListenable: _pressed,
           builder: (context, pressed, _) => AnimatedScale(
-            scale: pressed ? 0.95 : 1,
+            scale: pressed ? 0.98 : 1,
             duration: const Duration(milliseconds: 110),
             curve: Curves.easeOut,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 160),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
               decoration: BoxDecoration(
-                color: widget.selected ? PosUI.surface : Colors.transparent,
+                color: widget.selected ? PosUI.surface : PosUI.surface.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: widget.selected ? PosUI.ink : Colors.transparent,
+                  color: widget.selected ? PosUI.ink : PosUI.ink.withValues(alpha: 0.10),
                   width: 2,
                 ),
                 boxShadow: widget.selected
@@ -398,35 +374,36 @@ class _AvatarTileState extends State<_AvatarTile> {
                       ]
                     : null,
               ),
-              padding: const EdgeInsets.all(10),
-              // Sized from the cell it was given rather than fixed: the grid's
-              // cells shrink with the window, and a fixed 76px face plus a
-              // two-line name overflowed a narrow cell.
-              child: LayoutBuilder(
-                builder: (context, box) {
-                  final double face = (box.maxWidth * 0.66).clamp(40.0, 76.0);
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      PosStaffAvatar(
-                        initials: widget.member.initials,
-                        size: face,
-                        emphasised: widget.selected,
-                      ),
-                      const SizedBox(height: 8),
-                      Flexible(
-                        child: Text(
-                          widget.member.name,
-                          maxLines: 2,
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          style: loewBold.copyWith(
-                              fontSize: 14, height: 1.2, color: PosUI.ink),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.selected ? PosUI.ink : PosUI.pageBg,
+                      border: Border.all(color: PosUI.ink.withValues(alpha: 0.12)),
+                    ),
+                    child: Icon(
+                      // Neutral, role-agnostic glyph: the role name is data from
+                      // the server, so the card must not key its icon off a
+                      // hardcoded name. Every role card reads the same.
+                      Icons.badge_outlined,
+                      size: 26,
+                      color: widget.selected ? Colors.white : PosUI.ink,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      widget.role.name,
+                      style: loewExtraBold.copyWith(fontSize: 19, color: PosUI.ink),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      color: PosUI.ink.withValues(alpha: 0.4)),
+                ],
               ),
             ),
           ),
@@ -436,88 +413,37 @@ class _AvatarTileState extends State<_AvatarTile> {
   }
 }
 
-/// A circle of initials. Used here, and by the signed-in chip in the top bar,
-/// so the person looks the same in both places.
-class PosStaffAvatar extends StatelessWidget {
-  final String initials;
-  final double size;
-  final bool emphasised;
-
-  const PosStaffAvatar({
-    super.key,
-    required this.initials,
-    this.size = 40,
-    this.emphasised = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: emphasised ? PosUI.ink : PosUI.surface,
-        border: Border.all(color: PosUI.ink.withValues(alpha: 0.12)),
-      ),
-      child: Text(
-        initials.isEmpty ? '?' : initials,
-        style: loewExtraBold.copyWith(
-          fontSize: size * 0.34,
-          letterSpacing: 0.5,
-          color: emphasised ? Colors.white : PosUI.ink,
-        ),
-      ),
-    );
-  }
-}
-
 // ── Small pieces ───────────────────────────────────────────────────────────
 
 class _PinHeader extends StatelessWidget {
-  final PosLockScreenMember? member;
   final VoidCallback onBack;
 
-  const _PinHeader({required this.member, required this.onBack});
+  const _PinHeader({required this.onBack});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          key: const Key('pos-lock-back'),
-          tooltip: 'Back to names',
-          onPressed: onBack,
-          icon: const Icon(Icons.arrow_back_rounded, color: PosUI.ink),
-          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-        ),
-        const SizedBox(width: 4),
-        if (member != null) ...[
-          PosStaffAvatar(initials: member!.initials, size: 40, emphasised: true),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              member!.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: loewBold.copyWith(fontSize: 16, color: PosUI.ink),
-            ),
-          ),
-        ] else
-          Expanded(
-            child: Text(
-              'PIN only',
-              style: loewBold.copyWith(fontSize: 16, color: PosUI.ink),
-            ),
-          ),
-      ],
+    // Just the Back arrow, pinned left. The role is already obvious from the
+    // button the operator tapped, so repeating it here only added clutter -- and
+    // a header this simple cannot overflow or throw under any constraint.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: IconButton(
+        key: const Key('pos-lock-back'),
+        // No `tooltip:` here on purpose. This screen can be mounted outside a
+        // Navigator/Overlay (e.g. during a LayoutBuilder pass), and a Tooltip
+        // throws "No Overlay widget found" without an Overlay ancestor. It is a
+        // long-press affordance with no value on a kiosk touchscreen anyway.
+        onPressed: onBack,
+        icon: const Icon(Icons.arrow_back_rounded, color: PosUI.ink),
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        padding: EdgeInsets.zero,
+      ),
     );
   }
 }
 
-class _ChooseSomeonePlaceholder extends StatelessWidget {
-  const _ChooseSomeonePlaceholder();
+class _ChooseRolePlaceholder extends StatelessWidget {
+  const _ChooseRolePlaceholder();
 
   @override
   Widget build(BuildContext context) {
@@ -535,7 +461,7 @@ class _ChooseSomeonePlaceholder extends StatelessWidget {
           Icon(Icons.touch_app_outlined, size: 40, color: PosUI.ink.withValues(alpha: 0.55)),
           const SizedBox(height: 16),
           Text(
-            'Tap your name to sign in',
+            'Choose your role to sign in',
             textAlign: TextAlign.center,
             style: loewBold.copyWith(fontSize: 18, color: PosUI.ink),
           ),
@@ -546,50 +472,6 @@ class _ChooseSomeonePlaceholder extends StatelessWidget {
             style: loewRegular.copyWith(fontSize: 14, color: PosUI.inkMuted),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _NobodyCanSignIn extends StatelessWidget {
-  const _NobodyCanSignIn();
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 520),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFDF3E1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0x33D4A24C)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Staff sign-in is on for this branch, but nobody has a PIN yet.',
-              style: loewBold.copyWith(fontSize: 15, color: const Color(0xFF6E4F18)),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'A manager can set PINs in the admin panel under Staff & Roles.',
-              style: loewRegular.copyWith(fontSize: 14, color: const Color(0xFF6E4F18)),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => context.read<PosStaffSessionProvider>().refreshRoster(),
-              style: TextButton.styleFrom(
-                foregroundColor: PosUI.ink,
-                minimumSize: const Size(64, 44),
-              ),
-              child: Text('Check again', style: loewBold.copyWith(fontSize: 14)),
-            ),
-          ],
-        ),
       ),
     );
   }

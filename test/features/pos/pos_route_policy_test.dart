@@ -71,7 +71,11 @@ void main() {
       }
     });
 
-    test('kiosk paths resolve to the POS welcome screen', () {
+    test('kiosk paths resolve straight to the POS home (till)', () {
+      // A logged-in POS device on any kiosk path -- including the one device
+      // login hands off to -- resolves directly to /pos-home in this single
+      // redirect, with no intermediate welcome hop. The PIN lock, when the
+      // branch requires it, is drawn over /pos-home by PosStaffGate.
       for (final path in [
         RouterHelper.kioskMenuScreen,
         RouterHelper.kioskWelcomeScreen,
@@ -79,8 +83,8 @@ void main() {
         RouterHelper.kioskLoginScreen,
         RouterHelper.dashboard,
       ]) {
-        expect(redirect(path), PosRoutes.welcome,
-            reason: '$path should send a POS terminal to the welcome screen');
+        expect(redirect(path), PosRoutes.home,
+            reason: '$path should send a POS terminal straight to the till');
       }
     });
   });

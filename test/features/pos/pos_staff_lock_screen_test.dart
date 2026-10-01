@@ -140,27 +140,35 @@ void main() {
   });
 
   group('lock screen', () {
-    testWidgets('shows faces, then a PIN card for the one tapped', (tester) async {
+    // Role ids come from the roster the fake backend serves, never hardcoded.
+    const int employeeRole = 16; // Sophie
+    const int managerRole = 15; // Thomas
+    const Key employeeCard = Key('pos-lock-role-$employeeRole');
+    const Key managerCard = Key('pos-lock-role-$managerRole');
+
+    testWidgets('renders the roster roles, then a PIN card for the one tapped',
+        (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      expect(find.byKey(const Key('pos-lock-avatar-sophie')), findsOneWidget);
-      expect(find.byKey(const Key('pos-lock-avatar-thomas')), findsOneWidget);
-      // Nobody without a PIN is offered.
-      expect(find.byKey(const Key('pos-lock-avatar-maria')), findsNothing);
-      expect(find.text('Tap your name to sign in'), findsOneWidget);
+      // The roster serves Owner/Manager/Employee; all appear as role cards.
+      expect(find.byKey(employeeCard), findsOneWidget);
+      expect(find.byKey(managerCard), findsOneWidget);
+      expect(find.byKey(const Key('pos-lock-role-14')), findsOneWidget); // Owner
+      expect(find.text('Choose your role to sign in'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('pos-lock-avatar-sophie')));
+      await tester.tap(find.byKey(employeeCard));
       await tester.pumpAndSettle();
 
-      expect(find.text('Hi Sophie, enter your PIN'), findsOneWidget);
+      expect(find.text('Enter your PIN'), findsOneWidget);
     });
 
-    testWidgets('the right PIN signs in and uncovers the till', (tester) async {
+    testWidgets('the matching role and PIN signs in and uncovers the till',
+        (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(const Key('pos-lock-avatar-sophie')));
+      await tester.tap(find.byKey(employeeCard)); // Sophie is an Employee
       await tester.pumpAndSettle();
       await _typePin(tester, '1234');
 
@@ -172,11 +180,39 @@ void main() {
       staff.dispose();
     });
 
+    testWidgets('a PIN belonging to another role is rejected as a wrong PIN',
+        (tester) async {
+      await _providers();
+      await _pumpGate(tester);
+
+      // Tap Branch Manager but type Sophie's (Employee) PIN: binding to the
+      // chosen role turns a real-but-wrong-role PIN into a generic wrong PIN.
+      await tester.tap(find.byKey(managerCard));
+      await tester.pumpAndSettle();
+      await _typePin(tester, '1234');
+
+      expect(find.byType(PosStaffLockScreen), findsOneWidget);
+      expect(staff.session, isNull);
+      expect(find.text('That PIN was not recognised. 4 tries left.'), findsOneWidget);
+    });
+
+    testWidgets('the manager role with the manager PIN signs in', (tester) async {
+      await _providers();
+      await _pumpGate(tester);
+
+      await tester.tap(find.byKey(managerCard)); // Thomas is a Manager
+      await tester.pumpAndSettle();
+      await _typePin(tester, '4321');
+
+      expect(staff.session?.name, 'Thomas de Vries');
+      staff.dispose();
+    });
+
     testWidgets('a wrong PIN says so and how many tries are left', (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(const Key('pos-lock-avatar-sophie')));
+      await tester.tap(find.byKey(employeeCard));
       await tester.pumpAndSettle();
       await _typePin(tester, '9999');
 
@@ -188,7 +224,7 @@ void main() {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(const Key('pos-lock-avatar-sophie')));
+      await tester.tap(find.byKey(employeeCard));
       await tester.pumpAndSettle();
       for (int i = 0; i < 5; i++) {
         await _typePin(tester, '9999');
@@ -198,18 +234,28 @@ void main() {
       staff.dispose();
     });
 
-    testWidgets('Enter PIN only signs in whoever the PIN belongs to', (tester) async {
+    testWidgets('changing the selected role clears the entered PIN',
+        (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(const Key('pos-lock-pin-only')));
+      await tester.tap(find.byKey(employeeCard));
       await tester.pumpAndSettle();
-      expect(find.text('Enter your PIN'), findsOneWidget);
+      await tester.tap(find.descendant(
+        of: find.byType(PosStaffLockScreen),
+        matching: find.text('1'),
+      ).last);
+      await tester.pump();
 
-      await _typePin(tester, '4321');
+      // Go back and pick a different role: the two typed digits are gone.
+      await tester.tap(find.byKey(const Key('pos-lock-back')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(managerCard));
+      await tester.pumpAndSettle();
 
-      expect(staff.session?.name, 'Thomas de Vries');
-      staff.dispose();
+      // No filled dots: a fresh card for the new role.
+      expect(find.byType(PosStaffLockScreen), findsOneWidget);
+      expect(staff.session, isNull);
     });
 
     testWidgets('lays out without overflow on a narrow tablet', (tester) async {
@@ -217,7 +263,7 @@ void main() {
       await _pumpGate(tester, size: const Size(800, 1100));
 
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byKey(const Key('pos-lock-avatar-sophie')));
+      await tester.tap(find.byKey(employeeCard));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       // On a narrow screen the PIN card takes the faces' place, with a way back.

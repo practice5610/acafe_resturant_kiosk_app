@@ -56,8 +56,15 @@ class _Splash extends SplashProvider {
 /// PINs do not leak between them.
 late FakePosStaffBackend backend;
 
-Future<void> _pumpStaff(WidgetTester tester, {bool staffLoginRequired = false}) async {
-  backend = FakePosStaffBackend(staffLoginRequired: staffLoginRequired);
+Future<void> _pumpStaff(
+  WidgetTester tester, {
+  bool staffLoginRequired = false,
+  List<Map<String, dynamic>>? rolesOverride,
+}) async {
+  backend = FakePosStaffBackend(
+    staffLoginRequired: staffLoginRequired,
+    rolesOverride: rolesOverride,
+  );
   tester.view.physicalSize = const Size(1366, 1024);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -255,6 +262,9 @@ void main() {
       'Sanne Bakker',
     );
     // Morning is selected by default; also pick Evening.
+    await tester.ensureVisible(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Evening')),
+    );
     await tester.tap(
       find.descendant(of: find.byType(Dialog), matching: find.text('Evening')),
     );
@@ -279,6 +289,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // Morning starts selected — tapping it alone cannot clear the requirement.
+    await tester.ensureVisible(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Morning')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(of: find.byType(Dialog), matching: find.text('Morning')),
     );
@@ -291,6 +305,8 @@ void main() {
           .first,
       'Amir',
     );
+    await tester.ensureVisible(find.text('Add Member'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add Member'));
     await tester.pumpAndSettle();
 
@@ -397,11 +413,13 @@ void main() {
 
     final Finder fields =
         find.descendant(of: find.byType(Dialog), matching: find.byType(TextField));
-    expect(fields, findsNWidgets(2), reason: 'name and PIN');
-    expect(find.text('optional'), findsOneWidget);
+    expect(fields, findsNWidgets(3), reason: 'name, phone and PIN');
+    expect(find.text('optional'), findsNWidgets(2), reason: 'phone and PIN');
 
     await tester.enterText(fields.at(0), 'Tom Hendriks');
-    await tester.enterText(fields.at(1), '4321');
+    await tester.enterText(fields.at(2), '4321');
+    await tester.ensureVisible(find.text('Add Member'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add Member'));
     await tester.pumpAndSettle();
 
@@ -418,12 +436,90 @@ void main() {
     final Finder fields =
         find.descendant(of: find.byType(Dialog), matching: find.byType(TextField));
     await tester.enterText(fields.at(0), 'Tom');
-    await tester.enterText(fields.at(1), '12');
+    await tester.enterText(fields.at(2), '12');
+    await tester.ensureVisible(find.text('Add Member'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add Member'));
     await tester.pumpAndSettle();
 
     expect(find.text('The PIN must be exactly 4 digits'), findsOneWidget);
     expect(backend.member('tom'), isNull);
+  });
+
+  testWidgets('the Role dropdown lists the backend roles in order and selects',
+      (tester) async {
+    await _pumpStaff(tester);
+
+    await tester.tap(find.text('Add Staff Member'));
+    await tester.pumpAndSettle();
+
+    // Defaults to the first catalogue role — the Role field is never blank.
+    expect(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Owner')),
+      findsOneWidget,
+    );
+
+    // Opening it lists every role the backend returned, in catalogue order.
+    await tester.tap(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Owner')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Manager'), findsWidgets);
+    expect(find.text('Employee'), findsWidgets);
+
+    // Picking one is functional (no freeze) and updates the field.
+    await tester.tap(find.text('Employee').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Employee')),
+      findsOneWidget,
+    );
+
+    // Cancel always closes the dialog, whatever the state.
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+  });
+
+  testWidgets('with no roles the dialog shows a notice and Cancel still works',
+      (tester) async {
+    await _pumpStaff(tester, rolesOverride: const []);
+
+    await tester.tap(find.text('Add Staff Member'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(
+      find.text('No roles available. Ask an admin to create one.'),
+      findsOneWidget,
+    );
+
+    // The dialog never traps the manager: Cancel closes it regardless of state.
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+  });
+
+  testWidgets('roles created after the screen mounted appear on opening Add',
+      (tester) async {
+    // The screen hydrates once with no roles...
+    await _pumpStaff(tester, rolesOverride: const []);
+    // ...then an admin creates the roles in the panel.
+    backend.setRoles(FakePosStaffBackend.roles);
+
+    // Opening Add re-fetches the catalogue, so the new roles are assignable
+    // without a full reload of the till.
+    await tester.tap(find.text('Add Staff Member'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byType(Dialog), matching: find.text('Owner')),
+      findsOneWidget,
+    );
+    expect(
+      find.text('No roles available. Ask an admin to create one.'),
+      findsNothing,
+    );
   });
 
   testWidgets('edits go out as single-member PATCHes, never the whole roster',

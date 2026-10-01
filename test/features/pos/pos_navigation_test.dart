@@ -166,7 +166,7 @@ void main() {
     }
   });
 
-  testWidgets('a POS device boots into the welcome screen, not the kiosk',
+  testWidgets('a POS device boots straight into the till, not welcome or kiosk',
       (tester) async {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;
@@ -181,15 +181,11 @@ void main() {
         dio: p.dio));
     await tester.pumpAndSettle();
 
-    // Lands on the welcome screen — POS mode, but outside the tab chrome.
+    // Resolves directly to /pos-home in one redirect: POS shell, the till chrome,
+    // and never the welcome screen (now out of the login flow) or the kiosk shell.
     expect(find.byType(PosShell), findsOneWidget);
     expect(find.byType(KioskShell), findsNothing);
-    expect(find.byType(PosWelcomeScreen), findsOneWidget);
-    expect(find.byType(PosTopNavBar), findsNothing);
-
-    // No PIN gate: one tap anywhere goes straight to the till and its chrome.
-    await tester.tap(find.byKey(PosWelcomeScreen.tapTargetKey));
-    await tester.pumpAndSettle();
+    expect(find.byType(PosWelcomeScreen), findsNothing);
     expect(RouterHelper.goRoutes.routeInformationProvider.value.uri.path,
         PosRoutes.home);
     expect(find.byType(PosTopNavBar), findsOneWidget);

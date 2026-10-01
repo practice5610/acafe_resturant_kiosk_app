@@ -40,6 +40,10 @@ class PosPinModal extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: PosPinSpec.board),
         child: PosPinCard(
           pinLength: 4,
+          // This is the device manager code that unlocks the manager tabs, not a
+          // staff member's personal sign-in PIN -- naming it plainly stops it
+          // being mistaken for the staff lock screen.
+          title: 'Enter Manager Code',
           onSubmit: (pin) => _submit(context, pin),
         ),
       ),

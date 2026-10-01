@@ -23,6 +23,11 @@ class PosPinSpec {
   /// at every size, with no per-element clamps.
   static const double board = 460;
 
+  /// The card's natural height at full scale, covering its tallest variant (a
+  /// header plus a reserved message line). Used alongside [board] so the card
+  /// shrinks to fit a short viewport instead of overflowing it.
+  static const double boardHeight = 800;
+
   static const Color pageBg = Color(0xFFF7F1DE);
   static const Color cardFill = Colors.white;
   static const Color ink = Color(0xFF241F20);
@@ -106,7 +111,8 @@ class PosPinCard extends StatefulWidget {
   // optional and defaults to the card's original behaviour, so the manager
   // step-up modal, which passes none of them, renders exactly as before.
 
-  /// Replaces the "Enter Personal PIN" heading.
+  /// Replaces the default "Enter Manager Code" heading (e.g. the staff lock
+  /// screen passes "Hi Amir, enter your PIN").
   final String? title;
 
   /// A line under the PIN boxes -- a wrong-PIN note or a lockout countdown.
@@ -296,31 +302,24 @@ class _PosPinCardState extends State<PosPinCard>
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => _focus.requestFocus(),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // The card is its own artboard. It renders at exactly the Figma size
-            // wherever there is room, and scales down proportionally where there
-            // is not — never up, so it stays a card rather than becoming a page.
-            final double available = constraints.maxWidth.isFinite
-                ? constraints.maxWidth
-                : PosPinSpec.board;
-            final double cardWidth = math.min(available, PosPinSpec.board);
-            final double s = cardWidth / PosPinSpec.board;
-
-            // Centred inside whatever box the host gives, so a parent that hands
-            // down a TIGHT width (an Expanded, a stretched Column child) cannot
-            // override the card's own width and blow past the 460 board.
-            return Center(
-              child: AnimatedBuilder(
-                animation: _shake,
-                builder: (context, child) => Transform.translate(
-                  offset: Offset(_shakeOffset(_shake.value), 0),
-                  child: child,
-                ),
-                child: _card(s, cardWidth),
+        // The card is its own artboard, built once at the full Figma size and
+        // then scaled down by a FittedBox to fit whatever box the host gives --
+        // on BOTH axes, never up. Letting the FittedBox measure the real card
+        // means a short or narrow window can never clip the keypad or the confirm
+        // button, no matter how tall the card's content happens to be.
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: AnimatedBuilder(
+              animation: _shake,
+              builder: (context, child) => Transform.translate(
+                offset: Offset(_shakeOffset(_shake.value), 0),
+                child: child,
               ),
-            );
-          },
+              child: _card(1.0, PosPinSpec.board),
+            ),
+          ),
         ),
       ),
     );
@@ -390,7 +389,7 @@ class _PosPinCardState extends State<PosPinCard>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          widget.title ?? 'Enter Personal PIN',
+          widget.title ?? 'Enter Manager Code',
           textAlign: TextAlign.center,
           style: loewBold.copyWith(
             fontSize: PosPinSpec.pinTitleSize * s,

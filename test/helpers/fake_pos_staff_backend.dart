@@ -16,7 +16,18 @@ class FakePosStaffBackend implements HttpClientAdapter {
     List<Map<String, dynamic>>? members,
     this.branchName = 'Amsterdam',
     this.staffLoginRequired = false,
-  }) : _members = members ?? figmaDemoMembers();
+    List<Map<String, dynamic>>? rolesOverride,
+  })  : _members = members ?? figmaDemoMembers(),
+        _roles = rolesOverride ?? roles;
+
+  /// The roles this backend serves from the catalogue. Defaults to [roles]; a
+  /// test can pass an empty list to exercise the "no roles available" path, or
+  /// change it mid-test via [setRoles] to mimic an admin creating roles after
+  /// the POS screen has already mounted.
+  List<Map<String, dynamic>> _roles;
+
+  /// Mimic the admin panel adding roles after the POS screen hydrated.
+  void setRoles(List<Map<String, dynamic>> roles) => _roles = roles;
 
   final List<Map<String, dynamic>> _members;
   final String branchName;
@@ -155,7 +166,7 @@ class FakePosStaffBackend implements HttpClientAdapter {
     if (method == 'GET' && path.endsWith('$base/catalogue')) {
       return _json(200, {
         'permissions': permissions,
-        'roles': roles,
+        'roles': _roles,
         'shifts': shiftDefs,
         'branch': {
           'id': 1,
@@ -175,6 +186,7 @@ class FakePosStaffBackend implements HttpClientAdapter {
         'staff_login_required': staffLoginRequired,
         'pin_length': 4,
         'lockout_seconds': lockoutSeconds,
+        'roles': _roles,
         'members': [
           for (final m in _members)
             if (m['active'] == true && _pins.containsKey(m['id']))
@@ -194,12 +206,20 @@ class FakePosStaffBackend implements HttpClientAdapter {
       }
       final String pin = (data['pin'] ?? '').toString();
       final String? memberId = data['member_id']?.toString();
+      // Optional role binding, mirroring PosStaffTokenService::staffForPin: when
+      // a role is sent, only members of that role are candidates. An unknown role
+      // id matches nobody, so it reads as a wrong PIN (never a 500).
+      final int? roleId = data['role'] == null ? null : int.tryParse('${data['role']}');
+      final bool roleValid = roleId == null || _roles.any((r) => r['id'] == roleId);
       String? matched;
-      for (final entry in _pins.entries) {
-        final Map<String, dynamic>? m = _find(entry.key);
-        if (m == null || m['active'] != true) continue;
-        if (memberId != null && memberId.isNotEmpty && entry.key != memberId) continue;
-        if (entry.value == pin) matched = entry.key;
+      if (roleValid) {
+        for (final entry in _pins.entries) {
+          final Map<String, dynamic>? m = _find(entry.key);
+          if (m == null || m['active'] != true) continue;
+          if (memberId != null && memberId.isNotEmpty && entry.key != memberId) continue;
+          if (roleId != null && m['role_id'] != roleId) continue;
+          if (entry.value == pin) matched = entry.key;
+        }
       }
       if (matched == null) {
         failedPins++;
