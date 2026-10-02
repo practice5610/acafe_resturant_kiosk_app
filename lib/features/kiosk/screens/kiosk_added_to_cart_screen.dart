@@ -308,6 +308,34 @@ class _HeroWithMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Picture-less device: drop the product photo but keep the confirmation
+    // mark -- it is the point of this screen, not product imagery. The mark
+    // centres in the (now photo-less) hero box.
+    final bool showImages = CustomImageWidget.showProductImages;
+    if (!showImages) {
+      return SizedBox(
+        width: width,
+        height: height,
+        child: Center(
+          child: AnimatedBuilder(
+            animation: controller,
+            builder: (context, child) {
+              final bool started = controller.value >= 0.30;
+              return Opacity(opacity: started ? 1 : 0, child: child);
+            },
+            child: SizedBox(
+              width: markBox,
+              height: markBox,
+              child: Image.asset(
+                Images.confirmedDeliveryAnimation,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       width: width,
       height: height,

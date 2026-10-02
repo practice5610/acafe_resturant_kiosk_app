@@ -823,7 +823,10 @@ class _ProductGrid extends StatelessWidget {
               } catch (_) {
                 deals = const <KioskDeal>[];
               }
-              final bool showPromo = deals.isNotEmpty;
+              // Picture-less device: the promo rail is pure deal artwork with
+              // no text-only form, so it is dropped entirely rather than shown
+              // as a blank/gradient box.
+              final bool showPromo = deals.isNotEmpty && showImages;
               final int splitAt = showPromo ? firstCount : products.length;
               final List<Product> rest =
                   showPromo ? remaining : const <Product>[];

@@ -551,17 +551,21 @@ class _UpsellCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: CustomImageWidget.showProductImages
+              ? MainAxisAlignment.start
+              : MainAxisAlignment.center,
           children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: CustomImageWidget(
-                placeholder: Images.placeholderImage,
-                image: image,
-                fit: BoxFit.cover,
-                useShimmer: true,
-                cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
+            if (CustomImageWidget.showProductImages)
+              AspectRatio(
+                aspectRatio: 1,
+                child: CustomImageWidget(
+                  placeholder: Images.placeholderImage,
+                  image: image,
+                  fit: BoxFit.cover,
+                  useShimmer: true,
+                  cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
+                ),
               ),
-            ),
             Padding(
               padding: EdgeInsets.fromLTRB(inset, inset * 0.8, inset, inset),
               child: Column(

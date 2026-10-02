@@ -399,22 +399,24 @@ class _DealSlotCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: CustomImageWidget(
-                      placeholder: Images.placeholderImage,
-                      image: KioskProductImageHelper.heroImageUrl(
-                        product: product,
-                        productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                if (CustomImageWidget.showProductImages) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 72,
+                      height: 72,
+                      child: CustomImageWidget(
+                        placeholder: Images.placeholderImage,
+                        image: KioskProductImageHelper.heroImageUrl(
+                          product: product,
+                          productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                        ),
+                        fit: BoxFit.cover,
                       ),
-                      fit: BoxFit.cover,
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
+                  const SizedBox(width: 16),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

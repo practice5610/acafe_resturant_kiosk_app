@@ -320,22 +320,27 @@ class _OptionCard extends StatelessWidget {
                   metrics.cardInset * 0.8,
                 ),
                 child: Column(
+                  mainAxisAlignment: CustomImageWidget.showProductImages
+                      ? MainAxisAlignment.start
+                      : MainAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(radius * 0.6),
-                        child: CustomImageWidget(
-                          placeholder: Images.placeholderImage,
-                          image: imageUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          useShimmer: true,
-                          cacheWidth:
-                              CustomImageWidget.kKioskProductCacheWidth,
+                    if (CustomImageWidget.showProductImages) ...[
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(radius * 0.6),
+                          child: CustomImageWidget(
+                            placeholder: Images.placeholderImage,
+                            image: imageUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            useShimmer: true,
+                            cacheWidth:
+                                CustomImageWidget.kKioskProductCacheWidth,
+                          ),
                         ),
                       ),
-                    ),
-                    SizedBox(height: metrics.cardInset * 0.7),
+                      SizedBox(height: metrics.cardInset * 0.7),
+                    ],
                     Text(
                       label,
                       textAlign: TextAlign.center,

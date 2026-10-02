@@ -175,7 +175,9 @@ Widget _dealBannerCard({
   // taller carousel slot.
   final Widget artwork = ClipRRect(
     borderRadius: BorderRadius.circular(radius),
-    child: imageUrl.isEmpty
+    // Picture-less device: never draw the artwork -- fall back to the deal's
+    // text banner (deal detail) exactly as a deal with no image already does.
+    child: imageUrl.isEmpty || !CustomImageWidget.showProductImages
         ? fallback
         : CustomImageWidget(
             placeholder: Images.placeholderImage,
@@ -251,6 +253,9 @@ class _KioskDealBannerImageState extends State<KioskDealBannerImage> {
   }
 
   Future<void> _load() async {
+    // Picture-less device: the artwork is never drawn, so don't resolve its
+    // aspect ratio (that resolve would fetch the image we are avoiding).
+    if (!CustomImageWidget.showProductImages) return;
     // Synchronous first: a ratio resolved earlier (the menu banner uses the
     // same URL) means this hero never starts at the default and then jump.
     final double? cached = NetworkImageAspect.peek(widget.imageUrl);
