@@ -221,12 +221,6 @@ class FakePosStaffBackend implements HttpClientAdapter {
           if (entry.value == pin) matched = entry.key;
         }
       }
-      // The Employee/Manager button, mirroring PosStaffController::signInGroup:
-      // a matched account must be in the tapped group or it reads as a wrong PIN.
-      final String? group = data['group']?.toString();
-      if (matched != null && (group == 'manager' || group == 'employee')) {
-        if (_groupFor(matched) != group) matched = null;
-      }
       if (matched == null) {
         failedPins++;
         final bool locked = failedPins >= 5;
@@ -339,25 +333,6 @@ class FakePosStaffBackend implements HttpClientAdapter {
     }
 
     return _error(404, 'not-found', 'No fake route for $method $path');
-  }
-
-  /// 'manager' when the member can open Report or Settings, else 'employee' --
-  /// the same permission set PosStaffController::signInGroup uses.
-  static const List<String> _managerPermissions = [
-    'access_reports',
-    'manage_settings',
-    'manage_staff',
-    'manage_inventory',
-  ];
-
-  String _groupFor(String id) {
-    final Object? perms = _find(id)?['permissions'];
-    final Map<String, dynamic> map =
-        perms is Map ? Map<String, dynamic>.from(perms) : const {};
-    for (final String key in _managerPermissions) {
-      if (map[key] == true) return 'manager';
-    }
-    return 'employee';
   }
 
   Map<String, dynamic> _sessionPayload(String id) {

@@ -140,24 +140,21 @@ void main() {
   });
 
   group('lock screen', () {
-    // Two fixed buttons, not the branch's role rows. Their keys are the sentinel
-    // ids the lock screen uses for Employee (-1) and Manager (-2); neither is a
-    // real role id and neither is ever sent to the server.
-    const Key employeeCard = Key('pos-lock-role--1');
-    const Key managerCard = Key('pos-lock-role--2');
+    // Role ids come from the roster the fake backend serves, never hardcoded.
+    const int employeeRole = 16; // Sophie
+    const int managerRole = 15; // Thomas
+    const Key employeeCard = Key('pos-lock-role-$employeeRole');
+    const Key managerCard = Key('pos-lock-role-$managerRole');
 
-    testWidgets('shows the two fixed buttons, then a PIN card for the one tapped',
+    testWidgets('renders the roster roles, then a PIN card for the one tapped',
         (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      // Always exactly Employee and Manager -- the roster's own roles (e.g. an
-      // Owner card) never appear here, so the screen is the same everywhere.
+      // The roster serves Owner/Manager/Employee; all appear as role cards.
       expect(find.byKey(employeeCard), findsOneWidget);
       expect(find.byKey(managerCard), findsOneWidget);
-      expect(find.text('Employee'), findsOneWidget);
-      expect(find.text('Manager'), findsOneWidget);
-      expect(find.byKey(const Key('pos-lock-role-14')), findsNothing); // no Owner
+      expect(find.byKey(const Key('pos-lock-role-14')), findsOneWidget); // Owner
       expect(find.text('Choose your role to sign in'), findsOneWidget);
 
       await tester.tap(find.byKey(employeeCard));
@@ -166,11 +163,12 @@ void main() {
       expect(find.text('Enter your PIN'), findsOneWidget);
     });
 
-    testWidgets('the right PIN signs in and uncovers the till', (tester) async {
+    testWidgets('the matching role and PIN signs in and uncovers the till',
+        (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(employeeCard));
+      await tester.tap(find.byKey(employeeCard)); // Sophie is an Employee
       await tester.pumpAndSettle();
       await _typePin(tester, '1234');
 
@@ -182,13 +180,13 @@ void main() {
       staff.dispose();
     });
 
-    testWidgets('an employee PIN on the Manager button is refused', (tester) async {
+    testWidgets('a PIN belonging to another role is rejected as a wrong PIN',
+        (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      // Tap Manager but type Sophie's (Employee) PIN. The button is sent as the
-      // group, so the server refuses her: a real PIN on the wrong button reads as
-      // a generic wrong PIN, never revealing that the PIN exists on the other side.
+      // Tap Branch Manager but type Sophie's (Employee) PIN: binding to the
+      // chosen role turns a real-but-wrong-role PIN into a generic wrong PIN.
       await tester.tap(find.byKey(managerCard));
       await tester.pumpAndSettle();
       await _typePin(tester, '1234');
@@ -198,23 +196,11 @@ void main() {
       expect(find.text('That PIN was not recognised. 4 tries left.'), findsOneWidget);
     });
 
-    testWidgets('a manager PIN on the Employee button is refused', (tester) async {
+    testWidgets('the manager role with the manager PIN signs in', (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(employeeCard));
-      await tester.pumpAndSettle();
-      await _typePin(tester, '4321'); // Thomas is a Manager
-
-      expect(find.byType(PosStaffLockScreen), findsOneWidget);
-      expect(staff.session, isNull);
-    });
-
-    testWidgets('the manager PIN signs the manager in', (tester) async {
-      await _providers();
-      await _pumpGate(tester);
-
-      await tester.tap(find.byKey(managerCard));
+      await tester.tap(find.byKey(managerCard)); // Thomas is a Manager
       await tester.pumpAndSettle();
       await _typePin(tester, '4321');
 

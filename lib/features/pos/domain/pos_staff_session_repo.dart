@@ -131,7 +131,6 @@ class PosStaffSessionRepo {
     String pin, {
     String? memberId,
     int? roleId,
-    String? group,
   }) async {
     final DioClient? client = dioClient;
     if (client == null) {
@@ -146,9 +145,6 @@ class PosStaffSessionRepo {
           // Optional: the role the operator tapped. Omitted entirely when null,
           // so the request is byte-for-byte the old one on a role-less sign-in.
           if (roleId != null) 'role': roleId,
-          // Optional: the Employee/Manager button tapped. The server refuses a
-          // PIN whose account is not in that group; omitted, sign-in is ungated.
-          if (group != null && group.isNotEmpty) 'group': group,
         },
         options: _keepDevice,
       );

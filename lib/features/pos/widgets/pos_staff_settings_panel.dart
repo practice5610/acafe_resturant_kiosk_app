@@ -589,7 +589,7 @@ class _TeamCard extends StatelessWidget {
         children: [
           const _TableHeader(columns: [
             _HeaderCell('NAME', width: 220),
-            _HeaderCell('ROLE', width: 120),
+            _HeaderCell('ROLE', width: 150),
             _HeaderCell('STATUS', width: 100),
           ]),
           if (members.isEmpty)
@@ -679,10 +679,13 @@ class _TeamRow extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  width: 120,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _CreamChip(label: member.role, fontSize: 12),
+                  width: 150,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: _CreamChip(label: member.role, fontSize: 12),
+                    ),
                   ),
                 ),
                 SizedBox(
