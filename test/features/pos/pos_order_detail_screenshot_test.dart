@@ -6,6 +6,7 @@ import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_advance_outcome.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dart';
@@ -239,7 +240,9 @@ Future<void> _shoot(
               withContact: withContact,
               note: note,
             )),
+            ordersRepo: _StubOrdersRepo(),
             onAdvance: (_) async => const PosAdvanceResult.advanced(),
+            onSetStatus: (_, __) async => null,
           ),
         ),
       ),
@@ -251,6 +254,71 @@ Future<void> _shoot(
     find.byType(PosOrderDetailOverlay),
     matchesGoldenFile('goldens/$file'),
   );
+}
+
+/// The overlay's item-status writes. The goldens never tap an action, so this
+/// only has to exist; each call answers with the shape the real endpoint
+/// returns so a future interaction test can reuse it.
+class _StubOrdersRepo implements PosOrdersRepo {
+  @override
+  DioClient get dioClient => throw UnimplementedError();
+
+  @override
+  Future<ApiResponseModel> getOrders({
+    String? dateFrom,
+    String? dateTo,
+    String? search,
+    String? section,
+    String? status,
+    String? source,
+    String? type,
+    String? method,
+    int limit = 200,
+  }) async =>
+      ApiResponseModel.withSuccess(Response(
+        requestOptions: RequestOptions(path: '/orders'),
+        statusCode: 200,
+        data: const <String, dynamic>{'orders': [], 'counts': {}},
+      ));
+
+  @override
+  Future<ApiResponseModel> updateStatus({
+    required int orderId,
+    required String orderStatus,
+  }) async =>
+      _ok(orderId, null, orderStatus);
+
+  @override
+  Future<ApiResponseModel> updateItemStatus({
+    required int orderId,
+    required int orderDetailId,
+    required String status,
+  }) async =>
+      _ok(orderId, orderDetailId, status);
+
+  @override
+  Future<ApiResponseModel> bulkUpdateItemStatus({
+    required int orderId,
+    required String status,
+  }) async =>
+      _ok(orderId, null, status);
+
+  ApiResponseModel _ok(int orderId, int? detailId, String status) =>
+      ApiResponseModel.withSuccess(Response(
+        requestOptions: RequestOptions(path: '/items/status'),
+        statusCode: 200,
+        data: <String, dynamic>{
+          'order_id': orderId,
+          'order_detail_id': detailId,
+          'prep_status': detailId == null ? null : status,
+          'order_status': status,
+          'advanced_to': null,
+          'item_states': const <Map<String, dynamic>>[],
+          'items_ready': 0,
+          'items_total': 0,
+          'message': 'Item status updated!',
+        },
+      ));
 }
 
 void main() {

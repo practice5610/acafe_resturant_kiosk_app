@@ -75,4 +75,47 @@ class PosOrdersRepo {
       return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
     }
   }
+
+  /// Advance one line item's prep status.
+  ///
+  /// `validateStatus` for the same reason [updateStatus] uses it: a 409 here is
+  /// an ordinary outcome the overlay has to show (the item moved under us, or
+  /// the order was put on hold), and letting it reach the global API checker
+  /// would force-log-out the device over a race.
+  Future<ApiResponseModel> updateItemStatus({
+    required int orderId,
+    required int orderDetailId,
+    required String status,
+  }) {
+    return _putItemStatus(
+      '/api/v1/kiosk/manager/orders/$orderId/items/$orderDetailId/status',
+      status,
+    );
+  }
+
+  /// Move every eligible item on the order forward. Forward-only server-side,
+  /// so this can never undo an item the kitchen has already finished.
+  Future<ApiResponseModel> bulkUpdateItemStatus({
+    required int orderId,
+    required String status,
+  }) {
+    return _putItemStatus(
+      '/api/v1/kiosk/manager/orders/$orderId/items/status',
+      status,
+    );
+  }
+
+  Future<ApiResponseModel> _putItemStatus(String path, String status) async {
+    try {
+      final response = await dioClient.put(
+        path,
+        data: {'status': status},
+        options:
+            Options(validateStatus: (status) => status != null && status < 500),
+      );
+      return ApiResponseModel.withSuccess(response);
+    } catch (e) {
+      return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
+    }
+  }
 }

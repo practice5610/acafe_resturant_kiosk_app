@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:acafe_customer/common/models/api_response_model.dart';
+import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
@@ -60,6 +61,15 @@ class PosOrdersProvider extends ChangeNotifier {
   static DateTime _startOfToday() {
     final DateTime now = DateTime.now();
     return DateTime(now.year, now.month, now.day);
+  }
+
+  /// The end of the device's today, on the same clock as [_startOfToday]. Sent
+  /// as the NOW window's `date_to` so both bounds come from the device clock —
+  /// otherwise the server fills `date_to` from its own clock, and a device that
+  /// runs ahead of the server produces from > to and a spurious date-range 422.
+  static DateTime _endOfToday() {
+    final DateTime now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, 23, 59, 59);
   }
   DateTime? get from => _from;
   DateTime? get to => _to;
@@ -128,8 +138,11 @@ class PosOrdersProvider extends ChangeNotifier {
       dateFrom: _from == null ? null : _wire.format(_from!),
       // In NOW mode the end of the window is resolved at request time, not when
       // the toggle was pressed — otherwise a terminal left open over lunch stops
-      // showing anything placed after the operator last touched the filter.
-      dateTo: _now ? null : (_to == null ? null : _wire.format(_to!)),
+      // showing anything placed after the operator last touched the filter. It is
+      // sent as the device's end-of-today rather than omitted so both bounds share
+      // the device clock; letting the server fill it from its own clock gives
+      // from > to (a date-range 422) whenever the device runs ahead of the server.
+      dateTo: _now ? _wire.format(_endOfToday()) : (_to == null ? null : _wire.format(_to!)),
       search: _search.isEmpty ? null : _search,
       section: _section == null
           ? null
@@ -297,6 +310,74 @@ class PosOrdersProvider extends ChangeNotifier {
     _applyLocal(order.id, original);
     _adjustCounts(from: PosOrderGrouping.sectionOf(target), to: original.section);
     notifyListeners();
+
+    return _messageFrom(response?.data) ??
+        apiResponse.error?.toString() ??
+        'Could not update the order';
+  }
+
+  /// Move every eligible item on the order forward ("Start all items" /
+  /// "Mark all ready").
+  ///
+  /// This is what the board's forward CTA now does instead of writing
+  /// `order_status`: the items move, and the server derives the order status
+  /// from their aggregate exactly as it does when the kitchen moves them. That
+  /// is what stops an order being marked ready while its items are still
+  /// pending, only to be dragged back by the next item write.
+  ///
+  /// Not applied optimistically: which items actually move is the server's
+  /// forward-only decision, and guessing it here would show a state the
+  /// response might contradict a moment later. The board refetches instead.
+  Future<String?> bulkItemStatus(PosOrderCard order, PrepStatus target) async {
+    if (_pending.contains(order.id)) return null;
+
+    _pending.add(order.id);
+    notifyListeners();
+
+    final ApiResponseModel apiResponse = await posOrdersRepo.bulkUpdateItemStatus(
+      orderId: order.id,
+      status: target.wire,
+    );
+
+    _pending.remove(order.id);
+    notifyListeners();
+
+    final response = apiResponse.response;
+    if (response != null && response.statusCode == 200) {
+      unawaited(load(silent: true));
+      return null;
+    }
+
+    return _messageFrom(response?.data) ??
+        apiResponse.error?.toString() ??
+        'Could not update the order';
+  }
+
+  /// The order's side exits: pause, resume and cancel.
+  ///
+  /// Routed through the same endpoint and the same [OrderTransitionService] the
+  /// kitchen's own menu uses, so a POS pause and a kitchen pause land the order
+  /// in identical states. Resume sends `preparing`, which the server treats as
+  /// provisional and re-derives from the item aggregate.
+  Future<String?> setOrderStatus(PosOrderCard order, String status) async {
+    if (_pending.contains(order.id)) return null;
+
+    _pending.add(order.id);
+    notifyListeners();
+
+    final ApiResponseModel apiResponse = await posOrdersRepo.updateStatus(
+      orderId: order.id,
+      orderStatus: status,
+    );
+
+    _pending.remove(order.id);
+    notifyListeners();
+
+    final response = apiResponse.response;
+    if (response != null && response.statusCode == 200) {
+      unawaited(load(silent: true));
+      return null;
+    }
 
     return _messageFrom(response?.data) ??
         apiResponse.error?.toString() ??

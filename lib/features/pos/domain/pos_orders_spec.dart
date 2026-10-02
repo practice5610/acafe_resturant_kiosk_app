@@ -83,6 +83,15 @@ class PosOrdersSpec {
   static const double clockTextSize = 13;
   static const double clockGap = 6;
 
+  /// The order number on the card's top row (`#1000189`).
+  ///
+  /// Not a Figma element — Figma only ever showed it inside the detail modal,
+  /// which meant the number staff read out to a customer was the one thing the
+  /// board could not tell them. Sized a notch under the clock and tinted back,
+  /// so it reads as an identifier rather than competing with the time.
+  static const double orderNumberTextSize = 12;
+  static const double orderNumberGap = 8;
+
   /// The per-card status chip ("NEW" / "IN PROGRESS" / "FINISHED"). Not a
   /// Figma element — the section dot alone wasn't legible enough as a status
   /// indicator on the card itself, so this spells it out in words too,
@@ -126,4 +135,17 @@ class PosOrdersSpec {
   /// Below this the fixed 288px card is wider than the content area, so cards
   /// stretch to the available width instead of overflowing.
   static const double cardStretchBelowWidth = 320;
+
+  // ── Item progress on the card (DS5) ──────────────────────────────────
+  /// A compact "2/3 ready" line plus one bar segment per item, so the counter
+  /// can see how far an order has got without opening it.
+  static const double progressGap = 6;
+  static const double progressLabelSize = 11;
+  static const double progressBarHeight = 4;
+  static const double progressBarRadius = 2;
+  static const double progressSegmentGap = 2;
+
+  /// Segment fill for an item nobody has started. Deliberately faint: the bar
+  /// should read as "how much is done", not as three competing colours.
+  static const Color progressTrack = Color(0xFFE6E1D2);
 }

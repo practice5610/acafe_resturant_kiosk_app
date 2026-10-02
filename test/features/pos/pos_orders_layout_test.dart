@@ -144,6 +144,57 @@ class _StubOrdersRepo implements PosOrdersRepo {
       data: <String, dynamic>{'message': 'Order status updated!'},
     ));
   }
+
+  // ── Item-status endpoints ──────────────────────────────────────────────
+  int itemStatusCalls = 0;
+  int bulkItemStatusCalls = 0;
+  String? lastItemStatus;
+  int? lastItemDetailId;
+
+  /// Swap in a non-200 to exercise the rejection paths.
+  int itemStatusCode = 200;
+  Map<String, dynamic>? itemStatusBody;
+
+  @override
+  Future<ApiResponseModel> updateItemStatus({
+    required int orderId,
+    required int orderDetailId,
+    required String status,
+  }) async {
+    itemStatusCalls++;
+    lastItemDetailId = orderDetailId;
+    lastItemStatus = status;
+    return _itemResponse(orderId, orderDetailId, status);
+  }
+
+  @override
+  Future<ApiResponseModel> bulkUpdateItemStatus({
+    required int orderId,
+    required String status,
+  }) async {
+    bulkItemStatusCalls++;
+    lastItemStatus = status;
+    return _itemResponse(orderId, null, status);
+  }
+
+  ApiResponseModel _itemResponse(int orderId, int? detailId, String status) {
+    return ApiResponseModel.withSuccess(Response(
+      requestOptions: RequestOptions(path: '/items/status'),
+      statusCode: itemStatusCode,
+      data: itemStatusBody ??
+          <String, dynamic>{
+            'order_id': orderId,
+            'order_detail_id': detailId,
+            'prep_status': detailId == null ? null : status,
+            'order_status': status == 'ready' ? 'item_to_collect' : 'preparing',
+            'advanced_to': status == 'ready' ? 'item_to_collect' : 'preparing',
+            'item_states': <Map<String, dynamic>>[],
+            'items_ready': status == 'ready' ? 1 : 0,
+            'items_total': 1,
+            'message': 'Item status updated!',
+          },
+    ));
+  }
 }
 
 Widget _board(_StubOrdersRepo repo) => MaterialApp(
@@ -161,9 +212,17 @@ void main() {
     if (!di.sl.isRegistered<KioskManagerRepo>()) {
       di.sl.registerLazySingleton<KioskManagerRepo>(() => _StubManagerRepo());
     }
+    // The overlay writes item status through the board's own repo, so the
+    // locator needs it too before a card can open its detail.
+    if (!di.sl.isRegistered<PosOrdersRepo>()) {
+      di.sl.registerLazySingleton<PosOrdersRepo>(() => _StubOrdersRepo());
+    }
   });
 
   tearDown(() {
+    if (di.sl.isRegistered<PosOrdersRepo>()) {
+      di.sl.unregister<PosOrdersRepo>();
+    }
     if (di.sl.isRegistered<KioskManagerRepo>()) {
       di.sl.unregister<KioskManagerRepo>();
     }
@@ -284,6 +343,31 @@ void main() {
     final double firstRight = tester.getTopRight(cards.at(0)).dx;
     final double secondLeft = tester.getTopLeft(cards.at(1)).dx;
     expect(secondLeft - firstRight, closeTo(PosOrdersSpec.cardGap, 0.5));
+  });
+
+  testWidgets('every card shows its order number, not just the modal',
+      (tester) async {
+    await pumpBoard(tester, _StubOrdersRepo());
+
+    // The number staff read back to the customer has to be legible without
+    // opening the order — the board is the screen they work from.
+    for (final int id in [27364, 27365, 27363, 27359, 27358]) {
+      expect(find.text('#$id'), findsOneWidget, reason: 'order $id');
+    }
+  });
+
+  testWidgets('the card and the modal spell the order number the same way',
+      (tester) async {
+    await pumpBoard(tester, _StubOrdersRepo());
+
+    await tester.tap(find.byType(PosOrderCardTile).first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PosOrderDetailOverlay), findsOneWidget);
+    // Card: `#27364`. Modal title: `Order #27364`. One formatter, so the two
+    // can never drift apart.
+    expect(find.text('Order #27364'), findsOneWidget);
+    expect(find.text('#27364'), findsOneWidget);
   });
 
   testWidgets('section badges show the server counts', (tester) async {

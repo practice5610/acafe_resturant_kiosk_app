@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_scroll.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_option_layout.dart';
@@ -760,8 +761,20 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
         _validateAddOnGroups(context, productProvider);
   }
 
+  /// Bring the first invalid section into view. No-op by default (Version B is a
+  /// step flow where each question is already its own page); Version A overrides
+  /// it to scroll its single column.
+  void scrollToInvalidSection(ProductSectionRef ref) {}
+
   void _addToCart(BuildContext context, ProductProvider productProvider) {
-    if (!_validate(context, productProvider)) return;
+    if (!_validate(context, productProvider)) {
+      // Validation already fired its snackbar. Scroll the first invalid section
+      // (in on-screen order) into view so the customer can see what to fix.
+      final ProductSectionRef? invalid =
+          firstInvalidProductSection(product, productProvider);
+      if (invalid != null) scrollToInvalidSection(invalid);
+      return;
+    }
     track(context, KioskCustomizeEvent.addToCartClicked);
     _completed = true;
     final CartModel built =
@@ -825,6 +838,20 @@ class _KioskProductCustomizeScreenState
   /// moved to a single order-level note on the cart — but an existing line's
   /// text is carried through so editing a line cannot silently wipe it.
   String? _instruction;
+
+  /// One [GlobalKey] per rendered section, so a failed Add to Cart can scroll
+  /// the first invalid section into view (only in the scrolling layout; in the
+  /// pinned layout the sections are already visible and the scroll no-ops).
+  final Map<ProductSectionRef, GlobalKey> _sectionKeys = {};
+
+  GlobalKey _sectionKey(ProductSectionRef ref) =>
+      _sectionKeys.putIfAbsent(ref, () => GlobalKey());
+
+  @override
+  void scrollToInvalidSection(ProductSectionRef ref) {
+    final GlobalKey? key = _sectionKeys[ref];
+    if (key != null) scrollProductSectionIntoView(key);
+  }
 
   @override
   Product get product => widget.product;
@@ -980,48 +1007,80 @@ class _KioskProductCustomizeScreenState
                       .allergenTagEnabled,
                 );
 
+                // Section keys for scroll-to-error. Kiosk draws ALL size
+                // variations in one panel and ALL add-on groups in one section,
+                // so every size / add-on ref points at that single widget's key;
+                // dietary and cup/can get a key each.
+                final GlobalKey? sizeKey = sizeVariations.isEmpty
+                    ? null
+                    : _sectionKey(ProductSectionRef.size(sizeVariations.first.key));
+                for (final entry in sizeVariations) {
+                  _sectionKeys[ProductSectionRef.size(entry.key)] = sizeKey!;
+                }
+                final GlobalKey? addOnsKey = !hasAddOns
+                    ? null
+                    : _sectionKey(ProductSectionRef.addOn(
+                        product.effectiveAddOnGroups.first.id ?? -1));
+                for (final group in product.effectiveAddOnGroups) {
+                  if (group.id != null) {
+                    _sectionKeys[ProductSectionRef.addOn(group.id!)] = addOnsKey!;
+                  }
+                }
+
                 // Size first, then each dietary group, each in its own panel.
                 final List<Widget> variationPanels = [
                   if (allergenNotice != null) allergenNotice,
                   if (sizeVariations.isNotEmpty)
-                    _SizeOptionsPanel(
-                      s: s,
-                      entries: sizeVariations,
-                      product: product,
-                      productProvider: productProvider,
+                    KeyedSubtree(
+                      key: sizeKey,
+                      child: _SizeOptionsPanel(
+                        s: s,
+                        entries: sizeVariations,
+                        product: product,
+                        productProvider: productProvider,
+                      ),
                     ),
                   for (final entry in dietaryVariations)
-                    _VariationSection(
-                      s: s,
-                      variation: entry.value,
-                      variationIndex: entry.key,
-                      product: product,
-                      productProvider: productProvider,
+                    KeyedSubtree(
+                      key: _sectionKey(ProductSectionRef.dietary(entry.key)),
+                      child: _VariationSection(
+                        s: s,
+                        variation: entry.value,
+                        variationIndex: entry.key,
+                        product: product,
+                        productProvider: productProvider,
+                      ),
                     ),
                 ];
                 final Widget? addOns = hasAddOns
-                    ? _AddOnsSection(
-                        s: s,
-                        product: product,
-                        productProvider: productProvider,
-                        // Pinned layout: the panel keeps its own scroller.
-                        // Scrolling layout: it sizes to its content and rides
-                        // the page scroller instead, so there are never two
-                        // scrollers nested.
-                        scrollable: pinned,
-                        // NO INDICATORS ON THIS SCREEN. Everything here still
-                        // scrolls; nothing here draws a bar to say so.
-                        showIndicator: false,
+                    ? KeyedSubtree(
+                        key: addOnsKey,
+                        child: _AddOnsSection(
+                          s: s,
+                          product: product,
+                          productProvider: productProvider,
+                          // Pinned layout: the panel keeps its own scroller.
+                          // Scrolling layout: it sizes to its content and rides
+                          // the page scroller instead, so there are never two
+                          // scrollers nested.
+                          scrollable: pinned,
+                          // NO INDICATORS ON THIS SCREEN. Everything here still
+                          // scrolls; nothing here draws a bar to say so.
+                          showIndicator: false,
+                        ),
                       )
                     : null;
                 final List<Widget> vesselPanels = [
                   for (final entry in cupCanVariations)
-                    _CupCanSection(
-                      s: s,
-                      variation: entry.value,
-                      variationIndex: entry.key,
-                      product: product,
-                      productProvider: productProvider,
+                    KeyedSubtree(
+                      key: _sectionKey(ProductSectionRef.cupCan(entry.key)),
+                      child: _CupCanSection(
+                        s: s,
+                        variation: entry.value,
+                        variationIndex: entry.key,
+                        product: product,
+                        productProvider: productProvider,
+                      ),
                     ),
                 ];
                 final Widget actionBar = _ActionBar(

@@ -11,10 +11,15 @@ class PosSettingsSidebar extends StatelessWidget {
   final PosSettingsSection selected;
   final ValueChanged<PosSettingsSection> onSelect;
 
+  /// Sections to list. Defaults to all of them, which is every caller before
+  /// staff sign-in and every branch that has it switched off.
+  final List<PosSettingsSection> sections;
+
   const PosSettingsSidebar({
     super.key,
     required this.selected,
     required this.onSelect,
+    this.sections = PosSettingsSection.values,
   });
 
   @override
@@ -32,11 +37,11 @@ class PosSettingsSidebar extends StatelessWidget {
       ),
       child: ListView.separated(
         padding: PosSettingsSpec.sidebarPadding,
-        itemCount: PosSettingsSection.values.length,
+        itemCount: sections.length,
         separatorBuilder: (_, __) =>
             const SizedBox(height: PosSettingsSpec.sidebarItemGap),
         itemBuilder: (context, index) {
-          final PosSettingsSection section = PosSettingsSection.values[index];
+          final PosSettingsSection section = sections[index];
           return PosSettingsSidebarItem(
             label: section.label,
             selected: section == selected,

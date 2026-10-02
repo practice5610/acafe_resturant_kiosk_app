@@ -1,3 +1,5 @@
+import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -96,13 +98,20 @@ class KioskRouteGuard {
     final PosSessionProvider? session = isPosDevice
         ? Provider.of<PosSessionProvider>(context, listen: false)
         : null;
+    final PosStaffSessionProvider? staff = isPosDevice
+        ? Provider.of<PosStaffSessionProvider?>(context, listen: false)
+        : null;
+    final bool stepUp = session?.canAccessManagerTabs ?? false;
+    final PosAccess? access = staff?.access(managerStepUp: stepUp);
 
     return PosRoutePolicy.redirect(
       path: path,
       isPosDevice: isPosDevice,
       isLoggedIn: isLoggedIn,
       // In-memory by design: a reload drops any manager step-up grant.
-      canAccessManagerTabs: session?.canAccessManagerTabs ?? false,
+      canAccessManagerTabs: stepUp,
+      canAccessReport: access?.canSeeReport,
+      canAccessSettings: access?.canSeeSettings,
       kioskLoginPath: RouterHelper.kioskLoginScreen,
       kioskWelcomePath: RouterHelper.kioskWelcomeScreen,
     );

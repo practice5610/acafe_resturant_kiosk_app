@@ -190,6 +190,15 @@ class AppConstants {
 
   /// POS Settings → Staff roster, shift assignments and floor permissions.
   static const String posStaffRosterKey = 'pos_staff_roster_v2';
+
+  /// The permission list, roles and shifts served by the branch. Cached so a
+  /// terminal that boots without a network still renders the Staff screen it
+  /// had, rather than an empty one.
+  static const String posStaffCatalogueKey = 'pos_staff_catalogue_v1';
+
+  /// The signed-in staff member's session token. Cleared on lock and sign-out.
+  static const String posStaffTokenKey = 'pos_staff_token_v1';
+  static const String posStaffTokenExpiryKey = 'pos_staff_token_expiry_v1';
   static const String currentAddress = 'current_address';
   static const String lastOrderPaymentMethod = 'last_order_payment_method';
   static const String appleLoginEmail = 'apple_login_email';

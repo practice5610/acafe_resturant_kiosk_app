@@ -861,34 +861,33 @@ void main() {
 
     testWidgets('shows the real Settings → Staff roster once one exists',
         (tester) async {
-      final PosStaffRoster roster = PosStaffRoster(
-        members: const <PosStaffMember>[
+      // Role names are data from the branch now, not constants in the app.
+      const PosStaffRoster roster = PosStaffRoster(
+        members: <PosStaffMember>[
           PosStaffMember(
             id: 'maria',
             name: 'Maria van den Berg',
-            role: PosStaffRoles.owner,
+            role: 'Owner',
             active: true,
-            passcode: '1234',
             permissions: <String, bool>{},
           ),
           // Inactive staff must not show up on today's report.
           PosStaffMember(
             id: 'emma',
             name: 'Emma Visser',
-            role: PosStaffRoles.employee,
+            role: 'Employee',
             active: false,
-            passcode: '5678',
             permissions: <String, bool>{},
           ),
         ],
-        shifts: PosStaffRoster.emptyShifts(),
+        shifts: <PosStaffShift>[],
       );
 
       await pumpAt(tester, const Size(1366, 926), staffRoster: roster);
 
       expect(find.text('No staff added yet'), findsNothing);
       expect(find.text('Maria van den Berg'), findsOneWidget);
-      expect(find.text(PosStaffRoles.owner), findsOneWidget);
+      expect(find.text('Owner'), findsOneWidget);
       expect(find.text('Emma Visser'), findsNothing,
           reason: 'inactive staff are not on today\'s floor');
 

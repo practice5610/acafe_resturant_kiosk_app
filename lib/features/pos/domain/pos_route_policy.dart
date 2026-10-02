@@ -34,6 +34,11 @@ class PosRoutePolicy {
     required String kioskLoginPath,
     required String kioskWelcomePath,
     bool canAccessManagerTabs = true,
+    // Per-tab answers from PosAccess. Null keeps the old behaviour, where one
+    // manager step-up opened both; with branch staff sign-in on, each tab
+    // follows its own permission instead.
+    bool? canAccessReport,
+    bool? canAccessSettings,
   }) {
     // A kiosk device that lands on a POS path — a stale bookmark, a typed URL —
     // goes back to its own tree rather than being shown a staff interface.
@@ -49,13 +54,14 @@ class PosRoutePolicy {
       return path == kioskLoginPath ? null : kioskLoginPath;
     }
 
-    // Logged in: the till is usable by anyone at the counter (POS, Orders,
-    // Receipts) with no PIN gate. Any kiosk path this device wandered onto —
-    // including the one device login hands off to — resolves to the welcome
-    // screen. Finished sales and the manager bounce below still go to the
-    // till directly.
+    // Logged in: a POS device goes straight to the till. Any kiosk path this
+    // device wandered onto — including the one device login hands off to
+    // (/welcome-kiosk) — resolves directly to /pos-home in this one redirect, so
+    // there is no visible hop through an intermediate screen. The PIN lock, when
+    // the branch requires it, is drawn over /pos-home by PosStaffGate. The
+    // /pos-welcome route still exists but is no longer part of the login flow.
     if (!PosRoutes.matches(path)) {
-      return PosRoutes.welcome;
+      return PosRoutes.home;
     }
 
     // Gate 2: Report/Settings are Manager/Owner-only, reached only via the
@@ -63,7 +69,11 @@ class PosRoutePolicy {
     // `PosSessionProvider.canAccessManagerTabs`. An Employee typing the URL
     // or hitting Back into one of these lands on the home tab rather than
     // seeing a locked/broken screen.
-    if (managerOnlyPaths.contains(path) && !canAccessManagerTabs) {
+    if (path == PosRoutes.report && !(canAccessReport ?? canAccessManagerTabs)) {
+      return PosRoutes.home;
+    }
+    if (path == PosRoutes.settings &&
+        !(canAccessSettings ?? canAccessManagerTabs)) {
       return PosRoutes.home;
     }
 

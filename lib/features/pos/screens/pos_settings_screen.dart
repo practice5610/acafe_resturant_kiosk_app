@@ -4,6 +4,8 @@ import 'package:acafe_customer/features/language/providers/localization_provider
 import 'package:acafe_customer/features/pos/domain/pos_general_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_hardware_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_section.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
+import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/pos/providers/pos_general_settings_provider.dart';
 import 'package:acafe_customer/features/pos/providers/pos_hardware_settings_provider.dart';
@@ -40,13 +42,36 @@ class PosSettingsScreen extends StatefulWidget {
 class _PosSettingsScreenState extends State<PosSettingsScreen> {
   PosSettingsSection _section = PosSettingsSection.general;
 
+  /// The permission a section needs when branch staff sign-in is on. Profile
+  /// is the signed-in person's own device view and needs none.
+  static String? _permissionFor(PosSettingsSection section) => switch (section) {
+        PosSettingsSection.staff => PosPermission.manageStaff,
+        PosSettingsSection.products => PosPermission.manageInventory,
+        PosSettingsSection.addOns => PosPermission.manageInventory,
+        PosSettingsSection.general => PosPermission.manageSettings,
+        PosSettingsSection.payments => PosPermission.manageSettings,
+        PosSettingsSection.hardware => PosPermission.manageSettings,
+        PosSettingsSection.profile => null,
+      };
+
   @override
   Widget build(BuildContext context) {
+    final PosAccess access = PosAccessScope.of(context);
+    final List<PosSettingsSection> sections = [
+      for (final PosSettingsSection section in PosSettingsSection.values)
+        if (_permissionFor(section) == null || access.can(_permissionFor(section)!))
+          section,
+    ];
+    // The section in view may have been taken away by a change of user.
+    final PosSettingsSection section =
+        sections.contains(_section) ? _section : sections.first;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PosSettingsSidebar(
-          selected: _section,
+          selected: section,
+          sections: sections,
           onSelect: (PosSettingsSection next) {
             if (next == _section) return;
             setState(() => _section = next);
@@ -57,7 +82,7 @@ class _PosSettingsScreenState extends State<PosSettingsScreen> {
             color: PosSettingsSpec.pageBg,
             child: Padding(
               padding: PosSettingsSpec.panelPadding,
-              child: switch (_section) {
+              child: switch (section) {
                 PosSettingsSection.general => _GeneralSectionHost(
                     sharedPreferences: widget.sharedPreferences,
                   ),
