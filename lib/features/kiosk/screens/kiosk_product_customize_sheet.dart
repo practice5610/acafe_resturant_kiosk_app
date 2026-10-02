@@ -948,19 +948,27 @@ class _KioskProductCustomizeScreenState
                 final double heroTarget =
                     kioskCustomizeHeroTargetArtboard(
                         hasDescription: hasDescription);
-                final double heroFactor = kioskCustomizeResolvedHeroFactor(
-                  viewport: viewport,
-                  artboardHeight: artboard,
-                  hasDescription: hasDescription,
-                  targetArtboardHeight: heroTarget,
-                  targetSplitArtboardHeight: kioskCustomizeArtboardHeight(
-                    hasDescription: hasDescription,
-                    variationPanels: 0,
-                    hasAddOns: false,
-                    hasVessel: false,
-                    landscape: true,
-                  ),
-                );
+                // Picture-less device: collapse the hero to zero height. A zero
+                // heroFactor removes the photo box AND its spacing from both the
+                // artboard math and [_Header], so the options move up with no
+                // blank space -- and the photo itself is never built or fetched.
+                final bool showImages =
+                    context.watch<KioskAuthProvider>().showImages;
+                final double heroFactor = !showImages
+                    ? 0.0
+                    : kioskCustomizeResolvedHeroFactor(
+                        viewport: viewport,
+                        artboardHeight: artboard,
+                        hasDescription: hasDescription,
+                        targetArtboardHeight: heroTarget,
+                        targetSplitArtboardHeight: kioskCustomizeArtboardHeight(
+                          hasDescription: hasDescription,
+                          variationPanels: 0,
+                          hasAddOns: false,
+                          hasVessel: false,
+                          landscape: true,
+                        ),
+                      );
                 final double s = kioskCustomizeScale(
                   viewport: viewport,
                   artboardHeight: kioskCustomizeArtboardWithHero(
@@ -987,6 +995,7 @@ class _KioskProductCustomizeScreenState
                 final Widget header = _Header(
                   s: s,
                   heroFactor: heroFactor,
+                  showImages: showImages,
                   product: product,
                   productProvider: productProvider,
                 );
@@ -1220,6 +1229,10 @@ class _Header extends StatelessWidget {
   /// blurb and the stepper stay at `s` whatever happens.
   final double heroFactor;
 
+  /// Picture-less device: skip the hero photo entirely (its box + spacing are
+  /// already zero via [heroFactor] == 0, this just avoids building the widget).
+  final bool showImages;
+
   /// Version B draws its own back button beside the progress bar, so it asks
   /// the header to skip the one in the corner rather than showing two.
   final bool showBackButton;
@@ -1228,6 +1241,7 @@ class _Header extends StatelessWidget {
     required this.product,
     required this.productProvider,
     this.heroFactor = 1.0,
+    this.showImages = true,
     this.showBackButton = true,
   });
 
@@ -1251,18 +1265,19 @@ class _Header extends StatelessWidget {
             // photo letterboxes inside it instead of stretching to the panel.
             // Both edges take [heroFactor], so a shrunken hero is the same box
             // at a smaller size rather than a squashed one.
-            Center(
-              child: SizedBox(
-                width: KioskCustomizeSpec.heroWidth * s * heroFactor,
-                height: KioskCustomizeSpec.heroHeight * s * heroFactor,
-                child: CustomImageWidget(
-                  key: ValueKey(heroImage),
-                  placeholder: Images.placeholderImage,
-                  image: heroImage,
-                  fit: BoxFit.contain,
+            if (showImages)
+              Center(
+                child: SizedBox(
+                  width: KioskCustomizeSpec.heroWidth * s * heroFactor,
+                  height: KioskCustomizeSpec.heroHeight * s * heroFactor,
+                  child: CustomImageWidget(
+                    key: ValueKey(heroImage),
+                    placeholder: Images.placeholderImage,
+                    image: heroImage,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
-            ),
             SizedBox(height: KioskCustomizeSpec.heroToTitle * s * heroFactor),
             Text(
               product.name ?? '',
@@ -1874,7 +1889,9 @@ class _SizeOptionsPanel extends StatelessWidget {
             ),
           ),
     ];
-    const bool showImage = true;
+    // Picture-less device: reuse the existing art-less-group compact path
+    // (text + price, no image slot, no fetch) for every option card.
+    final bool showImage = context.watch<KioskAuthProvider>().showImages;
     const bool showPrice = true;
 
     return _SectionPanel(
@@ -1954,7 +1971,7 @@ class _VariationSection extends StatelessWidget {
           ),
         ),
     ];
-    const bool showImage = true;
+    final bool showImage = context.watch<KioskAuthProvider>().showImages;
     const bool showPrice = true;
 
     return _SectionPanel(
@@ -2445,14 +2462,17 @@ class _GroupedAddOnCards extends StatelessWidget {
         s: s,
         gap: gap,
       );
-      const bool showImage = true;
       const bool showPrice = true;
       // Image is always reserved, so a selected multi add-on absorbs the
       // stepper by shrinking its photo rather than growing the card.
       const bool reserveQuantity = false;
+      // Picture-less device: drive the card's image slot off the device flag
+      // (reuses the art-less compact path). The height still budgets the image
+      // box so the grid and the artboard scale math stay in agreement.
+      final bool showImage = context.watch<KioskAuthProvider>().showImages;
       final double cardHeight = _addOnCardHeight(
         cardWidth,
-        showImage: showImage,
+        showImage: true,
         showPrice: showPrice,
         reserveQuantity: reserveQuantity,
       );
@@ -2805,6 +2825,7 @@ class _CupCanSection extends StatelessWidget {
     // rather than left as an empty row eating vertical space. It comes back the
     // moment any option actually carries a surcharge.
     final bool anyPriced = values.any((value) => (value.optionPrice ?? 0) > 0);
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
 
     return _SectionPanel(
       s: s,
@@ -2817,10 +2838,16 @@ class _CupCanSection extends StatelessWidget {
         // cards, whatever the panel is actually wide.
         final double cardWidth =
             math.max(1, (constraints.maxWidth - gap * (count - 1)) / count);
-        final double cardHeight = cardWidth *
-            (KioskCustomizeSpec.vesselCardHeight /
-                KioskCustomizeSpec.vesselCardWidth) *
-            KioskCustomizeSpec.vesselHeightFactor;
+        // Picture-less: the vessel photo is gone, so the card is just its label
+        // (+ price). Collapse to a compact label-height box instead of the tall
+        // image card. This under-fills the artboard's vessel budget rather than
+        // overflowing it, so the page scale stays safe.
+        final double cardHeight = showImages
+            ? cardWidth *
+                (KioskCustomizeSpec.vesselCardHeight /
+                    KioskCustomizeSpec.vesselCardWidth) *
+                KioskCustomizeSpec.vesselHeightFactor
+            : KioskCustomizeSpec.panelTitleSize * s * (anyPriced ? 3.2 : 2.2);
 
         return SizedBox(
           height: cardHeight,
@@ -2832,6 +2859,7 @@ class _CupCanSection extends StatelessWidget {
                   s: s,
                   width: cardWidth,
                   height: cardHeight,
+                  showImages: showImages,
                   name: values[i].level?.trim() ?? '',
                   priceDelta: values[i].optionPrice ?? 0,
                   showPrice: anyPriced,
@@ -2897,6 +2925,9 @@ class _CupCanCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Picture-less device: drop the vessel artwork and keep the label (+ price).
+  final bool showImages;
+
   /// The page scale, so the vessel word can match the section headings, which
   /// are authored in artboard px like everything else.
   final double s;
@@ -2912,6 +2943,7 @@ class _CupCanCard extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.s,
+    this.showImages = true,
   });
 
   /// Section-heading size, capped so a narrow card ellipsizes the word rather
@@ -2960,12 +2992,14 @@ class _CupCanCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(
-                width: KioskCustomizeSpec.vesselImageWidth * k,
-                height: KioskCustomizeSpec.vesselImageHeight * k,
-                child: _VesselImage(assetImage: assetImage, image: image),
-              ),
-              SizedBox(height: KioskCustomizeSpec.vesselImageGap * kW),
+              if (showImages) ...[
+                SizedBox(
+                  width: KioskCustomizeSpec.vesselImageWidth * k,
+                  height: KioskCustomizeSpec.vesselImageHeight * k,
+                  child: _VesselImage(assetImage: assetImage, image: image),
+                ),
+                SizedBox(height: KioskCustomizeSpec.vesselImageGap * kW),
+              ],
               Text(
                 name.toUpperCase(),
                 textAlign: TextAlign.center,

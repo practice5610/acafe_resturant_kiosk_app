@@ -319,19 +319,24 @@ class _KioskProductCustomizeStepScreenState
                 final double heroTarget =
                     kioskCustomizeHeroTargetArtboard(
                         hasDescription: hasDescription);
-                final double heroFactor = kioskCustomizeResolvedHeroFactor(
-                  viewport: viewport,
-                  artboardHeight: artboard,
-                  hasDescription: hasDescription,
-                  targetArtboardHeight: heroTarget,
-                  targetSplitArtboardHeight: kioskCustomizeArtboardHeight(
-                    hasDescription: hasDescription,
-                    variationPanels: 0,
-                    hasAddOns: false,
-                    hasVessel: false,
-                    landscape: true,
-                  ),
-                );
+                // Picture-less device: collapse the hero (see Version A).
+                final bool showImages =
+                    context.watch<KioskAuthProvider>().showImages;
+                final double heroFactor = !showImages
+                    ? 0.0
+                    : kioskCustomizeResolvedHeroFactor(
+                        viewport: viewport,
+                        artboardHeight: artboard,
+                        hasDescription: hasDescription,
+                        targetArtboardHeight: heroTarget,
+                        targetSplitArtboardHeight: kioskCustomizeArtboardHeight(
+                          hasDescription: hasDescription,
+                          variationPanels: 0,
+                          hasAddOns: false,
+                          hasVessel: false,
+                          landscape: true,
+                        ),
+                      );
                 // The page is then re-measured WITH that hero, so the height
                 // the photo takes is height the page knew about: the rest of
                 // the screen gives up a few per cent of scale and the step's
@@ -383,6 +388,7 @@ class _KioskProductCustomizeStepScreenState
                         child: _Header(
                           s: s,
                           heroFactor: heroFactor,
+                          showImages: showImages,
                           product: product,
                           productProvider: productProvider,
                           showBackButton: false,

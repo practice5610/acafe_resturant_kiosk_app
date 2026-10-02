@@ -956,6 +956,7 @@ class _VariationSection extends StatelessWidget {
     final values = variation.variationValues ?? [];
     if (values.isEmpty) return const SizedBox.shrink();
 
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -985,6 +986,7 @@ class _VariationSection extends StatelessWidget {
                         value: values[i],
                         productImageBaseUrl: imageBaseUrl,
                       ),
+                      showImages: showImages,
                       selected: productProvider
                               .selectedVariations[variationIndex][i] ??
                           false,
@@ -1020,6 +1022,7 @@ class _DietaryCard extends StatelessWidget {
   final double width;
   final String name;
   final String imageUrl;
+  final bool showImages;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1027,6 +1030,7 @@ class _DietaryCard extends StatelessWidget {
     required this.width,
     required this.name,
     required this.imageUrl,
+    this.showImages = true,
     required this.selected,
     required this.onTap,
   });
@@ -1044,7 +1048,9 @@ class _DietaryCard extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           width: width,
-          height: PosCustomizeSpec.dietaryCardHeight,
+          // Picture-less: no fixed image-sized height -- the card shrinks to
+          // the radio + label it actually contains.
+          height: showImages ? PosCustomizeSpec.dietaryCardHeight : null,
           padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
           decoration: BoxDecoration(
             borderRadius:
@@ -1088,22 +1094,27 @@ class _DietaryCard extends StatelessWidget {
                       ),
               ),
               Column(
+                mainAxisSize: showImages ? MainAxisSize.max : MainAxisSize.min,
+                mainAxisAlignment: showImages
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
                 children: [
-                  Expanded(
-                    child: Center(
-                      child: SizedBox(
-                        width: PosCustomizeSpec.dietaryImage,
-                        height: PosCustomizeSpec.dietaryImage,
-                        child: imageUrl.isEmpty
-                            ? const SizedBox.shrink()
-                            : CustomImageWidget(
-                                image: imageUrl,
-                                fit: BoxFit.contain,
-                                cacheWidth: 200,
-                              ),
+                  if (showImages)
+                    Expanded(
+                      child: Center(
+                        child: SizedBox(
+                          width: PosCustomizeSpec.dietaryImage,
+                          height: PosCustomizeSpec.dietaryImage,
+                          child: imageUrl.isEmpty
+                              ? const SizedBox.shrink()
+                              : CustomImageWidget(
+                                  image: imageUrl,
+                                  fit: BoxFit.contain,
+                                  cacheWidth: 200,
+                                ),
+                        ),
                       ),
                     ),
-                  ),
                   Text(
                     name.toUpperCase(),
                     textAlign: TextAlign.center,
@@ -1162,6 +1173,7 @@ class _AddOnsSection extends StatelessWidget {
           product.indexOfAddOn(addon.id)!,
     ];
 
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1197,6 +1209,7 @@ class _AddOnsSection extends StatelessWidget {
                         name: addon.name ?? '',
                         priceDelta: addon.effectivePrice,
                         imageUrl: _addonImageUrl(context, addon),
+                        showImages: showImages,
                         selected: selected,
                         isDefault: isDefault,
                         quantity: quantity,
@@ -1245,6 +1258,7 @@ class _AddOnCard extends StatelessWidget {
   final String name;
   final double priceDelta;
   final String imageUrl;
+  final bool showImages;
   final bool selected;
   final bool isDefault;
   final int quantity;
@@ -1258,6 +1272,7 @@ class _AddOnCard extends StatelessWidget {
     required this.name,
     required this.priceDelta,
     required this.imageUrl,
+    this.showImages = true,
     required this.selected,
     this.isDefault = false,
     required this.quantity,
@@ -1280,7 +1295,9 @@ class _AddOnCard extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           width: width,
-          height: PosCustomizeSpec.addonCardHeight,
+          // Picture-less: drop the image-sized fixed height and let the card
+          // size to the price + name (+ qty) it contains.
+          height: showImages ? PosCustomizeSpec.addonCardHeight : null,
           padding: const EdgeInsets.fromLTRB(
             PosCustomizeSpec.addonPadH,
             PosCustomizeSpec.addonPadTop,
@@ -1299,6 +1316,7 @@ class _AddOnCard extends StatelessWidget {
             ),
           ),
           child: Column(
+            mainAxisSize: showImages ? MainAxisSize.max : MainAxisSize.min,
             children: [
               Align(
                 alignment: Alignment.centerRight,
@@ -1311,16 +1329,18 @@ class _AddOnCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Expanded(
-                child: imageUrl.isEmpty
-                    ? const SizedBox.shrink()
-                    : CustomImageWidget(
-                        image: imageUrl,
-                        fit: BoxFit.contain,
-                        cacheWidth: 240,
-                      ),
-              ),
-              const SizedBox(height: 4),
+              if (showImages) ...[
+                Expanded(
+                  child: imageUrl.isEmpty
+                      ? const SizedBox.shrink()
+                      : CustomImageWidget(
+                          image: imageUrl,
+                          fit: BoxFit.contain,
+                          cacheWidth: 240,
+                        ),
+                ),
+                const SizedBox(height: 4),
+              ],
               Text(
                 name.toUpperCase(),
                 textAlign: TextAlign.center,
@@ -1443,6 +1463,7 @@ class _CupCanSection extends StatelessWidget {
         ? variation.name!
         : (getTranslated('can_or_cup', context) ?? 'Can or cup?');
 
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1457,6 +1478,7 @@ class _CupCanSection extends StatelessWidget {
                   Expanded(
                     child: _VesselCard(
                       height: PosCustomizeSpec.vesselCardHeight,
+                      showImages: showImages,
                       name: values[i].level?.trim() ?? '',
                       assetImage:
                           kioskLocalVesselAsset(values[i].level?.trim() ?? ''),
@@ -1497,6 +1519,7 @@ class _CupCanSection extends StatelessWidget {
 
 class _VesselCard extends StatelessWidget {
   final double height;
+  final bool showImages;
   final String name;
   final String? assetImage;
   final String imageUrl;
@@ -1505,6 +1528,7 @@ class _VesselCard extends StatelessWidget {
 
   const _VesselCard({
     required this.height,
+    this.showImages = true,
     required this.name,
     required this.assetImage,
     required this.imageUrl,
@@ -1522,7 +1546,8 @@ class _VesselCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(PosCustomizeSpec.vesselCardRadius),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          height: height,
+          // Picture-less: no tall image-sized card, just the label row.
+          height: showImages ? height : null,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius:
@@ -1533,21 +1558,25 @@ class _VesselCard extends StatelessWidget {
             ),
           ),
           child: Column(
+            mainAxisSize: showImages ? MainAxisSize.max : MainAxisSize.min,
             children: [
-              Expanded(
-                child: assetImage != null
-                    ? Image.asset(assetImage!, fit: BoxFit.contain)
-                    : imageUrl.isEmpty
-                        ? const SizedBox.shrink()
-                        : CustomImageWidget(
-                            image: imageUrl,
-                            fit: BoxFit.contain,
-                            cacheWidth: 320,
-                          ),
-              ),
-              const SizedBox(height: 8),
+              if (showImages) ...[
+                Expanded(
+                  child: assetImage != null
+                      ? Image.asset(assetImage!, fit: BoxFit.contain)
+                      : imageUrl.isEmpty
+                          ? const SizedBox.shrink()
+                          : CustomImageWidget(
+                              image: imageUrl,
+                              fit: BoxFit.contain,
+                              cacheWidth: 320,
+                            ),
+                ),
+                const SizedBox(height: 8),
+              ],
               Text(
                 name.toUpperCase(),
+                textAlign: TextAlign.center,
                 style: loewExtraBold.copyWith(
                   fontSize: PosCustomizeSpec.vesselLabelSize,
                   color: PosCustomizeSpec.ink,
