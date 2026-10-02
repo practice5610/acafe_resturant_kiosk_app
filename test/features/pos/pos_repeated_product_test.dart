@@ -207,6 +207,29 @@ void main() {
         reason: 'and the Extra Shot');
   });
 
+  testWidgets('the cart "+" opens a BLANK configuration, nothing pre-selected',
+      (tester) async {
+    // `pos_home_cart_screen._incrementLine` on a customisable line opens a
+    // blank customize for the same product (openPosCustomize with no cart/
+    // index) -- "+" means add another with fresh choices, not a copy of this
+    // line's picks.
+    final Product product = _americano();
+    final CartModel line = _largeRegularWithShot(product);
+    final (ctx, _, productProvider) = await pumpHost(tester, [line]);
+
+    openPosCustomize(ctx, product);
+    await tester.pump();
+    await tester.pump();
+
+    expect(productProvider.selectedVariations[0], [false, false],
+        reason: 'no size pre-selected');
+    expect(productProvider.selectedVariations[1], [false, false],
+        reason: 'no milk pre-selected');
+    expect(productProvider.addOnActiveList, [false, false],
+        reason: "the line's Extra Shot must not carry over");
+    expect(productProvider.quantity, 1);
+  });
+
   testWidgets('a plain product with no modifiers stacks instead of replacing',
       (tester) async {
     final Product mug = Product(
