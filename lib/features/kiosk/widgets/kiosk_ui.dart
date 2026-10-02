@@ -430,6 +430,7 @@ class KioskProductCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (CustomImageWidget.showProductImages)
             Stack(
               children: [
                 AspectRatio(

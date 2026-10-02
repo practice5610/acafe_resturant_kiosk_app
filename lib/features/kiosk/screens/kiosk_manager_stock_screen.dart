@@ -547,16 +547,18 @@ class _ProductStockCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16 * s),
-              child: CustomImageWidget(
-                image: product['image_full_path']?.toString() ?? '',
-                width: 100 * s,
-                height: 100 * s,
-                fit: BoxFit.cover,
+            if (CustomImageWidget.showProductImages) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16 * s),
+                child: CustomImageWidget(
+                  image: product['image_full_path']?.toString() ?? '',
+                  width: 100 * s,
+                  height: 100 * s,
+                  fit: BoxFit.cover,
+                ),
               ),
-            ),
-            SizedBox(width: 20 * s),
+              SizedBox(width: 20 * s),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

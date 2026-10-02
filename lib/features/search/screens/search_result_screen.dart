@@ -343,6 +343,8 @@ class _KioskResultGrid {
       areaWidth: width,
       gap: Dimensions.paddingSizeDefault,
       landscape: landscape,
+      // Picture-less device: no image band, so the tiles pack denser.
+      showImages: CustomImageWidget.showProductImages,
     );
     return _KioskResultGrid(
       resolved.columns,
@@ -379,19 +381,24 @@ class _KioskResultCard extends StatelessWidget {
           padding: EdgeInsets.all(24 * ts),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: CustomImageWidget.showProductImages
+                ? MainAxisAlignment.start
+                : MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(40 * ts),
-                  child: CustomImageWidget(
-                    placeholder: Images.placeholderImage,
-                    image: image,
-                    fit: BoxFit.cover,
-                    useShimmer: true,
+              if (CustomImageWidget.showProductImages) ...[
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(40 * ts),
+                    child: CustomImageWidget(
+                      placeholder: Images.placeholderImage,
+                      image: image,
+                      fit: BoxFit.cover,
+                      useShimmer: true,
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: 16 * ts),
+                SizedBox(height: 16 * ts),
+              ],
               Text(
                 product.name ?? '',
                 textAlign: TextAlign.center,
@@ -433,14 +440,22 @@ class _KioskResultSkeleton extends StatelessWidget {
         padding: EdgeInsets.all(24 * ts),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: CustomImageWidget.showProductImages
+              ? MainAxisAlignment.start
+              : MainAxisAlignment.center,
+          mainAxisSize: CustomImageWidget.showProductImages
+              ? MainAxisSize.max
+              : MainAxisSize.min,
           children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(40 * ts),
-                child: CustomImageWidget.shimmerBox(),
+            if (CustomImageWidget.showProductImages) ...[
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(40 * ts),
+                  child: CustomImageWidget.shimmerBox(),
+                ),
               ),
-            ),
-            SizedBox(height: 24 * ts),
+              SizedBox(height: 24 * ts),
+            ],
             CustomImageWidget.shimmerBox(width: double.infinity, height: 34 * ts),
             SizedBox(height: 14 * ts),
             Center(child: CustomImageWidget.shimmerBox(width: 140 * ts, height: 34 * ts)),

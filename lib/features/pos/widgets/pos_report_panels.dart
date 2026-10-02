@@ -518,7 +518,8 @@ class _Thumb extends StatelessWidget {
         BorderRadius.circular(posPx(context, PosReportSpec.featuredThumbRadius));
 
     // A product deleted since the sale still ranks, but has no image to load.
-    if (url == null) {
+    // Picture-less device: show the same coffee-icon tile instead of the photo.
+    if (url == null || !CustomImageWidget.showProductImages) {
       return Container(
         width: w,
         height: h,

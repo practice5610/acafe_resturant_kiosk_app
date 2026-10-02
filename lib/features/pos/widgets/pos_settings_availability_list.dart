@@ -166,8 +166,10 @@ class PosSettingsAvailabilityRow extends StatelessWidget {
         padding: PosSettingsListSpec.rowPadding,
         child: Row(
           children: [
-            PosSettingsAvailabilityThumbnail(image: image),
-            const SizedBox(width: PosSettingsListSpec.thumbToTextGap),
+            if (CustomImageWidget.showProductImages) ...[
+              PosSettingsAvailabilityThumbnail(image: image),
+              const SizedBox(width: PosSettingsListSpec.thumbToTextGap),
+            ],
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

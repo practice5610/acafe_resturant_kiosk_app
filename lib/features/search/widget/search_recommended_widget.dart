@@ -157,17 +157,19 @@ class _RecommendedCategoryWidget extends StatelessWidget {
             ),
             clipBehavior: Clip.hardEdge,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
-                child: CustomImageWidget(
-                  image: '${splashProvider.baseUrls?.categoryImageUrl}/${searchProvider.searchRecommendModel?.categories[index].image}',
-                  placeholder: Images.placeholderImage,
-                  width: 30,
-                  height: 30,
+              if (CustomImageWidget.showProductImages) ...[
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
+                  child: CustomImageWidget(
+                    image: '${splashProvider.baseUrls?.categoryImageUrl}/${searchProvider.searchRecommendModel?.categories[index].image}',
+                    placeholder: Images.placeholderImage,
+                    width: 30,
+                    height: 30,
+                  ),
                 ),
-              ),
-              const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+                const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+              ],
 
               Expanded(
                 child: Padding(
