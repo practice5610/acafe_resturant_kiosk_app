@@ -23,7 +23,10 @@ class PosHomeSpec {
 
   // ── Panes ────────────────────────────────────────────────────────────
   static const double sidebarWidth = 192;
-  static const double receiptWidth = 421;
+  // Reduced from the original 421 (Figma) by 41px (~10%) to give the product
+  // grid a little more room. Drives both the flat width below the desktop floor
+  // and the proportional scaling above it (see PosResponsive._receiptRatio).
+  static const double receiptWidth = 380;
   static const double paneBorder = 2;
 
   // ── Category sidebar ─────────────────────────────────────────────────

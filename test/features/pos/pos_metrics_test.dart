@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -162,8 +163,10 @@ void main() {
       // (192/1366) and multiplied back by 1366, which floating point does not
       // guarantee round-trips to the exact integer — sub-pixel noise no
       // render can show.
-      expect(PosResponsive.sidebarWidth(1366), closeTo(192, 0.001));
-      expect(PosResponsive.receiptWidth(1366), closeTo(421, 0.001));
+      expect(PosResponsive.sidebarWidth(1366),
+          closeTo(PosHomeSpec.sidebarWidth, 0.001));
+      expect(PosResponsive.receiptWidth(1366),
+          closeTo(PosHomeSpec.receiptWidth, 0.001));
     });
 
     test('below the floor, sidebar stays flat at the legacy design pixel', () {
@@ -177,7 +180,9 @@ void main() {
       for (final width in desktopWidths) {
         final double sidebar = PosResponsive.sidebarWidth(width);
         final double receipt = PosResponsive.receiptWidth(width);
-        expect(sidebar / receipt, closeTo(192 / 421, 0.0001),
+        expect(
+            sidebar / receipt,
+            closeTo(PosHomeSpec.sidebarWidth / PosHomeSpec.receiptWidth, 0.0001),
             reason: 'ratio drifted at $width');
       }
     });
