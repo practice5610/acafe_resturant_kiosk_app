@@ -120,7 +120,8 @@ class PosStaffSessionProvider extends ChangeNotifier {
 
   // ── Sign in / out ─────────────────────────────────────────────────────
 
-  Future<PosSignInResult> signIn(String pin, {String? memberId, int? roleId}) async {
+  Future<PosSignInResult> signIn(String pin,
+      {String? memberId, int? roleId, String? group}) async {
     if (isLockedOut) {
       return PosSignInResult(
         PosSignInOutcome.lockedOut,
@@ -132,7 +133,7 @@ class PosStaffSessionProvider extends ChangeNotifier {
     notifyListeners();
 
     final (session, token, expiresAt, result) =
-        await repo.signIn(pin, memberId: memberId, roleId: roleId);
+        await repo.signIn(pin, memberId: memberId, roleId: roleId, group: group);
 
     _signingIn = false;
 

@@ -12,11 +12,17 @@ import 'package:provider/provider.dart';
 
 /// The till's front door when a branch has switched staff sign-in on.
 ///
-/// Role first, then a PIN: the operator taps whether they are an Employee or a
-/// Branch Manager, then types their own PIN. The role tap is only how the screen
-/// is organised -- the PIN alone identifies the person, and the server decides
-/// what they may do from their real role, so a branch can have any number of
-/// managers and employees and each just taps their role and signs in.
+/// Two fixed buttons, then a PIN: the operator taps whether they are an Employee
+/// or a Manager, then types their own PIN. The two buttons are fixed, not the
+/// branch's list of roles, so the screen looks identical on every branch and
+/// environment -- it no longer mirrors however many role rows a database happens
+/// to hold.
+///
+/// The button is sent to the server as the sign-in group. The server admits the
+/// PIN only when the account is in that group (a Manager is anyone who can open
+/// Report or Settings; everyone else is an Employee), so a PIN tapped on the
+/// wrong button is refused as a generic wrong PIN. Once in, the account's own
+/// permissions still decide what the till allows.
 ///
 /// Built on [PosPinCard] so the keypad, PIN boxes, press states and the shake
 /// on a wrong PIN are the same as the manager step-up, not a second design.
@@ -37,8 +43,22 @@ class PosStaffLockScreen extends StatefulWidget {
 }
 
 class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
-  /// The role tapped, or null while the operator is still choosing. The roles
-  /// themselves come from the roster, never a hardcoded list.
+  /// The two fixed choices shown on the lock screen. These are labels only --
+  /// they are never sent to the server and never looked up against the branch's
+  /// role rows, so the screen is the same everywhere. The negative ids are just
+  /// stable widget keys; they are not real role ids and are never transmitted.
+  static const List<PosStaffRole> _fixedRoles = [
+    PosStaffRole(id: -1, name: 'Employee'),
+    PosStaffRole(id: -2, name: 'Manager'),
+  ];
+
+  /// The group name sent to the server for each button. The server refuses a PIN
+  /// whose account is not in the tapped group, so an Employee cannot sign in
+  /// through the Manager button, or the other way round.
+  static const Map<int, String> _groupForRole = {-1: 'employee', -2: 'manager'};
+
+  /// The button tapped, or null while the operator is still choosing. A label
+  /// only -- see [_fixedRoles].
   final ValueNotifier<PosStaffRole?> _role = ValueNotifier(null);
   final ValueNotifier<String?> _message = ValueNotifier(null);
 
@@ -75,22 +95,16 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
     _role.value = null;
   }
 
-  /// The role this sign-in is bound to. With two or more roles the operator must
-  /// have tapped one (`_role`); with exactly one it is that role, implicitly;
-  /// with none the branch sends no roles and sign-in falls back to the PIN alone.
-  PosStaffRole? _effectiveRole(List<PosStaffRole> roles) {
-    if (roles.length >= 2) return _role.value;
-    if (roles.length == 1) return roles.first;
-    return null;
-  }
-
   Future<bool> _submit(String pin) async {
     final PosStaffSessionProvider session =
         context.read<PosStaffSessionProvider>();
-    // The PIN identifies the person; the tapped role binds the sign-in to it, so
-    // a PIN belonging to another role is rejected as a wrong PIN by the server.
-    final PosSignInResult result =
-        await session.signIn(pin, roleId: _effectiveRole(session.roles)?.id);
+    // The PIN identifies the person; the Employee/Manager button is sent as the
+    // group so the server can refuse a PIN whose account is not in it. A PIN on
+    // the wrong button is rejected as a generic wrong PIN, and the person's own
+    // account still decides what the till allows once they are in.
+    final String? group =
+        _role.value == null ? null : _groupForRole[_role.value!.id];
+    final PosSignInResult result = await session.signIn(pin, group: group);
     if (!mounted) return result.ok;
 
     switch (result.outcome) {
@@ -127,29 +141,12 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
       key: PosStaffLockScreen.rootKey,
       color: PosUI.pageBg,
       child: SafeArea(
-        child: Consumer<PosStaffSessionProvider>(
-          builder: (context, session, _) {
-            final List<PosStaffRole> roles = session.roles;
-            // The role step only earns its place when there is a real choice. One
-            // role (or none) skips straight to the PIN, which sign-in still binds
-            // to that single role / to no role.
-            final bool hasRoleStep = roles.length >= 2;
-
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                if (!hasRoleStep) {
-                  return Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                    child: Center(
-                      child: _pinPane(showPlaceholder: false, hasRoleStep: false),
-                    ),
-                  );
-                }
-                final bool wide = constraints.maxWidth >= 1024;
-                return wide ? _wide(roles) : _narrow(roles);
-              },
-            );
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Always the same two fixed buttons, on every branch and environment.
+            const List<PosStaffRole> roles = _fixedRoles;
+            final bool wide = constraints.maxWidth >= 1024;
+            return wide ? _wide(roles) : _narrow(roles);
           },
         ),
       ),
