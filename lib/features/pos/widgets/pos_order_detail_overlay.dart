@@ -2,6 +2,8 @@ import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'dart:async';
 
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_advance_outcome.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
@@ -1343,26 +1345,28 @@ class _ItemRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: PosOrderDetailSpec.itemRowGap),
-            AnimatedOpacity(
-              duration: PosOrderDetailSpec.itemStateAnimation,
-              opacity: done ? PosOrderDetailSpec.itemDoneThumbOpacity : 1,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(
-                  PosOrderDetailSpec.itemThumbRadius,
-                ),
-                child: SizedBox(
-                  width: PosOrderDetailSpec.itemThumbWidth,
-                  height: PosOrderDetailSpec.itemThumbHeight,
-                  child: CustomImageWidget(
-                    image: item.image ?? '',
+            if (context.watch<KioskAuthProvider>().showImages) ...[
+              AnimatedOpacity(
+                duration: PosOrderDetailSpec.itemStateAnimation,
+                opacity: done ? PosOrderDetailSpec.itemDoneThumbOpacity : 1,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(
+                    PosOrderDetailSpec.itemThumbRadius,
+                  ),
+                  child: SizedBox(
                     width: PosOrderDetailSpec.itemThumbWidth,
                     height: PosOrderDetailSpec.itemThumbHeight,
-                    fit: BoxFit.cover,
+                    child: CustomImageWidget(
+                      image: item.image ?? '',
+                      width: PosOrderDetailSpec.itemThumbWidth,
+                      height: PosOrderDetailSpec.itemThumbHeight,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: PosOrderDetailSpec.itemRowGap),
+              const SizedBox(width: PosOrderDetailSpec.itemRowGap),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

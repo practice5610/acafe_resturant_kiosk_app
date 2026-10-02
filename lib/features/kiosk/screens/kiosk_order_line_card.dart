@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
@@ -68,6 +69,7 @@ class _CompactLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     final modifiers = _modifierLines(cart);
 
     return Material(
@@ -92,24 +94,26 @@ class _CompactLineCard extends StatelessWidget {
                     openKioskCartLine(context, cart, cartIndex: index),
                 child: Row(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: SizedBox(
-                        width: 88,
-                        height: 88,
-                        child: CustomImageWidget(
-                          placeholder: Images.placeholderImage,
-                          image: KioskProductImageHelper.cartLineImageUrl(
-                            cart: cart,
-                            productImageBaseUrl:
-                                splash.baseUrls?.productImageUrl,
-                            dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
+                    if (showImages) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: SizedBox(
+                          width: 88,
+                          height: 88,
+                          child: CustomImageWidget(
+                            placeholder: Images.placeholderImage,
+                            image: KioskProductImageHelper.cartLineImageUrl(
+                              cart: cart,
+                              productImageBaseUrl:
+                                  splash.baseUrls?.productImageUrl,
+                              dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
+                            ),
+                            fit: BoxFit.cover,
                           ),
-                          fit: BoxFit.cover,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
+                      const SizedBox(width: 16),
+                    ],
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,6 +195,7 @@ class _ScaledLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     final modifiers = _modifierLines(cart);
 
     return Material(
@@ -215,24 +220,26 @@ class _ScaledLineCard extends StatelessWidget {
                     openKioskCartLine(context, cart, cartIndex: index),
                 child: Row(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(33 * s),
-                      child: SizedBox(
-                        width: 473 * s,
-                        height: (473 * s) / imageAspect,
-                        child: CustomImageWidget(
-                          placeholder: Images.placeholderImage,
-                          image: KioskProductImageHelper.cartLineImageUrl(
-                            cart: cart,
-                            productImageBaseUrl:
-                                splash.baseUrls?.productImageUrl,
-                            dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
+                    if (showImages) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(33 * s),
+                        child: SizedBox(
+                          width: 473 * s,
+                          height: (473 * s) / imageAspect,
+                          child: CustomImageWidget(
+                            placeholder: Images.placeholderImage,
+                            image: KioskProductImageHelper.cartLineImageUrl(
+                              cart: cart,
+                              productImageBaseUrl:
+                                  splash.baseUrls?.productImageUrl,
+                              dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
+                            ),
+                            fit: BoxFit.cover,
                           ),
-                          fit: BoxFit.cover,
                         ),
                       ),
-                    ),
-                    SizedBox(width: 50 * s),
+                      SizedBox(width: 50 * s),
+                    ],
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

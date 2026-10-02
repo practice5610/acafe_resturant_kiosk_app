@@ -1,6 +1,8 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_line_copy.dart';
@@ -133,8 +135,10 @@ class PosReceiptLine extends StatelessWidget {
               ? CrossAxisAlignment.center
               : CrossAxisAlignment.start,
           children: [
-            _Thumb(imageUrl: imageUrl),
-            const SizedBox(width: PosHomeSpec.lineGap),
+            if (context.watch<KioskAuthProvider>().showImages) ...[
+              _Thumb(imageUrl: imageUrl),
+              const SizedBox(width: PosHomeSpec.lineGap),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
