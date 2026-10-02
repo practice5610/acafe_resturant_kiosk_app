@@ -32,12 +32,17 @@ class PosProductTile extends StatelessWidget {
   final int cartQuantity;
   final VoidCallback onTap;
 
+  /// Picture-less device: the image block is dropped and the tile is just the
+  /// name + price + action row.
+  final bool showImages;
+
   const PosProductTile({
     super.key,
     required this.product,
     required this.imageUrl,
     required this.cartQuantity,
     required this.onTap,
+    this.showImages = true,
   });
 
   @override
@@ -67,26 +72,31 @@ class PosProductTile extends StatelessWidget {
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: showImages
+                        ? MainAxisAlignment.start
+                        : MainAxisAlignment.center,
                     children: [
-                      SizedBox(
-                        height: PosHomeSpec.tileImageHeight * s,
-                        width: double.infinity,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                              PosHomeSpec.tileImageRadius * s),
-                          child: Center(
-                            child: CustomImageWidget(
-                              image: imageUrl,
-                              height: PosHomeSpec.tileImageHeight * s,
-                              fit: BoxFit.contain,
-                              useShimmer: true,
-                              cacheWidth:
-                                  CustomImageWidget.kKioskProductCacheWidth,
+                      if (showImages) ...[
+                        SizedBox(
+                          height: PosHomeSpec.tileImageHeight * s,
+                          width: double.infinity,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                                PosHomeSpec.tileImageRadius * s),
+                            child: Center(
+                              child: CustomImageWidget(
+                                image: imageUrl,
+                                height: PosHomeSpec.tileImageHeight * s,
+                                fit: BoxFit.contain,
+                                useShimmer: true,
+                                cacheWidth:
+                                    CustomImageWidget.kKioskProductCacheWidth,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      SizedBox(height: PosHomeSpec.tileImageGap * s),
+                        SizedBox(height: PosHomeSpec.tileImageGap * s),
+                      ],
                       SizedBox(
                         height: PosHomeSpec.tileInfoHeight * s,
                         child: Column(

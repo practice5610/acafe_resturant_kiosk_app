@@ -112,6 +112,12 @@ class PosHomeSpec {
   static const double tileImageHeight = 220;
   static const double tileBottomPadding = 2;
   static const double tileActionRowHeight = 22;
+
+  /// Tile height on a picture-less device: the full tile minus the image block
+  /// and the gap under it, so the name + price + action row keep their exact
+  /// design geometry while the card collapses to just them (no empty box).
+  static const double tileHeightNoImage =
+      tileHeight - tileImageHeight - tileImageGap;
   static const double qtyBadgeSize = 26.4;
   static const double qtyBadgeLabelSize = 13.2;
   static const double qtyBadgeInset = 16;

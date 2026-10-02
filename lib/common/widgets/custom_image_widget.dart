@@ -49,6 +49,15 @@ class CustomImageWidget extends StatelessWidget {
     this.cacheWidth,
   });
 
+  /// Global safety net for the per-device "Show Product Images" toggle. When a
+  /// device is in picture-less mode this is set false, and every
+  /// [CustomImageWidget] renders its placeholder WITHOUT a network fetch, and
+  /// [KioskMenuImageHelper] skips precache. Call sites still collapse their
+  /// layout (that is what removes the blank box) -- this only guarantees that a
+  /// surface missed during collapse can never put an image request on the wire.
+  /// Defaults true so nothing changes until the flag is explicitly turned off.
+  static bool showProductImages = true;
+
   /// Grey shimmer box that fills the image slot — used as the loading skeleton.
   static Widget shimmerBox({double? height, double? width}) {
     return Shimmer(
@@ -114,7 +123,9 @@ class CustomImageWidget extends StatelessWidget {
     final loadingWidget =
         useShimmer ? shimmerBox(height: height, width: width) : placeholderWidget;
 
-    if (image.isEmpty || (kIsWeb && isDefaultImage(image))) {
+    // Picture-less device: never fetch. Render the placeholder so any surface
+    // not yet collapsed degrades to the static asset instead of a network hit.
+    if (!showProductImages || image.isEmpty || (kIsWeb && isDefaultImage(image))) {
       return placeholderWidget;
     }
 

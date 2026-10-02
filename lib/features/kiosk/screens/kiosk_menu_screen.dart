@@ -22,7 +22,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 // Used only by the commented-out manager-access lock below (ownership
 // moved to POS Settings). Restore together with that block.
-// import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
@@ -160,6 +160,7 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
       context,
       categoryProvider,
       Provider.of<SplashProvider>(context, listen: false),
+      showImages: context.read<KioskAuthProvider>().showImages,
     );
   }
 
@@ -174,7 +175,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     // Prefetched on the welcome screen — render from cache, no extra network hit.
     if (categoryProvider.isKioskMenuReadyFor(locale)) {
       KioskMenuImageHelper.precacheAroundSelected(
-          context, categoryProvider, splash);
+          context, categoryProvider, splash,
+          showImages: context.read<KioskAuthProvider>().showImages);
       Provider.of<KioskDealProvider>(context, listen: false).fetchDeals();
       return;
     }
@@ -184,7 +186,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     if (!mounted) return;
     Provider.of<KioskDealProvider>(context, listen: false).fetchDeals();
     KioskMenuImageHelper.precacheAroundSelected(
-        context, categoryProvider, splash);
+        context, categoryProvider, splash,
+        showImages: context.read<KioskAuthProvider>().showImages);
   }
 
   Future<void> _onSelectCategory(int id) async {
@@ -214,7 +217,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
 
     // 4) Warm neighbours for the next tap.
     KioskMenuImageHelper.precacheAroundSelected(
-        context, categoryProvider, splash);
+        context, categoryProvider, splash,
+        showImages: context.read<KioskAuthProvider>().showImages);
   }
 
   @override
@@ -781,6 +785,7 @@ class _ProductGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     return LayoutBuilder(
       builder: (context, constraints) {
         final double colGap = 41 * s;
@@ -789,6 +794,7 @@ class _ProductGrid extends StatelessWidget {
           areaWidth: constraints.maxWidth,
           gap: colGap,
           landscape: landscape,
+          showImages: showImages,
         );
         final int columns = geo.columns;
         final double tileWidth = geo.tileWidth;
@@ -832,6 +838,7 @@ class _ProductGrid extends StatelessWidget {
                         tileWidth: tileWidth,
                         product: products[index],
                         badge: _badgeForProduct(products[index]),
+                        showImages: showImages,
                       ),
                       childCount: splitAt,
                     ),
@@ -854,7 +861,8 @@ class _ProductGrid extends StatelessWidget {
                             s: s,
                             tileWidth: tileWidth,
                             product: rest[index],
-                            badge: _badgeForProduct(rest[index])),
+                            badge: _badgeForProduct(rest[index]),
+                            showImages: showImages),
                         childCount: rest.length,
                       ),
                     ),
@@ -923,6 +931,7 @@ class _ProductGridSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     return LayoutBuilder(
       builder: (context, constraints) {
         final double colGap = 41 * s;
@@ -931,6 +940,7 @@ class _ProductGridSkeleton extends StatelessWidget {
           areaWidth: constraints.maxWidth,
           gap: colGap,
           landscape: landscape,
+          showImages: showImages,
         );
         final int columns = geo.columns;
         final double tileWidth = geo.tileWidth;
@@ -948,7 +958,7 @@ class _ProductGridSkeleton extends StatelessWidget {
               mainAxisExtent: tileHeight,
             ),
             itemBuilder: (context, index) =>
-                _SkeletonCard(tileWidth: tileWidth),
+                _SkeletonCard(tileWidth: tileWidth, showImages: showImages),
           ),
         );
       },
@@ -958,7 +968,8 @@ class _ProductGridSkeleton extends StatelessWidget {
 
 class _SkeletonCard extends StatelessWidget {
   final double tileWidth;
-  const _SkeletonCard({required this.tileWidth});
+  final bool showImages;
+  const _SkeletonCard({required this.tileWidth, this.showImages = true});
 
   @override
   Widget build(BuildContext context) {
@@ -971,14 +982,19 @@ class _SkeletonCard extends StatelessWidget {
         padding: EdgeInsets.all(24 * ts),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment:
+              showImages ? MainAxisAlignment.start : MainAxisAlignment.center,
+          mainAxisSize: showImages ? MainAxisSize.max : MainAxisSize.min,
           children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(40 * ts),
-                child: CustomImageWidget.shimmerBox(),
+            if (showImages) ...[
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(40 * ts),
+                  child: CustomImageWidget.shimmerBox(),
+                ),
               ),
-            ),
-            SizedBox(height: 24 * ts),
+              SizedBox(height: 24 * ts),
+            ],
             CustomImageWidget.shimmerBox(
                 width: double.infinity, height: 34 * ts),
             SizedBox(height: 14 * ts),
@@ -998,11 +1014,13 @@ class _KioskProductCard extends StatelessWidget {
   final double tileWidth;
   final Product product;
   final _Badge? badge;
+  final bool showImages;
   const _KioskProductCard({
     required this.s,
     required this.tileWidth,
     required this.product,
     this.badge,
+    this.showImages = true,
   });
 
   @override
@@ -1033,48 +1051,75 @@ class _KioskProductCard extends StatelessWidget {
         onTap: () => openKioskCustomize(context, product),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment:
+              showImages ? MainAxisAlignment.start : MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomImageWidget(
-                      placeholder: Images.placeholderImage,
-                      image: image,
-                      fit: BoxFit.cover,
-                      useShimmer: true,
-                      cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
-                    ),
-                  ),
-                  if (badge != null)
-                    Positioned(
-                      top: 30 * ts,
-                      left: 0,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 28 * ts, vertical: 10 * ts),
-                        decoration: BoxDecoration(
-                          color: badge!.color,
-                          borderRadius: BorderRadius.only(
-                            topRight: Radius.circular(10 * ts),
-                            bottomRight: Radius.circular(10 * ts),
-                          ),
-                        ),
-                        child: Text(
-                          badge!.label,
-                          style: swiss721Light.copyWith(
-                              color: Colors.white, fontSize: 34 * ts),
-                        ),
+            // Picture-less device: drop the whole image band. The grid tile is
+            // already sized to the text block only, so there is no empty box --
+            // the card collapses to a compact name + price.
+            if (showImages)
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomImageWidget(
+                        placeholder: Images.placeholderImage,
+                        image: image,
+                        fit: BoxFit.cover,
+                        useShimmer: true,
+                        cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
                       ),
                     ),
-                ],
+                    if (badge != null)
+                      Positioned(
+                        top: 30 * ts,
+                        left: 0,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 28 * ts, vertical: 10 * ts),
+                          decoration: BoxDecoration(
+                            color: badge!.color,
+                            borderRadius: BorderRadius.only(
+                              topRight: Radius.circular(10 * ts),
+                              bottomRight: Radius.circular(10 * ts),
+                            ),
+                          ),
+                          child: Text(
+                            badge!.label,
+                            style: swiss721Light.copyWith(
+                                color: Colors.white, fontSize: 34 * ts),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
             Padding(
               padding: EdgeInsets.fromLTRB(24 * ts, 16 * ts, 24 * ts, 24 * ts),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  // With no image to carry the badge, show it inline as a
+                  // compact centered chip above the name.
+                  if (!showImages && badge != null) ...[
+                    Center(
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 20 * ts, vertical: 6 * ts),
+                        decoration: BoxDecoration(
+                          color: badge!.color,
+                          borderRadius: BorderRadius.circular(10 * ts),
+                        ),
+                        child: Text(
+                          badge!.label,
+                          style: swiss721Light.copyWith(
+                              color: Colors.white, fontSize: 28 * ts),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 12 * ts),
+                  ],
                   Text(
                     product.name ?? '',
                     textAlign: TextAlign.center,
@@ -1360,6 +1405,7 @@ class _LatestItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
+    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     final product = cart?.product;
     final bool isDeal = cart?.isDeal == true;
     final String image = isDeal
@@ -1400,19 +1446,22 @@ class _LatestItemCard extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(40 * s, 24 * s, 40 * s, 24 * s),
               child: Row(
                 children: [
-                  // Latest product image (square).
-                  AspectRatio(
-                    aspectRatio: 1,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(40 * s),
-                      child: CustomImageWidget(
-                        placeholder: Images.placeholderImage,
-                        image: image,
-                        fit: BoxFit.cover,
+                  // Latest product image (square). Dropped on a picture-less
+                  // device so the name + price take the full card width.
+                  if (showImages) ...[
+                    AspectRatio(
+                      aspectRatio: 1,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(40 * s),
+                        child: CustomImageWidget(
+                          placeholder: Images.placeholderImage,
+                          image: image,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: 30 * s),
+                    SizedBox(width: 30 * s),
+                  ],
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,

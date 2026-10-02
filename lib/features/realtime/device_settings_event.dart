@@ -14,6 +14,11 @@ class DeviceSettingsEvent {
   final String category;
   final String status;
   final String name;
+
+  /// Per-device "Show Product Images" flag. Null when the frame did not carry
+  /// it (older server build) -- that means "leave the local value alone", not
+  /// "turn images off", so a kiosk never silently drops into picture-less mode.
+  final bool? showImages;
   final String? occurredAt;
 
   const DeviceSettingsEvent({
@@ -26,6 +31,7 @@ class DeviceSettingsEvent {
     this.category = '',
     this.status = 'active',
     this.name = '',
+    this.showImages,
     this.occurredAt,
   });
 
@@ -52,6 +58,8 @@ class DeviceSettingsEvent {
       category: json['category']?.toString() ?? '',
       status: json['status']?.toString() ?? 'active',
       name: json['name']?.toString() ?? '',
+      showImages:
+          json.containsKey('show_images') ? json['show_images'] == true : null,
       occurredAt: json['occurred_at']?.toString(),
     );
   }

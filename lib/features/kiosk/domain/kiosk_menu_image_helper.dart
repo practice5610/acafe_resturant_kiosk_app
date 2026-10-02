@@ -28,7 +28,11 @@ class KioskMenuImageHelper {
     bool awaitVisible = false,
     int neighbours = 1,
     bool includeOptions = false,
+    bool showImages = true,
   }) async {
+    // Picture-less device: warming the cache would fetch exactly the images
+    // the UI then refuses to render. Skip the whole pass -- no network at all.
+    if (!showImages) return;
     _precacheCategoryThumbnails(context, categories, splash);
 
     final List<CategoryModel> list = categories.categoryList ?? const [];
@@ -183,6 +187,9 @@ class KioskMenuImageHelper {
 
   static Future<void> _precache(BuildContext context, String rawUrl,
       {int? cacheWidth}) {
+    // Final safety net: even if a caller forgets to pass showImages:false, a
+    // picture-less device must never warm the cache with an image it won't show.
+    if (!CustomImageWidget.showProductImages) return Future.value();
     if (CustomImageWidget.resolveWebImageUrl(rawUrl).isEmpty) {
       return Future.value();
     }

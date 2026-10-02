@@ -198,6 +198,7 @@ class ProductRealtimeController {
       status: event.status,
       name: event.name,
       orderingExperience: event.orderingExperience,
+      showImages: event.showImages,
       signOut: action == DeviceSettingsClientAction.signOut,
     );
 

@@ -301,6 +301,7 @@ class KioskProductGridGeometry {
     double minCard = KioskResponsive.minProductCard,
     int minColumns = KioskResponsive.minProductColumns,
     int maxColumns = KioskResponsive.maxProductColumns,
+    bool showImages = true,
   }) {
     final int columns = kioskProductGridColumns(
       areaWidth: areaWidth,
@@ -313,7 +314,10 @@ class KioskProductGridGeometry {
         columns <= 0 ? areaWidth : (areaWidth - gap * (columns - 1)) / columns;
     // Portrait Figma: image is taller than wide (width/height = 0.72).
     // Landscape: square image so a row of cards fits a 16:9 window.
-    final double imageHeight = landscape ? tileWidth : tileWidth / 0.72;
+    // Picture-less device: no image band at all, so the tile is just its text
+    // block -- the grid packs denser with no empty image space above the name.
+    final double imageHeight =
+        showImages ? (landscape ? tileWidth : tileWidth / 0.72) : 0.0;
     final double textBlockHeight = landscape ? tileWidth * 0.28 : tileWidth * 0.34;
     return KioskProductGridGeometry(
       columns: columns,

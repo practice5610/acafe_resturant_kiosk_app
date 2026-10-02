@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
+import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_ordering_experience.dart';
 import 'package:acafe_customer/helper/api_checker_helper.dart';
@@ -30,7 +31,17 @@ enum KioskDeviceSettingsOutcome {
 class KioskAuthProvider extends ChangeNotifier {
   final KioskAuthRepo kioskAuthRepo;
 
-  KioskAuthProvider({required this.kioskAuthRepo});
+  KioskAuthProvider({required this.kioskAuthRepo}) {
+    _syncImageGate();
+  }
+
+  /// Keep [CustomImageWidget]'s global no-fetch gate in step with the stored
+  /// flag. Called on boot and after every write that can change it, so a
+  /// picture-less device never fetches an image even on a surface that was
+  /// missed during the layout-collapse work.
+  void _syncImageGate() {
+    CustomImageWidget.showProductImages = kioskAuthRepo.getShowImages();
+  }
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -58,6 +69,12 @@ class KioskAuthProvider extends ChangeNotifier {
   /// Per-branch "show allergen tags" toggle, set by branch admin or from
   /// POS Settings → Products.
   bool get allergenTagEnabled => kioskAuthRepo.getAllergenTagEnabled();
+
+  /// Per-device "Show Product Images" toggle, set by admin on Device Update.
+  /// Defaults to true (images shown) for any session that never saw the field.
+  /// When false, every product/variation/add-on image surface renders its
+  /// compact, picture-less layout and no image is fetched or precached.
+  bool get showImages => kioskAuthRepo.getShowImages();
 
   /// Applies a POS Settings toggle locally after the server call in
   /// [KioskManagerProvider.setAllergenTagEnabled] has already succeeded.
@@ -114,6 +131,7 @@ class KioskAuthProvider extends ChangeNotifier {
     String name = '',
     String orderingExperience = '',
     bool? allergenTagEnabled,
+    bool? showImages,
     bool signOut = false,
   }) async {
     if (deviceId <= 0) {
@@ -148,12 +166,15 @@ class KioskAuthProvider extends ChangeNotifier {
         name.isNotEmpty && name != kioskAuthRepo.getDeviceName();
     final bool allergenChanged = allergenTagEnabled != null &&
         allergenTagEnabled != kioskAuthRepo.getAllergenTagEnabled();
+    final bool showImagesChanged =
+        showImages != null && showImages != kioskAuthRepo.getShowImages();
 
     if (!branchChanged &&
         !experienceChanged &&
         !categoryChanged &&
         !nameChanged &&
         !allergenChanged &&
+        !showImagesChanged &&
         localDeviceId != null) {
       return KioskDeviceSettingsOutcome.ignored;
     }
@@ -169,7 +190,9 @@ class KioskAuthProvider extends ChangeNotifier {
       category: category.isEmpty ? null : category,
       orderingExperience: nextExperience,
       allergenTagEnabled: allergenTagEnabled,
+      showImages: showImages,
     );
+    _syncImageGate();
     notifyListeners();
 
     return branchChanged
@@ -240,6 +263,11 @@ class KioskAuthProvider extends ChangeNotifier {
       orderingExperience: device['ordering_experience']?.toString() ?? '',
       allergenTagEnabled:
           branch is Map ? branch['allergen_tag_enabled'] == true : null,
+      // Absent key = older server that does not report it; leave the local
+      // value (default ON) untouched rather than forcing picture-less mode.
+      showImages: device.containsKey('show_images')
+          ? device['show_images'] == true
+          : null,
     );
   }
 
@@ -297,7 +325,11 @@ class KioskAuthProvider extends ChangeNotifier {
         category: device['category']?.toString(),
         orderingExperience: device['ordering_experience']?.toString(),
         allergenTagEnabled: branch['allergen_tag_enabled'] == true,
+        showImages: device.containsKey('show_images')
+            ? device['show_images'] == true
+            : null,
       );
+      _syncImageGate();
       responseModel = ResponseModel(true, 'logged_in');
     } else {
       _loginError =
@@ -343,7 +375,11 @@ class KioskAuthProvider extends ChangeNotifier {
           category: device['category']?.toString(),
           orderingExperience: device['ordering_experience']?.toString(),
           allergenTagEnabled: branch['allergen_tag_enabled'] == true,
+          showImages: device.containsKey('show_images')
+              ? device['show_images'] == true
+              : null,
         );
+        _syncImageGate();
       }
       // ProductRealtimeScope watches this provider, so the restored session has
       // to announce itself -- otherwise a device that admin re-bound to another

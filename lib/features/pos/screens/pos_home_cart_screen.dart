@@ -141,7 +141,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     category.warmKioskMenuFromDisk(locale).then((_) {
       if (!mounted) return;
       KioskMenuImageHelper.precacheAroundSelected(context, category, splash,
-          includeOptions: true);
+          includeOptions: true,
+          showImages: context.read<KioskAuthProvider>().showImages);
     });
   }
 
@@ -158,7 +159,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
         _gridCategoryId = category.selectedSubCategoryId;
       });
       KioskMenuImageHelper.precacheAroundSelected(context, category, splash,
-          includeOptions: true);
+          includeOptions: true,
+          showImages: context.read<KioskAuthProvider>().showImages);
       return;
     }
 
@@ -175,6 +177,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
         splash,
         awaitVisible: true,
         includeOptions: true,
+        showImages: context.read<KioskAuthProvider>().showImages,
         // Longer than the PIN screen's/kiosk welcome's 3s: unlike those
         // paths, nothing has been warming since before this screen existed
         // except `_warmMenuEarly` above, so this cap gets less of a head
@@ -233,7 +236,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
 
     // 4) Warm neighbours for the next tap.
     KioskMenuImageHelper.precacheAroundSelected(context, category, splash,
-        includeOptions: true);
+        includeOptions: true,
+        showImages: context.read<KioskAuthProvider>().showImages);
   }
 
   bool _openingProduct = false;
@@ -625,6 +629,8 @@ class _ContentArea extends StatelessWidget {
                           imageBaseUrl: imageBaseUrl,
                           cartQuantityOf: cartQuantityOf,
                           onProductTap: onProductTap,
+                          showImages:
+                              context.watch<KioskAuthProvider>().showImages,
                         ),
                 ),
               ],

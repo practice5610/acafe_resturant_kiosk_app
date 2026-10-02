@@ -66,6 +66,7 @@ class KioskAuthRepo {
     String? category,
     String? orderingExperience,
     bool? allergenTagEnabled,
+    bool? showImages,
   }) async {
     final previousBranch = getBranchId();
     await sharedPreferences.setString(AppConstants.token, token);
@@ -112,6 +113,10 @@ class KioskAuthRepo {
     if (allergenTagEnabled != null) {
       await sharedPreferences.setBool(
           AppConstants.kioskAllergenTagEnabled, allergenTagEnabled);
+    }
+    if (showImages != null) {
+      await sharedPreferences.setBool(
+          AppConstants.kioskShowImages, showImages);
     }
     // Refresh dio headers so the new token + branch take effect immediately.
     await dioClient.updateHeader(getToken: token);
@@ -166,6 +171,20 @@ class KioskAuthRepo {
   bool getAllergenTagEnabled() =>
       sharedPreferences.getBool(AppConstants.kioskAllergenTagEnabled) ?? false;
 
+  /// Per-device "Show Product Images" toggle. Defaults to true so a session
+  /// persisted before this field existed (or any missing value) keeps showing
+  /// images exactly as today -- the picture-less mode is strictly opt-in.
+  bool getShowImages() =>
+      sharedPreferences.getBool(AppConstants.kioskShowImages) ?? true;
+
+  /// Persist a live show-images update from the websocket (admin flipped the
+  /// toggle on Device Update without forcing a re-login) -- mirrors
+  /// [saveOrderingExperience].
+  Future<void> saveShowImages(bool showImages) async {
+    await sharedPreferences.setBool(
+        AppConstants.kioskShowImages, showImages);
+  }
+
   /// Persist a live Ordering Experience update from the websocket (admin
   /// changed Device Update without forcing a re-login).
   Future<void> saveOrderingExperience(String orderingExperience) async {
@@ -199,6 +218,7 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskDeviceCategory);
     await sharedPreferences.remove(AppConstants.kioskOrderingExperience);
     await sharedPreferences.remove(AppConstants.kioskAllergenTagEnabled);
+    await sharedPreferences.remove(AppConstants.kioskShowImages);
     await sharedPreferences.remove(AppConstants.cartList);
     await sharedPreferences.remove(AppConstants.kioskMenuCacheKey);
     await sharedPreferences.remove(AppConstants.kioskDealsCacheKey);

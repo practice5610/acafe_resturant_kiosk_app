@@ -15,12 +15,17 @@ class PosProductGrid extends StatefulWidget {
   final int Function(Product) cartQuantityOf;
   final ValueChanged<Product> onProductTap;
 
+  /// Picture-less device: tiles drop the image block and the grid uses the
+  /// shorter [PosHomeSpec.tileHeightNoImage] aspect ratio so they pack denser.
+  final bool showImages;
+
   const PosProductGrid({
     super.key,
     required this.products,
     required this.imageBaseUrl,
     required this.cartQuantityOf,
     required this.onProductTap,
+    this.showImages = true,
   });
 
   @override
@@ -68,11 +73,14 @@ class _PosProductGridState extends State<PosProductGrid> {
             right: PosHomeSpec.gridViewportRightPad,
             bottom: PosHomeSpec.contentFadeHeight,
           ),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: PosHomeSpec.gridColumns,
             crossAxisSpacing: PosHomeSpec.gridColumnGap,
             mainAxisSpacing: PosHomeSpec.gridRowGap,
-            childAspectRatio: PosHomeSpec.tileWidth / PosHomeSpec.tileHeight,
+            childAspectRatio: PosHomeSpec.tileWidth /
+                (widget.showImages
+                    ? PosHomeSpec.tileHeight
+                    : PosHomeSpec.tileHeightNoImage),
           ),
           itemCount: widget.products.length,
           itemBuilder: (context, index) {
@@ -85,6 +93,7 @@ class _PosProductGridState extends State<PosProductGrid> {
               ),
               cartQuantity: widget.cartQuantityOf(product),
               onTap: () => widget.onProductTap(product),
+              showImages: widget.showImages,
             );
           },
         ),

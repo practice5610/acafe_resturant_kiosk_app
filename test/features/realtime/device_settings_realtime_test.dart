@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
@@ -78,6 +79,7 @@ class _FakeReverb {
     String status = 'active',
     String name = 'Kiosk 1',
     String orderingExperience = 'version_b',
+    bool? showImages,
     String eventId = 'ds-1',
     String channel = 'device.1.settings',
   }) async {
@@ -96,6 +98,7 @@ class _FakeReverb {
           'status': status,
           'name': name,
           'ordering_experience': orderingExperience,
+          if (showImages != null) 'show_images': showImages,
           'occurred_at': '2026-09-01T12:00:00+00:00',
         }),
       }));
@@ -270,6 +273,29 @@ void main() {
       expect(parsed!.deviceId, 4);
       expect(parsed.category, 'pos');
       expect(parsed.branchId, 2);
+    });
+
+    test('parses show_images from the frame', () {
+      final on = CatalogSocketFrame.deviceSettingsChanged(jsonEncode(
+        frame('device.settings.changed', {
+          'device_id': 1,
+          'show_images': true,
+        }),
+      ));
+      final off = CatalogSocketFrame.deviceSettingsChanged(jsonEncode(
+        frame('device.settings.changed', {
+          'device_id': 1,
+          'show_images': false,
+        }),
+      ));
+      // Absent key => null, meaning "leave the local value alone".
+      final absent = CatalogSocketFrame.deviceSettingsChanged(jsonEncode(
+        frame('device.settings.changed', {'device_id': 1}),
+      ));
+
+      expect(on!.showImages, isTrue);
+      expect(off!.showImages, isFalse);
+      expect(absent!.showImages, isNull);
     });
 
     test('accepts the Echo-style leading dot', () {
@@ -508,6 +534,54 @@ void main() {
       expect(outcome, KioskDeviceSettingsOutcome.ignored);
     });
 
+    test('defaults show_images to on when the session never stored it', () {
+      // No kioskShowImages key in the mock prefs -> picture-less mode is opt-in.
+      expect(auth.showImages, isTrue);
+      expect(CustomImageWidget.showProductImages, isTrue);
+    });
+
+    test('applies a show_images change and syncs the global fetch gate',
+        () async {
+      final outcome = await auth.applyDeviceSettingsFromRealtime(
+        deviceId: 1,
+        branchId: 1,
+        category: 'kiosk',
+        name: 'Kiosk 1',
+        orderingExperience: 'version_a',
+        showImages: false,
+      );
+
+      expect(outcome, KioskDeviceSettingsOutcome.applied);
+      expect(auth.showImages, isFalse);
+      // The CustomImageWidget safety net must flip with it so no surface fetches.
+      expect(CustomImageWidget.showProductImages, isFalse);
+    });
+
+    test('a show_images change back to on re-enables images', () async {
+      await auth.applyDeviceSettingsFromRealtime(
+        deviceId: 1,
+        branchId: 1,
+        category: 'kiosk',
+        name: 'Kiosk 1',
+        orderingExperience: 'version_a',
+        showImages: false,
+      );
+      expect(auth.showImages, isFalse);
+
+      final outcome = await auth.applyDeviceSettingsFromRealtime(
+        deviceId: 1,
+        branchId: 1,
+        category: 'kiosk',
+        name: 'Kiosk 1',
+        orderingExperience: 'version_a',
+        showImages: true,
+      );
+
+      expect(outcome, KioskDeviceSettingsOutcome.applied);
+      expect(auth.showImages, isTrue);
+      expect(CustomImageWidget.showProductImages, isTrue);
+    });
+
     test('ignores settings for another device', () async {
       final outcome = await auth.applyDeviceSettingsFromRealtime(
         deviceId: 99,
@@ -611,6 +685,15 @@ void main() {
       expect(await auth.refreshDeviceSettings(),
           KioskDeviceSettingsOutcome.applied);
       expect(auth.category, 'pos');
+    });
+
+    test('reconnect reconciliation picks up a show_images change', () async {
+      api.device!['show_images'] = false;
+
+      expect(await auth.refreshDeviceSettings(),
+          KioskDeviceSettingsOutcome.applied);
+      expect(auth.showImages, isFalse);
+      expect(CustomImageWidget.showProductImages, isFalse);
     });
 
     test('reconnect reconciliation picks up a branch move', () async {
