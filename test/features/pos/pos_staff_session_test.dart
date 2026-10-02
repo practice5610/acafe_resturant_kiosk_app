@@ -302,8 +302,8 @@ void main() {
       expect(session.isSignedIn, isFalse, reason: 'untouched past the timeout, it locks');
     });
 
-    test('the default idle timeout is five minutes', () {
-      expect(PosStaffSessionProvider.defaultIdleTimeout, const Duration(minutes: 5));
+    test('the default idle timeout is three hours', () {
+      expect(PosStaffSessionProvider.defaultIdleTimeout, const Duration(hours: 3));
     });
 
     test('switching the branch off drops a leftover session', () async {

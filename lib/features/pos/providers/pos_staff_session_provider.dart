@@ -35,7 +35,7 @@ class PosStaffSessionProvider extends ChangeNotifier {
     }
   }
 
-  static const Duration defaultIdleTimeout = Duration(minutes: 5);
+  static const Duration defaultIdleTimeout = Duration(hours: 3);
 
   static const String tokenHeader = 'X-Staff-Token';
 
