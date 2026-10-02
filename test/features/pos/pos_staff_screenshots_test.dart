@@ -177,8 +177,6 @@ void main() {
   testWidgets('02 pin screen — typing', (tester) async {
     await _providers();
     await _pumpLock(tester);
-    await tester.tap(find.byKey(const Key('pos-lock-role-employee')));
-    await tester.pumpAndSettle();
     await _tapPin(tester, '12');
     await _shot(tester, 'pos-02-pin-screen-typing');
   });
@@ -186,8 +184,6 @@ void main() {
   testWidgets('03 pin screen — wrong PIN', (tester) async {
     await _providers();
     await _pumpLock(tester);
-    await tester.tap(find.byKey(const Key('pos-lock-role-employee')));
-    await tester.pumpAndSettle();
     await _tapPin(tester, '9999');
     await _shot(tester, 'pos-03-pin-screen-wrong-pin');
   });
@@ -195,8 +191,6 @@ void main() {
   testWidgets('04 pin screen — locked out', (tester) async {
     await _providers();
     await _pumpLock(tester);
-    await tester.tap(find.byKey(const Key('pos-lock-role-employee')));
-    await tester.pumpAndSettle();
     for (int i = 0; i < 5; i++) {
       await _tapPin(tester, '9999');
     }

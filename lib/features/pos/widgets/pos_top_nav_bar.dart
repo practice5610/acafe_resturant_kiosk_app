@@ -220,12 +220,8 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
     await PosPinModal.show(context);
   }
 
-  /// Staff sign-in is on: "Lock" puts the PIN screen back up with the sale
-  /// intact; "Switch user" is the same with a different verb, for a hand-over.
-  Future<void> _onStaffLock() async {
-    await context.read<PosStaffSessionProvider>().lock();
-  }
-
+  /// Staff sign-in is on: "Switch user" puts the PIN screen back up with the
+  /// sale intact, for a hand-over.
   Future<void> _onSwitchUser() async {
     await context.read<PosStaffSessionProvider>().switchUser();
   }
@@ -362,7 +358,6 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
                     staff: signedIn,
                     interactive: widget.interactive,
                     onSwitchUser: _onSwitchUser,
-                    onLock: _onStaffLock,
                     onLogoutTerminal: _onAvatarLogout,
                   )
                 else
@@ -894,14 +889,12 @@ class _PosStaffMenuButton extends StatelessWidget {
   final PosStaffSession staff;
   final bool interactive;
   final Future<void> Function() onSwitchUser;
-  final Future<void> Function() onLock;
   final Future<void> Function() onLogoutTerminal;
 
   const _PosStaffMenuButton({
     required this.staff,
     required this.interactive,
     required this.onSwitchUser,
-    required this.onLock,
     required this.onLogoutTerminal,
   });
 
@@ -918,9 +911,6 @@ class _PosStaffMenuButton extends StatelessWidget {
         switch (value) {
           case 'switch':
             onSwitchUser();
-            break;
-          case 'lock':
-            onLock();
             break;
           case 'logout':
             onLogoutTerminal();
@@ -946,10 +936,6 @@ class _PosStaffMenuButton extends StatelessWidget {
         PopupMenuItem<String>(
           value: 'switch',
           child: _menuRow(Icons.switch_account_outlined, 'Switch user'),
-        ),
-        PopupMenuItem<String>(
-          value: 'lock',
-          child: _menuRow(Icons.lock_outline_rounded, 'Lock'),
         ),
         const PopupMenuDivider(),
         PopupMenuItem<String>(
