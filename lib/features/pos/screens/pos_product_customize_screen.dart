@@ -368,10 +368,37 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
     Navigator.of(context).pop();
   }
 
+  /// Mirrors the home cart's "+": a customisable product line opens a BLANK
+  /// customize screen for the same product (nothing pre-selected) so the
+  /// operator makes fresh choices for the extra cup; an unchanged rebuild folds
+  /// back onto the line, a changed one lands as a separate line.
+  bool _lineIsCustomisable(CartModel line) {
+    if (line.isDeal) return false;
+    final Product? product = line.product;
+    if (product == null) return false;
+    return (ProductHelper.effectiveVariations(product)?.isNotEmpty ?? false) ||
+        (product.addOns?.isNotEmpty ?? false) ||
+        product.effectiveAddOnGroups.isNotEmpty;
+  }
+
   void _incrementLine(int index) {
     final CartProvider cart = context.read<CartProvider>();
     final CartModel? line = cart.cartList[index];
     if (line == null) return;
+
+    final Product? product = line.product;
+    if (product != null && _lineIsCustomisable(line)) {
+      openPosCustomize(
+        context,
+        product,
+        customerNameController: widget.customerNameController,
+        tableController: widget.tableController,
+        orderType: _orderType,
+        onOrderTypeChanged: widget.onOrderTypeChanged,
+      );
+      return;
+    }
+
     cart.setQuantity(
       isIncrement: true,
       cart: line,

@@ -24,6 +24,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
+import 'package:acafe_customer/helper/product_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -315,10 +316,43 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
 
   bool get _cartHasItems => _cartLines.any((line) => line != null);
 
+  /// A product line with variations, add-ons or add-on groups: "+" reopens the
+  /// customize screen pre-filled with this line's picks, rather than blindly
+  /// bumping the quantity. Saving it unchanged folds back onto this same line
+  /// (quantity +1); changing a variation or add-on lands it as a *separate*
+  /// line, because it goes through the ADD path (cartIndex null) and
+  /// [CartProvider.addToCart] stacks only on a full-configuration match.
+  bool _lineIsCustomisable(CartModel line) {
+    if (line.isDeal) return false;
+    final Product? product = line.product;
+    if (product == null) return false;
+    return (ProductHelper.effectiveVariations(product)?.isNotEmpty ?? false) ||
+        (product.addOns?.isNotEmpty ?? false) ||
+        product.effectiveAddOnGroups.isNotEmpty;
+  }
+
   void _incrementLine(int index) {
     final CartProvider cart = context.read<CartProvider>();
     final CartModel? line = cart.cartList[index];
     if (line == null) return;
+
+    final Product? product = line.product;
+    if (product != null && _lineIsCustomisable(line)) {
+      // Open a BLANK configuration for the same product -- "+" means "add
+      // another", with its own fresh choices, not a copy of this line's picks.
+      // Nothing is pre-selected; saving lands as a new line unless the operator
+      // happens to rebuild the exact same configuration.
+      openPosCustomize(
+        context,
+        product,
+        customerNameController: _customerName,
+        tableController: _table,
+        orderType: _orderType,
+        onOrderTypeChanged: (t) => setState(() => _orderType = t),
+      );
+      return;
+    }
+
     cart.setQuantity(
       isIncrement: true,
       cart: line,
