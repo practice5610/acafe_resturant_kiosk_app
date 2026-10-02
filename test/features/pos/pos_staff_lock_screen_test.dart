@@ -127,7 +127,8 @@ void main() {
       // Still mounted underneath -- a sale in progress survives the lock --
       // but not reachable.
       expect(find.text('THE TILL', skipOffstage: false), findsOneWidget);
-      expect(find.text('Who is on the till?'), findsOneWidget);
+      // No role step: the PIN card is shown straight away.
+      expect(find.text('Enter your PIN'), findsOneWidget);
     });
 
     testWidgets('a device that is not logged in never sees the PIN screen',
@@ -140,71 +141,43 @@ void main() {
   });
 
   group('lock screen', () {
-    // Role ids come from the roster the fake backend serves, never hardcoded.
-    const int employeeRole = 16; // Sophie
-    const int managerRole = 15; // Thomas
-    const Key employeeCard = Key('pos-lock-role-$employeeRole');
-    const Key managerCard = Key('pos-lock-role-$managerRole');
-
-    testWidgets('renders the roster roles, then a PIN card for the one tapped',
+    testWidgets('shows the PIN card straight away, with no role step',
         (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      // The roster serves Owner/Manager/Employee; all appear as role cards.
-      expect(find.byKey(employeeCard), findsOneWidget);
-      expect(find.byKey(managerCard), findsOneWidget);
-      expect(find.byKey(const Key('pos-lock-role-14')), findsOneWidget); // Owner
-      expect(find.text('Choose your role to sign in'), findsOneWidget);
-
-      await tester.tap(find.byKey(employeeCard));
-      await tester.pumpAndSettle();
-
+      // No role selection: the PIN card is the whole sign-in.
       expect(find.text('Enter your PIN'), findsOneWidget);
+      expect(find.byKey(const Key('pos-lock-role-16')), findsNothing);
+      expect(find.text('Who is on the till?'), findsNothing);
     });
 
-    testWidgets('the matching role and PIN signs in and uncovers the till',
+    testWidgets('the right PIN signs the employee in and uncovers the till',
         (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(employeeCard)); // Sophie is an Employee
-      await tester.pumpAndSettle();
-      await _typePin(tester, '1234');
+      await _typePin(tester, '1234'); // Sophie, an Employee
 
       expect(find.byType(PosStaffLockScreen), findsNothing);
       expect(find.text('THE TILL'), findsOneWidget);
       expect(staff.session?.name, 'Sophie Jansen');
+      // The role comes back from the server, never the screen.
+      expect(staff.session?.role, isNotEmpty);
       // Signed in means the idle timer is armed; the provider is supplied with
       // .value, so the tree will not dispose it for us.
       staff.dispose();
     });
 
-    testWidgets('a PIN belonging to another role is rejected as a wrong PIN',
+    testWidgets('a manager PIN signs the manager in, role from the server',
         (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      // Tap Branch Manager but type Sophie's (Employee) PIN: binding to the
-      // chosen role turns a real-but-wrong-role PIN into a generic wrong PIN.
-      await tester.tap(find.byKey(managerCard));
-      await tester.pumpAndSettle();
-      await _typePin(tester, '1234');
-
-      expect(find.byType(PosStaffLockScreen), findsOneWidget);
-      expect(staff.session, isNull);
-      expect(find.text('That PIN was not recognised. 4 tries left.'), findsOneWidget);
-    });
-
-    testWidgets('the manager role with the manager PIN signs in', (tester) async {
-      await _providers();
-      await _pumpGate(tester);
-
-      await tester.tap(find.byKey(managerCard)); // Thomas is a Manager
-      await tester.pumpAndSettle();
-      await _typePin(tester, '4321');
+      await _typePin(tester, '4321'); // Thomas, a Manager
 
       expect(staff.session?.name, 'Thomas de Vries');
+      expect(staff.session?.role, isNotEmpty);
       staff.dispose();
     });
 
@@ -212,20 +185,17 @@ void main() {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(employeeCard));
-      await tester.pumpAndSettle();
       await _typePin(tester, '9999');
 
       expect(find.byType(PosStaffLockScreen), findsOneWidget);
-      expect(find.text('That PIN was not recognised. 4 tries left.'), findsOneWidget);
+      expect(staff.session, isNull);
+      expect(find.text('That PIN was not recognised.'), findsOneWidget);
     });
 
     testWidgets('five wrong PINs show a lockout countdown', (tester) async {
       await _providers();
       await _pumpGate(tester);
 
-      await tester.tap(find.byKey(employeeCard));
-      await tester.pumpAndSettle();
       for (int i = 0; i < 5; i++) {
         await _typePin(tester, '9999');
       }
@@ -234,40 +204,16 @@ void main() {
       staff.dispose();
     });
 
-    testWidgets('changing the selected role clears the entered PIN',
-        (tester) async {
-      await _providers();
-      await _pumpGate(tester);
-
-      await tester.tap(find.byKey(employeeCard));
-      await tester.pumpAndSettle();
-      await tester.tap(find.descendant(
-        of: find.byType(PosStaffLockScreen),
-        matching: find.text('1'),
-      ).last);
-      await tester.pump();
-
-      // Go back and pick a different role: the two typed digits are gone.
-      await tester.tap(find.byKey(const Key('pos-lock-back')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(managerCard));
-      await tester.pumpAndSettle();
-
-      // No filled dots: a fresh card for the new role.
-      expect(find.byType(PosStaffLockScreen), findsOneWidget);
-      expect(staff.session, isNull);
-    });
-
     testWidgets('lays out without overflow on a narrow tablet', (tester) async {
       await _providers();
       await _pumpGate(tester, size: const Size(800, 1100));
 
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byKey(employeeCard));
-      await tester.pumpAndSettle();
+      // The PIN card is shown directly on a narrow screen too.
+      expect(find.text('Enter your PIN'), findsOneWidget);
+      await _typePin(tester, '1234');
       expect(tester.takeException(), isNull);
-      // On a narrow screen the PIN card takes the faces' place, with a way back.
-      expect(find.byKey(const Key('pos-lock-back')), findsOneWidget);
+      staff.dispose();
     });
   });
 
@@ -316,7 +262,8 @@ void main() {
       permissions: {'apply_discounts': true, 'view_orders': true},
     );
 
-    testWidgets('shows who is signed in, with Switch user and Lock', (tester) async {
+    testWidgets('shows who is signed in, with Switch user (no Lock)',
+        (tester) async {
       await _providers();
       staff.debugSignIn(cashier);
       await pumpBar(tester);
@@ -327,18 +274,20 @@ void main() {
 
       expect(find.text('Sophie Jansen'), findsOneWidget);
       expect(find.text('Switch user'), findsOneWidget);
-      expect(find.text('Lock'), findsOneWidget);
+      // The Lock item was removed: Switch user already puts the PIN back up.
+      expect(find.text('Lock'), findsNothing);
       expect(find.text('Log out terminal'), findsOneWidget);
     });
 
-    testWidgets('Lock ends the session', (tester) async {
+    testWidgets('Switch user ends the session and puts the PIN back up',
+        (tester) async {
       await _providers();
       staff.debugSignIn(cashier);
       await pumpBar(tester);
 
       await tester.tap(find.byKey(const Key('pos-staff-menu-button')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Lock'));
+      await tester.tap(find.text('Switch user'));
       await tester.pumpAndSettle();
 
       expect(staff.isSignedIn, isFalse);
