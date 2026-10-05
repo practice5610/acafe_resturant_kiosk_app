@@ -58,6 +58,10 @@ class PosStaffCatalogue {
   /// it is an admin decision, made per branch.
   final bool staffLoginRequired;
 
+  /// Whether this branch is wired to Planday. When true the till collects the
+  /// Planday-required identity fields (surname, email, gender) on add-staff.
+  final bool plandayEnabled;
+
   final int pinLength;
 
   const PosStaffCatalogue({
@@ -66,6 +70,7 @@ class PosStaffCatalogue {
     required this.shifts,
     required this.branchName,
     required this.staffLoginRequired,
+    this.plandayEnabled = false,
     required this.pinLength,
   });
 
@@ -77,6 +82,7 @@ class PosStaffCatalogue {
         shifts: [],
         branchName: '',
         staffLoginRequired: false,
+        plandayEnabled: false,
         pinLength: 4,
       );
 
@@ -140,6 +146,7 @@ class PosStaffCatalogue {
       shifts: shifts,
       branchName: (branchMap['name'] ?? '').toString(),
       staffLoginRequired: branchMap['staff_login_required'] == true,
+      plandayEnabled: branchMap['planday_enabled'] == true,
       pinLength: int.tryParse('${json['pin_length']}') ?? 4,
     );
   }
@@ -153,7 +160,7 @@ class PosStaffCatalogue {
           for (final r in roles) {'id': r.id, 'name': r.name},
         ],
         'shifts': [for (final s in shifts) s.toJson()],
-        'branch': {'name': branchName, 'staff_login_required': staffLoginRequired},
+        'branch': {'name': branchName, 'staff_login_required': staffLoginRequired, 'planday_enabled': plandayEnabled},
         'pin_length': pinLength,
       };
 }
@@ -162,6 +169,13 @@ class PosStaffCatalogue {
 class PosStaffMember {
   final String id;
   final String name;
+
+  /// The Planday-required identity fields, so the edit form can prefill them.
+  /// Nullable: older backends and non-Planday branches may not supply them.
+  final String? firstName;
+  final String? surname;
+  final String? email;
+  final String? gender;
 
   /// The role's display name. The id travels alongside so a save does not have
   /// to match on a string the operator can see.
@@ -183,6 +197,10 @@ class PosStaffMember {
   const PosStaffMember({
     required this.id,
     required this.name,
+    this.firstName,
+    this.surname,
+    this.email,
+    this.gender,
     required this.role,
     this.roleId = 0,
     required this.active,
@@ -212,6 +230,10 @@ class PosStaffMember {
 
   PosStaffMember copyWith({
     String? name,
+    String? firstName,
+    String? surname,
+    String? email,
+    String? gender,
     String? role,
     int? roleId,
     bool? active,
@@ -222,6 +244,10 @@ class PosStaffMember {
     return PosStaffMember(
       id: id,
       name: name ?? this.name,
+      firstName: firstName ?? this.firstName,
+      surname: surname ?? this.surname,
+      email: email ?? this.email,
+      gender: gender ?? this.gender,
       role: role ?? this.role,
       roleId: roleId ?? this.roleId,
       active: active ?? this.active,
@@ -234,6 +260,10 @@ class PosStaffMember {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
+        if (firstName != null) 'first_name': firstName,
+        if (surname != null) 'surname': surname,
+        if (email != null) 'email': email,
+        if (gender != null) 'gender': gender,
         'role': role,
         'role_id': roleId,
         'active': active,
@@ -257,9 +287,19 @@ class PosStaffMember {
 
     final Object? rawShifts = json['shift_ids'];
 
+    String? str(String key) {
+      final Object? v = json[key];
+      final String s = (v ?? '').toString().trim();
+      return s.isEmpty ? null : s;
+    }
+
     return PosStaffMember(
       id: id,
       name: name,
+      firstName: str('first_name'),
+      surname: str('surname'),
+      email: str('email'),
+      gender: str('gender'),
       role: (json['role'] ?? '').toString(),
       roleId: int.tryParse('${json['role_id']}') ?? 0,
       active: json['active'] != false,

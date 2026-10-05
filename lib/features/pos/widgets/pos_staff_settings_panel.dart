@@ -90,12 +90,16 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
         pinLength: provider.pinLength,
         initialShiftIds: {if (defaultShift != null) defaultShift},
         loadError: provider.catalogueError,
+        plandayEnabled: provider.catalogue.plandayEnabled,
       ),
     );
     if (result == null || !mounted) return;
     await provider.addMember(
       name: result.name,
       role: result.role,
+      surname: result.surname,
+      email: result.email,
+      gender: result.gender,
       shiftIds: result.shiftIds,
       phone: result.phone,
       active: result.active,
@@ -1001,6 +1005,11 @@ class _NewStaff {
   final String role;
   final List<String> shiftIds;
 
+  /// The Planday-required identity fields. Collected only on a Planday branch.
+  final String? surname;
+  final String? email;
+  final String? gender;
+
   /// Optional, like the admin form's Phone field.
   final String? phone;
 
@@ -1014,6 +1023,9 @@ class _NewStaff {
     required this.name,
     required this.role,
     required this.shiftIds,
+    this.surname,
+    this.email,
+    this.gender,
     this.phone,
     this.active = true,
     this.pin,
@@ -1033,12 +1045,17 @@ class _AddStaffDialog extends StatefulWidget {
   /// load" rather than "the branch has no roles".
   final bool loadError;
 
+  /// When true, the branch is on Planday: surname, email and gender are shown
+  /// and required so the Planday employee create has what it needs.
+  final bool plandayEnabled;
+
   const _AddStaffDialog({
     required this.shifts,
     required this.roleOptions,
     required this.pinLength,
     this.initialShiftIds = const {},
     this.loadError = false,
+    this.plandayEnabled = false,
   });
 
   @override
@@ -1047,9 +1064,20 @@ class _AddStaffDialog extends StatefulWidget {
 
 class _AddStaffDialogState extends State<_AddStaffDialog> {
   final TextEditingController _name = TextEditingController();
+  final TextEditingController _surname = TextEditingController();
+  final TextEditingController _email = TextEditingController();
   final TextEditingController _phone = TextEditingController();
   final TextEditingController _pin = TextEditingController();
   late final Set<String> _shiftIds = Set<String>.from(widget.initialShiftIds);
+
+  /// The Planday gender set. Null until the operator picks one.
+  String? _gender;
+  String? _plandayError;
+
+  static const List<PosSettingsOption> _genderOptions = [
+    PosSettingsOption(value: 'Male', label: 'Male'),
+    PosSettingsOption(value: 'Female', label: 'Female'),
+  ];
 
   /// The branch's own role list decides the default: its first entry.
   late String _role =
@@ -1065,9 +1093,24 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
   @override
   void dispose() {
     _name.dispose();
+    _surname.dispose();
+    _email.dispose();
     _phone.dispose();
     _pin.dispose();
     super.dispose();
+  }
+
+  /// Planday needs a surname, email and gender. Null when all are present and
+  /// the email looks valid; only enforced on a Planday branch.
+  String? _plandayFieldError() {
+    if (_surname.text.trim().isEmpty) return 'A surname is required for Planday';
+    if ((_gender ?? '').isEmpty) return 'Select a gender for Planday';
+    final String mail = _email.text.trim();
+    if (mail.isEmpty) return 'An email is required for Planday';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(mail)) {
+      return 'That email is not valid';
+    }
+    return null;
   }
 
   void _toggleShift(String id) {
@@ -1098,6 +1141,13 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
       setState(() => _pinError = pinError);
       return;
     }
+    if (widget.plandayEnabled) {
+      final String? plandayError = _plandayFieldError();
+      if (plandayError != null) {
+        setState(() => _plandayError = plandayError);
+        return;
+      }
+    }
     if (widget.shifts.isNotEmpty && _shiftIds.isEmpty) {
       setState(() => _shiftError = 'Select at least one shift');
       return;
@@ -1111,6 +1161,9 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
         name: _name.text.trim(),
         role: _role,
         shiftIds: _shiftIds.toList(),
+        surname: _surname.text.trim().isEmpty ? null : _surname.text.trim(),
+        email: _email.text.trim().isEmpty ? null : _email.text.trim(),
+        gender: _gender,
         phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
         active: _active,
         pin: _pin.text.trim().isEmpty ? null : _pin.text.trim(),
@@ -1127,7 +1180,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
       confirmLabel: 'Add Member',
       children: [
         PosSettingsTextField(
-          label: 'Name',
+          label: widget.plandayEnabled ? 'First name' : 'Name',
           controller: _name,
           errorText: _error,
           textInputAction: TextInputAction.next,
@@ -1136,6 +1189,45 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           },
         ),
         const SizedBox(height: 12),
+        if (widget.plandayEnabled) ...[
+          PosSettingsTextField(
+            label: 'Surname',
+            controller: _surname,
+            textInputAction: TextInputAction.next,
+            onChanged: (_) {
+              if (_plandayError != null) setState(() => _plandayError = null);
+            },
+          ),
+          const SizedBox(height: 12),
+          PosSettingsTextField(
+            label: 'Email (Username)',
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            onChanged: (_) {
+              if (_plandayError != null) setState(() => _plandayError = null);
+            },
+          ),
+          const SizedBox(height: 12),
+          PosSettingsDropdown(
+            label: 'Gender',
+            value: _gender ?? '',
+            options: const [
+              PosSettingsOption(value: '', label: 'Choose'),
+              ..._genderOptions,
+            ],
+            onChanged: (v) => setState(() {
+              _gender = v.isEmpty ? null : v;
+              if (_plandayError != null) _plandayError = null;
+            }),
+          ),
+          if (_plandayError != null) ...[
+            const SizedBox(height: 6),
+            Text(_plandayError!,
+                style: const TextStyle(color: Color(0xFFD14343), fontSize: 12)),
+          ],
+          const SizedBox(height: 12),
+        ],
         PosSettingsTextField(
           label: 'Phone',
           optionalLabel: 'optional',

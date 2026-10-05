@@ -233,9 +233,25 @@ class PosStaffProvider extends ChangeNotifier {
 
   /// Adds a member. Returns the new id, or null with `errors['newName']` /
   /// `errors['newPin']` set.
+  /// The Planday-required fields, validated together. Null when all are present
+  /// and the email looks valid.
+  String? _plandayFieldError(String? surname, String? email, String? gender) {
+    if ((surname ?? '').trim().isEmpty) return 'A surname is required for Planday';
+    if ((gender ?? '').trim().isEmpty) return 'Select a gender for Planday';
+    final String mail = (email ?? '').trim();
+    if (mail.isEmpty) return 'An email is required for Planday';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(mail)) {
+      return 'That email is not valid';
+    }
+    return null;
+  }
+
   Future<String?> addMember({
     required String name,
     required String role,
+    String? surname,
+    String? email,
+    String? gender,
     List<String> shiftIds = const [],
     String? phone,
     bool active = true,
@@ -246,6 +262,18 @@ class PosStaffProvider extends ChangeNotifier {
       _errors['newName'] = nameError;
       notifyListeners();
       return null;
+    }
+
+    // Planday needs a surname, email and gender. The backend requires them only
+    // on a Planday-enabled branch; mirror that here so the operator gets inline
+    // errors rather than a round-trip rejection.
+    if (_catalogue.plandayEnabled) {
+      final String? plandayError = _plandayFieldError(surname, email, gender);
+      if (plandayError != null) {
+        _errors['newPlanday'] = plandayError;
+        notifyListeners();
+        return null;
+      }
     }
 
     final String? pinError =
@@ -268,10 +296,14 @@ class PosStaffProvider extends ChangeNotifier {
     _errors.remove('newName');
     _errors.remove('newPin');
     _errors.remove('newRole');
+    _errors.remove('newPlanday');
     notifyListeners();
 
     final ApiResponseModel response = await repo.createMember(
       name: name.trim(),
+      surname: surname?.trim(),
+      email: email?.trim(),
+      gender: gender,
       roleId: roleId,
       shiftIds: shiftIds,
       phone: phone?.trim(),

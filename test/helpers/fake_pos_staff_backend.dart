@@ -16,6 +16,7 @@ class FakePosStaffBackend implements HttpClientAdapter {
     List<Map<String, dynamic>>? members,
     this.branchName = 'Amsterdam',
     this.staffLoginRequired = false,
+    this.plandayEnabled = false,
     List<Map<String, dynamic>>? rolesOverride,
   })  : _members = members ?? figmaDemoMembers(),
         _roles = rolesOverride ?? roles;
@@ -32,6 +33,7 @@ class FakePosStaffBackend implements HttpClientAdapter {
   final List<Map<String, dynamic>> _members;
   final String branchName;
   bool staffLoginRequired;
+  bool plandayEnabled;
 
   /// PINs the fake "stores", so uniqueness and sign-in can be checked. A real
   /// server keeps only hashes; the fake keeps plain values because it is a fake.
@@ -172,6 +174,7 @@ class FakePosStaffBackend implements HttpClientAdapter {
           'id': 1,
           'name': branchName,
           'staff_login_required': staffLoginRequired,
+          'planday_enabled': plandayEnabled,
         },
         'pin_length': 4,
       });

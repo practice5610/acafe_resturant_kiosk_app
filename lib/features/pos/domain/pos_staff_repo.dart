@@ -117,12 +117,20 @@ class PosStaffRepo {
     required String name,
     required int roleId,
     required List<String> shiftIds,
+    String? surname,
+    String? email,
+    String? gender,
     String? phone,
     bool active = true,
     String? pin,
   }) {
     return _send(() => dioClient!.post('$_base/members', options: _keepDevice, data: {
           'name': name,
+          // First name + surname + email + gender are what Planday needs; the
+          // backend requires them only on a Planday-enabled branch.
+          if (surname != null && surname.isNotEmpty) 'surname': surname,
+          if (email != null && email.isNotEmpty) 'email': email,
+          if (gender != null && gender.isNotEmpty) 'gender': gender,
           'role_id': roleId,
           'shift_ids': shiftIds,
           'active': active,
@@ -136,6 +144,9 @@ class PosStaffRepo {
   Future<ApiResponseModel> updateMember(
     String publicId, {
     String? name,
+    String? surname,
+    String? email,
+    String? gender,
     int? roleId,
     bool? active,
     List<String>? shiftIds,
@@ -143,6 +154,9 @@ class PosStaffRepo {
   }) {
     return _send(() => dioClient!.patch('$_base/members/$publicId', options: _keepDevice, data: {
           if (name != null) 'name': name,
+          if (surname != null) 'surname': surname,
+          if (email != null) 'email': email,
+          if (gender != null) 'gender': gender,
           if (roleId != null) 'role_id': roleId,
           if (active != null) 'active': active,
           if (shiftIds != null) 'shift_ids': shiftIds,
