@@ -338,6 +338,63 @@ void main() {
       expect(roster.members, isEmpty);
     });
   });
+
+  group('Planday sign-out notification', () {
+    // Lets the fire-and-forget repo.signOut() microtask run.
+    Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
+
+    bool signedOutWithToken(String token) => backend.requests.any((r) =>
+        r.method == 'POST' &&
+        r.path.endsWith('/sign-out') &&
+        r.headers['X-Staff-Token']?.toString() == token);
+
+    test('explicit sign-out tells the backend with the staff token', () async {
+      final session = await _session();
+      await session.bootstrap();
+      await session.signIn('1234', memberId: 'sophie');
+      final String token = session.token!;
+
+      await session.signOut();
+      await settle();
+
+      expect(signedOutWithToken(token), isTrue);
+      expect(session.isSignedIn, isFalse);
+    });
+
+    test('switch user punches the outgoing person out', () async {
+      final session = await _session();
+      await session.bootstrap();
+      await session.signIn('1234', memberId: 'sophie');
+      final String token = session.token!;
+
+      await session.switchUser();
+      await settle();
+
+      expect(signedOutWithToken(token), isTrue);
+      expect(session.isSignedIn, isFalse); // back to the PIN pad
+    });
+
+    test('idle auto-lock does NOT tell the backend', () async {
+      final session = await _session();
+      await session.bootstrap();
+      await session.signIn('1234', memberId: 'sophie');
+
+      await session.lock();
+      await settle();
+
+      expect(backend.requests.any((r) => r.path.endsWith('/sign-out')), isFalse);
+      expect(session.isSignedIn, isFalse);
+    });
+
+    test('sign-out never throws even if there is no token', () async {
+      final session = await _session();
+      await session.bootstrap();
+      // Not signed in: no token. Must be a harmless no-op.
+      await session.signOut();
+      await settle();
+      expect(backend.requests.any((r) => r.path.endsWith('/sign-out')), isFalse);
+    });
+  });
 }
 
 class _KioskRefusal extends FakePosStaffBackend {

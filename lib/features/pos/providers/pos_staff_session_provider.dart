@@ -162,12 +162,28 @@ class PosStaffSessionProvider extends ChangeNotifier {
   /// revoke today -- the token is stateless -- but the call exists so that when
   /// there is, the app already makes it.
   Future<void> signOut() async {
-    unawaited(repo.signOut());
+    _notifyServerSignOut();
     await lock();
   }
 
-  /// "Switch user" is a lock with a different verb on the button.
-  Future<void> switchUser() => lock();
+  /// "Switch user" punches the outgoing person out before showing the PIN pad;
+  /// the incoming person's sign-in punches them in. The outgoing punch-out is
+  /// fire-and-forget and never blocks the switch.
+  Future<void> switchUser() async {
+    _notifyServerSignOut();
+    await lock();
+  }
+
+  /// Fire-and-forget backend sign-out, which triggers the Planday punch-out.
+  /// The token is captured NOW, synchronously, because [lock] is about to clear
+  /// it and the request is sent on a later microtask. Only the real end-of-shift
+  /// events call this -- idle auto-lock and session rejection do not, so a
+  /// forgotten terminal is closed by the backend stale-shift command instead.
+  void _notifyServerSignOut() {
+    final String? token = _token;
+    if (token == null || token.isEmpty) return;
+    unawaited(repo.signOut(staffToken: token));
+  }
 
   /// A request came back saying the session is gone -- deactivated, moved
   /// branch, expired. The till locks rather than carrying on as a ghost.

@@ -247,7 +247,9 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
     if (confirmed != true || !mounted) return;
 
     context.read<PosSessionProvider>().lock();
-    await Provider.of<PosStaffSessionProvider?>(context, listen: false)?.lock();
+    // signOut (not lock) so the backend is told and the outgoing staff member is
+    // punched out of Planday. Fire-and-forget inside; never blocks the logout.
+    await Provider.of<PosStaffSessionProvider?>(context, listen: false)?.signOut();
     if (!mounted) return;
     await context.read<KioskAuthProvider>().logout();
     if (!mounted) return;

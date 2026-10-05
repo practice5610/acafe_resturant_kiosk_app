@@ -222,11 +222,20 @@ class PosStaffSessionRepo {
     }
   }
 
-  Future<void> signOut() async {
+  /// Tells the backend the current staff member signed out, which is what fires
+  /// the Planday punch-out. The staff token is passed explicitly rather than
+  /// left to the interceptor: the session is usually being torn down at the same
+  /// moment, so by the time this request is actually sent `provider.token` may
+  /// already be cleared. Fire-and-forget and error-swallowing -- logout must
+  /// never wait for or fail because of this call.
+  Future<void> signOut({String? staffToken}) async {
     final DioClient? client = dioClient;
     if (client == null) return;
+    final Options options = (staffToken != null && staffToken.isNotEmpty)
+        ? _keepDevice.copyWith(headers: {'X-Staff-Token': staffToken})
+        : _keepDevice;
     try {
-      await client.post('$_base/sign-out', options: _keepDevice);
+      await client.post('$_base/sign-out', options: options);
     } catch (_) {}
   }
 
