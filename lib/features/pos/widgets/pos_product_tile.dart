@@ -45,6 +45,46 @@ class PosProductTile extends StatelessWidget {
     this.showImages = true,
   });
 
+  Widget _nameText(double s) => SizedBox(
+        height: PosHomeSpec.tileNameBox * s,
+        child: Text(
+          product.name ?? '',
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: loewExtraBold.copyWith(
+            fontSize: PosHomeSpec.tileNameSize * s,
+            color: PosHomeSpec.ink,
+            height: PosHomeSpec.tileNameHeight,
+          ),
+        ),
+      );
+
+  Widget _priceText(double s) => SizedBox(
+        height: PosHomeSpec.tilePriceBox * s,
+        child: Text(
+          PosHomeSpec.formatPrice(
+            PriceConverterHelper.convertWithDiscount(
+                  ProductHelper.getBranchProductVariationWithPrice(product)
+                          .price ??
+                      product.price,
+                  product.discount,
+                  product.discountType,
+                ) ??
+                product.price ??
+                0,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: swiss721Light.copyWith(
+            fontSize: PosHomeSpec.tilePriceSize * s,
+            color: PosHomeSpec.inkAlpha(0.6),
+            height: PosHomeSpec.tilePriceHeight,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -75,90 +115,61 @@ class PosProductTile extends StatelessWidget {
                     mainAxisAlignment: showImages
                         ? MainAxisAlignment.start
                         : MainAxisAlignment.center,
-                    children: [
-                      if (showImages) ...[
-                        SizedBox(
-                          height: PosHomeSpec.tileImageHeight * s,
-                          width: double.infinity,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                                PosHomeSpec.tileImageRadius * s),
-                            child: Center(
-                              child: CustomImageWidget(
-                                image: imageUrl,
-                                height: PosHomeSpec.tileImageHeight * s,
-                                fit: BoxFit.contain,
-                                useShimmer: true,
-                                cacheWidth:
-                                    CustomImageWidget.kKioskProductCacheWidth,
+                    children: showImages
+                        ? [
+                            SizedBox(
+                              height: PosHomeSpec.tileImageHeight * s,
+                              width: double.infinity,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(
+                                    PosHomeSpec.tileImageRadius * s),
+                                child: Center(
+                                  child: CustomImageWidget(
+                                    image: imageUrl,
+                                    height: PosHomeSpec.tileImageHeight * s,
+                                    fit: BoxFit.contain,
+                                    useShimmer: true,
+                                    cacheWidth: CustomImageWidget
+                                        .kKioskProductCacheWidth,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        SizedBox(height: PosHomeSpec.tileImageGap * s),
-                      ],
-                      SizedBox(
-                        height: PosHomeSpec.tileInfoHeight * s,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
+                            SizedBox(height: PosHomeSpec.tileImageGap * s),
                             SizedBox(
-                              height: PosHomeSpec.tileTextBlockHeight * s,
+                              height: PosHomeSpec.tileInfoHeight * s,
                               child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   SizedBox(
-                                    height: PosHomeSpec.tileNameBox * s,
-                                    child: Text(
-                                      product.name ?? '',
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: loewExtraBold.copyWith(
-                                        fontSize: PosHomeSpec.tileNameSize * s,
-                                        color: PosHomeSpec.ink,
-                                        height: PosHomeSpec.tileNameHeight,
-                                      ),
+                                    height: PosHomeSpec.tileTextBlockHeight * s,
+                                    child: Column(
+                                      children: [
+                                        _nameText(s),
+                                        SizedBox(
+                                            height: PosHomeSpec.tileNameGap * s),
+                                        _priceText(s),
+                                      ],
                                     ),
                                   ),
-                                  SizedBox(height: PosHomeSpec.tileNameGap * s),
+                                  SizedBox(height: PosHomeSpec.tileInfoGap * s),
                                   SizedBox(
-                                    height: PosHomeSpec.tilePriceBox * s,
-                                    child: Text(
-                                      PosHomeSpec.formatPrice(
-                                        PriceConverterHelper
-                                                .convertWithDiscount(
-                                              ProductHelper
-                                                      .getBranchProductVariationWithPrice(
-                                                          product)
-                                                  .price ??
-                                                  product.price,
-                                              product.discount,
-                                              product.discountType,
-                                            ) ??
-                                            product.price ??
-                                            0,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: swiss721Light.copyWith(
-                                        fontSize:
-                                            PosHomeSpec.tilePriceSize * s,
-                                        color: PosHomeSpec.inkAlpha(0.6),
-                                        height: PosHomeSpec.tilePriceHeight,
-                                      ),
-                                    ),
-                                  ),
+                                      height:
+                                          PosHomeSpec.tileActionRowHeight * s),
                                 ],
                               ),
                             ),
-                            SizedBox(height: PosHomeSpec.tileInfoGap * s),
-                            SizedBox(
-                                height: PosHomeSpec.tileActionRowHeight * s),
+                          ]
+                        : [
+                            // Picture-less: no image band and no reserved action
+                            // row -- just the name and price, so the two lines
+                            // sit in the true vertical centre of the tile
+                            // (mainAxisAlignment.center above) instead of being
+                            // pushed up by an empty block below the price.
+                            _nameText(s),
+                            SizedBox(height: PosHomeSpec.tileNameGap * s),
+                            _priceText(s),
                           ],
-                        ),
-                      ),
-                    ],
                   ),
                 ),
                 if (cartQuantity > 0)
