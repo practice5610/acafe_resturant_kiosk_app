@@ -879,6 +879,9 @@ class _MemberDetailsCard extends StatelessWidget {
                 _PosToggle(value: active, onChanged: onActiveChanged),
               ],
             ),
+            // "Remove staff member" button hidden for now. Kept here, commented,
+            // so it can be restored by un-commenting.
+            /*
             if (onRemove != null) ...[
               const SizedBox(height: 20),
               Align(
@@ -898,6 +901,7 @@ class _MemberDetailsCard extends StatelessWidget {
                 ),
               ),
             ],
+            */
           ],
         ),
       ),
