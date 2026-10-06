@@ -27,6 +27,18 @@ class PosRoutePolicy {
     PosRoutes.settings,
   };
 
+  /// Where a fresh staff sign-in should land.
+  ///
+  /// Signing in starts a new shift at the till, so it returns to the main POS
+  /// screen rather than leaving the incoming operator on whatever tab the last
+  /// one left open (their Report, their Attendance, a half-read Receipts list).
+  /// The one exception is already being on home -- the common lock-over-home
+  /// case -- where staying put avoids a needless navigation mid-transition.
+  /// Returns a path to go to, or null to stay.
+  static String? landingAfterSignIn(String path) {
+    return path == PosRoutes.home ? null : PosRoutes.home;
+  }
+
   static String? redirect({
     required String path,
     required bool isPosDevice,

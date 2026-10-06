@@ -1,8 +1,5 @@
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_route_policy.dart';
-import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
-import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
-import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_staff_lock_screen.dart';
@@ -50,25 +47,25 @@ class _PosStaffGateState extends State<PosStaffGate> {
     });
   }
 
-  /// A fresh sign-in must never leave someone on a Report/Settings route their
-  /// permissions do not cover. The common case (the lock sat over /pos-home)
-  /// changes nothing and triggers no navigation; only a forbidden manager route
-  /// bounces, once, to the till home. This replaces the old imperative
-  /// `goRoutes.refresh()` so sign-in does not shove the router mid-transition.
-  void _bounceIfForbidden(PosStaffSessionProvider session) {
+  /// A fresh sign-in starts a new shift, so it returns to the till's home
+  /// screen rather than leaving the incoming operator on whatever tab the last
+  /// one left open -- and that also covers the old concern of landing someone on
+  /// a Report/Settings route their permissions do not cover, since home is
+  /// always allowed. Already on home changes nothing and triggers no navigation.
+  /// A post-frame `context.go` (not `goRoutes.refresh()`) so sign-in does not
+  /// shove the router mid-transition.
+  void _landOnHomeAfterSignIn(PosStaffSessionProvider session) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || session.session == null) return;
 
-      final String path = RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
-      if (!PosRoutePolicy.managerOnlyPaths.contains(path)) return;
-
-      final bool stepUp =
-          context.read<PosSessionProvider?>()?.canAccessManagerTabs ?? false;
-      final PosAccess access = session.access(managerStepUp: stepUp);
-      final bool allowed =
-          path == PosRoutes.report ? access.canSeeReport : access.canSeeSettings;
-
-      if (!allowed) context.go(PosRoutes.home);
+      final String path =
+          RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
+      final String? dest = PosRoutePolicy.landingAfterSignIn(path);
+      // Only when this subtree is actually under a router -- a sign-in harness
+      // that mounts the gate on its own (no GoRouter) must not crash here.
+      if (dest != null && GoRouter.maybeOf(context) != null) {
+        context.go(dest);
+      }
     });
   }
 
@@ -105,7 +102,7 @@ class _PosStaffGateState extends State<PosStaffGate> {
     if (staffId != _lastStaffId) {
       final bool becameSignedIn = staffId != null;
       _lastStaffId = staffId;
-      if (becameSignedIn) _bounceIfForbidden(session);
+      if (becameSignedIn) _landOnHomeAfterSignIn(session);
     }
 
     return Listener(

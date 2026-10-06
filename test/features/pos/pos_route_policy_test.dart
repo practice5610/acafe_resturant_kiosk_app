@@ -178,4 +178,24 @@ void main() {
       }
     });
   });
+
+  group('landing after a fresh staff sign-in', () {
+    test('a sign-in anywhere but home returns to the till', () {
+      for (final path in [
+        PosRoutes.report,
+        PosRoutes.orders,
+        PosRoutes.receipts,
+        PosRoutes.attendance,
+        PosRoutes.settings,
+        PosRoutes.browse,
+      ]) {
+        expect(PosRoutePolicy.landingAfterSignIn(path), PosRoutes.home,
+            reason: 'signing in on $path should land on the POS home');
+      }
+    });
+
+    test('a sign-in already on home stays put (no needless navigation)', () {
+      expect(PosRoutePolicy.landingAfterSignIn(PosRoutes.home), isNull);
+    });
+  });
 }
