@@ -37,6 +37,7 @@ class _KioskLogoutButtonState extends State<KioskLogoutButton> {
       heading: 'Log out this device?',
       subtext: 'You will need to sign back in to use this device.',
       confirmLabel: 'Log Out',
+      compact: true,
     );
     if (confirmed != true || !mounted) return;
 

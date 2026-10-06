@@ -29,12 +29,18 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
   final String cancelText;
   final String confirmText;
 
+  /// A smaller, tighter card for simple yes/no prompts (e.g. "Log out this
+  /// terminal?") that are not the order-completion flow. The order confirmations
+  /// keep the full Figma sizing; only prompts that opt in shrink.
+  final bool compact;
+
   const PosCompleteConfirmationDialog({
     super.key,
     this.titleText = heading,
     this.bodyText = subtext,
     this.cancelText = cancelLabel,
     this.confirmText = confirmLabel,
+    this.compact = false,
   });
 
   static const String heading = 'Mark order as complete?';
@@ -52,17 +58,28 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
     String subtext = PosCompleteConfirmationDialog.subtext,
     String cancelLabel = PosCompleteConfirmationDialog.cancelLabel,
     String confirmLabel = PosCompleteConfirmationDialog.confirmLabel,
+    bool compact = false,
   }) {
-    return showDialog<bool>(
+    // showGeneralDialog (not showDialog) so the card fades in and out rather
+    // than popping; the barrier still fades with it. Opacity-only, so the dialog
+    // is hittable from the first frame and nothing has to wait on the animation.
+    return showGeneralDialog<bool>(
       context: context,
       barrierDismissible: true,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
       barrierColor: PosOrderDetailSpec.confirmBackdrop,
       useRootNavigator: false,
-      builder: (_) => PosCompleteConfirmationDialog(
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (_, __, ___) => PosCompleteConfirmationDialog(
         titleText: heading,
         bodyText: subtext,
         cancelText: cancelLabel,
         confirmText: confirmLabel,
+        compact: compact,
+      ),
+      transitionBuilder: (_, animation, __, child) => FadeTransition(
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        child: child,
       ),
     );
   }
@@ -70,33 +87,32 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Size window = MediaQuery.sizeOf(context);
+    final PosCompleteConfirmationMetrics m = compact
+        ? PosCompleteConfirmationMetrics.compact
+        : PosCompleteConfirmationMetrics.regular;
 
-    // Figma fixes the card at 720. That is a maximum here, not a size: the POS
-    // runs on hardware narrower than the 1366 artboard, where a fixed 720 plus
-    // margins would clip.
-    final double maxWidth = window.width - PosCompleteConfirmationSpec.inset * 2;
+    // The card width is a maximum, not a fixed size: the POS runs on hardware
+    // narrower than the artboard, where a fixed width plus margins would clip.
+    // Clamping to the window is what keeps it responsive on a small tablet.
+    final double maxWidth = window.width - m.inset * 2;
 
     return Material(
       color: Colors.transparent,
       child: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(PosCompleteConfirmationSpec.inset),
+          padding: EdgeInsets.all(m.inset),
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: maxWidth < PosCompleteConfirmationSpec.cardWidth
-                  ? maxWidth
-                  : PosCompleteConfirmationSpec.cardWidth,
+              maxWidth: maxWidth < m.cardWidth ? maxWidth : m.cardWidth,
             ),
             child: Container(
-              padding: const EdgeInsets.all(PosCompleteConfirmationSpec.pad),
+              padding: EdgeInsets.all(m.pad),
               decoration: BoxDecoration(
                 color: PosOrderDetailSpec.modalBg,
-                borderRadius: BorderRadius.circular(
-                  PosCompleteConfirmationSpec.radius,
-                ),
+                borderRadius: BorderRadius.circular(m.radius),
                 border: Border.all(
                   color: PosOrderDetailSpec.ink,
-                  width: PosCompleteConfirmationSpec.border,
+                  width: m.border,
                 ),
               ),
               child: Column(
@@ -106,45 +122,41 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
                   Text(
                     titleText,
                     style: loewExtraBold.copyWith(
-                      fontSize: PosCompleteConfirmationSpec.headingSize,
+                      fontSize: m.headingSize,
                       color: PosOrderDetailSpec.ink,
                     ),
                   ),
-                  const SizedBox(
-                    height: PosCompleteConfirmationSpec.headingGap,
-                  ),
+                  SizedBox(height: m.headingGap),
                   Text(
                     bodyText,
                     style: loewMedium.copyWith(
-                      fontSize: PosCompleteConfirmationSpec.subtextSize,
+                      fontSize: m.subtextSize,
                       color: PosOrderDetailSpec.inkAlpha(0.6),
                     ),
                   ),
-                  const SizedBox(height: PosCompleteConfirmationSpec.blockGap),
+                  SizedBox(height: m.blockGap),
                   Row(
                     children: [
                       Expanded(
                         child: PosPaymentCardButton(
                           label: cancelText,
                           onTap: () => Navigator.of(context).pop(false),
-                          radius: PosCompleteConfirmationSpec.buttonRadius,
-                          borderWidth: PosCompleteConfirmationSpec.border,
-                          padding: PosCompleteConfirmationSpec.buttonPadding,
-                          fontSize: PosCompleteConfirmationSpec.buttonTextSize,
+                          radius: m.buttonRadius,
+                          borderWidth: m.border,
+                          padding: m.buttonPadding,
+                          fontSize: m.buttonTextSize,
                         ),
                       ),
-                      const SizedBox(
-                        width: PosCompleteConfirmationSpec.blockGap,
-                      ),
+                      SizedBox(width: m.blockGap),
                       Expanded(
                         child: PosPaymentCardButton(
                           label: confirmText,
                           filled: true,
                           onTap: () => Navigator.of(context).pop(true),
-                          radius: PosCompleteConfirmationSpec.buttonRadius,
-                          borderWidth: PosCompleteConfirmationSpec.border,
-                          padding: PosCompleteConfirmationSpec.buttonPadding,
-                          fontSize: PosCompleteConfirmationSpec.buttonTextSize,
+                          radius: m.buttonRadius,
+                          borderWidth: m.border,
+                          padding: m.buttonPadding,
+                          fontSize: m.buttonTextSize,
                           filledLabelColor: PosOrderDetailSpec.cream,
                           emphasiseFilledLabel: true,
                         ),
@@ -161,26 +173,69 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
   }
 }
 
-/// Metrics for Figma `confirmation-dialog` **1641:5120**.
-class PosCompleteConfirmationSpec {
-  PosCompleteConfirmationSpec._();
+/// The two size sets this card renders at. `regular` is the Figma order-flow
+/// dialog; `compact` is a tighter card for a simple yes/no prompt.
+class PosCompleteConfirmationMetrics {
+  final double cardWidth;
+  final double radius;
+  final double border;
+  final double pad;
+  final double inset;
+  final double headingSize;
+  final double headingGap;
+  final double subtextSize;
+  final double blockGap;
+  final double buttonRadius;
+  final double buttonTextSize;
+  final EdgeInsets buttonPadding;
 
-  static const double cardWidth = 720;
-  static const double radius = 20;
-  static const double border = 3;
-  static const double pad = 32;
-  static const double inset = 24;
+  const PosCompleteConfirmationMetrics({
+    required this.cardWidth,
+    required this.radius,
+    required this.border,
+    required this.pad,
+    required this.inset,
+    required this.headingSize,
+    required this.headingGap,
+    required this.subtextSize,
+    required this.blockGap,
+    required this.buttonRadius,
+    required this.buttonTextSize,
+    required this.buttonPadding,
+  });
 
-  static const double headingSize = 32;
-  static const double headingGap = 8;
-  static const double subtextSize = 26;
+  /// Figma `confirmation-dialog` 1641:5120, sized for the 1366 artboard.
+  static const PosCompleteConfirmationMetrics regular =
+      PosCompleteConfirmationMetrics(
+    cardWidth: 720,
+    radius: 20,
+    border: 3,
+    pad: 32,
+    inset: 24,
+    headingSize: 32,
+    headingGap: 8,
+    subtextSize: 26,
+    blockGap: 24,
+    buttonRadius: 40,
+    buttonTextSize: 26,
+    buttonPadding: EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+  );
 
-  /// The 24 that separates the header block from the actions, and the two
-  /// buttons from each other.
-  static const double blockGap = 24;
-
-  static const double buttonRadius = 40;
-  static const double buttonTextSize = 26;
-  static const EdgeInsets buttonPadding =
-      EdgeInsets.symmetric(horizontal: 32, vertical: 20);
+  /// A normal-looking modal for simple prompts -- about the proportions of the
+  /// app's other cards rather than the full-screen order overlay.
+  static const PosCompleteConfirmationMetrics compact =
+      PosCompleteConfirmationMetrics(
+    cardWidth: 400,
+    radius: 18,
+    border: 2,
+    pad: 24,
+    inset: 24,
+    headingSize: 20,
+    headingGap: 6,
+    subtextSize: 14,
+    blockGap: 16,
+    buttonRadius: 100,
+    buttonTextSize: 15,
+    buttonPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+  );
 }

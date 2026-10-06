@@ -243,6 +243,7 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
       heading: 'Log out this terminal?',
       subtext: 'You will need to sign back in to use this device.',
       confirmLabel: 'Log Out',
+      compact: true,
     );
     if (confirmed != true || !mounted) return;
 
