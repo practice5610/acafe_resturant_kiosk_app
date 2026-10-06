@@ -91,6 +91,8 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
         initialShiftIds: {if (defaultShift != null) defaultShift},
         loadError: provider.catalogueError,
         plandayEnabled: provider.catalogue.plandayEnabled,
+        plandayDepartmentOptions: provider.catalogue.plandayDepartmentOptions,
+        plandayGroupOptions: provider.catalogue.plandayEmployeeGroupOptions,
       ),
     );
     if (result == null || !mounted) return;
@@ -100,6 +102,8 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
       surname: result.surname,
       email: result.email,
       gender: result.gender,
+      plandayDepartmentId: result.plandayDepartmentId,
+      plandayGroupId: result.plandayGroupId,
       shiftIds: result.shiftIds,
       phone: result.phone,
       active: result.active,
@@ -776,12 +780,17 @@ class _RightColumn extends StatelessWidget {
               onSetPin: onSetPin,
               onRemove: onRemove,
             ),
+            // PERMISSIONS panel hidden on purpose: no longer needed in the POS
+            // Staff settings. Kept here (and the _PermissionsCard widget below),
+            // commented, so it can be restored by un-commenting.
+            /*
             const SizedBox(height: 24),
             _PermissionsCard(
               catalogue: catalogue,
               permissions: m.permissions,
               onPermissionChanged: onPermissionChanged,
             ),
+            */
           ],
           const SizedBox(height: 16),
           Text(
@@ -896,6 +905,9 @@ class _MemberDetailsCard extends StatelessWidget {
   }
 }
 
+// Kept for when the PERMISSIONS panel is wanted back (see the commented-out
+// usage above). Not referenced while that panel is hidden.
+// ignore: unused_element
 class _PermissionsCard extends StatelessWidget {
   final PosStaffCatalogue catalogue;
   final Map<String, bool> permissions;
@@ -1010,6 +1022,11 @@ class _NewStaff {
   final String? email;
   final String? gender;
 
+  /// The Planday placement the operator picked. Collected only on a Planday
+  /// branch; null when left blank (the backend then skips the Planday create).
+  final int? plandayDepartmentId;
+  final int? plandayGroupId;
+
   /// Optional, like the admin form's Phone field.
   final String? phone;
 
@@ -1026,6 +1043,8 @@ class _NewStaff {
     this.surname,
     this.email,
     this.gender,
+    this.plandayDepartmentId,
+    this.plandayGroupId,
     this.phone,
     this.active = true,
     this.pin,
@@ -1046,8 +1065,14 @@ class _AddStaffDialog extends StatefulWidget {
   final bool loadError;
 
   /// When true, the branch is on Planday: surname, email and gender are shown
-  /// and required so the Planday employee create has what it needs.
+  /// and required so the Planday employee create has what it needs, and the
+  /// department / group pickers below are offered.
   final bool plandayEnabled;
+
+  /// Planday department + employee group dropdown options (each with a leading
+  /// "— not set —" row). Empty when Planday is off or unreachable.
+  final List<PosSettingsOption> plandayDepartmentOptions;
+  final List<PosSettingsOption> plandayGroupOptions;
 
   const _AddStaffDialog({
     required this.shifts,
@@ -1056,6 +1081,8 @@ class _AddStaffDialog extends StatefulWidget {
     this.initialShiftIds = const {},
     this.loadError = false,
     this.plandayEnabled = false,
+    this.plandayDepartmentOptions = const [],
+    this.plandayGroupOptions = const [],
   });
 
   @override
@@ -1073,6 +1100,10 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
   /// The Planday gender set. Null until the operator picks one.
   String? _gender;
   String? _plandayError;
+
+  /// The chosen Planday department / group, as the dropdown value ('' = not set).
+  String _departmentId = '';
+  String _groupId = '';
 
   static const List<PosSettingsOption> _genderOptions = [
     PosSettingsOption(value: 'Male', label: 'Male'),
@@ -1164,6 +1195,8 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
         surname: _surname.text.trim().isEmpty ? null : _surname.text.trim(),
         email: _email.text.trim().isEmpty ? null : _email.text.trim(),
         gender: _gender,
+        plandayDepartmentId: _departmentId.isEmpty ? null : int.tryParse(_departmentId),
+        plandayGroupId: _groupId.isEmpty ? null : int.tryParse(_groupId),
         phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
         active: _active,
         pin: _pin.text.trim().isEmpty ? null : _pin.text.trim(),
@@ -1220,6 +1253,24 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
               _gender = v.isEmpty ? null : v;
               if (_plandayError != null) _plandayError = null;
             }),
+          ),
+          const SizedBox(height: 12),
+          PosSettingsDropdown(
+            label: 'Planday department',
+            value: _departmentId,
+            options: widget.plandayDepartmentOptions.isEmpty
+                ? const [PosSettingsOption(value: '', label: '— not set —')]
+                : widget.plandayDepartmentOptions,
+            onChanged: (v) => setState(() => _departmentId = v),
+          ),
+          const SizedBox(height: 12),
+          PosSettingsDropdown(
+            label: 'Planday employee group',
+            value: _groupId,
+            options: widget.plandayGroupOptions.isEmpty
+                ? const [PosSettingsOption(value: '', label: '— not set —')]
+                : widget.plandayGroupOptions,
+            onChanged: (v) => setState(() => _groupId = v),
           ),
           if (_plandayError != null) ...[
             const SizedBox(height: 6),

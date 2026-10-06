@@ -73,6 +73,16 @@ class FakePosStaffBackend implements HttpClientAdapter {
     {'id': 16, 'name': 'Employee'},
   ];
 
+  /// The Planday department + employee group option lists the catalogue serves
+  /// when the branch is on Planday.
+  static const List<Map<String, dynamic>> plandayDepartments = [
+    {'id': 18361, 'name': 'A/Cafe Amsterdam'},
+  ];
+  static const List<Map<String, dynamic>> plandayEmployeeGroups = [
+    {'id': 31203, 'name': 'Bar Team'},
+    {'id': 31152, 'name': 'Managers'},
+  ];
+
   static const List<Map<String, dynamic>> shiftDefs = [
     {'id': 'morning', 'name': 'Morning', 'time': '08:00-14:00'},
     {'id': 'afternoon', 'name': 'Afternoon', 'time': '14:00-20:00'},
@@ -175,6 +185,8 @@ class FakePosStaffBackend implements HttpClientAdapter {
           'name': branchName,
           'staff_login_required': staffLoginRequired,
           'planday_enabled': plandayEnabled,
+          'planday_departments': plandayEnabled ? plandayDepartments : const [],
+          'planday_employee_groups': plandayEnabled ? plandayEmployeeGroups : const [],
         },
         'pin_length': 4,
       });
@@ -280,6 +292,10 @@ class FakePosStaffBackend implements HttpClientAdapter {
         'has_pin': pin != null && pin.isNotEmpty,
         'permissions': _presetFor(roleName),
         'shift_ids': List<String>.from((data['shift_ids'] as List?) ?? const []),
+        if (data['planday_department_id'] != null)
+          'planday_department_id': data['planday_department_id'],
+        if (data['planday_employee_group_id'] != null)
+          'planday_employee_group_id': data['planday_employee_group_id'],
       };
       _members.add(m);
       if (pin != null && pin.isNotEmpty) _pins[id] = pin;

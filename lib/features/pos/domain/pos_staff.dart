@@ -47,6 +47,24 @@ class PosStaffRole {
   }
 }
 
+/// A Planday department or employee group offered on the add-staff form. The
+/// id is Planday's; the name is already-presentable data, never translated.
+class PlandayOption {
+  final int id;
+  final String name;
+
+  const PlandayOption({required this.id, required this.name});
+
+  static PlandayOption? fromJson(Map<String, dynamic> json) {
+    final int id = int.tryParse('${json['id']}') ?? 0;
+    final String name = (json['name'] ?? '').toString();
+    if (id == 0 || name.isEmpty) return null;
+    return PlandayOption(id: id, name: name);
+  }
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+}
+
 /// Everything the Staff screen used to hardcode, served by the branch.
 class PosStaffCatalogue {
   final List<PosStaffPermission> permissions;
@@ -59,8 +77,14 @@ class PosStaffCatalogue {
   final bool staffLoginRequired;
 
   /// Whether this branch is wired to Planday. When true the till collects the
-  /// Planday-required identity fields (surname, email, gender) on add-staff.
+  /// Planday-required identity fields (surname, email, gender) and offers the
+  /// department / group pickers on add-staff.
   final bool plandayEnabled;
+
+  /// The Planday department + employee group option lists for those pickers.
+  /// Empty when Planday is off or unreachable.
+  final List<PlandayOption> plandayDepartments;
+  final List<PlandayOption> plandayEmployeeGroups;
 
   final int pinLength;
 
@@ -71,6 +95,8 @@ class PosStaffCatalogue {
     required this.branchName,
     required this.staffLoginRequired,
     this.plandayEnabled = false,
+    this.plandayDepartments = const [],
+    this.plandayEmployeeGroups = const [],
     required this.pinLength,
   });
 
@@ -83,8 +109,24 @@ class PosStaffCatalogue {
         branchName: '',
         staffLoginRequired: false,
         plandayEnabled: false,
+        plandayDepartments: [],
+        plandayEmployeeGroups: [],
         pinLength: 4,
       );
+
+  /// Dropdown options for the pickers, each prefixed with a "not set" row so the
+  /// field can be left blank (the backend then skips the Planday create).
+  List<PosSettingsOption> get plandayDepartmentOptions => [
+        const PosSettingsOption(value: '', label: '— not set —'),
+        for (final d in plandayDepartments)
+          PosSettingsOption(value: '${d.id}', label: d.name),
+      ];
+
+  List<PosSettingsOption> get plandayEmployeeGroupOptions => [
+        const PosSettingsOption(value: '', label: '— not set —'),
+        for (final g in plandayEmployeeGroups)
+          PosSettingsOption(value: '${g.id}', label: g.name),
+      ];
 
   bool get isEmpty => permissions.isEmpty && roles.isEmpty;
 
@@ -140,6 +182,18 @@ class PosStaffCatalogue {
     final Map<String, dynamic> branchMap =
         branch is Map ? Map<String, dynamic>.from(branch) : const {};
 
+    List<PlandayOption> options(String key) {
+      final Object? raw = branchMap[key];
+      if (raw is! List) return const [];
+      final List<PlandayOption> out = [];
+      for (final entry in raw) {
+        if (entry is! Map) continue;
+        final o = PlandayOption.fromJson(Map<String, dynamic>.from(entry));
+        if (o != null) out.add(o);
+      }
+      return out;
+    }
+
     return PosStaffCatalogue(
       permissions: permissions,
       roles: roles,
@@ -147,6 +201,8 @@ class PosStaffCatalogue {
       branchName: (branchMap['name'] ?? '').toString(),
       staffLoginRequired: branchMap['staff_login_required'] == true,
       plandayEnabled: branchMap['planday_enabled'] == true,
+      plandayDepartments: options('planday_departments'),
+      plandayEmployeeGroups: options('planday_employee_groups'),
       pinLength: int.tryParse('${json['pin_length']}') ?? 4,
     );
   }
@@ -160,7 +216,13 @@ class PosStaffCatalogue {
           for (final r in roles) {'id': r.id, 'name': r.name},
         ],
         'shifts': [for (final s in shifts) s.toJson()],
-        'branch': {'name': branchName, 'staff_login_required': staffLoginRequired, 'planday_enabled': plandayEnabled},
+        'branch': {
+          'name': branchName,
+          'staff_login_required': staffLoginRequired,
+          'planday_enabled': plandayEnabled,
+          'planday_departments': [for (final d in plandayDepartments) d.toJson()],
+          'planday_employee_groups': [for (final g in plandayEmployeeGroups) g.toJson()],
+        },
         'pin_length': pinLength,
       };
 }
@@ -176,6 +238,11 @@ class PosStaffMember {
   final String? surname;
   final String? email;
   final String? gender;
+
+  /// The employee's Planday placement, so the edit form can prefill the
+  /// department / group pickers. Null when not set or on a non-Planday branch.
+  final int? plandayDepartmentId;
+  final int? plandayGroupId;
 
   /// The role's display name. The id travels alongside so a save does not have
   /// to match on a string the operator can see.
@@ -201,6 +268,8 @@ class PosStaffMember {
     this.surname,
     this.email,
     this.gender,
+    this.plandayDepartmentId,
+    this.plandayGroupId,
     required this.role,
     this.roleId = 0,
     required this.active,
@@ -234,6 +303,8 @@ class PosStaffMember {
     String? surname,
     String? email,
     String? gender,
+    int? plandayDepartmentId,
+    int? plandayGroupId,
     String? role,
     int? roleId,
     bool? active,
@@ -248,6 +319,8 @@ class PosStaffMember {
       surname: surname ?? this.surname,
       email: email ?? this.email,
       gender: gender ?? this.gender,
+      plandayDepartmentId: plandayDepartmentId ?? this.plandayDepartmentId,
+      plandayGroupId: plandayGroupId ?? this.plandayGroupId,
       role: role ?? this.role,
       roleId: roleId ?? this.roleId,
       active: active ?? this.active,
@@ -264,6 +337,8 @@ class PosStaffMember {
         if (surname != null) 'surname': surname,
         if (email != null) 'email': email,
         if (gender != null) 'gender': gender,
+        if (plandayDepartmentId != null) 'planday_department_id': plandayDepartmentId,
+        if (plandayGroupId != null) 'planday_employee_group_id': plandayGroupId,
         'role': role,
         'role_id': roleId,
         'active': active,
@@ -293,6 +368,13 @@ class PosStaffMember {
       return s.isEmpty ? null : s;
     }
 
+    int? intOrNull(String key) {
+      final Object? v = json[key];
+      if (v == null) return null;
+      final int parsed = int.tryParse('$v') ?? 0;
+      return parsed == 0 ? null : parsed;
+    }
+
     return PosStaffMember(
       id: id,
       name: name,
@@ -300,6 +382,8 @@ class PosStaffMember {
       surname: str('surname'),
       email: str('email'),
       gender: str('gender'),
+      plandayDepartmentId: intOrNull('planday_department_id'),
+      plandayGroupId: intOrNull('planday_employee_group_id'),
       role: (json['role'] ?? '').toString(),
       roleId: int.tryParse('${json['role_id']}') ?? 0,
       active: json['active'] != false,

@@ -45,6 +45,21 @@ void main() {
       final off = await _provider(planday: false);
       expect(off.catalogue.plandayEnabled, isFalse);
     });
+
+    test('department + group option lists are parsed when enabled', () async {
+      final on = await _provider(planday: true);
+      expect(on.catalogue.plandayDepartments.map((d) => d.id), contains(18361));
+      expect(on.catalogue.plandayEmployeeGroups.map((g) => g.name), contains('Bar Team'));
+      // The dropdown options lead with a "— not set —" row.
+      expect(on.catalogue.plandayDepartmentOptions.first.value, '');
+      expect(on.catalogue.plandayEmployeeGroupOptions.first.value, '');
+    });
+
+    test('department + group lists are empty on a non-Planday branch', () async {
+      final off = await _provider(planday: false);
+      expect(off.catalogue.plandayDepartments, isEmpty);
+      expect(off.catalogue.plandayEmployeeGroups, isEmpty);
+    });
   });
 
   group('add-staff on a Planday branch', () {
@@ -66,6 +81,43 @@ void main() {
       expect(body['surname'], 'Bakker');
       expect(body['email'], 'sanne@acafe.test');
       expect(body['gender'], 'Female');
+    });
+
+    test('the chosen department + group are sent to the server', () async {
+      final provider = await _provider(planday: true);
+
+      final String? id = await provider.addMember(
+        name: 'Sanne',
+        surname: 'Bakker',
+        email: 'sanne@acafe.test',
+        gender: 'Female',
+        plandayDepartmentId: 18361,
+        plandayGroupId: 31203,
+        role: 'Employee',
+        shiftIds: const ['morning'],
+      );
+
+      expect(id, isNotNull);
+      final body = _lastCreateBody();
+      expect(body['planday_department_id'], 18361);
+      expect(body['planday_employee_group_id'], 31203);
+    });
+
+    test('leaving department + group blank sends neither', () async {
+      final provider = await _provider(planday: true);
+
+      await provider.addMember(
+        name: 'Sanne',
+        surname: 'Bakker',
+        email: 'sanne@acafe.test',
+        gender: 'Female',
+        role: 'Employee',
+        shiftIds: const ['morning'],
+      );
+
+      final body = _lastCreateBody();
+      expect(body.containsKey('planday_department_id'), isFalse);
+      expect(body.containsKey('planday_employee_group_id'), isFalse);
     });
 
     test('a missing surname/email/gender is refused before any request',
@@ -143,6 +195,21 @@ void main() {
       expect(m.surname, 'Jansen');
       expect(m.email, 'jan@acafe.test');
       expect(m.gender, 'Male');
+    });
+
+    test('planday department + group round-trip', () {
+      final m = PosStaffMember.fromJson(const {
+        'id': 'jan',
+        'name': 'Jan Jansen',
+        'role': 'Employee',
+        'active': true,
+        'permissions': {},
+        'planday_department_id': 18361,
+        'planday_employee_group_id': 31203,
+      });
+
+      expect(m!.plandayDepartmentId, 18361);
+      expect(m.plandayGroupId, 31203);
     });
 
     test('absent fields stay null', () {

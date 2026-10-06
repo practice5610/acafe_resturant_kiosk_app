@@ -170,10 +170,10 @@ void main() {
     expect(find.text('Maria van den Berg'), findsWidgets);
     expect(find.text('Thomas de Vries'), findsOneWidget);
     expect(find.text('MEMBER DETAILS'), findsOneWidget);
-    expect(find.text('PERMISSIONS'), findsOneWidget);
-    // Labels come from the catalogue, not from constants in the app.
-    expect(find.text('Process refunds'), findsOneWidget);
-    expect(find.text('Close day'), findsOneWidget);
+    // The PERMISSIONS panel is intentionally hidden now (commented out in the
+    // panel); its toggles must not render.
+    expect(find.text('PERMISSIONS'), findsNothing);
+    expect(find.text('Process refunds'), findsNothing);
     // Branch shown read-only in the header, with the sign-in state.
     expect(find.text('Amsterdam'), findsOneWidget);
     expect(find.text('Staff sign-in off'), findsOneWidget);
@@ -527,9 +527,11 @@ void main() {
     await _pumpStaff(tester);
     backend.requests.clear();
 
-    // The toggle sits in the same Row as the label.
+    // The PERMISSIONS panel is hidden now, so drive a single-member edit from
+    // the Member Details card instead: the STAFF STATUS toggle sits in the same
+    // Row as its label and PATCHes the one member.
     final Finder row = find.ancestor(
-      of: find.text('Process refunds'),
+      of: find.text('STAFF STATUS'),
       matching: find.byType(Row),
     ).first;
     final Finder toggle = find.descendant(
