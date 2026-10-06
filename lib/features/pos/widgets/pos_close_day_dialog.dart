@@ -175,30 +175,35 @@ class _PosCloseDayDialogState extends State<PosCloseDayDialog> {
     final Size window = MediaQuery.sizeOf(context);
     final double maxWidth = window.width - PosCloseDaySpec.screenInset * 2;
 
-    return Material(
-      color: Colors.transparent,
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(PosCloseDaySpec.screenInset),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: maxWidth < PosCloseDaySpec.cardWidth
-                  ? maxWidth
-                  : PosCloseDaySpec.cardWidth,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(PosCloseDaySpec.cardPadding),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(PosCloseDaySpec.cardRadius),
-                border: Border.all(
-                  color: PosCloseDaySpec.cardBorderColor,
-                  width: PosCloseDaySpec.cardBorder,
+    // Width-constrained and centred so the area around the card stays
+    // transparent and a tap out there falls through to the dismiss barrier.
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(PosCloseDaySpec.screenInset),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth < PosCloseDaySpec.cardWidth
+                ? maxWidth
+                : PosCloseDaySpec.cardWidth,
+            maxHeight: window.height - PosCloseDaySpec.screenInset * 2,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(PosCloseDaySpec.cardPadding),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                      BorderRadius.circular(PosCloseDaySpec.cardRadius),
+                  border: Border.all(
+                    color: PosCloseDaySpec.cardBorderColor,
+                    width: PosCloseDaySpec.cardBorder,
+                  ),
+                  boxShadow: PosCloseDaySpec.cardShadow,
                 ),
-                boxShadow: PosCloseDaySpec.cardShadow,
+                child: _step == 1 ? _buildStep1() : _buildStep2(),
               ),
-              child: _step == 1 ? _buildStep1() : _buildStep2(),
             ),
           ),
         ),

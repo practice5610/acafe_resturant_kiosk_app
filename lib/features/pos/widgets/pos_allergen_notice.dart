@@ -140,32 +140,40 @@ class _PosAllergenCard extends StatelessWidget {
     final double maxWidth =
         MediaQuery.sizeOf(context).width - PosAllergenDialogSpec.pad * 2;
 
-    return Material(
-      color: Colors.transparent,
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(PosAllergenDialogSpec.pad),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: maxWidth < PosAllergenDialogSpec.cardWidth
-                  ? maxWidth
-                  : PosAllergenDialogSpec.cardWidth,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(PosAllergenDialogSpec.pad),
-              decoration: BoxDecoration(
-                color: PosSettingsSpec.panelBg,
-                borderRadius: BorderRadius.circular(PosAllergenDialogSpec.radius),
-                border: Border.all(color: PosSettingsSpec.fieldBorder, width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.14),
-                    blurRadius: 32,
-                    offset: const Offset(0, 14),
-                  ),
-                ],
+    // Width-constrained and centred so a tap around the card falls through to
+    // the dismiss barrier instead of being eaten by a full-screen surface.
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(PosAllergenDialogSpec.pad),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth < PosAllergenDialogSpec.cardWidth
+                ? maxWidth
+                : PosAllergenDialogSpec.cardWidth,
+            maxHeight: MediaQuery.sizeOf(context).height -
+                PosAllergenDialogSpec.pad * 2,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(PosAllergenDialogSpec.pad),
+                decoration: BoxDecoration(
+                  color: PosSettingsSpec.panelBg,
+                  borderRadius:
+                      BorderRadius.circular(PosAllergenDialogSpec.radius),
+                  border:
+                      Border.all(color: PosSettingsSpec.fieldBorder, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.14),
+                      blurRadius: 32,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: child,
               ),
-              child: child,
             ),
           ),
         ),

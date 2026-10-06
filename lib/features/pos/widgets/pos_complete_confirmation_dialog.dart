@@ -96,74 +96,83 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
     // Clamping to the window is what keeps it responsive on a small tablet.
     final double maxWidth = window.width - m.inset * 2;
 
-    return Material(
-      color: Colors.transparent,
-      child: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(m.inset),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: maxWidth < m.cardWidth ? maxWidth : m.cardWidth,
-            ),
-            child: Container(
-              padding: EdgeInsets.all(m.pad),
-              decoration: BoxDecoration(
-                color: PosOrderDetailSpec.modalBg,
-                borderRadius: BorderRadius.circular(m.radius),
-                border: Border.all(
-                  color: PosOrderDetailSpec.ink,
-                  width: m.border,
+    final double cardWidth = maxWidth < m.cardWidth ? maxWidth : m.cardWidth;
+
+    // The card is width-constrained and centred, so everything around it is
+    // transparent and not hit-tested. A tap out there falls through to the
+    // route's dismiss barrier (barrierDismissible) and closes the dialog; a tap
+    // on the card hits the card, not the barrier, so it never dismisses.
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(m.inset),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: cardWidth,
+            maxHeight: window.height - m.inset * 2,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: SingleChildScrollView(
+              child: Container(
+                padding: EdgeInsets.all(m.pad),
+                decoration: BoxDecoration(
+                  color: PosOrderDetailSpec.modalBg,
+                  borderRadius: BorderRadius.circular(m.radius),
+                  border: Border.all(
+                    color: PosOrderDetailSpec.ink,
+                    width: m.border,
+                  ),
                 ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    titleText,
-                    style: loewExtraBold.copyWith(
-                      fontSize: m.headingSize,
-                      color: PosOrderDetailSpec.ink,
-                    ),
-                  ),
-                  SizedBox(height: m.headingGap),
-                  Text(
-                    bodyText,
-                    style: loewMedium.copyWith(
-                      fontSize: m.subtextSize,
-                      color: PosOrderDetailSpec.inkAlpha(0.6),
-                    ),
-                  ),
-                  SizedBox(height: m.blockGap),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: PosPaymentCardButton(
-                          label: cancelText,
-                          onTap: () => Navigator.of(context).pop(false),
-                          radius: m.buttonRadius,
-                          borderWidth: m.border,
-                          padding: m.buttonPadding,
-                          fontSize: m.buttonTextSize,
-                        ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      titleText,
+                      style: loewExtraBold.copyWith(
+                        fontSize: m.headingSize,
+                        color: PosOrderDetailSpec.ink,
                       ),
-                      SizedBox(width: m.blockGap),
-                      Expanded(
-                        child: PosPaymentCardButton(
-                          label: confirmText,
-                          filled: true,
-                          onTap: () => Navigator.of(context).pop(true),
-                          radius: m.buttonRadius,
-                          borderWidth: m.border,
-                          padding: m.buttonPadding,
-                          fontSize: m.buttonTextSize,
-                          filledLabelColor: PosOrderDetailSpec.cream,
-                          emphasiseFilledLabel: true,
-                        ),
+                    ),
+                    SizedBox(height: m.headingGap),
+                    Text(
+                      bodyText,
+                      style: loewMedium.copyWith(
+                        fontSize: m.subtextSize,
+                        color: PosOrderDetailSpec.inkAlpha(0.6),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    SizedBox(height: m.blockGap),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: PosPaymentCardButton(
+                            label: cancelText,
+                            onTap: () => Navigator.of(context).pop(false),
+                            radius: m.buttonRadius,
+                            borderWidth: m.border,
+                            padding: m.buttonPadding,
+                            fontSize: m.buttonTextSize,
+                          ),
+                        ),
+                        SizedBox(width: m.blockGap),
+                        Expanded(
+                          child: PosPaymentCardButton(
+                            label: confirmText,
+                            filled: true,
+                            onTap: () => Navigator.of(context).pop(true),
+                            radius: m.buttonRadius,
+                            borderWidth: m.border,
+                            padding: m.buttonPadding,
+                            fontSize: m.buttonTextSize,
+                            filledLabelColor: PosOrderDetailSpec.cream,
+                            emphasiseFilledLabel: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
