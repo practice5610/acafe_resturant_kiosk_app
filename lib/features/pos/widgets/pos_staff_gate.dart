@@ -5,7 +5,6 @@ import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider
 import 'package:acafe_customer/features/pos/widgets/pos_staff_lock_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 /// Puts the PIN screen in front of the till when, and only when, it is needed.
@@ -61,11 +60,12 @@ class _PosStaffGateState extends State<PosStaffGate> {
       final String path =
           RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
       final String? dest = PosRoutePolicy.landingAfterSignIn(path);
-      // Only when this subtree is actually under a router -- a sign-in harness
-      // that mounts the gate on its own (no GoRouter) must not crash here.
-      if (dest != null && GoRouter.maybeOf(context) != null) {
-        context.go(dest);
-      }
+      // Navigate on the global router, the same one the path is read from. This
+      // widget sits in MaterialApp.router's `builder`, ABOVE the router's own
+      // navigator, so `context.go` cannot find a GoRouter here -- that is why an
+      // earlier context-based bounce never fired for "Switch user". Driving
+      // RouterHelper.goRoutes directly works regardless of where the gate sits.
+      if (dest != null) RouterHelper.goRoutes.go(dest);
     });
   }
 
