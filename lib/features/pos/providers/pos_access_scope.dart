@@ -26,6 +26,12 @@ class PosPermission {
   static const String processRefunds = 'process_refunds';
   static const String accessCashDrawer = 'access_cash_drawer';
   static const String viewOrders = 'view_orders';
+
+  /// Widens the Attendance tab's scope rather than gating the tab: every
+  /// signed-in staff member can open Attendance, but only a holder of this key
+  /// (Branch Manager / Owner) sees the whole branch; everyone else sees only
+  /// their own punches. The server enforces this; the key mirrors its name.
+  static const String viewAttendance = 'view_attendance';
 }
 
 /// The till's current [PosAccess], read from both session providers.

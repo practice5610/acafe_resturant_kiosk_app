@@ -88,11 +88,12 @@ Future<void> pumpBar(
   String currentPath = PosRoutes.home,
   DateTime Function()? now,
   // Not the 1366 Figma frame width: the lock icon (added after that frame
-  // was drawn) needs ~52px more than the frame ever budgeted, so 1366 no
-  // longer fits all five pills even before considering how narrow a real
-  // window can get. Every geometry test below assumes nothing has collapsed
-  // into the "More" pill; dedicated overflow tests use their own widths.
-  double width = 1430,
+  // was drawn) needs ~52px more than the frame ever budgeted, and the
+  // Attendance tab adds a sixth pill on top of that, so the fixture is widened
+  // again to keep all six pills rendered unscrolled. Every geometry test below
+  // assumes nothing has collapsed into the "More" pill; dedicated overflow
+  // tests use their own widths.
+  double width = 1560,
   bool elevated = true,
 }) async {
   tester.view.physicalSize = Size(width, 800);
@@ -170,14 +171,15 @@ void main() {
 
   group('active pill follows currentPath', () {
     // The pill order in the bar.
-    const labels = ['POS', 'Report', 'Orders', 'Receipts', 'Settings'];
+    const labels = ['POS', 'Report', 'Orders', 'Receipts', 'Attendance', 'Settings'];
 
     const cases = <String, int>{
       PosRoutes.home: 0,
       PosRoutes.report: 1,
       PosRoutes.orders: 2,
       PosRoutes.receipts: 3,
-      PosRoutes.settings: 4,
+      PosRoutes.attendance: 4,
+      PosRoutes.settings: 5,
       // Browse is reached from the POS tab, so POS stays lit.
       PosRoutes.browse: 0,
     };
@@ -200,7 +202,7 @@ void main() {
     testWidgets('a payment path lights nothing — payment leaves the shell',
         (tester) async {
       await pumpBar(tester, currentPath: PosRoutes.payment);
-      for (int i = 0; i < 5; i++) {
+      for (int i = 0; i < 6; i++) {
         expect(pillColor(tester, i), Colors.white);
       }
     });
@@ -218,7 +220,7 @@ void main() {
       // Avatar ends at the 32px right padding.
       expect(
         tester.getBottomRight(find.byType(PosAvatar)).dx,
-        1430 - 32,
+        1560 - 32,
       );
     });
 
@@ -231,7 +233,7 @@ void main() {
 
     testWidgets('12px between pills', (tester) async {
       await pumpBar(tester);
-      for (int i = 0; i < 4; i++) {
+      for (int i = 0; i < 5; i++) {
         final a = tester.getRect(find.byType(PosNavPill).at(i));
         final b = tester.getRect(find.byType(PosNavPill).at(i + 1));
         expect(b.left - a.right, closeTo(12, 0.01),
@@ -248,8 +250,8 @@ void main() {
       // few dozen extra px of viewport is enough for everything to render
       // unscrolled again, same as "at the design width nothing scrolls"
       // originally meant before this cluster grew a fourth fixed element.
-      await pumpBar(tester, width: 1430);
-      final lastPill = tester.getRect(find.byType(PosNavPill).at(4));
+      await pumpBar(tester, width: 1560);
+      final lastPill = tester.getRect(find.byType(PosNavPill).at(5));
       final allergen =
           tester.getRect(find.byKey(PosNavBarSpec.allergenButtonKey));
       final scan = tester.getRect(find.byKey(PosNavBarSpec.scanButtonKey));
@@ -454,20 +456,22 @@ void main() {
   });
 
   group('manager-gated tabs', () {
-    testWidgets('no step-up grant: only POS, Orders, Receipts show',
+    testWidgets('no step-up grant: only POS, Orders, Receipts, Attendance show',
         (tester) async {
       await pumpBar(tester, elevated: false);
-      expect(find.byType(PosNavPill), findsNWidgets(3));
+      expect(find.byType(PosNavPill), findsNWidgets(4));
       expect(find.text('POS'), findsOneWidget);
       expect(find.text('Orders'), findsOneWidget);
       expect(find.text('Receipts'), findsOneWidget);
+      // Attendance is an everyone-tab; the floor can always open it.
+      expect(find.text('Attendance'), findsOneWidget);
       expect(find.text('Report'), findsNothing);
       expect(find.text('Settings'), findsNothing);
     });
 
-    testWidgets('a step-up grant shows all five tabs', (tester) async {
+    testWidgets('a step-up grant shows all six tabs', (tester) async {
       await pumpBar(tester, elevated: true);
-      expect(find.byType(PosNavPill), findsNWidgets(5));
+      expect(find.byType(PosNavPill), findsNWidgets(6));
     });
   });
 

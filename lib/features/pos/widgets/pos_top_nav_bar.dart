@@ -80,14 +80,18 @@ const List<PosNavItem> kPosNavItems = [
   PosNavItem(label: 'Report', path: PosRoutes.report),
   PosNavItem(label: 'Orders', path: PosRoutes.orders),
   PosNavItem(label: 'Receipts', path: PosRoutes.receipts),
+  PosNavItem(label: 'Attendance', path: PosRoutes.attendance),
   PosNavItem(label: 'Settings', path: PosRoutes.settings),
 ];
 
-/// Tabs every staff member can reach regardless of role.
+/// Tabs every staff member can reach regardless of role. Attendance is here
+/// because the floor can always open it -- an employee just sees their own
+/// punches, decided server-side; it is not a manager-only tab.
 const Set<String> _kAlwaysVisiblePaths = {
   PosRoutes.home,
   PosRoutes.orders,
   PosRoutes.receipts,
+  PosRoutes.attendance,
 };
 
 /// [kPosNavItems], filtered to what the signed-in staff member (or a

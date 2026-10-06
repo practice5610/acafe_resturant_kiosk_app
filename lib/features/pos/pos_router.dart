@@ -1,5 +1,11 @@
+import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
+import 'package:acafe_customer/di_container.dart' as di;
+import 'package:acafe_customer/features/pos/domain/pos_attendance.dart';
+import 'package:acafe_customer/features/pos/domain/pos_attendance_source.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/providers/pos_attendance_provider.dart';
+import 'package:acafe_customer/features/pos/screens/pos_attendance_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_browse_products_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_cash_payment_entry_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_home_cart_screen.dart';
@@ -15,6 +21,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 /// The POS route table, spliced into the app's single [GoRouter].
 ///
@@ -66,6 +73,10 @@ class PosRouter {
               builder: (context, state) => const PosReceiptsScreen(),
             ),
             GoRoute(
+              path: PosRoutes.attendance,
+              builder: (context, state) => const _PosAttendanceHost(),
+            ),
+            GoRoute(
               path: PosRoutes.settings,
               builder: (context, state) => const PosSettingsScreen(),
             ),
@@ -92,6 +103,39 @@ class PosRouter {
           builder: (context, state) => const PosPaymentSuccessScreen(),
         ),
       ];
+}
+
+/// Scopes a [PosAttendanceProvider] to the Attendance tab and loads it, the
+/// same host pattern the Settings sections use. The repo is device-authenticated
+/// through the shared [DioClient]; if that is somehow not registered the screen
+/// falls back to a source that always fails, so it shows a retry rather than
+/// crashing the till.
+class _PosAttendanceHost extends StatelessWidget {
+  const _PosAttendanceHost();
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider<PosAttendanceProvider>(
+      create: (_) {
+        final PosAttendanceSource source =
+            di.sl.isRegistered<DioClient>()
+                ? PosAttendanceRepo(dioClient: di.sl<DioClient>())
+                : const _UnavailableAttendanceSource();
+        return PosAttendanceProvider(source: source)..load();
+      },
+      child: const PosAttendanceScreen(),
+    );
+  }
+}
+
+/// Stand-in used only if the Dio client is not registered: every read fails, so
+/// the screen offers a retry instead of throwing.
+class _UnavailableAttendanceSource implements PosAttendanceSource {
+  const _UnavailableAttendanceSource();
+
+  @override
+  Future<PosAttendance?> getAttendance({String? date, int? employeeId}) async =>
+      null;
 }
 
 /// Persistent POS chrome: the top nav bar above the routed tab content.

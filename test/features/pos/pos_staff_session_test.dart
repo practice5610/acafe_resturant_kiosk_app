@@ -90,8 +90,11 @@ void main() {
       expect(on.can('close_day'), isFalse);
       expect(on.canSeeReport, isFalse);
       expect(on.canSeeSettings, isFalse);
+      // Attendance is always visible: a cashier can open it and see their own
+      // punches (scope is decided server-side), so it sits with the other
+      // everyone-tabs, unlike Report/Settings which stay manager-gated.
       expect(visiblePosNavItemsFor(on).map((i) => i.path),
-          [PosRoutes.home, PosRoutes.orders, PosRoutes.receipts]);
+          [PosRoutes.home, PosRoutes.orders, PosRoutes.receipts, PosRoutes.attendance]);
     });
 
     test('each manager tab follows its own permission', () {

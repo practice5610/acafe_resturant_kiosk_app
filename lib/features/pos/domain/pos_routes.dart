@@ -24,6 +24,7 @@ class PosRoutes {
   static const String report = '/pos-report';
   static const String orders = '/pos-orders';
   static const String receipts = '/pos-receipts';
+  static const String attendance = '/pos-attendance';
   static const String settings = '/pos-settings';
 
   // Payment flow (full-screen, outside the shell chrome)
