@@ -40,6 +40,32 @@ class PosAttendance {
 
   bool get isManager => scope == 'manager';
 
+  /// Rows grouped under one heading per employee, in first-seen order -- the
+  /// Planday Timesheets shape, where a name appears once with that person's
+  /// punches listed beneath it.
+  List<PosAttendanceGroup> get groups {
+    final List<PosAttendanceGroup> out = [];
+    final Map<int, int> indexById = {};
+
+    for (final row in rows) {
+      final int id = row.plandayEmployeeId;
+      final int? at = indexById[id];
+      if (at == null) {
+        indexById[id] = out.length;
+        out.add(PosAttendanceGroup(
+          plandayEmployeeId: id,
+          name: row.name,
+          role: row.role,
+          rows: [row],
+        ));
+      } else {
+        out[at].rows.add(row);
+      }
+    }
+
+    return out;
+  }
+
   static PosAttendance? fromJson(Object? json) {
     if (json is! Map) return null;
 
@@ -69,6 +95,30 @@ class PosAttendance {
           : const [],
     );
   }
+}
+
+/// One employee's punches for the day, grouped under a single heading -- the
+/// Planday Timesheets shape (name once, rows beneath).
+class PosAttendanceGroup {
+  final int plandayEmployeeId;
+  final String name;
+  final String? role;
+  final List<PosAttendanceRow> rows;
+
+  PosAttendanceGroup({
+    required this.plandayEmployeeId,
+    required this.name,
+    required this.role,
+    required this.rows,
+  });
+
+  int get shiftCount => rows.length;
+
+  /// Minutes worked across closed shifts; open shifts contribute nothing.
+  int get totalMinutes =>
+      rows.fold(0, (sum, r) => sum + (r.workedMinutes ?? 0));
+
+  bool get hasOpenShift => rows.any((r) => r.isOpen);
 }
 
 /// One staff member in the manager's filter.

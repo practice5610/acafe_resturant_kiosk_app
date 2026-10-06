@@ -219,53 +219,100 @@ class _Body extends StatelessWidget {
       );
     }
 
+    final groups = model.groups;
+
     return ListView.separated(
-      itemCount: model.rows.length,
-      separatorBuilder: (_, __) => const SizedBox(height: PosUI.gutterTight),
-      itemBuilder: (context, i) => _AttendanceRowCard(row: model.rows[i]),
+      itemCount: groups.length,
+      separatorBuilder: (_, __) => const SizedBox(height: PosUI.gutter),
+      itemBuilder: (context, i) => _EmployeeCard(group: groups[i]),
     );
   }
 }
 
-class _AttendanceRowCard extends StatelessWidget {
-  final PosAttendanceRow row;
+/// One employee's punches for the day, grouped under a single heading -- the
+/// Planday Timesheets shape: the name once, the shifts listed beneath it.
+class _EmployeeCard extends StatelessWidget {
+  final PosAttendanceGroup group;
 
-  const _AttendanceRowCard({required this.row});
+  const _EmployeeCard({required this.group});
+
+  String _totalLabel() {
+    final int m = group.totalMinutes;
+    final String worked = m < 60 ? '${m}m' : '${m ~/ 60}h ${m % 60}m';
+    final String shifts = '${group.shiftCount} ${group.shiftCount == 1 ? 'shift' : 'shifts'}';
+    return group.hasOpenShift ? '$shifts · $worked so far' : '$shifts · $worked';
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      key: ValueKey('attendance-row-${row.plandayEmployeeId}-${row.clockIn}'),
-      padding: const EdgeInsets.all(PosUI.gutterTight),
+      key: ValueKey('attendance-group-${group.plandayEmployeeId}'),
       decoration: BoxDecoration(
         color: PosUI.surface,
         borderRadius: BorderRadius.circular(PosUI.radius),
         border: Border.all(color: PosUI.border),
       ),
-      child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Heading: avatar + name + role on the left, the day's total on the
+          // right. Sits on a sunken band so it reads as the group's header.
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: PosUI.gutterTight, vertical: 12),
+            color: PosUI.surfaceSunken,
+            child: Row(
               children: [
-                Text(row.name,
-                    style: loewBold.copyWith(
-                        fontSize: PosUI.bodySize, color: PosUI.ink)),
-                if ((row.role ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(row.role!,
-                        style: loewRegular.copyWith(
-                            fontSize: PosUI.captionSize, color: PosUI.inkMuted)),
+                _InitialsAvatar(name: group.name),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(group.name,
+                          style: loewBold.copyWith(
+                              fontSize: PosUI.bodySize, color: PosUI.ink)),
+                      if ((group.role ?? '').isNotEmpty)
+                        Text(group.role!,
+                            style: loewRegular.copyWith(
+                                fontSize: PosUI.captionSize,
+                                color: PosUI.inkMuted)),
+                    ],
                   ),
+                ),
+                Text(_totalLabel(),
+                    style: loewMedium.copyWith(
+                        fontSize: PosUI.captionSize, color: PosUI.inkMuted)),
               ],
             ),
           ),
-          Expanded(
-            flex: 3,
-            child: _TimeBlock(row: row),
-          ),
+          // The punches, one row each, divided like Planday's timesheet rows.
+          for (int i = 0; i < group.rows.length; i++) ...[
+            if (i > 0) const Divider(height: 1, color: PosUI.border),
+            _PunchRow(row: group.rows[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A single punch line inside an employee card: clock in → out, the worked
+/// time, and the status chip.
+class _PunchRow extends StatelessWidget {
+  final PosAttendanceRow row;
+
+  const _PunchRow({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: PosUI.gutterTight, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(flex: 4, child: _TimeBlock(row: row)),
           Expanded(
             flex: 2,
             child: Align(
@@ -275,6 +322,32 @@ class _AttendanceRowCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A small circular initials badge, matching the nav avatar's look.
+class _InitialsAvatar extends StatelessWidget {
+  final String name;
+
+  const _InitialsAvatar({required this.name});
+
+  String get _initials {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+    return (parts.first.characters.first + parts.last.characters.first).toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(color: PosUI.accent, shape: BoxShape.circle),
+      child: Text(_initials,
+          style: loewBold.copyWith(fontSize: 13, color: PosUI.ink, height: 1.0)),
     );
   }
 }

@@ -172,6 +172,46 @@ void main() {
     expect(find.byKey(const Key('pos-attendance-retry')), findsOneWidget);
   });
 
+  test('rows are grouped under one heading per employee', () {
+    final att = _attendance(rows: [
+      _row(111, 'Mary Manager', role: 'Branch Manager'),
+      _row(111, 'Mary Manager', role: 'Branch Manager', clockOut: null, isOpen: true, workedLabel: null, workedMinutes: null, status: 'active'),
+      _row(222, 'John Employee', role: 'Employee', workedMinutes: 60),
+    ]);
+
+    final groups = att.groups;
+
+    expect(groups.length, 2);
+    expect(groups.first.name, 'Mary Manager');
+    expect(groups.first.shiftCount, 2);
+    expect(groups.first.hasOpenShift, isTrue);
+    expect(groups.first.totalMinutes, 480); // open shift contributes nothing
+    expect(groups[1].name, 'John Employee');
+    expect(groups[1].shiftCount, 1);
+  });
+
+  testWidgets('an employee with several punches shows their name once',
+      (tester) async {
+    final source = _FakeAttendanceSource(_attendance(
+      scope: 'self',
+      rows: [
+        _row(222, 'John Employee', role: 'Employee'),
+        _row(222, 'John Employee', role: 'Employee'),
+        _row(222, 'John Employee', role: 'Employee',
+            clockOut: null, isOpen: true, workedLabel: null, workedMinutes: null, status: 'active'),
+      ],
+    ));
+    final provider = PosAttendanceProvider(source: source);
+    await provider.load();
+
+    await _pump(tester, provider);
+
+    // Grouped like Planday: the name heads the group once, not once per row.
+    expect(find.text('John Employee'), findsOneWidget);
+    // All three punches are still shown beneath it.
+    expect(find.textContaining('Still in'), findsOneWidget);
+  });
+
   test('prev/next/today move the requested date', () async {
     final source = _FakeAttendanceSource(_attendance());
     final provider = PosAttendanceProvider(
