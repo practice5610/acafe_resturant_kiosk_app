@@ -221,12 +221,34 @@ class _Body extends StatelessWidget {
 
     final groups = model.groups;
 
-    return ListView.separated(
-      itemCount: groups.length,
-      separatorBuilder: (_, __) => const SizedBox(height: PosUI.gutter),
-      itemBuilder: (context, i) => _EmployeeCard(group: groups[i]),
+    // No overscroll glow/stretch and no desktop scrollbar: dragging the list
+    // past its edge should not paint a grey indicator over the page.
+    return ScrollConfiguration(
+      behavior: const _NoGlowScrollBehavior(),
+      child: ListView.separated(
+        itemCount: groups.length,
+        separatorBuilder: (_, __) => const SizedBox(height: PosUI.gutter),
+        itemBuilder: (context, i) => _EmployeeCard(group: groups[i]),
+      ),
     );
   }
+}
+
+/// Removes the overscroll glow/stretch (and the desktop scrollbar) so dragging
+/// the attendance list past its edge paints nothing over the page -- same clean
+/// treatment the kiosk menu uses.
+class _NoGlowScrollBehavior extends ScrollBehavior {
+  const _NoGlowScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+          BuildContext context, Widget child, ScrollableDetails details) =>
+      child;
+
+  @override
+  Widget buildScrollbar(
+          BuildContext context, Widget child, ScrollableDetails details) =>
+      child;
 }
 
 /// One employee's punches for the day, grouped under a single heading -- the
