@@ -27,6 +27,11 @@ class PosRoutes {
   static const String attendance = '/pos-attendance';
   static const String settings = '/pos-settings';
 
+  /// Punch In / Out. A shell tab (keeps the top nav) reached from the category
+  /// sidebar, not a nav pill. Open to every staff member — not in
+  /// [PosRoutePolicy.managerOnlyPaths].
+  static const String punch = '/pos-punch';
+
   // Payment flow (full-screen, outside the shell chrome)
   static const String payment = '/pos-payment';
   static const String paymentCash = '/pos-payment-cash';

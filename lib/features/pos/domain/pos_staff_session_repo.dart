@@ -222,12 +222,14 @@ class PosStaffSessionRepo {
     }
   }
 
-  /// Tells the backend the current staff member signed out, which is what fires
-  /// the Planday punch-out. The staff token is passed explicitly rather than
-  /// left to the interceptor: the session is usually being torn down at the same
-  /// moment, so by the time this request is actually sent `provider.token` may
-  /// already be cleared. Fire-and-forget and error-swallowing -- logout must
-  /// never wait for or fail because of this call.
+  /// Tells the backend the current staff member signed out, so the session is
+  /// torn down cleanly. This no longer fires a Planday punch-out -- attendance
+  /// is a deliberate action on the Punch screen, not a side effect of logout.
+  /// The staff token is passed explicitly rather than left to the interceptor:
+  /// the session is usually being torn down at the same moment, so by the time
+  /// this request is actually sent `provider.token` may already be cleared.
+  /// Fire-and-forget and error-swallowing -- logout must never wait for or fail
+  /// because of this call.
   Future<void> signOut({String? staffToken}) async {
     final DioClient? client = dioClient;
     if (client == null) return;

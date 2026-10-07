@@ -535,6 +535,11 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
                   categories: categories,
                   selectedId: selectedId,
                   onSelect: _selectCategory,
+                  // push (not go) so the till screen stays mounted underneath:
+                  // returning restores the exact POS state -- cart, category,
+                  // search text and tag filter -- not just the provider-backed
+                  // parts. See PosPunchScreen._backToPos.
+                  onPunch: () => context.push(PosRoutes.punch),
                   width: sidebarWidth,
                 ),
                 Expanded(

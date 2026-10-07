@@ -13,6 +13,12 @@ class PosCategorySidebar extends StatelessWidget {
   final String? selectedId;
   final ValueChanged<CategoryModel> onSelect;
 
+  /// Tapped to open the Punch In / Out screen. Optional: when null (every
+  /// existing caller and the widget's own tests) the action is not rendered, so
+  /// the sidebar is unchanged for them. The one caller that passes it is
+  /// `pos_home_cart_screen.dart`.
+  final VoidCallback? onPunch;
+
   /// Pane width. Defaults to the flat Figma value — the only width this
   /// widget ever drew before the desktop-floor refactor — so every other
   /// caller (and every existing test that constructs this widget directly)
@@ -26,6 +32,7 @@ class PosCategorySidebar extends StatelessWidget {
     required this.categories,
     required this.selectedId,
     required this.onSelect,
+    this.onPunch,
     this.width = PosHomeSpec.sidebarWidth,
   });
 
@@ -42,22 +49,102 @@ class PosCategorySidebar extends StatelessWidget {
           ),
         ),
       ),
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-        child: ListView.separated(
-          padding: PosHomeSpec.sidebarPadding,
-          itemCount: categories.length,
-          separatorBuilder: (_, __) =>
-              const SizedBox(height: PosHomeSpec.sidebarItemGap),
-          itemBuilder: (context, index) {
-            final category = categories[index];
-            return PosCategoryItem(
-              label: category.name ?? '',
-              selected: '${category.id}' == selectedId,
-              onTap: () => onSelect(category),
-            );
-          },
-        ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ScrollConfiguration(
+              behavior:
+                  ScrollConfiguration.of(context).copyWith(scrollbars: false),
+              child: ListView.separated(
+                padding: PosHomeSpec.sidebarPadding,
+                itemCount: categories.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: PosHomeSpec.sidebarItemGap),
+                itemBuilder: (context, index) {
+                  final category = categories[index];
+                  return PosCategoryItem(
+                    label: category.name ?? '',
+                    selected: '${category.id}' == selectedId,
+                    onTap: () => onSelect(category),
+                  );
+                },
+              ),
+            ),
+          ),
+          if (onPunch != null) _PosSidebarPunchAction(onTap: onPunch!),
+        ],
+      ),
+    );
+  }
+}
+
+/// The Punch In / Out entry, pinned below the categories. Styled from the same
+/// sidebar tokens so it reads as part of the rail, but outlined rather than
+/// filled so it is clearly an action, not another category (a filled tile is
+/// how the rail draws the *selected* category).
+class _PosSidebarPunchAction extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _PosSidebarPunchAction({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Opacity(
+            opacity: PosHomeSpec.sidebarRuleOpacity,
+            child: SizedBox(
+              height: PosHomeSpec.sidebarRuleHeight,
+              width: double.infinity,
+              child: ColoredBox(color: PosHomeSpec.ink),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Material(
+            key: const Key('pos-sidebar-punch'),
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(PosHomeSpec.sidebarItemRadius),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius:
+                  BorderRadius.circular(PosHomeSpec.sidebarItemRadius),
+              child: Container(
+                height: PosHomeSpec.sidebarItemHeight,
+                decoration: BoxDecoration(
+                  borderRadius:
+                      BorderRadius.circular(PosHomeSpec.sidebarItemRadius),
+                  border: Border.all(
+                    color: PosHomeSpec.ink,
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.schedule_rounded,
+                        size: 20, color: PosHomeSpec.ink),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        'Punch In / Out'.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: loewBold.copyWith(
+                          fontSize: 13,
+                          color: PosHomeSpec.ink,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

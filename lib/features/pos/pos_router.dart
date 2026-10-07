@@ -2,6 +2,7 @@ import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/pos/domain/pos_attendance.dart';
 import 'package:acafe_customer/features/pos/domain/pos_attendance_source.dart';
+import 'package:acafe_customer/features/pos/domain/pos_punch_source.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/providers/pos_attendance_provider.dart';
@@ -12,6 +13,7 @@ import 'package:acafe_customer/features/pos/screens/pos_home_cart_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_orders_list_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_success_screen.dart';
+import 'package:acafe_customer/features/pos/screens/pos_punch_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_receipts_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_report_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_settings_screen.dart';
@@ -77,6 +79,10 @@ class PosRouter {
               builder: (context, state) => const _PosAttendanceHost(),
             ),
             GoRoute(
+              path: PosRoutes.punch,
+              builder: (context, state) => const _PosPunchHost(),
+            ),
+            GoRoute(
               path: PosRoutes.settings,
               builder: (context, state) => const PosSettingsScreen(),
             ),
@@ -136,6 +142,22 @@ class _UnavailableAttendanceSource implements PosAttendanceSource {
   @override
   Future<PosAttendance?> getAttendance({String? date, int? employeeId}) async =>
       null;
+}
+
+/// Hands the Punch screen a device-authenticated [PosPunchRepo], the same way
+/// [_PosAttendanceHost] does. If the Dio client is somehow not registered the
+/// screen gets a source whose every punch reports "unavailable", so it shows an
+/// error rather than crashing the till.
+class _PosPunchHost extends StatelessWidget {
+  const _PosPunchHost();
+
+  @override
+  Widget build(BuildContext context) {
+    final PosPunchSource source = di.sl.isRegistered<DioClient>()
+        ? PosPunchRepo(dioClient: di.sl<DioClient>())
+        : const PosPunchRepo();
+    return PosPunchScreen(source: source);
+  }
 }
 
 /// Persistent POS chrome: the top nav bar above the routed tab content.
