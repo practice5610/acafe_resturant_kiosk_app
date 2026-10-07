@@ -207,26 +207,26 @@ void main() {
         reason: 'and the Extra Shot');
   });
 
-  testWidgets('the cart "+" opens a BLANK configuration, nothing pre-selected',
+  testWidgets('the cart "+" pre-fills the line\'s picks (no cartIndex)',
       (tester) async {
-    // `pos_home_cart_screen._incrementLine` on a customisable line opens a
-    // blank customize for the same product (openPosCustomize with no cart/
-    // index) -- "+" means add another with fresh choices, not a copy of this
-    // line's picks.
+    // `pos_home_cart_screen._incrementLine` on a customisable line reopens the
+    // customize screen PRE-FILLED with the line's picks, so the operator can see
+    // what was chosen -- it passes the line via `cart:` but NO `cartIndex`, so
+    // saving stays on the ADD path (changing an option lands a separate line).
     final Product product = _americano();
     final CartModel line = _largeRegularWithShot(product);
     final (ctx, _, productProvider) = await pumpHost(tester, [line]);
 
-    openPosCustomize(ctx, product);
+    openPosCustomize(ctx, product, cart: line);
     await tester.pump();
     await tester.pump();
 
-    expect(productProvider.selectedVariations[0], [false, false],
-        reason: 'no size pre-selected');
-    expect(productProvider.selectedVariations[1], [false, false],
-        reason: 'no milk pre-selected');
-    expect(productProvider.addOnActiveList, [false, false],
-        reason: "the line's Extra Shot must not carry over");
+    expect(productProvider.selectedVariations[0], [true, false],
+        reason: '"+" restores Large');
+    expect(productProvider.selectedVariations[1], [true, false],
+        reason: 'and Regular Milk');
+    expect(productProvider.addOnActiveList, [true, false],
+        reason: "and the line's Extra Shot is shown");
     expect(productProvider.quantity, 1);
   });
 

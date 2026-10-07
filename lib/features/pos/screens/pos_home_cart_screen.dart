@@ -338,13 +338,15 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
 
     final Product? product = line.product;
     if (product != null && _lineIsCustomisable(line)) {
-      // Open a BLANK configuration for the same product -- "+" means "add
-      // another", with its own fresh choices, not a copy of this line's picks.
-      // Nothing is pre-selected; saving lands as a new line unless the operator
-      // happens to rebuild the exact same configuration.
+      // Reopen the customize screen PRE-FILLED with this line's picks (size,
+      // variations, add-ons) by handing it the line via `cart:`, so the operator
+      // can see what was already chosen. We deliberately pass NO `cartIndex`, so
+      // it stays on the ADD path: an unchanged save folds back onto this line
+      // (quantity +1); changing a variation or add-on lands a separate line.
       openPosCustomize(
         context,
         product,
+        cart: line,
         customerNameController: _customerName,
         tableController: _table,
         orderType: _orderType,

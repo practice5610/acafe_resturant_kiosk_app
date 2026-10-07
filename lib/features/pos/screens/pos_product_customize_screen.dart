@@ -368,10 +368,10 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
     Navigator.of(context).pop();
   }
 
-  /// Mirrors the home cart's "+": a customisable product line opens a BLANK
-  /// customize screen for the same product (nothing pre-selected) so the
-  /// operator makes fresh choices for the extra cup; an unchanged rebuild folds
-  /// back onto the line, a changed one lands as a separate line.
+  /// Mirrors the home cart's "+": a customisable product line reopens the
+  /// customize screen pre-filled with this line's picks so the operator can see
+  /// what was chosen; an unchanged save folds back onto the line, a changed one
+  /// lands as a separate line.
   bool _lineIsCustomisable(CartModel line) {
     if (line.isDeal) return false;
     final Product? product = line.product;
@@ -388,9 +388,14 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
 
     final Product? product = line.product;
     if (product != null && _lineIsCustomisable(line)) {
+      // Pre-fill the customize screen with this line's picks via `cart:`, with
+      // no `cartIndex` so it stays on the ADD path (see _incrementLine in
+      // pos_home_cart_screen.dart): unchanged save folds back onto the line,
+      // a changed one lands as a separate line.
       openPosCustomize(
         context,
         product,
+        cart: line,
         customerNameController: widget.customerNameController,
         tableController: widget.tableController,
         orderType: _orderType,
