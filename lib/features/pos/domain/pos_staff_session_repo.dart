@@ -181,6 +181,17 @@ class PosStaffSessionRepo {
         );
       }
 
+      // The PIN was right, but this member is attendance-only (an imported
+      // Planday employee). Say so instead of calling a valid PIN "not recognised".
+      if (status == 422 && error['code'] == 'punch-only') {
+        return (
+          null,
+          null,
+          null,
+          PosSignInResult(PosSignInOutcome.unavailable, message: message),
+        );
+      }
+
       if (status == 422) {
         return (
           null,
