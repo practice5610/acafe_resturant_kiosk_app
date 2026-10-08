@@ -143,7 +143,9 @@ void main() {
     expect(find.text('Add add-ons'), findsOneWidget);
     expect(find.text('Can or cup?'), findsOneWidget);
     expect(find.text('Purchase Receipt'), findsOneWidget);
-    expect(find.textContaining('•'), findsWidgets);
+    // Footer: price sits beside the CTA, not inside its label.
+    expect(find.text('Total'), findsWidgets);
+    expect(find.textContaining('•'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

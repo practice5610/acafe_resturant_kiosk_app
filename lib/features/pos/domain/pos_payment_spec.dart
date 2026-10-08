@@ -149,6 +149,7 @@ class PosPaymentSpec {
   static const double changeLabelHeight = 18 / 15;
   static const double changeValueSize = 20;
   static const double changeValueHeight = 24 / 20;
+
   /// `#EBF9F1` — the tint behind `change-due-banner`, paired with
   /// `PosHomeSpec.discountGreen` for its border and type.
   static const Color changeBannerFill = Color(0xFFEBF9F1);
@@ -160,6 +161,7 @@ class PosPaymentSpec {
 
   /// The unpinned summary's two internal gaps — above and below the rule.
   static const double _summaryGaps = summaryGap * 2;
+
   /// Line boxes of `PosReceiptSummary`, kept in step with `PosHomeSpec`.
   static const double _summaryRowLine = 19;
   static const double _summaryTotalLine = 29;
@@ -171,6 +173,7 @@ class PosPaymentSpec {
   static const double waitCardPaddingTop = 48;
   static const double waitCardPaddingBottom = 40;
   static const double waitCardPaddingH = 40;
+
   /// Between the dots, the heading, the amount box, the rule and the button.
   static const double waitCardGap = 36;
   static const double waitCardShadowBlur = 16;
@@ -215,21 +218,15 @@ class PosPaymentSpec {
   static const double declinedIconSize = 80.84;
   static const double declinedActionsGap = 12;
 
-  // ── sticky-bottom-bar (1641:2871) ────────────────────────────────────
-  static const double barBorderTop = 2;
-  static const double barPaddingTop = 16;
-  static const double barPaddingBottom = 24;
-  static const double barPaddingH = 32;
-  static const double confirmHeight = 64;
-  static const double confirmRadius = 32;
-  static const double confirmLabelSize = 18;
-  static const double barShadowBlur = 8;
-  static const Offset barShadowOffset = Offset(0, -6);
-  static const Color barShadow = Color(0x14241F20); // 8% ink
+  // ── sticky-bottom-bar (1641:2871), compact ───────────────────────────
+  // Hairline + fixed-width CTA, matching the customize-screen footer. The
+  // button itself is PosSettingsSaveButton.compact (PosUI.buttonHeight).
+  static const double barBorderTop = 1.5;
+  static const double barPaddingV = 16;
 
-  /// Total height the bar occupies.
-  static const double barHeight =
-      barBorderTop + barPaddingTop + confirmHeight + barPaddingBottom;
+  /// Upper end of the 280–360 CTA range; the bar is always wider than this
+  /// in the side-by-side layout (>= stackedBelowWidth).
+  static const double confirmWidth = 360;
 }
 
 /// Vertical density for the payment column.
@@ -298,10 +295,10 @@ class PosPaymentDensity {
 
   /// Every line of type in the payment card, at its authored line height.
   static double _type({required bool cash, required bool discount}) {
-    double total = PosPaymentSpec.sectionLabelSize *
-            PosPaymentSpec.sectionLabelHeight +
-        PosPaymentSpec._summaryRowLine +
-        PosPaymentSpec._summaryTotalLine;
+    double total =
+        PosPaymentSpec.sectionLabelSize * PosPaymentSpec.sectionLabelHeight +
+            PosPaymentSpec._summaryRowLine +
+            PosPaymentSpec._summaryTotalLine;
     if (discount) {
       total += PosPaymentSpec.summaryGap + PosPaymentSpec._summaryRowLine;
     }

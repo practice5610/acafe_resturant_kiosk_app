@@ -2,6 +2,7 @@ import 'package:acafe_customer/features/pos/domain/pos_attendance.dart';
 import 'package:acafe_customer/features/pos/domain/pos_attendance_source.dart';
 import 'package:acafe_customer/features/pos/providers/pos_attendance_provider.dart';
 import 'package:acafe_customer/features/pos/screens/pos_attendance_screen.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -100,6 +101,44 @@ void main() {
     expect(find.text('John Employee'), findsOneWidget);
     // A manager with linked staff gets the per-employee filter.
     expect(find.byKey(const Key('pos-attendance-employee-filter')), findsOneWidget);
+  });
+
+  testWidgets('staff filter opens below the field and filters by employee',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final source = _FakeAttendanceSource(_attendance(
+      scope: 'manager',
+      employees: const [
+        PosAttendanceEmployee(plandayEmployeeId: 111, name: 'Mary Manager'),
+        PosAttendanceEmployee(plandayEmployeeId: 222, name: 'John Employee'),
+      ],
+      rows: [
+        _row(111, 'Mary Manager', role: 'Branch Manager'),
+        _row(222, 'John Employee', role: 'Employee'),
+      ],
+    ));
+    final provider = PosAttendanceProvider(source: source);
+    await provider.load();
+    await _pump(tester, provider);
+
+    final filter = find.byKey(const Key('pos-attendance-employee-filter'));
+    final Rect field = tester.getRect(filter);
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+
+    // The bug: Material's DropdownButton painted its menu over the field.
+    final Rect menu = tester.getRect(find.byKey(PosDropdown.menuKey));
+    expect(menu.top, greaterThanOrEqualTo(field.bottom));
+    expect(menu.overlaps(field), isFalse);
+
+    await tester.tap(find.byKey(PosDropdown.itemKey(2)));
+    await tester.pumpAndSettle();
+    expect(provider.employeeFilter, 222);
+    expect(source.lastEmployeeId, 222);
+    expect(find.byKey(PosDropdown.menuKey), findsNothing);
   });
 
   testWidgets('employee view shows only their own row and no filter',

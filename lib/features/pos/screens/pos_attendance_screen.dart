@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_attendance.dart';
 import 'package:acafe_customer/features/pos/providers/pos_attendance_provider.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -92,7 +93,8 @@ class _Header extends StatelessWidget {
               onTap: () => _pickDate(context),
               borderRadius: BorderRadius.circular(PosUI.radius),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: PosUI.surface,
                   borderRadius: BorderRadius.circular(PosUI.radius),
@@ -144,39 +146,59 @@ class _EmployeeFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-      decoration: BoxDecoration(
-        color: PosUI.surface,
-        borderRadius: BorderRadius.circular(PosUI.radius),
-        border: Border.all(color: PosUI.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int?>(
+    final TextStyle style =
+        loewMedium.copyWith(fontSize: PosUI.captionSize, color: PosUI.ink);
+
+    // Shared POS select: the menu opens *below* this field in the root
+    // overlay instead of Material's DropdownButton painting over it.
+    return PosDropdown<int?>(
+      value: provider.employeeFilter,
+      onChanged: provider.setEmployeeFilter,
+      options: [
+        const PosDropdownOption<int?>(value: null, label: 'All staff'),
+        for (final e in model.employees)
+          PosDropdownOption<int?>(value: e.plandayEmployeeId, label: e.name),
+      ],
+      triggerBuilder: (context, selected, isOpen, toggle) {
+        return Material(
           key: const Key('pos-attendance-employee-filter'),
-          value: provider.employeeFilter,
-          hint: Text('All staff',
-              style:
-                  loewMedium.copyWith(fontSize: PosUI.captionSize, color: PosUI.ink)),
-          icon: const Icon(Icons.expand_more_rounded, color: PosUI.ink),
-          items: [
-            DropdownMenuItem<int?>(
-              value: null,
-              child: Text('All staff',
-                  style: loewMedium.copyWith(
-                      fontSize: PosUI.captionSize, color: PosUI.ink)),
-            ),
-            for (final e in model.employees)
-              DropdownMenuItem<int?>(
-                value: e.plandayEmployeeId,
-                child: Text(e.name,
-                    style: loewMedium.copyWith(
-                        fontSize: PosUI.captionSize, color: PosUI.ink)),
+          color: PosUI.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(PosUI.radius),
+            side: BorderSide(color: isOpen ? PosUI.ink : PosUI.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: toggle,
+            child: SizedBox(
+              width: 240,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        selected?.label ?? 'All staff',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: style,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    AnimatedRotation(
+                      turns: isOpen ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 140),
+                      child: const Icon(Icons.expand_more_rounded,
+                          color: PosUI.ink),
+                    ),
+                  ],
+                ),
               ),
-          ],
-          onChanged: provider.setEmployeeFilter,
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -206,7 +228,9 @@ class _Body extends StatelessWidget {
     // Server-driven empty states each carry their own message.
     if (!model.plandayEnabled || !model.linked || !model.reachable) {
       return _EmptyState(
-        icon: !model.reachable ? Icons.cloud_off_rounded : Icons.info_outline_rounded,
+        icon: !model.reachable
+            ? Icons.cloud_off_rounded
+            : Icons.info_outline_rounded,
         message: model.message ?? 'No attendance to show.',
         onRetry: !model.reachable ? provider.load : null,
       );
@@ -261,8 +285,11 @@ class _EmployeeCard extends StatelessWidget {
   String _totalLabel() {
     final int m = group.totalMinutes;
     final String worked = m < 60 ? '${m}m' : '${m ~/ 60}h ${m % 60}m';
-    final String shifts = '${group.shiftCount} ${group.shiftCount == 1 ? 'shift' : 'shifts'}';
-    return group.hasOpenShift ? '$shifts · $worked so far' : '$shifts · $worked';
+    final String shifts =
+        '${group.shiftCount} ${group.shiftCount == 1 ? 'shift' : 'shifts'}';
+    return group.hasOpenShift
+        ? '$shifts · $worked so far'
+        : '$shifts · $worked';
   }
 
   @override
@@ -355,10 +382,12 @@ class _InitialsAvatar extends StatelessWidget {
   const _InitialsAvatar({required this.name});
 
   String get _initials {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-    return (parts.first.characters.first + parts.last.characters.first).toUpperCase();
+    return (parts.first.characters.first + parts.last.characters.first)
+        .toUpperCase();
   }
 
   @override
@@ -367,9 +396,11 @@ class _InitialsAvatar extends StatelessWidget {
       width: 36,
       height: 36,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(color: PosUI.accent, shape: BoxShape.circle),
+      decoration:
+          const BoxDecoration(color: PosUI.accent, shape: BoxShape.circle),
       child: Text(_initials,
-          style: loewBold.copyWith(fontSize: 13, color: PosUI.ink, height: 1.0)),
+          style:
+              loewBold.copyWith(fontSize: 13, color: PosUI.ink, height: 1.0)),
     );
   }
 }
@@ -388,8 +419,8 @@ class _TimeBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(inOut,
-            style:
-                loewMedium.copyWith(fontSize: PosUI.bodySize, color: PosUI.ink)),
+            style: loewMedium.copyWith(
+                fontSize: PosUI.bodySize, color: PosUI.ink)),
         const SizedBox(height: 2),
         Text(
           row.isOpen
@@ -428,8 +459,7 @@ class _StatusChip extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(label,
-          style: loewBold.copyWith(fontSize: 12, color: fg)),
+      child: Text(label, style: loewBold.copyWith(fontSize: 12, color: fg)),
     );
   }
 }
@@ -459,8 +489,8 @@ class _EmptyState extends StatelessWidget {
               key: const Key('pos-attendance-retry'),
               onPressed: onRetry,
               child: Text('Retry',
-                  style:
-                      loewBold.copyWith(fontSize: PosUI.bodySize, color: PosUI.ink)),
+                  style: loewBold.copyWith(
+                      fontSize: PosUI.bodySize, color: PosUI.ink)),
             ),
           ],
         ],

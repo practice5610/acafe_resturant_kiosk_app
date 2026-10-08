@@ -20,6 +20,8 @@ import 'package:acafe_customer/features/pos/widgets/pos_coupon_apply_dialog.dart
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_settings_save_button.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
@@ -558,8 +560,11 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
                 PriceConverterHelper.convertPrice(lineTotal);
             final String addLabel =
                 (getTranslated('add_to_cart', context) ?? 'Add to Cart').trim();
-            final String ctaLabel =
-                '${addLabel.isEmpty ? 'ADD TO CART' : addLabel.toUpperCase()}  •  $priceLabel';
+            final String ctaLabel = addLabel.isEmpty ? 'Add to Cart' : addLabel;
+            // Same rules _addToCart validates with, so the dimmed state and
+            // the tap-time guidance can never disagree.
+            final bool ready =
+                firstInvalidProductSection(_product, productProvider) == null;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -575,6 +580,12 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
                           sections: sections,
                           sectionKey: _sectionKey,
                           onBack: () => Navigator.of(context).pop(),
+                          footer: _AddToCartFooter(
+                            priceLabel: priceLabel,
+                            label: ctaLabel,
+                            ready: ready,
+                            onTap: () => _addToCart(productProvider),
+                          ),
                         ),
                       ),
                       if (sideReceipt)
@@ -592,10 +603,6 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
                     ],
                   ),
                 ),
-                _AddToCartFooter(
-                  label: ctaLabel,
-                  onTap: () => _addToCart(productProvider),
-                ),
               ],
             );
           },
@@ -605,45 +612,91 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
   }
 }
 
+/// Sticky footer of the customize pane only — the receipt panel runs to the
+/// bottom of the screen beside it. Line total on the left, a fixed-width CTA
+/// on the right; below [_narrowPane] the CTA takes the remaining width.
 class _AddToCartFooter extends StatelessWidget {
+  static const double _narrowPane = 900;
+  static const double _ctaMinWidth = 280;
+  static const double _ctaMaxWidth = 360;
+
+  final String priceLabel;
   final String label;
+  final bool ready;
   final VoidCallback onTap;
 
-  const _AddToCartFooter({required this.label, required this.onTap});
+  const _AddToCartFooter({
+    required this.priceLabel,
+    required this.label,
+    required this.ready,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: PosCustomizeSpec.footerHeight,
-      padding: const EdgeInsets.symmetric(
-        horizontal: PosCustomizeSpec.footerPadH,
-        vertical: PosCustomizeSpec.footerPadV,
-      ),
+    return DecoratedBox(
       decoration: const BoxDecoration(
         color: PosCustomizeSpec.pageBg,
         border: Border(
           top: BorderSide(
-            color: PosCustomizeSpec.mutedBorder,
+            color: PosUI.border,
             width: PosCustomizeSpec.footerBorder,
           ),
         ),
       ),
-      child: Material(
-        color: PosCustomizeSpec.ink,
-        borderRadius: BorderRadius.circular(PosCustomizeSpec.ctaRadius),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(PosCustomizeSpec.ctaRadius),
-          child: Center(
-            child: Text(
-              label,
-              style: loewExtraBold.copyWith(
-                fontSize: PosCustomizeSpec.ctaLabelSize,
-                letterSpacing: PosCustomizeSpec.ctaLetterSpacing,
-                color: PosCustomizeSpec.plusLabel,
-              ),
-            ),
-          ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: PosCustomizeSpec.panePadding,
+          vertical: PosCustomizeSpec.footerPadV,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bool narrow =
+                constraints.maxWidth + 2 * PosCustomizeSpec.panePadding <
+                    _narrowPane;
+            final Widget cta = PosSettingsSaveButton.compact(
+              label: label,
+              enabled: ready,
+              onPressed: onTap,
+            );
+            return Row(
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total',
+                      style: loewMedium.copyWith(
+                        fontSize: PosUI.captionSize,
+                        color: PosUI.inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      priceLabel,
+                      style: loewExtraBold.copyWith(
+                        fontSize: PosCustomizeSpec.titleSize,
+                        height: 1.1,
+                        color: PosCustomizeSpec.ink,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: PosUI.gutter),
+                if (narrow)
+                  Expanded(child: cta)
+                else ...[
+                  const Spacer(),
+                  SizedBox(
+                    width: (constraints.maxWidth * 0.4)
+                        .clamp(_ctaMinWidth, _ctaMaxWidth),
+                    child: cta,
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -656,6 +709,7 @@ class _CustomizePane extends StatelessWidget {
   final KioskCustomizeSections sections;
   final GlobalKey Function(ProductSectionRef) sectionKey;
   final VoidCallback onBack;
+  final Widget footer;
 
   const _CustomizePane({
     required this.product,
@@ -663,6 +717,7 @@ class _CustomizePane extends StatelessWidget {
     required this.sections,
     required this.sectionKey,
     required this.onBack,
+    required this.footer,
   });
 
   @override
@@ -678,110 +733,125 @@ class _CustomizePane extends StatelessWidget {
 
     return ColoredBox(
       color: PosCustomizeSpec.pageBg,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          PosCustomizeSpec.panePadding,
-          PosCustomizeSpec.panePadding,
-          PosCustomizeSpec.panePadding,
-          0,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Header(
-              productName: product.name ?? '',
-              quantity: productProvider.quantity ?? 1,
-              onBack: onBack,
-              onMinus: () {
-                if ((productProvider.quantity ?? 1) > 1) {
-                  productProvider.setQuantity(false);
-                }
-              },
-              onPlus: () => productProvider.setQuantity(true),
-            ),
-            if (allergenNotice != null) ...[
-              const SizedBox(height: PosCustomizeSpec.sectionTitleGap),
-              allergenNotice,
-            ],
-            const SizedBox(height: PosCustomizeSpec.sectionGap),
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final entry in sections.size) ...[
-                      KeyedSubtree(
-                        key: sectionKey(ProductSectionRef.size(entry.key)),
-                        child: _VariationSection(
-                          title: entry.value.name?.isNotEmpty == true
-                              ? entry.value.name!
-                              : 'Size',
-                          variation: entry.value,
-                          variationIndex: entry.key,
-                          product: product,
-                          productProvider: productProvider,
-                          imageBaseUrl: imageBase,
-                        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _paneBody(allergenNotice, imageBase),
+          ),
+          footer,
+        ],
+      ),
+    );
+  }
+
+  Widget _paneBody(Widget? allergenNotice, String? imageBase) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        PosCustomizeSpec.panePadding,
+        PosCustomizeSpec.panePadding,
+        PosCustomizeSpec.panePadding,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Header(
+            productName: product.name ?? '',
+            quantity: productProvider.quantity ?? 1,
+            onBack: onBack,
+            onMinus: () {
+              if ((productProvider.quantity ?? 1) > 1) {
+                productProvider.setQuantity(false);
+              }
+            },
+            onPlus: () => productProvider.setQuantity(true),
+          ),
+          if (allergenNotice != null) ...[
+            const SizedBox(height: PosCustomizeSpec.sectionTitleGap),
+            allergenNotice,
+          ],
+          const SizedBox(height: PosCustomizeSpec.sectionGap),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              // The footer sits below this scroll view (not over it), so
+              // the last row always clears it; this is breathing room only.
+              padding:
+                  const EdgeInsets.only(bottom: PosCustomizeSpec.sectionGap),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final entry in sections.size) ...[
+                    KeyedSubtree(
+                      key: sectionKey(ProductSectionRef.size(entry.key)),
+                      child: _VariationSection(
+                        title: entry.value.name?.isNotEmpty == true
+                            ? entry.value.name!
+                            : 'Size',
+                        variation: entry.value,
+                        variationIndex: entry.key,
+                        product: product,
+                        productProvider: productProvider,
+                        imageBaseUrl: imageBase,
                       ),
-                      const SizedBox(height: PosCustomizeSpec.sectionGap),
-                    ],
-                    for (final entry in sections.dietary) ...[
-                      KeyedSubtree(
-                        key: sectionKey(ProductSectionRef.dietary(entry.key)),
-                        child: _VariationSection(
-                          // 'choose_your_dietary' has no entry in any locale
-                          // file; getTranslated() throws on a missing key and
-                          // echoes the raw key back rather than returning null,
-                          // so the `?? fallback` idiom never actually fires —
-                          // use the fallback text directly instead.
-                          title: entry.value.name?.isNotEmpty == true
-                              ? entry.value.name!
-                              : 'Choose your dietary',
-                          variation: entry.value,
-                          variationIndex: entry.key,
-                          product: product,
-                          productProvider: productProvider,
-                          imageBaseUrl: imageBase,
-                        ),
+                    ),
+                    const SizedBox(height: PosCustomizeSpec.sectionGap),
+                  ],
+                  for (final entry in sections.dietary) ...[
+                    KeyedSubtree(
+                      key: sectionKey(ProductSectionRef.dietary(entry.key)),
+                      child: _VariationSection(
+                        // 'choose_your_dietary' has no entry in any locale
+                        // file; getTranslated() throws on a missing key and
+                        // echoes the raw key back rather than returning null,
+                        // so the `?? fallback` idiom never actually fires —
+                        // use the fallback text directly instead.
+                        title: entry.value.name?.isNotEmpty == true
+                            ? entry.value.name!
+                            : 'Choose your dietary',
+                        variation: entry.value,
+                        variationIndex: entry.key,
+                        product: product,
+                        productProvider: productProvider,
+                        imageBaseUrl: imageBase,
                       ),
-                      const SizedBox(height: PosCustomizeSpec.sectionGap),
-                    ],
-                    if (product.effectiveAddOnGroups.isNotEmpty) ...[
-                      for (final group in product.effectiveAddOnGroups) ...[
-                        KeyedSubtree(
-                          key: group.id != null
-                              ? sectionKey(ProductSectionRef.addOn(group.id!))
-                              : null,
-                          child: _AddOnsSection(
-                            group: group,
-                            product: product,
-                            productProvider: productProvider,
-                          ),
-                        ),
-                        const SizedBox(height: PosCustomizeSpec.sectionGap),
-                      ],
-                    ],
-                    for (final entry in sections.cupCan) ...[
+                    ),
+                    const SizedBox(height: PosCustomizeSpec.sectionGap),
+                  ],
+                  if (product.effectiveAddOnGroups.isNotEmpty) ...[
+                    for (final group in product.effectiveAddOnGroups) ...[
                       KeyedSubtree(
-                        key: sectionKey(ProductSectionRef.cupCan(entry.key)),
-                        child: _CupCanSection(
-                          variation: entry.value,
-                          variationIndex: entry.key,
+                        key: group.id != null
+                            ? sectionKey(ProductSectionRef.addOn(group.id!))
+                            : null,
+                        child: _AddOnsSection(
+                          group: group,
                           product: product,
                           productProvider: productProvider,
-                          imageBaseUrl: imageBase,
                         ),
                       ),
                       const SizedBox(height: PosCustomizeSpec.sectionGap),
                     ],
                   ],
-                ),
+                  for (final entry in sections.cupCan) ...[
+                    KeyedSubtree(
+                      key: sectionKey(ProductSectionRef.cupCan(entry.key)),
+                      child: _CupCanSection(
+                        variation: entry.value,
+                        variationIndex: entry.key,
+                        product: product,
+                        productProvider: productProvider,
+                        imageBaseUrl: imageBase,
+                      ),
+                    ),
+                    const SizedBox(height: PosCustomizeSpec.sectionGap),
+                  ],
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

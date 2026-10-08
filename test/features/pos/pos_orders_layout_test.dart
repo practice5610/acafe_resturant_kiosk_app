@@ -6,6 +6,7 @@ import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/screens/pos_orders_list_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_card_tile.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dart';
 import 'package:dio/dio.dart';
@@ -238,6 +239,36 @@ void main() {
     await tester.pump();
     await tester.pump();
   }
+
+  // Regression: opening a filter must never throw (the board once showed the
+  // app's "Something went wrong" ErrorWidget in place of the filter row).
+  testWidgets('every filter dropdown opens below its pill and picks cleanly',
+      (tester) async {
+    await pumpBoard(tester, _StubOrdersRepo(), size: const Size(2000, 1200));
+    for (final String label in const [
+      'All sources',
+      'All types',
+      'All payment methods',
+      'Any status',
+    ]) {
+      final Finder pill = find.text(label);
+      expect(pill, findsOneWidget, reason: label);
+      final Rect pillRect = tester.getRect(pill);
+      await tester.tap(pill);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: label);
+
+      final Rect menu = tester.getRect(find.byKey(PosDropdown.menuKey));
+      expect(menu.top, greaterThan(pillRect.bottom), reason: label);
+
+      // Pick the second option, then put the filter back to "all".
+      await tester.tap(find.byKey(PosDropdown.itemKey(1)));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: label);
+      expect(find.byKey(PosDropdown.menuKey), findsNothing);
+    }
+    expect(find.byType(ErrorWidget), findsNothing);
+  });
 
   group('the card itself opens the detail overlay', () {
     /// Figma draws no ⋮ menu on this card — the whole tile is the affordance.

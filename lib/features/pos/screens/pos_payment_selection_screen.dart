@@ -21,7 +21,9 @@ import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_settings_save_button.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -449,8 +451,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
             // Back is withheld while the terminal has the payment: leaving
             // mid-transaction is how a card gets charged against an order
             // nobody placed. Cancel Transaction is the way out.
-            _BackRow(
-                onBack: _isWaitingForTerminal || _declined ? null : _back),
+            _BackRow(onBack: _isWaitingForTerminal || _declined ? null : _back),
             if (_declined)
               Expanded(
                 child: PosDeclinedCard(
@@ -911,7 +912,10 @@ class _Card extends StatelessWidget {
   }
 }
 
-/// `sticky-bottom-bar` (1641:2871).
+/// `sticky-bottom-bar` (1641:2871), compact: a hairline-topped strip with a
+/// fixed-width Confirm right-aligned to the payment card's edge, instead of a
+/// full-bleed slab. Below [PosPaymentSpec.stackedBelowWidth] the cards stack
+/// and the button spans their column.
 class _ConfirmBar extends StatelessWidget {
   final bool busy;
   final VoidCallback? onConfirm;
@@ -920,68 +924,59 @@ class _ConfirmBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool enabled = onConfirm != null;
-
-    return Container(
+    return DecoratedBox(
       decoration: const BoxDecoration(
         color: PosHomeSpec.pageBg,
         border: Border(
           top: BorderSide(
-            color: PosHomeSpec.ink,
+            color: PosUI.border,
             width: PosPaymentSpec.barBorderTop,
           ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: PosPaymentSpec.barShadow,
-            offset: PosPaymentSpec.barShadowOffset,
-            blurRadius: PosPaymentSpec.barShadowBlur,
-          ),
-        ],
       ),
-      padding: const EdgeInsets.fromLTRB(
-        PosPaymentSpec.barPaddingH,
-        PosPaymentSpec.barPaddingTop,
-        PosPaymentSpec.barPaddingH,
-        PosPaymentSpec.barPaddingBottom,
-      ),
-      child: Material(
-        color:
-            enabled ? PosHomeSpec.ink : PosHomeSpec.inkAlpha(busy ? 1 : 0.35),
-        borderRadius: BorderRadius.circular(PosPaymentSpec.confirmRadius),
-        child: InkWell(
-          onTap: onConfirm,
-          borderRadius: BorderRadius.circular(PosPaymentSpec.confirmRadius),
-          child: SizedBox(
-            height: PosPaymentSpec.confirmHeight,
-            width: double.infinity,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final double width = constraints.maxWidth;
+          final bool stacked = width < PosPaymentSpec.stackedBelowWidth;
+          // Same side inset the content row above uses at this width, so the
+          // button's right edge lands on the payment card's right edge.
+          final double sidePadding = width < PosPaymentSpec.mediumBelowWidth
+              ? PosPaymentSpec.mediumContentPadding
+              : PosPaymentSpec.contentPadding;
+
+          final Widget button = PosSettingsSaveButton.compact(
+            label: 'Confirm Payment',
+            loading: busy,
+            onPressed: onConfirm,
+          );
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              stacked ? PosPaymentSpec.contentPadding : sidePadding,
+              PosPaymentSpec.barPaddingV,
+              stacked ? PosPaymentSpec.contentPadding : sidePadding,
+              PosPaymentSpec.barPaddingV,
+            ),
             child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (busy) ...[
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: stacked
+                      ? PosPaymentSpec.stackedMaxWidth
+                      : PosPaymentSpec.contentMaxWidth,
+                ),
+                child: stacked
+                    ? button
+                    : Align(
+                        alignment: Alignment.centerRight,
+                        child: SizedBox(
+                          width: PosPaymentSpec.confirmWidth,
+                          child: button,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                  Text(
-                    busy ? 'Processing…' : 'Confirm Payment',
-                    style: loewBold.copyWith(
-                      fontSize: PosPaymentSpec.confirmLabelSize,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

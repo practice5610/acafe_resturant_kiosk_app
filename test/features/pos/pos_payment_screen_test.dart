@@ -16,6 +16,8 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_settings_save_button.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
@@ -274,18 +276,12 @@ void main() {
     expect(confirm.onTap, isNull);
   });
 
-  testWidgets('the sticky bar keeps its Figma height', (tester) async {
+  testWidgets('the sticky bar uses the compact Confirm button', (tester) async {
     await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
 
-    final Size button = tester.getSize(
-      find
-          .ancestor(
-            of: find.text('Confirm Payment'),
-            matching: find.byType(SizedBox),
-          )
-          .first,
-    );
-    expect(button.height, PosPaymentSpec.confirmHeight);
+    final Size button = tester.getSize(find.byType(PosSettingsSaveButton));
+    expect(button.height, PosUI.buttonHeight);
+    expect(button.width, PosPaymentSpec.confirmWidth);
   });
 
   // ── Cash payment method (Figma 1641:3751) ──────────────────────────────
@@ -848,13 +844,15 @@ void main() {
       final double w1180 = await methodCardWidth(tester, 1180);
       final double w1260 = await methodCardWidth(tester, 1260);
 
-      final double beforeSeam = w1100 - w1024;
-      final double acrossSeam = w1180 - w1100;
-      final double afterSeam = w1260 - w1180;
+      // Per window-px, not per step: the first step is 76px, the others 80,
+      // so raw deltas differ by design (19 vs 20 at a 0.25 rate).
+      final double beforeSeam = (w1100 - w1024) / 76;
+      final double acrossSeam = (w1180 - w1100) / 80;
+      final double afterSeam = (w1260 - w1180) / 80;
 
-      expect(acrossSeam, closeTo(beforeSeam, 1),
+      expect(acrossSeam, closeTo(beforeSeam, 0.01),
           reason: 'growth rate changed approaching the old 1180 seam');
-      expect(afterSeam, closeTo(beforeSeam, 1),
+      expect(afterSeam, closeTo(beforeSeam, 0.01),
           reason: 'growth rate changed past the old 1180 seam');
     });
 
