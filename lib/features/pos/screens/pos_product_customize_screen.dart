@@ -557,8 +557,7 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
             final String priceLabel =
                 PriceConverterHelper.convertPrice(lineTotal);
             final String addLabel =
-                (getTranslated('add_to_cart', context) ?? 'Add to Cart')
-                    .trim();
+                (getTranslated('add_to_cart', context) ?? 'Add to Cart').trim();
             final String ctaLabel =
                 '${addLabel.isEmpty ? 'ADD TO CART' : addLabel.toUpperCase()}  •  $priceLabel';
 
@@ -732,20 +731,20 @@ class _CustomizePane extends StatelessWidget {
                       KeyedSubtree(
                         key: sectionKey(ProductSectionRef.dietary(entry.key)),
                         child: _VariationSection(
-                        // 'choose_your_dietary' has no entry in any locale
-                        // file; getTranslated() throws on a missing key and
-                        // echoes the raw key back rather than returning null,
-                        // so the `?? fallback` idiom never actually fires —
-                        // use the fallback text directly instead.
-                        title: entry.value.name?.isNotEmpty == true
-                            ? entry.value.name!
-                            : 'Choose your dietary',
-                        variation: entry.value,
-                        variationIndex: entry.key,
-                        product: product,
-                        productProvider: productProvider,
-                        imageBaseUrl: imageBase,
-                      ),
+                          // 'choose_your_dietary' has no entry in any locale
+                          // file; getTranslated() throws on a missing key and
+                          // echoes the raw key back rather than returning null,
+                          // so the `?? fallback` idiom never actually fires —
+                          // use the fallback text directly instead.
+                          title: entry.value.name?.isNotEmpty == true
+                              ? entry.value.name!
+                              : 'Choose your dietary',
+                          variation: entry.value,
+                          variationIndex: entry.key,
+                          product: product,
+                          productProvider: productProvider,
+                          imageBaseUrl: imageBase,
+                        ),
                       ),
                       const SizedBox(height: PosCustomizeSpec.sectionGap),
                     ],
@@ -1071,12 +1070,10 @@ class _DietaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: PosCustomizeSpec.panelBg,
-      borderRadius:
-          BorderRadius.circular(PosCustomizeSpec.dietaryCardRadius),
+      borderRadius: BorderRadius.circular(PosCustomizeSpec.dietaryCardRadius),
       child: InkWell(
         onTap: onTap,
-        borderRadius:
-            BorderRadius.circular(PosCustomizeSpec.dietaryCardRadius),
+        borderRadius: BorderRadius.circular(PosCustomizeSpec.dietaryCardRadius),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           width: width,
@@ -1125,40 +1122,43 @@ class _DietaryCard extends StatelessWidget {
                         ),
                       ),
               ),
-              Column(
-                mainAxisSize: showImages ? MainAxisSize.max : MainAxisSize.min,
-                mainAxisAlignment: showImages
-                    ? MainAxisAlignment.start
-                    : MainAxisAlignment.center,
-                children: [
-                  if (showImages)
-                    Expanded(
-                      child: Center(
-                        child: SizedBox(
-                          width: PosCustomizeSpec.dietaryImage,
-                          height: PosCustomizeSpec.dietaryImage,
-                          child: imageUrl.isEmpty
-                              ? const SizedBox.shrink()
-                              : CustomImageWidget(
-                                  image: imageUrl,
-                                  fit: BoxFit.contain,
-                                  cacheWidth: 200,
-                                ),
+              Positioned.fill(
+                child: Column(
+                  mainAxisSize: MainAxisSize.max,
+                  mainAxisAlignment: showImages
+                      ? MainAxisAlignment.start
+                      : MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (showImages)
+                      Expanded(
+                        child: Center(
+                          child: SizedBox(
+                            width: PosCustomizeSpec.dietaryImage,
+                            height: PosCustomizeSpec.dietaryImage,
+                            child: imageUrl.isEmpty
+                                ? const SizedBox.shrink()
+                                : CustomImageWidget(
+                                    image: imageUrl,
+                                    fit: BoxFit.contain,
+                                    cacheWidth: 200,
+                                  ),
+                          ),
                         ),
                       ),
+                    Text(
+                      name.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: loewMedium.copyWith(
+                        fontSize: PosCustomizeSpec.dietaryLabelSize,
+                        height: 1.0,
+                        color: Colors.black,
+                      ),
                     ),
-                  Text(
-                    name.toUpperCase(),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: loewMedium.copyWith(
-                      fontSize: PosCustomizeSpec.dietaryLabelSize,
-                      height: 1.0,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -1215,10 +1215,9 @@ class _AddOnsSection extends StatelessWidget {
             const double gapH = PosCustomizeSpec.addonCardGapH;
             const double gapV = PosCustomizeSpec.addonCardGapV;
             const int columns = PosCustomizeSpec.addonColumns;
-            final double cardWidth = ((constraints.maxWidth -
-                        gapH * (columns - 1)) /
-                    columns)
-                .clamp(120.0, PosCustomizeSpec.addonCardWidth);
+            final double cardWidth =
+                ((constraints.maxWidth - gapH * (columns - 1)) / columns)
+                    .clamp(120.0, PosCustomizeSpec.addonCardWidth);
 
             return Wrap(
               spacing: gapH,
@@ -1245,8 +1244,7 @@ class _AddOnsSection extends StatelessWidget {
                         selected: selected,
                         isDefault: isDefault,
                         quantity: quantity,
-                        showQuantity:
-                            selected && !group.isSingle && !isDefault,
+                        showQuantity: selected && !group.isSingle && !isDefault,
                         onTap: () {
                           if (isDefault) return;
                           productProvider.toggleAddOnInGroup(
@@ -1330,6 +1328,7 @@ class _AddOnCard extends StatelessWidget {
           // Picture-less: drop the image-sized fixed height and let the card
           // size to the price + name (+ qty) it contains.
           height: showImages ? PosCustomizeSpec.addonCardHeight : null,
+          constraints: showImages ? null : const BoxConstraints(minHeight: 72),
           padding: const EdgeInsets.fromLTRB(
             PosCustomizeSpec.addonPadH,
             PosCustomizeSpec.addonPadTop,
@@ -1349,18 +1348,24 @@ class _AddOnCard extends StatelessWidget {
           ),
           child: Column(
             mainAxisSize: showImages ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  priceDelta > 0 ? kioskAddonPriceLabel(priceDelta) : '',
-                  style: swiss721Light.copyWith(
-                    fontSize: PosCustomizeSpec.addonPriceSize,
-                    color: Colors.black,
+              // Picture-less: the name (and price) sit centred in the box like
+              // the Cup / Can cards; with pictures the price stays top-right.
+              if (showImages) ...[
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    priceDelta > 0 ? kioskAddonPriceLabel(priceDelta) : '',
+                    style: swiss721Light.copyWith(
+                      fontSize: PosCustomizeSpec.addonPriceSize,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 4),
+                const SizedBox(height: 4),
+              ],
               if (showImages) ...[
                 Expanded(
                   child: imageUrl.isEmpty
@@ -1384,6 +1389,17 @@ class _AddOnCard extends StatelessWidget {
                   color: Colors.black,
                 ),
               ),
+              if (!showImages && priceDelta > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  kioskAddonPriceLabel(priceDelta),
+                  textAlign: TextAlign.center,
+                  style: swiss721Light.copyWith(
+                    fontSize: PosCustomizeSpec.addonPriceSize,
+                    color: Colors.black,
+                  ),
+                ),
+              ],
               if (showQuantity) ...[
                 const SizedBox(height: 4),
                 Row(
@@ -1440,8 +1456,7 @@ class _MiniQtyButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: filled ? Colors.black : PosCustomizeSpec.panelBg,
-      borderRadius:
-          BorderRadius.circular(PosCustomizeSpec.addonMiniQtyRadius),
+      borderRadius: BorderRadius.circular(PosCustomizeSpec.addonMiniQtyRadius),
       child: InkWell(
         onTap: onTap,
         borderRadius:

@@ -2053,9 +2053,9 @@ class _DietaryCard extends StatelessWidget {
     final double radius = KioskCustomizeSpec.optionCardRadius * k;
     final double padTop = showImage
         ? KioskCustomizeSpec.optionPadTop
-        // Nothing to tuck the radio over, so the label starts below it.
-        : KioskCustomizeSpec.optionRadioInset * 2 +
-            KioskCustomizeSpec.optionRadio;
+        // Text-only: mirror the bottom padding so the label sits dead centre
+        // in the card (the radio is an overlay in the corner, not in flow).
+        : KioskCustomizeSpec.optionPadBottom;
     final double nameSize = _choiceLabelSize(context, width);
     final Widget label = Text(
       name.toUpperCase(),
@@ -2617,7 +2617,11 @@ class _AddOnCard extends StatelessWidget {
     // (`card-whipped-cream/Selected`); one WITH a stepper keeps the price
     // inline above it (`card-vanilla-syrup/Selected`).
     final bool priceOnTop =
-        !isDefault && selected && !showQuantity && priceLabel.isNotEmpty;
+        showImage &&
+            !isDefault &&
+            selected &&
+            !showQuantity &&
+            priceLabel.isNotEmpty;
 
     final double nameSize = _choiceLabelSize(context, width);
     final TextStyle priceStyle = swiss721Light.copyWith(
@@ -2743,7 +2747,10 @@ class _AddOnCard extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.fromLTRB(
                 KioskCustomizeSpec.addOnPadH * k,
-                KioskCustomizeSpec.addOnPadTop * k,
+                (showImage
+                        ? KioskCustomizeSpec.addOnPadTop
+                        : KioskCustomizeSpec.addOnPadBottom) *
+                    k,
                 KioskCustomizeSpec.addOnPadH * k,
                 KioskCustomizeSpec.addOnPadBottom * k,
               ),
