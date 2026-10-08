@@ -1122,9 +1122,13 @@ class _DietaryCard extends StatelessWidget {
                         ),
                       ),
               ),
-              Positioned.fill(
+              // In flow (not Positioned.fill) so a picture-less card keeps the
+              // height of its label; full width so the label centres in the box.
+              SizedBox(
+                width: double.infinity,
                 child: Column(
-                  mainAxisSize: MainAxisSize.max,
+                  mainAxisSize:
+                      showImages ? MainAxisSize.max : MainAxisSize.min,
                   mainAxisAlignment: showImages
                       ? MainAxisAlignment.start
                       : MainAxisAlignment.center,
@@ -1329,6 +1333,7 @@ class _AddOnCard extends StatelessWidget {
           // size to the price + name (+ qty) it contains.
           height: showImages ? PosCustomizeSpec.addonCardHeight : null,
           constraints: showImages ? null : const BoxConstraints(minHeight: 72),
+          alignment: showImages ? null : Alignment.center,
           padding: const EdgeInsets.fromLTRB(
             PosCustomizeSpec.addonPadH,
             PosCustomizeSpec.addonPadTop,
