@@ -1260,7 +1260,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           ),
           const SizedBox(height: 12),
           PosSettingsDropdown(
-            label: 'Planday department',
+            label: 'Planday branch',
             value: _departmentId,
             options: widget.plandayDepartmentOptions.isEmpty
                 ? const [PosSettingsOption(value: '', label: '— not set —')]
