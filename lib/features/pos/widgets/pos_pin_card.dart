@@ -112,7 +112,9 @@ class PosPinCard extends StatefulWidget {
   // step-up modal, which passes none of them, renders exactly as before.
 
   /// Replaces the default "Enter Manager Code" heading (e.g. the staff lock
-  /// screen passes "Hi Amir, enter your PIN").
+  /// screen passes "Hi Amir, enter your PIN"). An empty string hides the heading
+  /// altogether, for a surface that already captions the card from outside (the
+  /// lock-screen punch flow names the action in its own header).
   final String? title;
 
   /// A line under the PIN boxes -- a wrong-PIN note or a lockout countdown.
@@ -132,6 +134,11 @@ class PosPinCard extends StatefulWidget {
   /// the step-up modal has no message and must keep its original height.
   final bool reserveMessageSpace;
 
+  /// The confirm button's label. Defaults to the sign-in wording; the punch
+  /// flow passes "PUNCH IN" / "PUNCH OUT" so the button names its own action
+  /// instead of "VERIFY & LOGIN" on a screen that is not a login.
+  final String confirmLabel;
+
   const PosPinCard({
     super.key,
     required this.onSubmit,
@@ -142,6 +149,7 @@ class PosPinCard extends StatefulWidget {
     this.autoSubmit = false,
     this.header,
     this.reserveMessageSpace = false,
+    this.confirmLabel = 'VERIFY & LOGIN',
   });
 
   /// Identifies the painted card surface, so a test can measure the card itself
@@ -377,6 +385,7 @@ class _PosPinCardState extends State<PosPinCard>
             scale: s,
             enabled: _complete && !_submitting && widget.enabled,
             busy: _submitting,
+            label: widget.confirmLabel,
             onTap: _submit,
           ),
         ],
@@ -385,19 +394,24 @@ class _PosPinCardState extends State<PosPinCard>
   }
 
   Widget _pinInstructions(double s) {
+    final String title = widget.title ?? 'Enter Manager Code';
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          widget.title ?? 'Enter Manager Code',
-          textAlign: TextAlign.center,
-          style: loewBold.copyWith(
-            fontSize: PosPinSpec.pinTitleSize * s,
-            color: PosPinSpec.ink,
-            height: 22 / 18, // Figma line box: 22px at 18px type.
+        // An empty title hides the heading (and its gap) entirely, so a surface
+        // that captions the card from outside is not captioned twice.
+        if (title.isNotEmpty) ...[
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: loewBold.copyWith(
+              fontSize: PosPinSpec.pinTitleSize * s,
+              color: PosPinSpec.ink,
+              height: 22 / 18, // Figma line box: 22px at 18px type.
+            ),
           ),
-        ),
-        SizedBox(height: PosPinSpec.pinBlockGap * s),
+          SizedBox(height: PosPinSpec.pinBlockGap * s),
+        ],
         _PinBoxes(
           scale: s,
           length: widget.pinLength,
@@ -548,12 +562,14 @@ class _ConfirmButton extends StatelessWidget {
   final double scale;
   final bool enabled;
   final bool busy;
+  final String label;
   final VoidCallback onTap;
 
   const _ConfirmButton({
     required this.scale,
     required this.enabled,
     required this.busy,
+    required this.label,
     required this.onTap,
   });
 
@@ -596,7 +612,7 @@ class _ConfirmButton extends StatelessWidget {
                   ),
                 )
               : Text(
-                  'VERIFY & LOGIN',
+                  label,
                   style: loewBold.copyWith(
                     fontSize: PosPinSpec.confirmLabelSize * s,
                     color: Colors.white,

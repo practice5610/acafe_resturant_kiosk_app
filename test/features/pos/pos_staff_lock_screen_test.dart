@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff_session_repo.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_lock_punch_view.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_staff_gate.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_staff_lock_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
@@ -179,6 +180,30 @@ void main() {
       expect(staff.session?.name, 'Thomas de Vries');
       expect(staff.session?.role, isNotEmpty);
       staff.dispose();
+    });
+
+    testWidgets('offers Punch In / Out that opens without signing in',
+        (tester) async {
+      await _providers();
+      await _pumpGate(tester);
+
+      // The entry sits under the PIN card, before anyone has signed in.
+      expect(find.byKey(const Key('pos-lock-punch-entry')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pos-lock-punch-entry')));
+      await tester.pumpAndSettle();
+
+      // The punch flow takes over the lock surface, and still nobody is signed
+      // in -- punching never grants a till session.
+      expect(find.byKey(PosLockPunchView.rootKey), findsOneWidget);
+      expect(find.byKey(const Key('pos-lock-punch-in')), findsOneWidget);
+      expect(find.byKey(const Key('pos-lock-punch-out')), findsOneWidget);
+      expect(staff.isSignedIn, isFalse);
+
+      // "Back to sign in" returns to the PIN login.
+      await tester.tap(find.byKey(const Key('pos-lock-punch-back')));
+      await tester.pumpAndSettle();
+      expect(find.text('Enter your PIN'), findsOneWidget);
     });
 
     testWidgets('a wrong PIN says so and how many tries are left', (tester) async {
