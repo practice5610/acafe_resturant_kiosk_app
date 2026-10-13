@@ -49,6 +49,9 @@ class PosNavBarSpec {
   static const double kNavDateOffset = 90.35;
 
   static const double dateSize = 16;
+  // Calendar glyph before the date (Figma date-block 1915:13215;3207:7328-7331).
+  static const double dateIconSize = 18;
+  static const double dateIconGap = 5;
 
   static const double pillGap = 12;
   static const double groupGap = 16;
@@ -308,6 +311,12 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
               children: [
                 const PosWordmark(height: PosNavBarSpec.wordmarkHeight),
                 const SizedBox(width: PosNavBarSpec.kNavDateOffset),
+                SvgPicture.asset(
+                  Images.posCalendarSvg,
+                  width: PosNavBarSpec.dateIconSize,
+                  height: PosNavBarSpec.dateIconSize,
+                ),
+                const SizedBox(width: PosNavBarSpec.dateIconGap),
                 Flexible(
                   child: Text(
                     _formattedDate,

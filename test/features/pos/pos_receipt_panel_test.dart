@@ -69,10 +69,11 @@ void main() {
     expect(find.text('Discount'), findsOneWidget);
   });
 
-  testWidgets('Dine In is the default active order type', (tester) async {
+  testWidgets('order-type toggle is not shown (removed in Browse-POS redesign)',
+      (tester) async {
     await pumpPanel(tester);
-    final dine = tester.widget<Text>(find.text('Dine In'));
-    expect(dine.style?.color, PosHomeSpec.pageBg);
+    expect(find.text('Dine In'), findsNothing);
+    expect(find.text('Take Away'), findsNothing);
   });
 
   testWidgets('a filled cart shows lines, green discount, and PAY',

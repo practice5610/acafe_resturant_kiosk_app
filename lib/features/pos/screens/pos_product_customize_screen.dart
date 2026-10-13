@@ -1,35 +1,27 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
-import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
-import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_scroll.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
-import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_customize_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_line_copy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
-import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_add_note_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_allergen_notice.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_coupon_apply_dialog.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_settings_save_button.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
-import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 /// Opens the POS product-customize landscape screen (Figma **1641:7080**).
@@ -238,7 +230,6 @@ class PosProductCustomizeScreen extends StatefulWidget {
 }
 
 class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
-  late PosOrderType _orderType;
   late final TextEditingController _customerName;
   late final TextEditingController _table;
   late final bool _ownsCustomerControllers;
@@ -254,7 +245,6 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
   @override
   void initState() {
     super.initState();
-    _orderType = widget.orderType;
     _ownsCustomerControllers = widget.customerNameController == null;
     _customerName = widget.customerNameController ?? TextEditingController();
     _table = widget.tableController ?? TextEditingController();
@@ -370,178 +360,46 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
     Navigator.of(context).pop();
   }
 
-  /// Mirrors the home cart's "+": a customisable product line reopens the
-  /// customize screen pre-filled with this line's picks so the operator can see
-  /// what was chosen; an unchanged save folds back onto the line, a changed one
-  /// lands as a separate line.
-  bool _lineIsCustomisable(CartModel line) {
-    if (line.isDeal) return false;
-    final Product? product = line.product;
-    if (product == null) return false;
-    return (ProductHelper.effectiveVariations(product)?.isNotEmpty ?? false) ||
-        (product.addOns?.isNotEmpty ?? false) ||
-        product.effectiveAddOnGroups.isNotEmpty;
-  }
-
-  void _incrementLine(int index) {
-    final CartProvider cart = context.read<CartProvider>();
-    final CartModel? line = cart.cartList[index];
-    if (line == null) return;
-
-    final Product? product = line.product;
-    if (product != null && _lineIsCustomisable(line)) {
-      // Pre-fill the customize screen with this line's picks via `cart:`, with
-      // no `cartIndex` so it stays on the ADD path (see _incrementLine in
-      // pos_home_cart_screen.dart): unchanged save folds back onto the line,
-      // a changed one lands as a separate line.
-      openPosCustomize(
-        context,
-        product,
-        cart: line,
-        customerNameController: widget.customerNameController,
-        tableController: widget.tableController,
-        orderType: _orderType,
-        onOrderTypeChanged: widget.onOrderTypeChanged,
-      );
-      return;
-    }
-
-    cart.setQuantity(
-      isIncrement: true,
-      cart: line,
-      fromProductView: false,
-    );
-  }
-
-  void _decrementLine(int index) {
-    final CartProvider cart = context.read<CartProvider>();
-    final CartModel? line = cart.cartList[index];
-    if (line == null) return;
-    if ((line.quantity ?? 1) <= 1) {
-      cart.removeFromCart(index);
-    } else {
-      cart.setQuantity(
-        isIncrement: false,
-        cart: line,
-        fromProductView: false,
-      );
-    }
-  }
-
-  void _editCartLine(int index) {
-    final CartModel? line = context.read<CartProvider>().cartList[index];
-    if (line == null || line.product == null) return;
-    if (line.isDeal) {
-      openKioskCartLine(context, line, cartIndex: index);
-      return;
-    }
-    final Product product = line.product!;
-    final productProvider = context.read<ProductProvider>();
-    productProvider.initData(product, line);
-    productProvider.initProductVariationStatus(
-        ProductHelper.effectiveVariations(product)?.length ?? 0);
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => PosProductCustomizeScreen(
-          product: product,
-          cartIndex: index,
-          initialInstruction: line.instruction,
-          customerNameController: widget.customerNameController,
-          tableController: widget.tableController,
-          orderType: _orderType,
-          onOrderTypeChanged: widget.onOrderTypeChanged,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openReceiptOptions(BuildContext anchorContext) async {
-    final PosReceiptMenuAction? action = await showPosReceiptContextMenu(
+  /// Opens the "Add Note" modal (Figma 1915:14827) and stores the result on
+  /// the item being configured.
+  Future<void> _showAddNote() async {
+    final String? result = await showPosAddNoteDialog(
       context: context,
-      anchorContext: anchorContext,
+      initialNote: _instruction,
+      quickAdd: _product.noteSuggestions ?? const [],
     );
-    if (action == null || !mounted) return;
-    final CouponProvider coupon = context.read<CouponProvider>();
-    final CartProvider cart = context.read<CartProvider>();
-    final double orderAmount = kioskOrderAmountBeforeCoupon(cart.cartList);
-    switch (action) {
-      case PosReceiptMenuAction.applyDiscount:
-        await showPosCouponApplyDialog(
-          context: context,
-          orderAmount: orderAmount,
-          title: 'Apply discount',
-        );
-      case PosReceiptMenuAction.applyCustomDiscount:
-        await showPosCouponApplyDialog(
-          context: context,
-          orderAmount: orderAmount,
-          title: 'Apply custom discount',
-        );
-      case PosReceiptMenuAction.removeDiscount:
-        if ((coupon.discount ?? 0) <= 0 && coupon.coupon == null) {
-          showCustomSnackBarHelper('No discount to remove', isError: false);
-          return;
-        }
-        coupon.removeCouponData(true);
-        showCustomSnackBarHelper('Discount removed', isError: false);
-      case PosReceiptMenuAction.priceOverride:
-      case PosReceiptMenuAction.taxExempt:
-      case PosReceiptMenuAction.compItem:
-      case PosReceiptMenuAction.moveTable:
-      case PosReceiptMenuAction.holdFire:
-      case PosReceiptMenuAction.sendKitchen:
-      case PosReceiptMenuAction.repeatItem:
-      case PosReceiptMenuAction.partialPayment:
-      case PosReceiptMenuAction.giftCard:
-      case PosReceiptMenuAction.loyaltyPoints:
-        break;
-    }
+    if (result == null || !mounted) return;
+    setState(() => _instruction = result.isEmpty ? null : result);
   }
 
-  void _pay() {
-    if (!context.read<CartProvider>().cartList.any((l) => l != null)) return;
-    Navigator.of(context).pop();
-    context.go(PosRoutes.payment);
+  /// "DUPLICATE" (add mode only): commits a copy of the current configuration
+  /// to the cart as a separate line. Reuses [CartProvider.addToCart]'s ADD path
+  /// (index -1), so an identical config merges into the existing line's
+  /// quantity exactly as adding the same item twice already does — no new cart
+  /// or order logic. The screen stays open so the operator can keep going.
+  void _duplicate(ProductProvider productProvider) {
+    if (!_validate(context, productProvider)) {
+      final ProductSectionRef? invalid =
+          firstInvalidProductSection(_product, productProvider);
+      if (invalid != null) {
+        final GlobalKey? key = _sectionKeys[invalid];
+        if (key != null) scrollProductSectionIntoView(key);
+      }
+      return;
+    }
+    final CartModel built = buildKioskCartModel(
+      context,
+      _product,
+      instruction: _instruction,
+    );
+    context.read<CartProvider>().addToCart(built, -1, showMessage: false);
+    showCustomSnackBarHelper('Item duplicated', isError: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final splash = context.watch<SplashProvider>();
-    final cart = context.watch<CartProvider>();
-    final coupon = context.watch<CouponProvider>();
     final PosMetrics? metrics = PosMetrics.maybeOf(context);
     final bool sideReceipt = metrics?.showsSideReceipt ?? true;
-
-    final double discount = coupon.discount ?? 0;
-    final double subtotal = kioskCartTotal(cart.cartList);
-    final double total = kioskPayableTotal(cart.cartList, discount);
-    final bool hasItems = cart.cartList.any((line) => line != null);
-
-    final PosReceiptPanel receipt = PosReceiptPanel(
-      width: null,
-      orderType: _orderType,
-      onOrderTypeChanged: (t) {
-        setState(() => _orderType = t);
-        widget.onOrderTypeChanged?.call(t);
-      },
-      customerNameController: _customerName,
-      tableController: _table,
-      subtotal: subtotal,
-      discount: discount,
-      total: total,
-      orderList: hasItems
-          ? PosReceiptOrderList(
-              lines: cart.cartList,
-              imageBaseUrl: splash.baseUrls?.productImageUrl,
-              dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
-              onIncrement: _incrementLine,
-              onDecrement: _decrementLine,
-              onEdit: _editCartLine,
-            )
-          : null,
-      onOptions: _openReceiptOptions,
-      onPay: hasItems ? _pay : null,
-    );
 
     return Scaffold(
       backgroundColor: PosCustomizeSpec.pageBg,
@@ -549,13 +407,12 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
         child: Consumer<ProductProvider>(
           builder: (context, productProvider, _) {
             final sections = KioskCustomizeSections.of(_product);
-            final double lineTotal = kioskLineTotal(
-              buildKioskCartModel(
-                context,
-                _product,
-                instruction: _instruction,
-              ),
+            final CartModel preview = buildKioskCartModel(
+              context,
+              _product,
+              instruction: _instruction,
             );
+            final double lineTotal = kioskLineTotal(preview);
             final String priceLabel =
                 PriceConverterHelper.convertPrice(lineTotal);
             final String addLabel =
@@ -565,6 +422,9 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
             // the tap-time guidance can never disagree.
             final bool ready =
                 firstInvalidProductSection(_product, productProvider) == null;
+            // DUPLICATE is offered only when adding a new product; editing an
+            // existing cart line stays single-item.
+            final bool canDuplicate = widget.cartIndex == null;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -580,6 +440,11 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
                           sections: sections,
                           sectionKey: _sectionKey,
                           onBack: () => Navigator.of(context).pop(),
+                          onAddNote: _showAddNote,
+                          hasNote: _instruction?.isNotEmpty ?? false,
+                          onDuplicate: canDuplicate
+                              ? () => _duplicate(productProvider)
+                              : null,
                           footer: _AddToCartFooter(
                             priceLabel: priceLabel,
                             label: ctaLabel,
@@ -590,15 +455,18 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
                       ),
                       if (sideReceipt)
                         SizedBox(
-                          // The same receipt-width policy Home and Payment
-                          // use — a continuous proportion of the window
-                          // at/above the desktop floor instead of this
-                          // screen's own separate 30% clamp forever. Below
-                          // the floor this is that same clamp, unchanged.
+                          // The same receipt-width policy Home and Payment use
+                          // — a continuous proportion of the window at/above the
+                          // desktop floor. The pane shows the item being built
+                          // ("Items that you will add:") rather than the cart.
                           width: PosResponsive.receiptWidth(
                             MediaQuery.sizeOf(context).width,
                           ),
-                          child: receipt,
+                          child: _PendingItemsPreview(
+                            line: preview,
+                            note: _instruction,
+                            onDelete: () => Navigator.of(context).pop(),
+                          ),
                         ),
                     ],
                   ),
@@ -612,14 +480,10 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
   }
 }
 
-/// Sticky footer of the customize pane only — the receipt panel runs to the
-/// bottom of the screen beside it. Line total on the left, a fixed-width CTA
-/// on the right; below [_narrowPane] the CTA takes the remaining width.
+/// Sticky footer of the customize pane — one full-width ink CTA carrying the
+/// total (Figma `footer` 1915:14823): "ADD TO CART  •  €x.xx". Dimmed while the
+/// configuration is incomplete.
 class _AddToCartFooter extends StatelessWidget {
-  static const double _narrowPane = 900;
-  static const double _ctaMinWidth = 280;
-  static const double _ctaMaxWidth = 360;
-
   final String priceLabel;
   final String label;
   final bool ready;
@@ -634,71 +498,199 @@ class _AddToCartFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosCustomizeSpec.ctaRadius);
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: PosCustomizeSpec.pageBg,
         border: Border(
           top: BorderSide(
-            color: PosUI.border,
+            color: PosCustomizeSpec.mutedBorder,
             width: PosCustomizeSpec.footerBorder,
           ),
         ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: PosCustomizeSpec.panePadding,
+          horizontal: PosCustomizeSpec.footerPadH,
           vertical: PosCustomizeSpec.footerPadV,
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final bool narrow =
-                constraints.maxWidth + 2 * PosCustomizeSpec.panePadding <
-                    _narrowPane;
-            final Widget cta = PosSettingsSaveButton.compact(
-              label: label,
-              enabled: ready,
-              onPressed: onTap,
-            );
-            return Row(
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Total',
-                      style: loewMedium.copyWith(
-                        fontSize: PosUI.captionSize,
-                        color: PosUI.inkMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      priceLabel,
+        child: Opacity(
+          opacity: ready ? 1.0 : 0.4,
+          child: Material(
+            color: Colors.black,
+            borderRadius: radius,
+            child: InkWell(
+              onTap: ready ? onTap : null,
+              borderRadius: radius,
+              child: SizedBox(
+                height: PosCustomizeSpec.ctaButtonHeight,
+                width: double.infinity,
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${label.toUpperCase()}  •  $priceLabel',
+                      maxLines: 1,
                       style: loewExtraBold.copyWith(
-                        fontSize: PosCustomizeSpec.titleSize,
-                        height: 1.1,
-                        color: PosCustomizeSpec.ink,
+                        fontSize: PosCustomizeSpec.ctaLabelSize,
+                        letterSpacing: PosCustomizeSpec.ctaLetterSpacing,
+                        color: PosCustomizeSpec.ctaLabelColor,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(width: PosUI.gutter),
-                if (narrow)
-                  Expanded(child: cta)
-                else ...[
-                  const Spacer(),
-                  SizedBox(
-                    width: (constraints.maxWidth * 0.4)
-                        .clamp(_ctaMinWidth, _ctaMaxWidth),
-                    child: cta,
                   ),
-                ],
-              ],
-            );
-          },
+                ),
+              ),
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Right pane: a preview of the item currently being built, headed "Items that
+/// you will add:" (Figma 1915:14803). Replaces the full receipt on this screen.
+class _PendingItemsPreview extends StatelessWidget {
+  final CartModel line;
+  final String? note;
+  final VoidCallback onDelete;
+
+  const _PendingItemsPreview({
+    required this.line,
+    required this.note,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final String? unit = posReceiptUnit(line);
+    final String price = PosHomeSpec.formatPrice(kioskLineTotal(line));
+    final String priceLine = unit == null ? price : '$price · $unit';
+    final List<PosReceiptNote> notes = posReceiptNotes(line);
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: PosCustomizeSpec.panelBg,
+        border: Border(
+          left: BorderSide(color: PosCustomizeSpec.mutedBorder),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: PosHomeSpec.hairline),
+              ),
+            ),
+            child: Text(
+              'Items that you will add:',
+              style: loewExtraBold.copyWith(
+                fontSize: 16,
+                color: PosHomeSpec.ink,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: PosCustomizeSpec.mutedBorder),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'ITEM 1',
+                        style: loewExtraBold.copyWith(
+                          fontSize: 14,
+                          color: PosHomeSpec.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        priceLine,
+                        style: swiss721Light.copyWith(
+                          fontSize: 12,
+                          color: PosHomeSpec.inkAlpha(0.6),
+                        ),
+                      ),
+                      for (final n in notes) ...[
+                        const SizedBox(height: 4),
+                        _PreviewNote(mark: n.included ? '+' : '-', text: n.label),
+                      ],
+                      if (note != null && note!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        _PreviewNote(mark: 'Note:', text: note!.trim()),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onDelete,
+                      child: const Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: PosHomeSpec.ink,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewNote extends StatelessWidget {
+  final String mark;
+  final String text;
+
+  const _PreviewNote({required this.mark, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          mark,
+          style: loewRegular.copyWith(
+            fontSize: 12,
+            color: PosHomeSpec.inkAlpha(0.53),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: swiss721Light.copyWith(
+              fontSize: 11,
+              color: PosHomeSpec.inkAlpha(0.53),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -709,6 +701,11 @@ class _CustomizePane extends StatelessWidget {
   final KioskCustomizeSections sections;
   final GlobalKey Function(ProductSectionRef) sectionKey;
   final VoidCallback onBack;
+  final VoidCallback onAddNote;
+  final bool hasNote;
+
+  /// Null hides the DUPLICATE button (edit mode).
+  final VoidCallback? onDuplicate;
   final Widget footer;
 
   const _CustomizePane({
@@ -717,13 +714,14 @@ class _CustomizePane extends StatelessWidget {
     required this.sections,
     required this.sectionKey,
     required this.onBack,
+    required this.onAddNote,
+    required this.hasNote,
+    required this.onDuplicate,
     required this.footer,
   });
 
   @override
   Widget build(BuildContext context) {
-    final splash = context.read<SplashProvider>();
-    final String? imageBase = splash.baseUrls?.productImageUrl;
     final bool allergenTagEnabled =
         context.read<KioskAuthProvider>().allergenTagEnabled;
     final Widget? allergenNotice = PosAllergenNotice.maybe(
@@ -737,7 +735,7 @@ class _CustomizePane extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: _paneBody(allergenNotice, imageBase),
+            child: _paneBody(allergenNotice),
           ),
           footer,
         ],
@@ -745,7 +743,7 @@ class _CustomizePane extends StatelessWidget {
     );
   }
 
-  Widget _paneBody(Widget? allergenNotice, String? imageBase) {
+  Widget _paneBody(Widget? allergenNotice) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         PosCustomizeSpec.panePadding,
@@ -758,14 +756,10 @@ class _CustomizePane extends StatelessWidget {
         children: [
           _Header(
             productName: product.name ?? '',
-            quantity: productProvider.quantity ?? 1,
             onBack: onBack,
-            onMinus: () {
-              if ((productProvider.quantity ?? 1) > 1) {
-                productProvider.setQuantity(false);
-              }
-            },
-            onPlus: () => productProvider.setQuantity(true),
+            onAddNote: onAddNote,
+            hasNote: hasNote,
+            onDuplicate: onDuplicate,
           ),
           if (allergenNotice != null) ...[
             const SizedBox(height: PosCustomizeSpec.sectionTitleGap),
@@ -793,7 +787,6 @@ class _CustomizePane extends StatelessWidget {
                         variationIndex: entry.key,
                         product: product,
                         productProvider: productProvider,
-                        imageBaseUrl: imageBase,
                       ),
                     ),
                     const SizedBox(height: PosCustomizeSpec.sectionGap),
@@ -814,7 +807,6 @@ class _CustomizePane extends StatelessWidget {
                         variationIndex: entry.key,
                         product: product,
                         productProvider: productProvider,
-                        imageBaseUrl: imageBase,
                       ),
                     ),
                     const SizedBox(height: PosCustomizeSpec.sectionGap),
@@ -842,7 +834,6 @@ class _CustomizePane extends StatelessWidget {
                         variationIndex: entry.key,
                         product: product,
                         productProvider: productProvider,
-                        imageBaseUrl: imageBase,
                       ),
                     ),
                     const SizedBox(height: PosCustomizeSpec.sectionGap),
@@ -859,17 +850,19 @@ class _CustomizePane extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   final String productName;
-  final int quantity;
   final VoidCallback onBack;
-  final VoidCallback onMinus;
-  final VoidCallback onPlus;
+  final VoidCallback onAddNote;
+  final bool hasNote;
+
+  /// Null hides DUPLICATE (edit mode).
+  final VoidCallback? onDuplicate;
 
   const _Header({
     required this.productName,
-    required this.quantity,
     required this.onBack,
-    required this.onMinus,
-    required this.onPlus,
+    required this.onAddNote,
+    required this.hasNote,
+    required this.onDuplicate,
   });
 
   @override
@@ -915,68 +908,31 @@ class _Header extends StatelessWidget {
           ),
         ),
         const SizedBox(width: PosCustomizeSpec.headerGap),
-        _QtyStepper(
-          quantity: quantity,
-          onMinus: onMinus,
-          onPlus: onPlus,
-        ),
-      ],
-    );
-  }
-}
-
-class _QtyStepper extends StatelessWidget {
-  final int quantity;
-  final VoidCallback onMinus;
-  final VoidCallback onPlus;
-
-  const _QtyStepper({
-    required this.quantity,
-    required this.onMinus,
-    required this.onPlus,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _QtyButton(
-          label: '−',
+        // "EDIT NOTE" once a note exists (Figma 1915:15205), else "ADD NOTE".
+        _HeaderActionButton(
+          label: hasNote ? 'EDIT NOTE' : 'ADD NOTE',
           filled: false,
-          onTap: onMinus,
+          onTap: onAddNote,
         ),
-        const SizedBox(width: PosCustomizeSpec.qtyGap),
-        SizedBox(
-          width: PosCustomizeSpec.qtyButton,
-          height: PosCustomizeSpec.qtyButton,
-          child: Center(
-            child: Text(
-              '$quantity',
-              style: loewExtraBold.copyWith(
-                fontSize: PosCustomizeSpec.qtyValueSize,
-                color: PosCustomizeSpec.ink,
-              ),
-            ),
+        if (onDuplicate != null) ...[
+          const SizedBox(width: 12),
+          _HeaderActionButton(
+            label: 'DUPLICATE',
+            filled: true,
+            onTap: onDuplicate!,
           ),
-        ),
-        const SizedBox(width: PosCustomizeSpec.qtyGap),
-        _QtyButton(
-          label: '+',
-          filled: true,
-          onTap: onPlus,
-        ),
+        ],
       ],
     );
   }
 }
 
-class _QtyButton extends StatelessWidget {
+class _HeaderActionButton extends StatelessWidget {
   final String label;
   final bool filled;
   final VoidCallback onTap;
 
-  const _QtyButton({
+  const _HeaderActionButton({
     required this.label,
     required this.filled,
     required this.onTap,
@@ -984,30 +940,28 @@ class _QtyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosCustomizeSpec.headerBtnRadius);
     return Material(
-      color: filled ? Colors.black : PosCustomizeSpec.panelBg,
-      borderRadius: BorderRadius.circular(PosCustomizeSpec.qtyRadius),
+      color: filled ? PosHomeSpec.ink : Colors.transparent,
+      borderRadius: radius,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(PosCustomizeSpec.qtyRadius),
+        borderRadius: radius,
         child: Container(
-          width: PosCustomizeSpec.qtyButton,
-          height: PosCustomizeSpec.qtyButton,
-          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(
+            horizontal: PosCustomizeSpec.headerBtnPadH,
+            vertical: PosCustomizeSpec.headerBtnPadV,
+          ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(PosCustomizeSpec.qtyRadius),
-            border: filled
-                ? null
-                : Border.all(
-                    color: PosCustomizeSpec.mutedBorder,
-                    width: PosCustomizeSpec.qtyBorder,
-                  ),
+            borderRadius: radius,
+            border: Border.all(color: Colors.black, width: 1),
           ),
           child: Text(
             label,
             style: loewExtraBold.copyWith(
-              fontSize: PosCustomizeSpec.qtyGlyph,
-              color: filled ? PosCustomizeSpec.plusLabel : PosCustomizeSpec.ink,
+              fontSize: PosCustomizeSpec.headerBtnLabel,
+              color: filled ? PosCustomizeSpec.pageBg : PosHomeSpec.ink,
             ),
           ),
         ),
@@ -1035,13 +989,21 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+/// Width of one option card in the 3-up wrapping grid (Figma 273.667 at the
+/// design width), clamped so narrow panes stay usable.
+double _optionCardWidth(double available) {
+  const double gap = PosCustomizeSpec.optionGridGap;
+  const int cols = 3;
+  final double w = (available - gap * (cols - 1)) / cols;
+  return w.clamp(140.0, 273.667);
+}
+
 class _VariationSection extends StatelessWidget {
   final String title;
   final Variation variation;
   final int variationIndex;
   final Product product;
   final ProductProvider productProvider;
-  final String? imageBaseUrl;
 
   const _VariationSection({
     required this.title,
@@ -1049,7 +1011,6 @@ class _VariationSection extends StatelessWidget {
     required this.variationIndex,
     required this.product,
     required this.productProvider,
-    required this.imageBaseUrl,
   });
 
   @override
@@ -1057,60 +1018,43 @@ class _VariationSection extends StatelessWidget {
     final values = variation.variationValues ?? [];
     if (values.isEmpty) return const SizedBox.shrink();
 
-    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SectionTitle(title),
         LayoutBuilder(
           builder: (context, constraints) {
-            const double gap = PosCustomizeSpec.dietaryCardGap;
-            final double available = constraints.maxWidth;
-            final int count = values.length;
-            const double ideal = PosCustomizeSpec.dietaryCardWidth;
-            final double totalIdeal = count * ideal + (count - 1) * gap;
-            final double cardWidth = totalIdeal <= available
-                ? ideal
-                : ((available - gap * (count - 1)) / count).clamp(96.0, ideal);
-
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  for (int i = 0; i < values.length; i++) ...[
-                    if (i > 0) SizedBox(width: gap),
-                    _DietaryCard(
-                      width: cardWidth,
-                      name: values[i].level?.trim() ?? '',
-                      imageUrl: KioskProductImageHelper.optionCardImageUrl(
-                        value: values[i],
-                        productImageBaseUrl: imageBaseUrl,
-                      ),
-                      showImages: showImages,
-                      selected: productProvider
-                              .selectedVariations[variationIndex][i] ??
-                          false,
-                      onTap: () {
-                        productProvider.setCartVariationIndex(
-                          variationIndex,
-                          i,
-                          product,
-                          variation.isMultiSelect!,
-                        );
-                        productProvider.checkIsRequiredSelected(
-                          index: variationIndex,
-                          isMultiSelect: variation.isMultiSelect!,
-                          variations: productProvider
-                              .selectedVariations[variationIndex],
-                          min: variation.min,
-                          max: variation.max,
-                        );
-                      },
-                    ),
-                  ],
-                ],
-              ),
+            final double cardWidth = _optionCardWidth(constraints.maxWidth);
+            return Wrap(
+              spacing: PosCustomizeSpec.optionGridGap,
+              runSpacing: PosCustomizeSpec.optionGridGap,
+              children: [
+                for (int i = 0; i < values.length; i++)
+                  _OptionCard(
+                    width: cardWidth,
+                    name: values[i].level?.trim() ?? '',
+                    price: values[i].optionPrice ?? 0,
+                    selected:
+                        productProvider.selectedVariations[variationIndex][i] ??
+                            false,
+                    onTap: () {
+                      productProvider.setCartVariationIndex(
+                        variationIndex,
+                        i,
+                        product,
+                        variation.isMultiSelect!,
+                      );
+                      productProvider.checkIsRequiredSelected(
+                        index: variationIndex,
+                        isMultiSelect: variation.isMultiSelect!,
+                        variations:
+                            productProvider.selectedVariations[variationIndex],
+                        min: variation.min,
+                        max: variation.max,
+                      );
+                    },
+                  ),
+              ],
             );
           },
         ),
@@ -1119,119 +1063,69 @@ class _VariationSection extends StatelessWidget {
   }
 }
 
-class _DietaryCard extends StatelessWidget {
-  final double width;
+/// Shared text-only option card for dietary and vessel choices
+/// (Figma 1915:13826 / 1915:13918). Selection is a 1px ink outline — no radio,
+/// no image.
+class _OptionCard extends StatelessWidget {
+  final double? width;
   final String name;
-  final String imageUrl;
-  final bool showImages;
+  final double price;
   final bool selected;
   final VoidCallback onTap;
 
-  const _DietaryCard({
-    required this.width,
+  const _OptionCard({
+    this.width,
     required this.name,
-    required this.imageUrl,
-    this.showImages = true,
+    required this.price,
     required this.selected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosCustomizeSpec.optionCardRadius);
     return Material(
-      color: PosCustomizeSpec.panelBg,
-      borderRadius: BorderRadius.circular(PosCustomizeSpec.dietaryCardRadius),
+      color: PosCustomizeSpec.optionCardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: selected
+            ? const BorderSide(
+                color: PosHomeSpec.ink,
+                width: PosCustomizeSpec.optionCardBorder,
+              )
+            : BorderSide.none,
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(PosCustomizeSpec.dietaryCardRadius),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+        borderRadius: radius,
+        child: Container(
           width: width,
-          // Picture-less: no fixed image-sized height -- the card shrinks to
-          // the radio + label it actually contains.
-          height: showImages ? PosCustomizeSpec.dietaryCardHeight : null,
-          padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
-          decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(PosCustomizeSpec.dietaryCardRadius),
-            border: Border.all(
-              color: selected ? Colors.black : PosCustomizeSpec.mutedBorder,
-              width: selected
-                  ? PosCustomizeSpec.dietaryBorderSelected
-                  : PosCustomizeSpec.dietaryBorder,
-            ),
-          ),
-          child: Stack(
+          height: PosCustomizeSpec.optionCardHeight,
+          padding: const EdgeInsets.all(16),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Positioned(
-                top: 0,
-                right: 0,
-                child: selected
-                    ? Container(
-                        width: PosCustomizeSpec.dietaryRadio,
-                        height: PosCustomizeSpec.dietaryRadio,
-                        decoration: const BoxDecoration(
-                          color: Colors.black,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          size: 8,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Container(
-                        width: 9,
-                        height: 9,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: PosCustomizeSpec.mutedBorder,
-                            width: 0.75,
-                          ),
-                        ),
-                      ),
+              Text(
+                name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: loewExtraBold.copyWith(
+                  fontSize: PosCustomizeSpec.optionNameSize,
+                  color: PosHomeSpec.ink,
+                  height: 1.1,
+                ),
               ),
-              // In flow (not Positioned.fill) so a picture-less card keeps the
-              // height of its label; full width so the label centres in the box.
-              SizedBox(
-                width: double.infinity,
-                child: Column(
-                  mainAxisSize:
-                      showImages ? MainAxisSize.max : MainAxisSize.min,
-                  mainAxisAlignment: showImages
-                      ? MainAxisAlignment.start
-                      : MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (showImages)
-                      Expanded(
-                        child: Center(
-                          child: SizedBox(
-                            width: PosCustomizeSpec.dietaryImage,
-                            height: PosCustomizeSpec.dietaryImage,
-                            child: imageUrl.isEmpty
-                                ? const SizedBox.shrink()
-                                : CustomImageWidget(
-                                    image: imageUrl,
-                                    fit: BoxFit.contain,
-                                    cacheWidth: 200,
-                                  ),
-                          ),
-                        ),
-                      ),
-                    Text(
-                      name.toUpperCase(),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: loewMedium.copyWith(
-                        fontSize: PosCustomizeSpec.dietaryLabelSize,
-                        height: 1.0,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 4),
+              Text(
+                PosHomeSpec.formatPrice(price),
+                textAlign: TextAlign.center,
+                style: swiss721Light.copyWith(
+                  fontSize: PosCustomizeSpec.optionPriceSize,
+                  color: PosHomeSpec.inkAlpha(0.6),
                 ),
               ),
             ],
@@ -1260,12 +1154,6 @@ class _AddOnsSection extends StatelessWidget {
     return group.isRequired ? '$name *' : name;
   }
 
-  String _addonImageUrl(BuildContext context, AddOns addon) {
-    if (!addon.hasImage) return '';
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    return '${splash.baseUrls?.addonImageUrl}/${addon.image}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final List<int> groupIndexes = [
@@ -1279,23 +1167,17 @@ class _AddOnsSection extends StatelessWidget {
           product.indexOfAddOn(addon.id)!,
     ];
 
-    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SectionTitle(_title(context)),
         LayoutBuilder(
           builder: (context, constraints) {
-            const double gapH = PosCustomizeSpec.addonCardGapH;
-            const double gapV = PosCustomizeSpec.addonCardGapV;
-            const int columns = PosCustomizeSpec.addonColumns;
-            final double cardWidth =
-                ((constraints.maxWidth - gapH * (columns - 1)) / columns)
-                    .clamp(120.0, PosCustomizeSpec.addonCardWidth);
+            final double cardWidth = _optionCardWidth(constraints.maxWidth);
 
             return Wrap(
-              spacing: gapH,
-              runSpacing: gapV,
+              spacing: PosCustomizeSpec.optionGridGap,
+              runSpacing: PosCustomizeSpec.optionGridGap,
               children: [
                 for (final addon in group.addons)
                   if (product.indexOfAddOn(addon.id) != null)
@@ -1313,8 +1195,6 @@ class _AddOnsSection extends StatelessWidget {
                         width: cardWidth,
                         name: addon.name ?? '',
                         priceDelta: addon.effectivePrice,
-                        imageUrl: _addonImageUrl(context, addon),
-                        showImages: showImages,
                         selected: selected,
                         isDefault: isDefault,
                         quantity: quantity,
@@ -1357,12 +1237,13 @@ class _AddOnsSection extends StatelessWidget {
   }
 }
 
+/// Add-on option card (Figma 1915:13849). Text-only, 273×90. Selected / default
+/// cards gain a 1px outline; when the add-on carries a quantity the count sits
+/// top-centre in a disc and − / + glyphs pin to the card's left / right edges.
 class _AddOnCard extends StatelessWidget {
   final double width;
   final String name;
   final double priceDelta;
-  final String imageUrl;
-  final bool showImages;
   final bool selected;
   final bool isDefault;
   final int quantity;
@@ -1375,8 +1256,6 @@ class _AddOnCard extends StatelessWidget {
     required this.width,
     required this.name,
     required this.priceDelta,
-    required this.imageUrl,
-    this.showImages = true,
     required this.selected,
     this.isDefault = false,
     required this.quantity,
@@ -1388,124 +1267,88 @@ class _AddOnCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color ground =
-        isDefault ? PosCustomizeSpec.includedBg : PosCustomizeSpec.panelBg;
+    final bool outlined = selected || isDefault;
+    final Color borderColor =
+        isDefault ? PosCustomizeSpec.includedBorder : PosHomeSpec.ink;
+    final Color bg =
+        isDefault ? PosCustomizeSpec.includedBg : PosCustomizeSpec.optionCardBg;
+    final String priceText = priceDelta > 0
+        ? kioskAddonPriceLabel(priceDelta)
+        : PosHomeSpec.formatPrice(0);
+    final BorderRadius radius =
+        BorderRadius.circular(PosCustomizeSpec.optionCardRadius);
+
+    final Widget info = Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (showQuantity) ...[
+          _AddonQtyBadge(quantity),
+          const SizedBox(height: 4),
+        ],
+        Text(
+          name,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: loewExtraBold.copyWith(
+            fontSize: PosCustomizeSpec.optionNameSize,
+            color: PosHomeSpec.ink,
+            height: 1.1,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          priceText,
+          textAlign: TextAlign.center,
+          style: swiss721Light.copyWith(
+            fontSize: PosCustomizeSpec.optionPriceSize,
+            color: PosHomeSpec.inkAlpha(0.6),
+          ),
+        ),
+      ],
+    );
+
     return Material(
-      color: ground,
-      borderRadius: BorderRadius.circular(PosCustomizeSpec.addonCardRadius),
+      color: bg,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: outlined
+            ? BorderSide(
+                color: borderColor, width: PosCustomizeSpec.optionCardBorder)
+            : BorderSide.none,
+      ),
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(PosCustomizeSpec.addonCardRadius),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+        onTap: isDefault ? null : onTap,
+        borderRadius: radius,
+        child: SizedBox(
           width: width,
-          // Picture-less: drop the image-sized fixed height and let the card
-          // size to the price + name (+ qty) it contains.
-          height: showImages ? PosCustomizeSpec.addonCardHeight : null,
-          constraints: showImages ? null : const BoxConstraints(minHeight: 72),
-          alignment: showImages ? null : Alignment.center,
-          padding: const EdgeInsets.fromLTRB(
-            PosCustomizeSpec.addonPadH,
-            PosCustomizeSpec.addonPadTop,
-            PosCustomizeSpec.addonPadH,
-            PosCustomizeSpec.addonPadBottom,
-          ),
-          decoration: BoxDecoration(
-            color: ground,
-            borderRadius:
-                BorderRadius.circular(PosCustomizeSpec.addonCardRadius),
-            border: Border.all(
-              color: isDefault
-                  ? PosCustomizeSpec.includedBorder
-                  : (selected ? Colors.black : PosCustomizeSpec.mutedBorder),
-              width: (isDefault || selected) ? 1.0 : 0.788,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: showImages ? MainAxisSize.max : MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          height: PosCustomizeSpec.optionCardHeight,
+          child: Stack(
             children: [
-              // Picture-less: the name (and price) sit centred in the box like
-              // the Cup / Can cards; with pictures the price stays top-right.
-              if (showImages) ...[
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    priceDelta > 0 ? kioskAddonPriceLabel(priceDelta) : '',
-                    style: swiss721Light.copyWith(
-                      fontSize: PosCustomizeSpec.addonPriceSize,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-              ],
-              if (showImages) ...[
-                Expanded(
-                  child: imageUrl.isEmpty
-                      ? const SizedBox.shrink()
-                      : CustomImageWidget(
-                          image: imageUrl,
-                          fit: BoxFit.contain,
-                          cacheWidth: 240,
-                        ),
-                ),
-                const SizedBox(height: 4),
-              ],
-              Text(
-                name.toUpperCase(),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: loewMedium.copyWith(
-                  fontSize: PosCustomizeSpec.addonLabelSize,
-                  height: 1.2,
-                  color: Colors.black,
+              Positioned.fill(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Center(child: info),
                 ),
               ),
-              if (!showImages && priceDelta > 0) ...[
-                const SizedBox(height: 4),
-                Text(
-                  kioskAddonPriceLabel(priceDelta),
-                  textAlign: TextAlign.center,
-                  style: swiss721Light.copyWith(
-                    fontSize: PosCustomizeSpec.addonPriceSize,
-                    color: Colors.black,
+              if (showQuantity) ...[
+                Positioned(
+                  left: 4,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: _StepGlyph(label: '−', onTap: onDecrement),
                   ),
                 ),
-              ],
-              if (showQuantity) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _MiniQtyButton(
-                      label: '−',
-                      filled: false,
-                      onTap: onDecrement,
-                    ),
-                    const SizedBox(width: PosCustomizeSpec.addonMiniQtyGap),
-                    SizedBox(
-                      width: PosCustomizeSpec.addonMiniQty,
-                      height: PosCustomizeSpec.addonMiniQty,
-                      child: Center(
-                        child: Text(
-                          '$quantity',
-                          style: loewExtraBold.copyWith(
-                            fontSize: PosCustomizeSpec.addonMiniQtyGlyph,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: PosCustomizeSpec.addonMiniQtyGap),
-                    _MiniQtyButton(
-                      label: '+',
-                      filled: true,
-                      onTap: onIncrement,
-                    ),
-                  ],
+                Positioned(
+                  right: 4,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: _StepGlyph(label: '+', onTap: onIncrement),
+                  ),
                 ),
               ],
             ],
@@ -1516,44 +1359,61 @@ class _AddOnCard extends StatelessWidget {
   }
 }
 
-class _MiniQtyButton extends StatelessWidget {
+/// 21px count disc sitting top-centre on an active add-on card (Figma
+/// 1915:13852).
+class _AddonQtyBadge extends StatelessWidget {
+  final int quantity;
+
+  const _AddonQtyBadge(this.quantity);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: PosCustomizeSpec.addonBadge,
+      height: PosCustomizeSpec.addonBadge,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: PosHomeSpec.ink,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        '$quantity',
+        style: loewBold.copyWith(
+          fontSize: PosCustomizeSpec.addonBadgeLabel,
+          color: Colors.white,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
+/// A − / + glyph pinned to an add-on card's edge (Figma 1915:13856/13857).
+class _StepGlyph extends StatelessWidget {
   final String label;
-  final bool filled;
   final VoidCallback onTap;
 
-  const _MiniQtyButton({
-    required this.label,
-    required this.filled,
-    required this.onTap,
-  });
+  const _StepGlyph({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: filled ? Colors.black : PosCustomizeSpec.panelBg,
-      borderRadius: BorderRadius.circular(PosCustomizeSpec.addonMiniQtyRadius),
+      color: Colors.transparent,
+      shape: const CircleBorder(),
       child: InkWell(
+        customBorder: const CircleBorder(),
         onTap: onTap,
-        borderRadius:
-            BorderRadius.circular(PosCustomizeSpec.addonMiniQtyRadius),
-        child: Container(
-          width: PosCustomizeSpec.addonMiniQty,
-          height: PosCustomizeSpec.addonMiniQty,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(PosCustomizeSpec.addonMiniQtyRadius),
-            border: Border.all(
-              color: filled ? Colors.black : PosCustomizeSpec.mutedBorder,
-              width: PosCustomizeSpec.addonMiniQtyBorder,
-            ),
-          ),
-          child: Text(
-            label,
-            style: loewExtraBold.copyWith(
-              fontSize: PosCustomizeSpec.addonMiniQtyGlyph,
-              height: 1,
-              color: filled ? const Color(0xFFF3F3DD) : Colors.black,
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Center(
+            child: Text(
+              label,
+              style: loewRegular.copyWith(
+                fontSize: PosCustomizeSpec.addonStepGlyph,
+                color: PosHomeSpec.ink,
+                height: 1.0,
+              ),
             ),
           ),
         ),
@@ -1567,14 +1427,12 @@ class _CupCanSection extends StatelessWidget {
   final int variationIndex;
   final Product product;
   final ProductProvider productProvider;
-  final String? imageBaseUrl;
 
   const _CupCanSection({
     required this.variation,
     required this.variationIndex,
     required this.product,
     required this.productProvider,
-    required this.imageBaseUrl,
   });
 
   @override
@@ -1585,129 +1443,47 @@ class _CupCanSection extends StatelessWidget {
         ? variation.name!
         : (getTranslated('can_or_cup', context) ?? 'Can or cup?');
 
-    final bool showImages = context.watch<KioskAuthProvider>().showImages;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SectionTitle(title),
         LayoutBuilder(
           builder: (context, constraints) {
-            const double gap = PosCustomizeSpec.vesselCardGap;
-            return Row(
+            final double cardWidth = _optionCardWidth(constraints.maxWidth);
+            return Wrap(
+              spacing: PosCustomizeSpec.optionGridGap,
+              runSpacing: PosCustomizeSpec.optionGridGap,
               children: [
-                for (int i = 0; i < values.length; i++) ...[
-                  if (i > 0) SizedBox(width: gap),
-                  Expanded(
-                    child: _VesselCard(
-                      height: PosCustomizeSpec.vesselCardHeight,
-                      showImages: showImages,
-                      name: values[i].level?.trim() ?? '',
-                      assetImage:
-                          kioskLocalVesselAsset(values[i].level?.trim() ?? ''),
-                      imageUrl: KioskProductImageHelper.optionCardImageUrl(
-                        value: values[i],
-                        productImageBaseUrl: imageBaseUrl,
-                      ),
-                      selected: productProvider
-                              .selectedVariations[variationIndex][i] ??
-                          false,
-                      onTap: () {
-                        productProvider.setCartVariationIndex(
-                          variationIndex,
-                          i,
-                          product,
-                          variation.isMultiSelect!,
-                        );
-                        productProvider.checkIsRequiredSelected(
-                          index: variationIndex,
-                          isMultiSelect: variation.isMultiSelect!,
-                          variations: productProvider
-                              .selectedVariations[variationIndex],
-                          min: variation.min,
-                          max: variation.max,
-                        );
-                      },
-                    ),
+                for (int i = 0; i < values.length; i++)
+                  _OptionCard(
+                    width: cardWidth,
+                    name: values[i].level?.trim() ?? '',
+                    price: values[i].optionPrice ?? 0,
+                    selected:
+                        productProvider.selectedVariations[variationIndex][i] ??
+                            false,
+                    onTap: () {
+                      productProvider.setCartVariationIndex(
+                        variationIndex,
+                        i,
+                        product,
+                        variation.isMultiSelect!,
+                      );
+                      productProvider.checkIsRequiredSelected(
+                        index: variationIndex,
+                        isMultiSelect: variation.isMultiSelect!,
+                        variations:
+                            productProvider.selectedVariations[variationIndex],
+                        min: variation.min,
+                        max: variation.max,
+                      );
+                    },
                   ),
-                ],
               ],
             );
           },
         ),
       ],
-    );
-  }
-}
-
-class _VesselCard extends StatelessWidget {
-  final double height;
-  final bool showImages;
-  final String name;
-  final String? assetImage;
-  final String imageUrl;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _VesselCard({
-    required this.height,
-    this.showImages = true,
-    required this.name,
-    required this.assetImage,
-    required this.imageUrl,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: PosCustomizeSpec.panelBg,
-      borderRadius: BorderRadius.circular(PosCustomizeSpec.vesselCardRadius),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(PosCustomizeSpec.vesselCardRadius),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          // Picture-less: no tall image-sized card, just the label row.
-          height: showImages ? height : null,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(PosCustomizeSpec.vesselCardRadius),
-            border: Border.all(
-              color: selected ? Colors.black : PosCustomizeSpec.mutedBorder,
-              width: selected ? 2 : 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: showImages ? MainAxisSize.max : MainAxisSize.min,
-            children: [
-              if (showImages) ...[
-                Expanded(
-                  child: assetImage != null
-                      ? Image.asset(assetImage!, fit: BoxFit.contain)
-                      : imageUrl.isEmpty
-                          ? const SizedBox.shrink()
-                          : CustomImageWidget(
-                              image: imageUrl,
-                              fit: BoxFit.contain,
-                              cacheWidth: 320,
-                            ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              Text(
-                name.toUpperCase(),
-                textAlign: TextAlign.center,
-                style: loewExtraBold.copyWith(
-                  fontSize: PosCustomizeSpec.vesselLabelSize,
-                  color: PosCustomizeSpec.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

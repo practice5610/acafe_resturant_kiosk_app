@@ -281,6 +281,8 @@ class Images {
   static const String posTrashSvg = 'assets/svg/pos_trash.svg';
   static const String posEditPng = 'assets/image/pos_edit.png';
   static const String posScanSvg = 'assets/svg/pos_scan.svg';
+  /// Calendar glyph before the nav-bar date (Figma node I1915:13215;3207:7329).
+  static const String posCalendarSvg = 'assets/svg/pos_calendar.svg';
   /// Settings dropdown chevron (Figma 1641:3961).
   static const String posChevronDownSvg = 'assets/svg/pos_chevron_down.svg';
   // POS payment selection (Figma 1641:2757)

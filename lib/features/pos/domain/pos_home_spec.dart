@@ -121,9 +121,16 @@ class PosHomeSpec {
   /// design geometry while the card collapses to just them (no empty box).
   static const double tileHeightNoImage =
       tileHeight - tileImageHeight - tileImageGap;
-  static const double qtyBadgeSize = 26.4;
-  static const double qtyBadgeLabelSize = 13.2;
+  // In-cart product tile (new Browse-POS design, node 1915:13254): the count
+  // sits top-centre in a 21px ink disc, and the whole tile gains a 1px ink
+  // outline while it has a quantity in the cart.
+  static const double qtyBadgeSize = 21;
+  static const double qtyBadgeLabelSize = 13;
   static const double qtyBadgeInset = 16;
+  /// Breathing room between the in-flow badge and the name on a picture-less
+  /// tile, so the count never sits on top of the product name.
+  static const double qtyBadgeGap = 8;
+  static const double tileSelectedBorder = 1;
 
   // ── Receipt panel ────────────────────────────────────────────────────
   static const double panelPaddingH = 24;

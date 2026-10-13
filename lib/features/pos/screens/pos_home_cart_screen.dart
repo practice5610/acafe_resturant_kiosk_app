@@ -397,9 +397,12 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
   }
 
   Future<void> _openReceiptOptions(BuildContext anchorContext) async {
+    final CouponProvider coupon = context.read<CouponProvider>();
+    final bool hasDiscount = (coupon.discount ?? 0) > 0 || coupon.coupon != null;
     final PosReceiptMenuAction? action = await showPosReceiptContextMenu(
       context: context,
       anchorContext: anchorContext,
+      hasDiscount: hasDiscount,
     );
     if (action == null || !mounted) return;
     await handlePosReceiptMenuAction(context, action);

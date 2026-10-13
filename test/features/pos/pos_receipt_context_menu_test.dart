@@ -63,27 +63,30 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('⋯ opens the Figma context menu with all sections',
+  testWidgets('⋯ opens the Figma context menu with the two sections only',
       (tester) async {
     await openMenuFromReceipt(tester);
 
+    // Browse-POS design (1915:13568): exactly two sections, five items.
     expect(find.text('DISCOUNT ACTIONS'), findsOneWidget);
     expect(find.text('PRICE ADJUSTMENTS'), findsOneWidget);
-    expect(find.text('ORDER MANAGEMENT'), findsOneWidget);
-    expect(find.text('PAYMENT-RELATED'), findsOneWidget);
     expect(find.text('Apply discount'), findsOneWidget);
-    expect(find.text('Apply custom discount'), findsOneWidget);
     expect(find.text('Remove discount'), findsOneWidget);
     expect(find.text('Price override'), findsOneWidget);
     expect(find.text('Tax exempt'), findsOneWidget);
     expect(find.text('Comp item'), findsOneWidget);
-    expect(find.text('Move to another table...'), findsOneWidget);
-    expect(find.text('Hold / Fire item'), findsOneWidget);
-    expect(find.text('Send to kitchen / bar'), findsOneWidget);
-    expect(find.text('Repeat item'), findsOneWidget);
-    expect(find.text('Partial payment'), findsOneWidget);
-    expect(find.text('Gift card apply'), findsOneWidget);
-    expect(find.text('Loyalty points'), findsOneWidget);
+
+    // Sections/items the redesign dropped must be gone.
+    expect(find.text('ORDER MANAGEMENT'), findsNothing);
+    expect(find.text('PAYMENT-RELATED'), findsNothing);
+    expect(find.text('Apply custom discount'), findsNothing);
+    expect(find.text('Move to another table...'), findsNothing);
+    expect(find.text('Hold / Fire item'), findsNothing);
+    expect(find.text('Send to kitchen / bar'), findsNothing);
+    expect(find.text('Repeat item'), findsNothing);
+    expect(find.text('Partial payment'), findsNothing);
+    expect(find.text('Gift card apply'), findsNothing);
+    expect(find.text('Loyalty points'), findsNothing);
 
     final Text remove = tester.widget<Text>(find.text('Remove discount'));
     expect(remove.style?.color, PosHomeSpec.contextMenuDanger);
@@ -125,7 +128,7 @@ void main() {
       find.byWidgetPredicate(
         (w) =>
             w is SvgPicture &&
-            w.bytesLoader.toString().contains(Images.posMenuStarSvg),
+            w.bytesLoader.toString().contains(Images.posMenuGiftSvg),
       ),
       findsOneWidget,
     );
@@ -153,6 +156,7 @@ void main() {
                       chosen = await showPosReceiptContextMenu(
                         context: context,
                         anchorContext: context,
+                        hasDiscount: true,
                       );
                     },
                     child: const ColoredBox(color: Colors.black),
@@ -171,5 +175,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(chosen, PosReceiptMenuAction.removeDiscount);
+  });
+
+  testWidgets('Remove discount is disabled (non-tappable) with no discount',
+      (tester) async {
+    tester.view.physicalSize = const Size(1366, 1024);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    PosReceiptMenuAction? chosen;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topRight,
+            child: Builder(
+              builder: (context) {
+                return SizedBox(
+                  width: PosHomeSpec.optionsButtonSize,
+                  height: PosHomeSpec.optionsButtonSize,
+                  child: GestureDetector(
+                    onTap: () async {
+                      chosen = await showPosReceiptContextMenu(
+                        context: context,
+                        anchorContext: context,
+                        // hasDiscount defaults to false.
+                      );
+                    },
+                    child: const ColoredBox(color: Colors.black),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(GestureDetector));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove discount'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    // Row is dimmed + IgnorePointer, so the tap neither selects nor closes it.
+    expect(chosen, isNull);
+    expect(find.text('Remove discount'), findsOneWidget);
   });
 }

@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_apply_discount_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_coupon_apply_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -27,10 +28,9 @@ Future<void> handlePosReceiptMenuAction(
 
   switch (action) {
     case PosReceiptMenuAction.applyDiscount:
-      await showPosCouponApplyDialog(
+      await showPosApplyDiscountDialog(
         context: context,
-        orderAmount: orderAmount,
-        title: 'Apply discount',
+        cartList: cart.cartList,
       );
     case PosReceiptMenuAction.applyCustomDiscount:
       await showPosCouponApplyDialog(

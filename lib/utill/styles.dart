@@ -37,8 +37,9 @@ const robotoRegular = TextStyle(
   fontWeight: FontWeight.w400,
 );
 
-// Figma kiosk fonts (registered in pubspec.yaml). Fall back to the default font
-// until the real font files are dropped into assets/fonts/.
+// Figma kiosk fonts. The real font files are present in assets/fonts/ and
+// registered in pubspec.yaml (Loew 400/500/700/800, Swiss721 300), so these
+// resolve to the actual typefaces — no fallback is in effect.
 const loewRegular = TextStyle(
   fontFamily: 'Loew',
   fontSize: Dimensions.fontSizeDefault,

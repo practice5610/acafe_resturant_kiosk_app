@@ -8,7 +8,9 @@ import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart'
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/domain/reposotories/coupon_repo.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/screens/pos_product_customize_screen.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
@@ -126,6 +128,10 @@ void main() {
           ChangeNotifierProvider<CouponProvider>(
               create: (_) =>
                   CouponProvider(couponRepo: CouponRepo(dioClient: dio))),
+          ChangeNotifierProvider<KioskAuthProvider>(
+              create: (_) => KioskAuthProvider(
+                  kioskAuthRepo: KioskAuthRepo(
+                      dioClient: dio, sharedPreferences: prefs))),
         ],
         child: MaterialApp(
           navigatorKey: navigatorKey,
@@ -142,10 +148,15 @@ void main() {
     expect(find.text('Choose your dietary'), findsOneWidget);
     expect(find.text('Add add-ons'), findsOneWidget);
     expect(find.text('Can or cup?'), findsOneWidget);
-    expect(find.text('Purchase Receipt'), findsOneWidget);
-    // Footer: price sits beside the CTA, not inside its label.
-    expect(find.text('Total'), findsWidgets);
-    expect(find.textContaining('•'), findsNothing);
+
+    // Browse-POS redesign: header gains ADD NOTE + DUPLICATE (add mode),
+    // the right pane previews the pending item, and the footer is a single
+    // CTA that carries the total inside its label ("ADD TO CART  •  €x").
+    expect(find.text('ADD NOTE'), findsOneWidget);
+    expect(find.text('DUPLICATE'), findsOneWidget);
+    expect(find.text('Items that you will add:'), findsOneWidget);
+    expect(find.text('Purchase Receipt'), findsNothing);
+    expect(find.textContaining('•'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

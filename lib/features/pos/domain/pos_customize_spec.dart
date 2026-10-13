@@ -30,15 +30,42 @@ class PosCustomizeSpec {
 
   static const double panePadding = 32;
   static const double sectionGap = 24;
-  static const double sectionTitleGap = 16;
-  static const double sectionTitleSize = 20;
+  static const double sectionTitleGap = 12;
+  static const double sectionTitleSize = 18;
 
-  static const double backButton = 48;
-  static const double backButtonRadius = 24;
-  static const double backButtonBorder = 2;
+  static const double backButton = 40;
+  static const double backButtonRadius = 20;
+  static const double backButtonBorder = 1.5;
   static const double backIcon = 16;
   static const double headerGap = 16;
   static const double titleSize = 24;
+
+  // ── Browse-POS redesign (node 1915:13603) ──────────────────────────────
+  // Uniform text-only option cards (dietary / add-on / vessel), laid out 3-up
+  // and wrapping. Selection / in-cart state is a 1px ink outline (no radio).
+  static const double optionCardHeight = 90;
+  static const double optionCardRadius = 16;
+  static const double optionGridGap = 16;
+  static const double optionColumns = 3;
+  static const double optionNameSize = 16;
+  static const double optionPriceSize = 13;
+  static const double optionCardBorder = 1;
+  static const Color optionCardBg = Colors.white;
+  static const Color optionPriceColor = Color(0x99241F20); // ink @ 60%
+  // Add-on inline stepper: a 21px count badge top-centre and −/+ glyphs pinned
+  // to the card's left / right edges.
+  static const double addonBadge = 21;
+  static const double addonBadgeLabel = 13;
+  static const double addonStepGlyph = 26;
+  // Header action buttons: ADD NOTE (outline) and DUPLICATE (filled ink).
+  static const double headerBtnRadius = 14;
+  static const double headerBtnPadH = 18;
+  static const double headerBtnPadV = 12;
+  static const double headerBtnLabel = 14;
+  // Footer: one full-width ink CTA carrying the total.
+  static const double footerBarHeight = 92;
+  static const double ctaButtonHeight = 60;
+  static const Color ctaLabelColor = Color(0xFFFAF9F5);
 
   static const double qtyButton = 42;
   static const double qtyRadius = 9;

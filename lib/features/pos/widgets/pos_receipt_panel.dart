@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_customer_name_dialog.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -14,8 +15,9 @@ export 'package:acafe_customer/features/pos/domain/pos_sale_session.dart'
 
 /// Right pane: the sale in progress.
 ///
-/// Header, order-type toggle, customer/table fields, the order list (or its
-/// empty state), and the totals footer.
+/// Header, customer/table fields, the order list (or its empty state), and the
+/// totals footer. (The Dine In / Take Away toggle was removed from the UI in
+/// the Browse-POS redesign; see the note in [build].)
 class PosReceiptPanel extends StatelessWidget {
   final String? orderNumber;
   final PosOrderType orderType;
@@ -75,10 +77,11 @@ class PosReceiptPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PosReceiptHeader(orderNumber: orderNumber, onOptions: onOptions),
-          _OrderTypeToggle(
-            selected: orderType,
-            onChanged: onOrderTypeChanged,
-          ),
+          // The Dine In / Take Away toggle was removed from the UI in the
+          // Browse-POS redesign. `orderType` / `onOrderTypeChanged` are retained
+          // on the panel's API (callers still pass them, and PosSaleSession keeps
+          // its default) so no order-writing path or API contract changes — the
+          // value is simply no longer operator-selectable here.
           if (_hasItems) ...[
             customer,
             const PosReceiptOrderListLabel(),
@@ -219,87 +222,6 @@ class PosReceiptHeader extends StatelessWidget {
   }
 }
 
-class _OrderTypeToggle extends StatelessWidget {
-  final PosOrderType selected;
-  final ValueChanged<PosOrderType> onChanged;
-
-  const _OrderTypeToggle({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: PosHomeSpec.orderTypeHeight,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          PosHomeSpec.panelPaddingH,
-          PosHomeSpec.orderTypePaddingTop,
-          PosHomeSpec.panelPaddingH,
-          PosHomeSpec.orderTypePaddingBottom,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _OrderTypeButton(
-                label: 'Dine In',
-                active: selected == PosOrderType.dineIn,
-                onTap: () => onChanged(PosOrderType.dineIn),
-              ),
-            ),
-            const SizedBox(width: PosHomeSpec.orderTypeGap),
-            Expanded(
-              child: _OrderTypeButton(
-                label: 'Take Away',
-                active: selected == PosOrderType.takeAway,
-                onTap: () => onChanged(PosOrderType.takeAway),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OrderTypeButton extends StatelessWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _OrderTypeButton({
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: active ? PosHomeSpec.ink : PosHomeSpec.inactiveFill,
-      borderRadius: BorderRadius.circular(PosHomeSpec.orderTypeRadius),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(PosHomeSpec.orderTypeRadius),
-        child: SizedBox(
-          height: PosHomeSpec.orderTypeButtonHeight,
-          child: Center(
-            child: Text(
-              label,
-              style: (active ? loewBold : loewMedium).copyWith(
-                fontSize: PosHomeSpec.orderTypeLabelSize,
-                color: active
-                    ? PosHomeSpec.pageBg
-                    : PosHomeSpec.inkAlpha(0.25),
-                height: PosHomeSpec.orderTypeLabelHeight,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class PosReceiptOrderListLabel extends StatelessWidget {
   const PosReceiptOrderListLabel({super.key});
 
@@ -363,28 +285,13 @@ class PosReceiptCustomerInfo extends StatelessWidget {
               PosHomeSpec.panelPaddingH,
               PosHomeSpec.customerInfoPaddingBottom,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _Field(
-                    label: 'Customer name',
-                    controller: nameController,
-                    borderColor: PosHomeSpec.ink,
-                    readOnly: readOnly,
-                  ),
-                ),
-                const SizedBox(width: PosHomeSpec.fieldGap),
-                SizedBox(
-                  width: PosHomeSpec.tableFieldWidth,
-                  child: _Field(
-                    label: 'Table',
-                    controller: tableController,
-                    borderColor: PosHomeSpec.tableFieldBorder,
-                    readOnly: readOnly,
-                  ),
-                ),
-              ],
+            // Full-width customer-name field. The Table field was removed in the
+            // Browse-POS redesign (its controller is retained so the order
+            // payload default is unchanged). Tapping the field opens the
+            // "Who is this order for?" modal rather than editing inline.
+            child: _NameTrigger(
+              controller: nameController,
+              readOnly: readOnly,
             ),
           ),
           if (showBottomHairline)
@@ -403,18 +310,15 @@ class PosReceiptCustomerInfo extends StatelessWidget {
   }
 }
 
-class _Field extends StatelessWidget {
-  final String label;
+/// The receipt's customer-name field. Shows the entered name (or the
+/// "Enter customer name" placeholder) and, when editable, opens the
+/// "Who is this order for?" modal on tap (Figma 1915:15666 / 1915:15751).
+/// A settled receipt ([readOnly]) shows the name as plain display text.
+class _NameTrigger extends StatelessWidget {
   final TextEditingController controller;
-  final Color borderColor;
   final bool readOnly;
 
-  const _Field({
-    required this.label,
-    required this.controller,
-    required this.borderColor,
-    this.readOnly = false,
-  });
+  const _NameTrigger({required this.controller, required this.readOnly});
 
   @override
   Widget build(BuildContext context) {
@@ -425,7 +329,7 @@ class _Field extends StatelessWidget {
         SizedBox(
           height: PosHomeSpec.fieldLabelSize * PosHomeSpec.fieldLabelHeight,
           child: Text(
-            label,
+            'Customer name',
             style: loewRegular.copyWith(
               fontSize: PosHomeSpec.fieldLabelSize,
               color: PosHomeSpec.inkAlpha(0.53),
@@ -434,37 +338,49 @@ class _Field extends StatelessWidget {
           ),
         ),
         const SizedBox(height: PosHomeSpec.fieldLabelGap),
-        Container(
-          height: PosHomeSpec.fieldInputHeight,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(PosHomeSpec.fieldRadius),
-            border: Border.all(
-              color: borderColor,
-              width: PosHomeSpec.fieldBorder,
-            ),
-          ),
-          child: TextField(
-            controller: controller,
-            readOnly: readOnly,
-            // A read-only field that still takes focus shows a caret the
-            // operator cannot use; skipping it also keeps the field out of the
-            // tab order on a keyboard-driven terminal.
-            enableInteractiveSelection: !readOnly,
-            focusNode: readOnly ? AlwaysDisabledFocusNode() : null,
-            cursorColor: PosHomeSpec.ink,
-            textAlignVertical: TextAlignVertical.center,
-            style: loewMedium.copyWith(
-              fontSize: PosHomeSpec.fieldTextSize,
-              color: PosHomeSpec.ink,
-              height: PosHomeSpec.fieldTextHeight,
-            ),
-            decoration: const InputDecoration(
-              isCollapsed: true,
-              border: InputBorder.none,
-            ),
-          ),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (context, value, _) {
+            final bool hasName = value.text.trim().isNotEmpty;
+            final Widget field = Container(
+              height: PosHomeSpec.fieldInputHeight,
+              width: double.infinity,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(PosHomeSpec.fieldRadius),
+                border: Border.all(
+                  color: PosHomeSpec.ink,
+                  width: PosHomeSpec.fieldBorder,
+                ),
+              ),
+              child: Text(
+                hasName ? value.text : 'Enter customer name',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: loewMedium.copyWith(
+                  fontSize: PosHomeSpec.fieldTextSize,
+                  color:
+                      hasName ? PosHomeSpec.ink : PosHomeSpec.inkAlpha(0.4),
+                  height: PosHomeSpec.fieldTextHeight,
+                ),
+              ),
+            );
+
+            if (readOnly) return field;
+            return Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(PosHomeSpec.fieldRadius),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(PosHomeSpec.fieldRadius),
+                onTap: () => showPosCustomerNameDialog(
+                  context: context,
+                  controller: controller,
+                ),
+                child: field,
+              ),
+            );
+          },
         ),
       ],
     );

@@ -91,9 +91,22 @@ class PosProductTile extends StatelessWidget {
       builder: (context, constraints) {
         final double s = constraints.maxWidth / PosHomeSpec.tileWidth;
 
+        final bool inCart = cartQuantity > 0;
+
         return Material(
           color: PosHomeSpec.tileBg,
-          borderRadius: BorderRadius.circular(PosHomeSpec.tileRadius * s),
+          // A tile that is in the cart carries a 1px ink outline (design node
+          // 1915:13254); otherwise it is borderless. `shape` replaces the plain
+          // `borderRadius` so the side can be toggled without losing the radius.
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(PosHomeSpec.tileRadius * s),
+            side: inCart
+                ? BorderSide(
+                    color: PosHomeSpec.ink,
+                    width: PosHomeSpec.tileSelectedBorder * s,
+                  )
+                : BorderSide.none,
+          ),
           clipBehavior: Clip.antiAlias,
           elevation: 0,
           shadowColor: Colors.transparent,
@@ -162,21 +175,34 @@ class PosProductTile extends StatelessWidget {
                           ]
                         : [
                             // Picture-less: no image band and no reserved action
-                            // row -- just the name and price, so the two lines
-                            // sit in the true vertical centre of the tile
-                            // (mainAxisAlignment.center above) instead of being
-                            // pushed up by an empty block below the price.
+                            // row -- just the (optional badge +) name and price,
+                            // centred vertically. The badge sits in-flow above
+                            // the name with a gap so the two never collide.
+                            if (inCart) ...[
+                              Align(
+                                alignment: Alignment.center,
+                                child: _QtyBadge(
+                                    quantity: cartQuantity, scale: s),
+                              ),
+                              SizedBox(height: PosHomeSpec.qtyBadgeGap * s),
+                            ],
                             _nameText(s),
                             SizedBox(height: PosHomeSpec.tileNameGap * s),
                             _priceText(s),
                           ],
                   ),
                 ),
-                if (cartQuantity > 0)
+                // Image tiles keep the badge as a top-centre overlay over the
+                // image; picture-less tiles render it in-flow (above).
+                if (inCart && showImages)
                   Positioned(
                     top: PosHomeSpec.qtyBadgeInset * s,
-                    right: PosHomeSpec.qtyBadgeInset * s,
-                    child: _QtyBadge(quantity: cartQuantity, scale: s),
+                    left: 0,
+                    right: 0,
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: _QtyBadge(quantity: cartQuantity, scale: s),
+                    ),
                   ),
               ],
             ),
@@ -208,7 +234,7 @@ class _QtyBadge extends StatelessWidget {
         style: loewBold.copyWith(
           fontSize: PosHomeSpec.qtyBadgeLabelSize * scale,
           color: Colors.white,
-          height: 16 / 13.2,
+          height: 1.0,
         ),
       ),
     );

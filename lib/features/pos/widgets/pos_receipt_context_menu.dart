@@ -23,11 +23,14 @@ enum PosReceiptMenuAction {
 
 /// Opens the receipt context menu anchored to [anchorContext] (the ⋯ button).
 ///
-/// Matches Figma: white 240×680-ish panel, right-aligned to the options button,
-/// dimmed backdrop at 27% black, section headers + 40px rows + dividers.
+/// Matches Figma `lightspeed-context-menu` (1915:13568): white 240-wide panel,
+/// right-aligned to the options button, dimmed backdrop, two section headers +
+/// 40px rows + one divider. [hasDiscount] enables the "Remove discount" row;
+/// when false it renders dimmed and non-tappable, exactly as the frame draws it.
 Future<PosReceiptMenuAction?> showPosReceiptContextMenu({
   required BuildContext context,
   required BuildContext anchorContext,
+  bool hasDiscount = false,
 }) {
   final RenderBox? box = anchorContext.findRenderObject() as RenderBox?;
   if (box == null || !box.hasSize) {
@@ -66,7 +69,7 @@ Future<PosReceiptMenuAction?> showPosReceiptContextMenu({
             top: top,
             child: FadeTransition(
               opacity: animation,
-              child: const PosReceiptContextMenuPanel(),
+              child: PosReceiptContextMenuPanel(hasDiscount: hasDiscount),
             ),
           ),
         ],
@@ -77,102 +80,67 @@ Future<PosReceiptMenuAction?> showPosReceiptContextMenu({
 
 /// Visual panel for the receipt ⋯ menu (Figma `lightspeed-context-menu`).
 class PosReceiptContextMenuPanel extends StatelessWidget {
-  const PosReceiptContextMenuPanel({super.key});
+  /// True enables the "Remove discount" row; false renders it dimmed and
+  /// non-tappable, as Figma 1915:13576 draws it when no discount is applied.
+  final bool hasDiscount;
 
-  /// Measured from Figma frame height of `lightspeed-context-menu` (680).
-  static const double preferredHeight = 680;
+  const PosReceiptContextMenuPanel({super.key, this.hasDiscount = false});
 
-  static const List<_MenuSection> _sections = [
-    _MenuSection(
-      title: 'Discount Actions',
-      items: [
-        _MenuEntry(
-          action: PosReceiptMenuAction.applyDiscount,
-          label: 'Apply discount',
-          iconAsset: Images.posMenuPercentSvg,
+  /// Measured from the Figma `lightspeed-context-menu` (1915:13568): 8px padding
+  /// top and bottom, two 27px section headers, five 40px rows and one 12px
+  /// divider between the sections.
+  static const double preferredHeight = 2 * PosHomeSpec.contextMenuPadding +
+      2 * PosHomeSpec.contextMenuHeaderHeight +
+      5 * PosHomeSpec.contextMenuItemHeight +
+      PosHomeSpec.contextMenuDividerHeight;
+
+  /// The two sections the Browse-POS design shows. "Remove discount" is disabled
+  /// unless a discount is applied. (Other [PosReceiptMenuAction] values remain in
+  /// the enum for the payment screen / future use but are not surfaced here, to
+  /// match the design exactly.)
+  List<_MenuSection> _sections() => [
+        _MenuSection(
+          title: 'Discount Actions',
+          items: [
+            const _MenuEntry(
+              action: PosReceiptMenuAction.applyDiscount,
+              label: 'Apply discount',
+              iconAsset: Images.posMenuPercentSvg,
+            ),
+            _MenuEntry(
+              action: PosReceiptMenuAction.removeDiscount,
+              label: 'Remove discount',
+              iconAsset: Images.posMenuTrashSvg,
+              danger: true,
+              disabled: !hasDiscount,
+            ),
+          ],
         ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.applyCustomDiscount,
-          label: 'Apply custom discount',
-          iconAsset: Images.posMenuEditSvg,
+        const _MenuSection(
+          title: 'Price Adjustments',
+          items: [
+            _MenuEntry(
+              action: PosReceiptMenuAction.priceOverride,
+              label: 'Price override',
+              iconAsset: Images.posMenuTagSvg,
+            ),
+            _MenuEntry(
+              action: PosReceiptMenuAction.taxExempt,
+              label: 'Tax exempt',
+              iconAsset: Images.posMenuShieldCheckSvg,
+            ),
+            _MenuEntry(
+              action: PosReceiptMenuAction.compItem,
+              label: 'Comp item',
+              iconAsset: Images.posMenuGiftSvg,
+            ),
+          ],
         ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.removeDiscount,
-          label: 'Remove discount',
-          iconAsset: Images.posMenuTrashSvg,
-          danger: true,
-        ),
-      ],
-    ),
-    _MenuSection(
-      title: 'Price Adjustments',
-      items: [
-        _MenuEntry(
-          action: PosReceiptMenuAction.priceOverride,
-          label: 'Price override',
-          iconAsset: Images.posMenuTagSvg,
-        ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.taxExempt,
-          label: 'Tax exempt',
-          iconAsset: Images.posMenuShieldCheckSvg,
-        ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.compItem,
-          label: 'Comp item',
-          iconAsset: Images.posMenuGiftSvg,
-        ),
-      ],
-    ),
-    _MenuSection(
-      title: 'Order Management',
-      items: [
-        _MenuEntry(
-          action: PosReceiptMenuAction.moveTable,
-          label: 'Move to another table...',
-          iconAsset: Images.posMenuMoveSvg,
-        ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.holdFire,
-          label: 'Hold / Fire item',
-          iconAsset: Images.posMenuPauseSvg,
-        ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.sendKitchen,
-          label: 'Send to kitchen / bar',
-          iconAsset: Images.posMenuSendSvg,
-        ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.repeatItem,
-          label: 'Repeat item',
-          iconAsset: Images.posMenuRepeatSvg,
-        ),
-      ],
-    ),
-    _MenuSection(
-      title: 'Payment-Related',
-      items: [
-        _MenuEntry(
-          action: PosReceiptMenuAction.partialPayment,
-          label: 'Partial payment',
-          iconAsset: Images.posMenuCreditCardSvg,
-        ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.giftCard,
-          label: 'Gift card apply',
-          iconAsset: Images.posMenuGiftSvg,
-        ),
-        _MenuEntry(
-          action: PosReceiptMenuAction.loyaltyPoints,
-          label: 'Loyalty points',
-          iconAsset: Images.posMenuStarSvg,
-        ),
-      ],
-    ),
-  ];
+      ];
 
   @override
   Widget build(BuildContext context) {
+    final List<_MenuSection> sections = _sections();
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -199,10 +167,10 @@ class PosReceiptContextMenuPanel extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (int s = 0; s < _sections.length; s++) ...[
+            for (int s = 0; s < sections.length; s++) ...[
               if (s > 0) const _MenuDivider(),
-              _SectionHeader(title: _sections[s].title),
-              for (final item in _sections[s].items)
+              _SectionHeader(title: sections[s].title),
+              for (final item in sections[s].items)
                 _MenuItemRow(entry: item),
             ],
           ],
@@ -225,11 +193,16 @@ class _MenuEntry {
   final String iconAsset;
   final bool danger;
 
+  /// Dimmed and non-tappable (Figma 1915:13576 opacity 35%) — e.g. "Remove
+  /// discount" when there is no discount to remove.
+  final bool disabled;
+
   const _MenuEntry({
     required this.action,
     required this.label,
     required this.iconAsset,
     this.danger = false,
+    this.disabled = false,
   });
 }
 
@@ -282,10 +255,12 @@ class _MenuItemRow extends StatelessWidget {
       height: PosHomeSpec.contextMenuItemLabelHeight,
     );
 
-    return Material(
+    final Widget row = Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => Navigator.of(context).pop(entry.action),
+        onTap: entry.disabled
+            ? null
+            : () => Navigator.of(context).pop(entry.action),
         borderRadius:
             BorderRadius.circular(PosHomeSpec.contextMenuItemRadius),
         child: SizedBox(
@@ -328,6 +303,12 @@ class _MenuItemRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    if (!entry.disabled) return row;
+    return Opacity(
+      opacity: 0.35,
+      child: IgnorePointer(child: row),
     );
   }
 }

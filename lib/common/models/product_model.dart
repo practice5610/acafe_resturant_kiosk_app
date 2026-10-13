@@ -1,3 +1,35 @@
+import 'dart:convert';
+
+/// Parses a `note_suggestions`-style value into a clean list of strings.
+///
+/// Tolerant of the shapes the API can send: a real JSON array (already decoded
+/// to a `List`), a JSON-encoded string (`'["No nuts","Less ice"]'`), or a plain
+/// comma-separated string. Blank entries are dropped.
+List<String> parseNoteSuggestions(dynamic raw) {
+  if (raw == null) return const [];
+  dynamic value = raw;
+  if (value is String) {
+    final String trimmed = value.trim();
+    if (trimmed.isEmpty) return const [];
+    if (trimmed.startsWith('[')) {
+      try {
+        value = jsonDecode(trimmed);
+      } catch (_) {
+        value = trimmed.split(',');
+      }
+    } else {
+      value = trimmed.split(',');
+    }
+  }
+  if (value is List) {
+    return [
+      for (final dynamic e in value)
+        if ('$e'.trim().isNotEmpty) '$e'.trim(),
+    ];
+  }
+  return const [];
+}
+
 class ProductModel {
   int? totalSize;
   int? limit;
@@ -192,6 +224,11 @@ class Product {
   /// Merchandising / search tags from the product create screen (Popular,
   /// Signature, Seasonal, …). Used by the kiosk filter pills.
   List<ProductTag>? tags;
+
+  /// Per-product kitchen-note quick-add suggestions, configured on the product
+  /// create screen (`note_suggestions`). Drives the "Quick Add" chips in the POS
+  /// Add Note dialog; null/empty means the product offers no quick notes.
+  List<String>? noteSuggestions;
   BranchProduct? get branchProduct => _branchProduct;
   bool? get isChanged => _isChanged;
   String? get changeReason => _changeReason;
@@ -292,6 +329,7 @@ class Product {
         }
       }
     }
+    noteSuggestions = parseNoteSuggestions(json['note_suggestions']);
   }
 
   Map<String, dynamic> toJson() {

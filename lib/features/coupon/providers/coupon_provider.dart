@@ -176,6 +176,23 @@ class CouponProvider extends ChangeNotifier {
     }
   }
 
+  /// Applies a manual, operator-entered discount (POS "Apply discount" dialog,
+  /// Figma 1915:14234) that is not tied to a coupon code.
+  ///
+  /// Reuses the existing [discount] field so it flows through the receipt totals
+  /// (`kioskPayableTotal`) and the order payload's existing
+  /// `coupon_discount_amount` exactly like a coupon discount — no new order
+  /// fields, no change to the coupon-code path. Clears any applied coupon so a
+  /// manual discount and a coupon code can never stack.
+  void setManualDiscount(double amount) {
+    _coupon = null;
+    _isLoading = false;
+    _code = '';
+    _selectedCouponIndex = null;
+    _discount = amount < 0 ? 0.0 : amount;
+    notifyListeners();
+  }
+
   void searchCoupon({required String query}) {
     _searchedCouponList = [];
     _searchedCouponList = _availableCouponList?.where((item) {

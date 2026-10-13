@@ -123,13 +123,15 @@ void main() {
 
     expect(find.text('Search products..'), findsOneWidget);
     expect(find.text('Purchase Receipt'), findsOneWidget);
-    expect(find.text('Dine In'), findsOneWidget);
-    expect(find.text('Take Away'), findsOneWidget);
+    // Dine In / Take Away toggle removed in the Browse-POS redesign.
+    expect(find.text('Dine In'), findsNothing);
+    expect(find.text('Take Away'), findsNothing);
     expect(find.text('Order list'), findsOneWidget);
     expect(find.text('No items'), findsOneWidget);
     expect(find.text('Add items to get started'), findsOneWidget);
     expect(find.text('Customer name'), findsOneWidget);
-    expect(find.text('Table'), findsOneWidget);
+    // Table field removed in the Browse-POS redesign.
+    expect(find.text('Table'), findsNothing);
     expect(find.text('Subtotal'), findsOneWidget);
     expect(find.text('Total'), findsOneWidget);
 
