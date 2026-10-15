@@ -3,6 +3,7 @@ import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_checkout.dart';
@@ -15,15 +16,21 @@ import 'package:acafe_customer/features/pos/domain/pos_receipt_menu_actions.dart
 import 'package:acafe_customer/features/pos/domain/pos_receipt_print.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart'
+    show PosCashDenomination;
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_cash_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_settings_save_button.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_tip_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -93,6 +100,19 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// the counter screen the way the customer name does.
   PosCashEntry _cash = const PosCashEntry();
 
+  /// Split-by-payment mode (Family 2): when non-null, the order has been
+  /// placed upfront and is collecting splits. null = normal single-tender sale.
+  /// Held in a ValueNotifier so the split UI rebuilds surgically (not root
+  /// setState) and the split state stays in sync across retry/success.
+  late final PosSplitSession _split = PosSplitSession();
+
+  /// Current split method choice (Card/Cash) — isolated from the main
+  /// [PosPaymentMethod] which is for normal single-tender sales.
+  PosPaymentMethod _splitMethod = PosPaymentMethod.card;
+
+  /// Amount keyed in for the current split.
+  PosCashEntry _splitEntry = const PosCashEntry();
+
   /// Null after any keypad entry — a chip stays lit only while it is what the
   /// operator actually chose. See [_onCashKey].
   PosCashDenomination? _denomination;
@@ -101,6 +121,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// screen, not on every rebuild — otherwise it would fight the Clear button,
   /// which sets the amount back to empty on purpose.
   bool _cashDefaulted = false;
+
+  /// The tip applied to this sale, in currency (Family 1). Held in a
+  /// ValueNotifier so changing it rebuilds only the total-dependent subtree,
+  /// never the whole screen. 0 = no tip (the screen then behaves exactly as it
+  /// did before tips existed).
+  final ValueNotifier<double> _tip = ValueNotifier<double>(0);
 
   /// Which tenders Settings → Payments leaves available on this terminal.
   ///
@@ -133,6 +159,35 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     );
   }
 
+  @override
+  void dispose() {
+    _tip.dispose();
+    _split.dispose();
+    super.dispose();
+  }
+
+  /// Opens the tip modal and records the chosen tip. [payable] is the total
+  /// before any tip (the modal bases its percentages on it). A dismissed modal
+  /// leaves the current tip untouched.
+  ///
+  /// When the operator is on Cash with an Exact tender, the tender is re-seeded
+  /// to the new grand total so a just-added tip does not silently leave the
+  /// sale under-tendered.
+  Future<void> _openTip(double payable) async {
+    final double? chosen = await showPosTipDialog(
+      context: context,
+      payable: payable,
+      currentTip: _tip.value,
+    );
+    if (chosen == null || !mounted) return;
+    _tip.value = chosen < 0 ? 0 : chosen;
+    if (_isCash && (_denomination?.exact ?? false)) {
+      setState(() {
+        _cash = _cash.withCents(_totalCents(payable + _tip.value));
+      });
+    }
+  }
+
   PosSaleSession get _sale => PosSaleSession.instance;
 
   bool get _isCash => _sale.paymentMethod == PosPaymentMethod.cash;
@@ -148,6 +203,13 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// Cash cannot be confirmed until the drawer has the money.
   bool _cashCovers(double total) => _cash.cents >= _totalCents(total);
 
+  /// `Dylan / € 19.00` — customer name (when present) and the live total.
+  String _backRowLabel(double total) {
+    final String amount = PosHomeSpec.formatPrice(total, padZero: false);
+    final String name = _sale.customerName.text.trim();
+    return name.isEmpty ? amount : '$name / $amount';
+  }
+
   void _back() {
     // The cart lives in CartProvider and the ticket in PosSaleSession, so
     // leaving loses neither.
@@ -156,6 +218,21 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     } else {
       context.go(PosRoutes.home);
     }
+  }
+
+  /// Enters split-by-payment mode: order placed upfront at [grandTotal],
+  /// now collecting splits. Resets the split entry buffer and method to defaults.
+  void _startSplit(double grandTotal) {
+    if (_split.active) return;
+    setState(() {
+      _splitMethod = PosPaymentMethod.card;
+      _splitEntry = _splitEntry.withCents(0);
+    });
+    _split.start(
+      orderId: int.tryParse((_sale.orderNumber ?? '').trim()) ?? 0,
+      deviceId: context.read<KioskAuthProvider>().deviceId ?? 0,
+      grandTotal: grandTotal,
+    );
   }
 
   void _selectMethod(PosPaymentMethod method, double total) {
@@ -291,12 +368,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// the original decline rather than starting a new authorisation. If that
   /// turns out to be the behaviour, this is the line that needs a fresh key —
   /// and the double-charge question has to be answered first.
-  void _tryAgain(double total) {
+  void _tryAgain(double total, double tip) {
     if (_confirming) return;
-    _confirm(total);
+    _confirm(total, tip);
   }
 
-  Future<void> _confirm(double total) async {
+  Future<void> _confirm(double total, double tip) async {
     if (_confirming) return;
     final CartProvider cart = context.read<CartProvider>();
     if (!cart.cartList.any((line) => line != null)) return;
@@ -314,6 +391,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       context,
       method: _sale.paymentMethod,
       idempotencyKey: _idempotencyKey,
+      // The tip chosen on this screen; added to the charge and the stored
+      // total and sent as tip_amount. 0 = no tip, unchanged behaviour.
+      tipAmount: tip,
       onPhase: (phase) {
         if (!mounted) return;
         setState(() => _phase = phase);
@@ -448,77 +528,121 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
               currentPath: PosRoutes.home,
               interactive: !_confirming,
             ),
-            // Back is withheld while the terminal has the payment: leaving
-            // mid-transaction is how a card gets charged against an order
-            // nobody placed. Cancel Transaction is the way out.
-            _BackRow(onBack: _isWaitingForTerminal || _declined ? null : _back),
-            if (_declined)
-              Expanded(
-                child: PosDeclinedCard(
-                  // The figure the declined attempt was for, not a fresh read
-                  // of the cart — the two cannot differ, but quoting the
-                  // attempt is what makes that guaranteed rather than likely.
-                  amountDue: _declinedAmount,
-                  retrying: _confirming,
-                  onCancel: _confirming ? null : _dismissDeclined,
-                  onTryAgain: _confirming ? null : () => _tryAgain(total),
-                ),
-              )
-            else if (_isWaitingForTerminal)
-              Expanded(
-                child: PosWaitingCard(
-                  // The same figure the summary and Confirm were quoting a
-                  // moment ago — read, not recomputed.
-                  amountDue: total,
-                  cancelling: _cancelling,
-                  onCancel: _cancelling ? null : _cancelTransaction,
-                ),
-              )
-            else ...[
-              Expanded(
-                child: _Content(
-                  lines: lines,
-                  hasItems: hasItems,
-                  imageBaseUrl: splash.baseUrls?.productImageUrl,
-                  dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
-                  orderNumber: _sale.orderNumber,
-                  customerNameController: _sale.customerName,
-                  tableController: _sale.table,
-                  method: _sale.paymentMethod,
-                  cashEnabled: _payments.cashEnabled,
-                  cardEnabled: _payments.cardEnabled,
-                  subtotal: subtotal,
-                  discount: discount,
-                  total: total,
-                  onSelectMethod: (method) => _selectMethod(method, total),
-                  cash: _cash,
-                  denomination: _denomination,
-                  totalCents: _totalCents(total),
-                  onCashKey: _onCashKey,
-                  onCashBackspace: _onCashBackspace,
-                  onCashClear: _onCashClear,
-                  onDenomination: (d) => _onDenomination(d, total),
-                  onIncrement: _incrementLine,
-                  onDecrement: _decrementLine,
-                  onOptions: _openReceiptOptions,
-                ),
+            // Everything below the nav bar reacts to the tip: the displayed
+            // total (back row + summary), the cash coverage and the charged
+            // amount all become payable + tip. A ValueNotifier rebuilds just
+            // this subtree when the tip changes — no root setState.
+            Expanded(
+              child: ValueListenableBuilder<double>(
+                valueListenable: _tip,
+                builder: (context, tip, _) {
+                  // `total` is the payable (no tip); `grandTotal` is what the
+                  // customer pays and what we charge and store.
+                  final double grandTotal = double.parse(
+                      (total + tip).toStringAsFixed(2));
+                  // Tipping is gated behind the existing Settings → Payments
+                  // flag; off = the row stays inert, as before this family.
+                  final VoidCallback? onTip = _payments.tippingEnabled
+                      ? () => _openTip(total)
+                      : null;
+
+                  return Column(
+                    children: [
+                      // Back is withheld while the terminal has the payment:
+                      // leaving mid-transaction charges a card against an
+                      // order nobody placed. Cancel Transaction is the way out.
+                      _BackRow(
+                        onBack:
+                            _isWaitingForTerminal || _declined ? null : _back,
+                        // `Dylan / € 19.00` (node 1915:9351): customer name and
+                        // the live grand total, centred.
+                        label: _backRowLabel(grandTotal),
+                      ),
+                      if (_declined)
+                        Expanded(
+                          child: PosDeclinedCard(
+                            // The figure the declined attempt was for — the
+                            // grand total that was charged, not a fresh read.
+                            amountDue: _declinedAmount,
+                            retrying: _confirming,
+                            onCancel: _confirming ? null : _dismissDeclined,
+                            onTryAgain: _confirming
+                                ? null
+                                : () => _tryAgain(grandTotal, tip),
+                          ),
+                        )
+                      else if (_isWaitingForTerminal)
+                        Expanded(
+                          child: PosWaitingCard(
+                            amountDue: grandTotal,
+                            cancelling: _cancelling,
+                            onCancel:
+                                _cancelling ? null : _cancelTransaction,
+                          ),
+                        )
+                      else ...[
+                        Expanded(
+                          child: ValueListenableBuilder<PosSplitState?>(
+                            valueListenable: _split,
+                            builder: (context, splitState, _) {
+                              final bool inSplit = splitState != null;
+                              return _Content(
+                                lines: lines,
+                                hasItems: hasItems,
+                                imageBaseUrl:
+                                    splash.baseUrls?.productImageUrl,
+                                dealImageBaseUrl:
+                                    splash.baseUrls?.dealImageUrl,
+                                orderNumber: _sale.orderNumber,
+                                customerNameController: _sale.customerName,
+                                tableController: _sale.table,
+                                method: _sale.paymentMethod,
+                                cashEnabled: _payments.cashEnabled,
+                                cardEnabled: _payments.cardEnabled,
+                                subtotal: subtotal,
+                                discount: discount,
+                                total: grandTotal,
+                                tip: tip,
+                                onTip: onTip,
+                                onSelectMethod: (method) =>
+                                    _selectMethod(method, grandTotal),
+                                inSplit: inSplit,
+                                splitState: splitState,
+                                splitMethod: _splitMethod,
+                                onSplitByPayment: () =>
+                                    _startSplit(grandTotal),
+                                cash: _cash,
+                                denomination: _denomination,
+                                totalCents: _totalCents(grandTotal),
+                                onCashKey: _onCashKey,
+                                onCashBackspace: _onCashBackspace,
+                                onCashClear: _onCashClear,
+                                onDenomination: (d) =>
+                                    _onDenomination(d, grandTotal),
+                                onIncrement: _incrementLine,
+                                onDecrement: _decrementLine,
+                                onOptions: _openReceiptOptions,
+                              );
+                            },
+                          ),
+                        ),
+                        // Full-width pill CTA — `sticky-bottom-bar` (1915:9516).
+                        PosPayPillBar(
+                          label: 'Confirm Payment',
+                          loading: _confirming,
+                          // Cash must also cover the grand total (incl. tip).
+                          onConfirm: hasItems &&
+                                  !_confirming &&
+                                  (!_isCash || _cashCovers(grandTotal))
+                              ? () => _confirm(grandTotal, tip)
+                              : null,
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
-              // `sticky-bottom-bar` is a flex sibling in 1641:3751, not an
-              // overlay: with the tender keypad on screen there is no spare
-              // height to float it over. Figma 1641:4203 drops it entirely —
-              // the waiting card owns the only action available.
-              _ConfirmBar(
-                busy: _confirming,
-                // Cash adds one more gate on top of "there is a sale": the
-                // tendered amount has to cover the total. The button component
-                // is untouched — a null callback is the state it already renders
-                // as disabled.
-                onConfirm:
-                    hasItems && !_confirming && (!_isCash || _cashCovers(total))
-                        ? () => _confirm(total)
-                        : null,
-              ),
-            ],
+            ),
           ],
         ),
       ),
@@ -526,59 +650,88 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   }
 }
 
-/// `back-btn-row` (1641:2759).
+/// `back-btn-row` (node 1915:9347): the back button at the left, with the
+/// ticket's `customer / total` caption centred across the row.
 class _BackRow extends StatelessWidget {
   /// Null renders the row and the button, greyed and inert — the chrome has to
   /// hold its 67px or the content below jumps when the waiting card appears.
   final VoidCallback? onBack;
 
-  const _BackRow({required this.onBack});
+  /// `Dylan / € 19.00` (node 1915:9351) — centred, Loew ExtraBold 14.
+  final String label;
+
+  const _BackRow({required this.onBack, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: PosPaymentSpec.backRowHeight,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(
-          horizontal: PosPaymentSpec.backRowPaddingH),
-      color: PosHomeSpec.pageBg,
-      child: Opacity(
-        opacity: onBack == null ? 0.4 : 1,
-        child: Material(
-          color: PosHomeSpec.tileBg,
-          shape: const CircleBorder(),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onBack,
-            child: Container(
-              width: PosPaymentSpec.backButtonSize,
-              height: PosPaymentSpec.backButtonSize,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(PosPaymentSpec.backButtonRadius),
-                border: Border.all(
-                  color: PosHomeSpec.ink,
-                  width: PosPaymentSpec.backButtonBorder,
-                ),
-              ),
-              child: SvgPicture.asset(
-                Images.posArrowLeftSvg,
-                width: PosPaymentSpec.backIconSize,
-                height: PosPaymentSpec.backIconSize,
-                colorFilter: const ColorFilter.mode(
-                  PosHomeSpec.ink,
-                  BlendMode.srcIn,
-                ),
-                placeholderBuilder: (_) => const Icon(
-                  Icons.arrow_back,
-                  size: PosPaymentSpec.backIconSize,
-                  color: PosHomeSpec.ink,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Center(
+              child: Padding(
+                // Keep the caption clear of the back button at either edge.
+                padding: const EdgeInsets.symmetric(horizontal: 88),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: loewExtraBold.copyWith(
+                    fontSize: 14,
+                    color: PosHomeSpec.ink,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: PosPaymentSpec.backRowPaddingH),
+              child: Opacity(
+                opacity: onBack == null ? 0.4 : 1,
+                child: Material(
+                  color: PosHomeSpec.tileBg,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onBack,
+                    child: Container(
+                      width: PosPaymentSpec.backButtonSize,
+                      height: PosPaymentSpec.backButtonSize,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(
+                            PosPaymentSpec.backButtonRadius),
+                        border: Border.all(
+                          color: PosHomeSpec.ink,
+                          width: PosPaymentSpec.backButtonBorder,
+                        ),
+                      ),
+                      child: SvgPicture.asset(
+                        Images.posArrowLeftSvg,
+                        width: PosPaymentSpec.backIconSize,
+                        height: PosPaymentSpec.backIconSize,
+                        colorFilter: const ColorFilter.mode(
+                          PosHomeSpec.ink,
+                          BlendMode.srcIn,
+                        ),
+                        placeholderBuilder: (_) => const Icon(
+                          Icons.arrow_back,
+                          size: PosPaymentSpec.backIconSize,
+                          color: PosHomeSpec.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -607,7 +760,14 @@ class _Content extends StatelessWidget {
   final bool cardEnabled;
   final double subtotal;
   final double discount;
+  /// Grand total (payable + tip).
   final double total;
+
+  /// Tip applied; shown on the summary tip row.
+  final double tip;
+
+  /// Opens the tip modal. Null when tipping is disabled → row inert.
+  final VoidCallback? onTip;
   final ValueChanged<PosPaymentMethod> onSelectMethod;
   final PosCashEntry cash;
   final PosCashDenomination? denomination;
@@ -619,6 +779,12 @@ class _Content extends StatelessWidget {
   final ValueChanged<int> onIncrement;
   final ValueChanged<int> onDecrement;
   final ValueChanged<BuildContext> onOptions;
+
+  // Split-by-payment (Family 2) parameters.
+  final bool inSplit;
+  final PosSplitState? splitState;
+  final PosPaymentMethod splitMethod;
+  final VoidCallback? onSplitByPayment;
 
   const _Content({
     required this.lines,
@@ -634,6 +800,8 @@ class _Content extends StatelessWidget {
     required this.subtotal,
     required this.discount,
     required this.total,
+    required this.tip,
+    required this.onTip,
     required this.onSelectMethod,
     required this.cash,
     required this.denomination,
@@ -645,6 +813,10 @@ class _Content extends StatelessWidget {
     required this.onIncrement,
     required this.onDecrement,
     required this.onOptions,
+    required this.inSplit,
+    required this.splitState,
+    required this.splitMethod,
+    required this.onSplitByPayment,
   });
 
   Widget _orderList({required bool shrinkWrap}) => PosReceiptOrderList(
@@ -659,6 +831,9 @@ class _Content extends StatelessWidget {
         // without walking the sale back.
       );
 
+  /// Receipt sidebar pane — node 1915:9353. The header, customer field and
+  /// order rows are the Browse-POS redesign widgets, already matching this
+  /// frame; only the surrounding card changes to the v2 shell.
   Widget _receiptCard({required bool fill}) {
     final Widget list = hasItems
         ? _orderList(shrinkWrap: !fill)
@@ -667,7 +842,7 @@ class _Content extends StatelessWidget {
             child: PosReceiptEmptyState(),
           );
 
-    return _Card(
+    return PosPayCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
@@ -685,299 +860,70 @@ class _Content extends StatelessWidget {
     );
   }
 
-  Widget _paymentCard(PosPaymentDensity density) {
-    return _Card(
-      padding: EdgeInsets.symmetric(
-        horizontal: density.px(PosPaymentSpec.paymentCardPaddingH),
-        vertical: density.px(PosPaymentSpec.paymentCardPaddingV),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'SELECT PAYMENT METHOD',
-            style: loewBold.copyWith(
-              fontSize: density.text(PosPaymentSpec.sectionLabelSize),
-              height: PosPaymentSpec.sectionLabelHeight,
-              letterSpacing: PosPaymentSpec.sectionLabelTracking,
-              color: PosHomeSpec.inkAlpha(PosPaymentSpec.sectionLabelOpacity),
-            ),
+  /// Payment-method column — node 1915:9420. Scrolls internally when it owns a
+  /// bounded height (a pane-internal scroll, never a full-screen one).
+  Widget _methodPane({required bool fill}) {
+    final Widget selector = PosPaymentMethodSelector(
+      method: method,
+      cashEnabled: cashEnabled,
+      cardEnabled: cardEnabled,
+      onSelectMethod: onSelectMethod,
+      onSplitByPayment: onSplitByPayment,
+      splitActive: inSplit,
+    );
+    return PosPayCard(
+      padding: const EdgeInsets.all(PosPaymentSpec.v2MethodCardPadding),
+      child: fill ? SingleChildScrollView(child: selector) : selector,
+    );
+  }
+
+  /// Payment-summary column. When in split mode, shows the split entry panel.
+  /// Otherwise shows the Card or Cash panel as before.
+  Widget _summaryPane({required bool fill}) {
+    // In split mode: show the split entry panel (node 1915:10034).
+    if (inSplit && splitState != null) {
+      // Placeholder: the split panel is ready in pos_split_summary_panel.dart.
+      // For now, return a simple placeholder to complete the build.
+      // TODO(Family 2): wire split entry, keypad, and API recording.
+      return PosPayCard(
+        summaryBorder: true,
+        child: SizedBox(
+          height: 300,
+          child: Center(
+            child: Text('Split panel (TODO)',
+                style: loewBold.copyWith(color: PosHomeSpec.ink)),
           ),
-          SizedBox(height: density.px(PosPaymentSpec.paymentCardGap)),
-          Row(
-            // start, not stretch: both method cards carry their own fixed
-            // (fitted) height rather than filling whatever the row is given.
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (cashEnabled)
-                Expanded(
-                  child: PosPaymentMethodCard(
-                    method: PosPaymentMethod.cash,
-                    selected: method == PosPaymentMethod.cash,
-                    onTap: () => onSelectMethod(PosPaymentMethod.cash),
-                    density: density,
-                  ),
-                ),
-              // Only a separator when there are two cards to separate; a
-              // single-tender terminal must not carry a stray 16px gutter.
-              if (cashEnabled && cardEnabled)
-                SizedBox(width: density.px(PosPaymentSpec.methodGap)),
-              if (cardEnabled)
-                Expanded(
-                  child: PosPaymentMethodCard(
-                    method: PosPaymentMethod.card,
-                    selected: method == PosPaymentMethod.card,
-                    onTap: () => onSelectMethod(PosPaymentMethod.card),
-                    density: density,
-                  ),
-                ),
-            ],
-          ),
-          // `cash-payment-panel` (1641:3830) only exists in the cash frame;
-          // the card frame (1641:2757) goes straight from the method row to
-          // the totals.
-          if (method == PosPaymentMethod.cash) ...[
-            SizedBox(height: density.px(PosPaymentSpec.paymentCardGap)),
-            PosCashPanel(
-              entry: cash,
-              totalCents: totalCents,
-              selectedDenomination: denomination,
-              onDenomination: onDenomination,
-              onKey: onCashKey,
-              onBackspace: onCashBackspace,
-              onClear: onCashClear,
-              density: density,
-            ),
-          ],
-          SizedBox(height: density.px(PosPaymentSpec.paymentCardGap)),
-          PosReceiptSummary(
-            subtotal: subtotal,
-            discount: discount,
+        ),
+      );
+    }
+
+    final Widget content = method == PosPaymentMethod.cash
+        ? PosPayCashSummaryPanel(
             total: total,
-            pinned: false,
-            density: density,
-          ),
-        ],
-      ),
+            entry: cash,
+            totalCents: totalCents,
+            selectedDenomination: denomination,
+            onDenomination: onDenomination,
+            onKey: onCashKey,
+            onBackspace: onCashBackspace,
+            onClear: onCashClear,
+            tip: tip,
+            onTipTap: onTip,
+          )
+        : PosPaySummaryPanel(total: total, tip: tip, onTipTap: onTip);
+    return PosPayCard(
+      summaryBorder: true,
+      child: fill ? SingleChildScrollView(child: content) : content,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Width alone decides the structure, never height — the same rule
-        // PosResponsive.desktopFloor documents for the rest of POS. A short
-        // window (a laptop with a bookmarks bar, a half-height browser) is
-        // exactly what PosPaymentDensity.fit exists to absorb by shrinking
-        // type and spacing, with the SingleChildScrollView below as the last
-        // resort — it must not also flip the page into a different structure.
-        final bool sideBySide =
-            constraints.maxWidth >= PosPaymentSpec.stackedBelowWidth;
-
-        if (!sideBySide) {
-          // `content-area` in 1641:3751 is `pb-32 px-32` — no top inset. The
-          // back row above it already provides the breathing room.
-          const EdgeInsets padding = EdgeInsets.fromLTRB(
-            PosPaymentSpec.contentPadding,
-            0,
-            PosPaymentSpec.contentPadding,
-            PosPaymentSpec.contentPadding,
-          );
-          return SingleChildScrollView(
-            padding: padding,
-            // Capped, not stretched: a portrait tablet is wide enough to
-            // stack the two cards but not to run the receipt's item rows the
-            // full width of the window.
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                    maxWidth: PosPaymentSpec.stackedMaxWidth),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _receiptCard(fill: false),
-                    const SizedBox(height: PosPaymentSpec.contentGap),
-                    _paymentCard(PosPaymentDensity.full),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        // Between `stackedBelowWidth` and `mediumBelowWidth` the window is a
-        // staff tablet or a half-screen browser: wide enough for two columns,
-        // not wide enough for the design's 634/634 split plus its 32px
-        // margins. Tightening the gutter and shrinking the receipt column
-        // (rather than reusing the large-format proportions verbatim) is what
-        // makes this band look designed for rather than merely not broken.
-        final bool isMedium =
-            constraints.maxWidth < PosPaymentSpec.mediumBelowWidth;
-
-        final double sidePadding = isMedium
-            ? PosPaymentSpec.mediumContentPadding
-            : PosPaymentSpec.contentPadding;
-        final double gap = isMedium
-            ? PosPaymentSpec.mediumContentGap
-            : PosPaymentSpec.contentGap;
-
-        final EdgeInsets padding = EdgeInsets.fromLTRB(
-          sidePadding,
-          0,
-          sidePadding,
-          sidePadding,
-        );
-
-        // Fitted so the payment column — method cards, keypad and totals —
-        // lands inside the height this window actually has, rather than
-        // scrolling past the fold on a 1366x768 laptop or a browser window
-        // with a bookmarks bar. See [PosPaymentDensity].
-        //
-        // `cash: true` always, regardless of the method actually selected:
-        // the Cash/Card method cards are shared chrome, drawn before the
-        // operator has picked either one. Fitting them against whichever
-        // method is current would resize those cards the instant the
-        // operator switches — Card free to sit at full size, Cash squeezed
-        // down to make room for its panel. Sizing against cash's larger
-        // requirement always is the strictly tighter fit, so it is also
-        // correct for Card: nothing on screen needs more room than that.
-        final PosPaymentDensity density = PosPaymentDensity.fit(
-          available: constraints.maxHeight - padding.vertical,
-          cash: true,
-          discount: discount > 0,
-        );
-
-        final Widget row = Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              flex: isMedium
-                  ? PosPaymentSpec.mediumReceiptFlex
-                  : PosPaymentSpec.receiptFlex,
-              child: _receiptCard(fill: true),
-            ),
-            SizedBox(width: gap),
-            Expanded(
-              flex: isMedium
-                  ? PosPaymentSpec.mediumPaymentFlex
-                  : PosPaymentSpec.paymentFlex,
-              // The fit is exact, so this only ever scrolls as a
-              // belt-and-braces fallback below the density floor.
-              child: SingleChildScrollView(child: _paymentCard(density)),
-            ),
-          ],
-        );
-
-        return Padding(
-          padding: padding,
-          child: isMedium
-              ? row
-              : Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                        maxWidth: PosPaymentSpec.contentMaxWidth),
-                    child: row,
-                  ),
-                ),
-        );
-      },
+    return PosPayThreePane(
+      receipt: (fill) => _receiptCard(fill: fill),
+      method: (fill) => _methodPane(fill: fill),
+      summary: (fill) => _summaryPane(fill: fill),
     );
   }
 }
 
-/// The rounded panel both halves of `content-area` are drawn on.
-class _Card extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry? padding;
-
-  const _Card({required this.child, this.padding});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      clipBehavior: padding == null ? Clip.antiAlias : Clip.none,
-      decoration: BoxDecoration(
-        color: PosHomeSpec.panelBg,
-        borderRadius: BorderRadius.circular(PosPaymentSpec.cardRadius),
-        border: Border.all(
-          color: PosHomeSpec.hairline,
-          width: PosPaymentSpec.cardBorder,
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
-/// `sticky-bottom-bar` (1641:2871), compact: a hairline-topped strip with a
-/// fixed-width Confirm right-aligned to the payment card's edge, instead of a
-/// full-bleed slab. Below [PosPaymentSpec.stackedBelowWidth] the cards stack
-/// and the button spans their column.
-class _ConfirmBar extends StatelessWidget {
-  final bool busy;
-  final VoidCallback? onConfirm;
-
-  const _ConfirmBar({required this.busy, this.onConfirm});
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: PosHomeSpec.pageBg,
-        border: Border(
-          top: BorderSide(
-            color: PosUI.border,
-            width: PosPaymentSpec.barBorderTop,
-          ),
-        ),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final double width = constraints.maxWidth;
-          final bool stacked = width < PosPaymentSpec.stackedBelowWidth;
-          // Same side inset the content row above uses at this width, so the
-          // button's right edge lands on the payment card's right edge.
-          final double sidePadding = width < PosPaymentSpec.mediumBelowWidth
-              ? PosPaymentSpec.mediumContentPadding
-              : PosPaymentSpec.contentPadding;
-
-          final Widget button = PosSettingsSaveButton.compact(
-            label: 'Confirm Payment',
-            loading: busy,
-            onPressed: onConfirm,
-          );
-
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              stacked ? PosPaymentSpec.contentPadding : sidePadding,
-              PosPaymentSpec.barPaddingV,
-              stacked ? PosPaymentSpec.contentPadding : sidePadding,
-              PosPaymentSpec.barPaddingV,
-            ),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: stacked
-                      ? PosPaymentSpec.stackedMaxWidth
-                      : PosPaymentSpec.contentMaxWidth,
-                ),
-                child: stacked
-                    ? button
-                    : Align(
-                        alignment: Alignment.centerRight,
-                        child: SizedBox(
-                          width: PosPaymentSpec.confirmWidth,
-                          child: button,
-                        ),
-                      ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}

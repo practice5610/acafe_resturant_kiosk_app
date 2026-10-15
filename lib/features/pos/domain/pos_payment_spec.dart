@@ -227,6 +227,204 @@ class PosPaymentSpec {
   /// Upper end of the 280–360 CTA range; the bar is always wider than this
   /// in the side-by-side layout (>= stackedBelowWidth).
   static const double confirmWidth = 360;
+
+  // ════════════════════════════════════════════════════════════════════
+  // v2 redesign — "POS payment" layer, node 1915:9314 (1366x1024)
+  //
+  // The client re-drew the payment screens from the old 2-pane model
+  // (receipt + payment card) into a 3-pane composition: a fixed receipt
+  // sidebar, a fixed payment-method column and a flexible payment-summary
+  // column, over a full-width pill CTA. Everything below is read live from
+  // that file. Colours that the palette already names are reused from
+  // [PosHomeSpec]; only genuinely new values live here.
+  // ════════════════════════════════════════════════════════════════════
+
+  // ── New colours introduced by the redesign ───────────────────────────
+  /// `#E8E0CC` — the payment-summary card's 1px border and its internal
+  /// section dividers (node 1915:9475 / 9483 / 9505). A shade warmer/darker
+  /// than the receipt/method cards' `#F0EBD8` hairline, drawn as its own value
+  /// in the file.
+  static const Color v2SummaryBorder = Color(0xFFE8E0CC);
+
+  /// `#E8E3D5` — the 1px border on the "OTHER" method rows (Split by item /
+  /// Split by payment / Invoice / Stand-alone), node 1915:9447.
+  static const Color v2OtherRowBorder = Color(0xFFE8E3D5);
+
+  /// `#D6CCBA` — the 1px border on an unselected quick-amount chip
+  /// (node 1915:9492). The selected chip is [PosHomeSpec.ink] filled.
+  static const Color v2QuickAmountBorder = Color(0xFFD6CCBA);
+
+  /// `#F0EAD6` — the fill behind a 24px section-icon well (Amount received /
+  /// Add tip), node 1915:9486.
+  static const Color v2SectionIconBg = Color(0xFFF0EAD6);
+
+  // NB: the file also carries `#1A1A2E` (near-black, on "Amount received" and
+  // the tip labels) and `#8A94A6` (slate, on the tip subtitle). Both are
+  // off-palette template leftovers — per sign-off `#1A1A2E` maps to
+  // [PosHomeSpec.ink] and `#8A94A6` to [v2MutedInkOpacity] of the ink. They
+  // are deliberately NOT added as constants.
+  static const double v2MutedInkOpacity = 0.4;
+
+  // ── 3-pane content shell (node 1915:9352) ────────────────────────────
+  /// `content-area` is `flex gap-20 px-32`, authored at 1366 wide.
+  static const double v2ContentPaddingH = 32;
+  static const double v2ContentGap = 20;
+  static const double v2ContentPaddingBottom = 0; // back row supplies the top
+  static const double v2CardRadius = 16;
+
+  /// The reference frame width the two fixed panes were measured against, held
+  /// as a ratio of so the panes move continuously with the window rather than
+  /// pinning to literal 440/370 px. See [PosResponsive.desktopFloor].
+  static const double v2RefWidth = 1366;
+  static const double v2ReceiptPaneWidth = 440; // node 1915:9353
+  static const double v2MethodPaneWidth = 370; // node 1915:9420
+  static const double v2ReceiptPaneRatio = v2ReceiptPaneWidth / v2RefWidth;
+  static const double v2MethodPaneRatio = v2MethodPaneWidth / v2RefWidth;
+
+  /// Floors so a narrow desktop window never starves a column below legibility
+  /// before the layout drops to the stacked band.
+  static const double v2ReceiptPaneMin = 360;
+  static const double v2MethodPaneMin = 300;
+  static const double v2SummaryPaneMin = 320;
+
+  // ── Full-width pill CTA (sticky-bottom-bar 1915:9516 / pay-btn 9517) ──
+  static const double v2BarPaddingTop = 16;
+  static const double v2BarPaddingBottom = 24;
+  static const double v2BarPaddingH = 32;
+  static const double v2BarBorderTop = 2; // #241F20
+  static const double v2PillHeight = 64;
+  static const double v2PillRadius = 32;
+  static const double v2PillLabelSize = 18;
+  static const double v2BarShadowBlur = 8;
+  static const Offset v2BarShadowOffset = Offset(0, -6);
+  /// `rgba(36,31,32,0.08)`.
+  static const Color v2BarShadow = Color(0x14241F20);
+
+  // ── Payment-method column (node 1915:9420) ───────────────────────────
+  static const double v2MethodCardPadding = 24;
+  static const double v2MethodCardGap = 20; // header -> selectors
+  /// "PAYMENT METHOD" — Loew Bold 14, ink @0.4, 1px tracking.
+  static const double v2MethodHeaderSize = 14;
+  static const double v2MethodHeaderTracking = 1;
+  static const double v2MethodHeaderOpacity = 0.4;
+
+  /// Gap between the PRIMARY group and the OTHER group (node 1915:9423).
+  static const double v2MethodGroupsGap = 12;
+  /// Inside a group: label -> first row, and row -> row in PRIMARY
+  /// (node 1915:9424).
+  static const double v2MethodGroupGap = 6;
+  /// Row -> row inside the OTHER group (node 1915:9446).
+  static const double v2OtherRowGap = 8;
+  /// Group label ("PRIMARY" / "OTHER") — Loew Bold 10, ink @0.33, 0.5px track.
+  static const double v2GroupLabelSize = 10;
+  static const double v2GroupLabelTracking = 0.5;
+  static const double v2GroupLabelOpacity = 0.33;
+
+  // PRIMARY cards reuse the existing method-card tokens (methodHeight 95,
+  // methodRadius 12, methodIconBox 32, methodRadioSize 24, methodLabelSize 15)
+  // — the redesign draws them identically, only stacked full-width.
+
+  // ── OTHER method rows (node 1915:9447), rendered inert ───────────────
+  static const double v2OtherRowRadius = 10;
+  static const double v2OtherRowBorderWidth = 1;
+  static const double v2OtherRowPaddingH = 12;
+  static const double v2OtherRowPaddingV = 10;
+  static const double v2OtherRowInnerGap = 6; // top row -> label
+  static const double v2OtherRowTopHeight = 24;
+  static const double v2OtherIconWell = 22;
+  static const double v2OtherIconWellRadius = 5;
+  static const double v2OtherIconSize = 13;
+  static const double v2OtherRadioSize = 18;
+  static const double v2OtherLabelSize = 12;
+  static const double v2OtherLabelOpacity = 0.47;
+  /// Idle icon well: `rgba(36,31,32,0.1)` — same as [methodIdleIconBg].
+
+  // ── Cash tender in the summary pane (node 1915:10234 / 10244) ─────────
+  /// `cash-payment-panel` wrapper: `px-16 py-8`, 12px between sections.
+  static const double v2CashPanelPaddingH = 16;
+  static const double v2CashPanelPaddingV = 8;
+  static const double v2CashPanelGap = 12;
+
+  /// Numeric keypad (node 1915:10266): 3-col, 78px keys, r12, 12px gaps, Loew
+  /// Bold 24. Keys are white with a `#D8D1BE` border; the backspace key takes a
+  /// `#F0EBD8` fill.
+  static const double v2KeypadKeyHeight = 78;
+  static const double v2KeypadKeyRadius = 12;
+  static const double v2KeypadGap = 12;
+  static const double v2KeypadLabelSize = 24;
+  static const double v2KeypadKeyBorderWidth = 1.5;
+  static const double v2KeypadBackspaceIconSize = 23;
+  static const Color v2KeypadKeyBorder = Color(0xFFD8D1BE);
+  /// Backspace key fill — `#F0EBD8`, the same hairline the cards use
+  /// ([PosHomeSpec.hairline]); inlined here because this spec does not import
+  /// that file.
+  static const Color v2KeypadBackspaceFill = Color(0xFFF0EBD8);
+
+  // ── Overlay status cards (declined / error / success) ─────────────────
+  /// Error-card subtitle — Swiss 721 Light 13, `#78706E` (nodes 1915:11294 /
+  /// 11313 / 11332). A genuine new value, drawn as-is.
+  static const Color v2ErrorSubtitle = Color(0xFF78706E);
+  static const double v2ErrorSubtitleSize = 13;
+  /// Heading -> subtitle gap inside `message-group` (node 1915:11292).
+  static const double v2StatusSubtitleGap = 6;
+
+  /// Success card — Figma `success-card` (node **1915:9317**). A different
+  /// shell from the declined/error card: wider, less round, a lighter shadow,
+  /// a pill button.
+  static const double v2SuccessCardWidth = 640;
+  static const double v2SuccessCardRadius = 20;
+  static const double v2SuccessCardBorder = 1.5; // #F0EBD8
+  static const double v2SuccessCardPadding = 32;
+  static const double v2SuccessCardGap = 24;
+  static const double v2SuccessShadowBlur = 12;
+  static const Offset v2SuccessShadowOffset = Offset(0, 8);
+  static const Color v2SuccessShadow = Color(0x0A241F20); // 4% ink
+  static const double v2SuccessHeaderGap = 16; // icon -> heading
+  static const double v2SuccessIconSize = 45;
+  static const double v2SuccessHeadingSize = 24;
+  /// Amount box: `#E0D9C8` 1px border ([PosHomeSpec.tableFieldBorder]), r12,
+  /// p16 (node 1915:9323).
+  static const double v2SuccessAmountBoxRadius = 12;
+  static const double v2SuccessAmountBoxPadding = 16;
+  /// Button: pill r32, py14 (node 1915:9326).
+  static const double v2SuccessButtonRadius = 32;
+  static const double v2SuccessButtonPaddingV = 14;
+  static const double v2SuccessButtonLabelSize = 16;
+
+  // ── Split-by-payment panel tokens (Family 2, node 1915:10034) ─────────
+  // The split-entry right pane uses a warmer-toned variant of the summary card.
+  /// `#77716E` — muted warm ink on SPLIT PAYMENT header, remaining label, and
+  /// PAYMENT N section label. Drawn as its own flat value, not an ink opacity.
+  static const Color v2SplitLabelInk = Color(0xFF77716E);
+
+  /// `#A7A19A` — lighter warm subtitle (e.g. "Overview for split payment").
+  static const Color v2SplitSubtitleInk = Color(0xFFA7A19A);
+
+  /// "SPLIT PAYMENT" — Loew Bold 13, 1px tracking.
+  static const double v2SplitHeaderSize = 13;
+  static const double v2SplitHeaderTracking = 1.0;
+
+  /// Grand total display — Loew ExtraBold 36.
+  static const double v2SplitTotalSize = 36;
+
+  /// Remaining bar: `#F0EBD8` fill (= [PosHomeSpec.hairline]), r8, px10 py6.
+  static const double v2SplitRemainRadius = 8;
+  static const double v2SplitRemainPaddingH = 10;
+  static const double v2SplitRemainPaddingV = 6;
+  static const double v2SplitRemainLabelSize = 10;
+  static const double v2SplitRemainAmountSize = 13;
+
+  /// Payment-N entry card: #E8E3D5 1.5px border (= v2OtherRowBorder), r12, h62.
+  static const double v2SplitPaymentCardRadius = 12;
+  static const double v2SplitPaymentCardHeight = 62;
+  static const double v2SplitPaymentAmountSize = 20;
+  static const double v2SplitPaymentLabelTracking = 0.6;
+
+  /// Card/Cash toggle: #F0EBD8 bg, r8, p3; active pill = white bg, r6.
+  static const double v2SplitToggleRadius = 8;
+  static const double v2SplitToggleInnerRadius = 6;
+  static const double v2SplitTogglePadding = 3;
+  static const double v2SplitToggleLabelSize = 10;
 }
 
 /// Vertical density for the payment column.

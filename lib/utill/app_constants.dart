@@ -97,6 +97,11 @@ class AppConstants {
       '/api/v1/customer/message/send-admin-message';
   static const String sendMessageToDeliveryManUrl =
       '/api/v1/customer/message/send/customer';
+  // Split-by-payment (Family 2) — additive endpoints.
+  static const String splitRecordUri =
+      '/api/v1/customer/order/split-payment/record';
+  static const String splitBalanceUri =
+      '/api/v1/customer/order/split-payment/balance';
   static const String emailSubscribeUri = '/api/v1/subscribe-newsletter';
   static const String customerRemove = '/api/v1/customer/remove-account';
   static const String policyPage = '/api/v1/pages';

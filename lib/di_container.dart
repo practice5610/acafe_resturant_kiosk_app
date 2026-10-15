@@ -8,6 +8,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_deal_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -61,6 +62,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => CouponRepo(dioClient: sl()));
   sl.registerLazySingleton(() => KioskAuthRepo(dioClient: sl(), sharedPreferences: sl()));
   sl.registerLazySingleton(() => KioskOrderRepo(dioClient: sl()));
+  sl.registerLazySingleton(() => PosSplitRepo(dioClient: sl()));
   sl.registerLazySingleton(() => KioskManagerRepo(dioClient: sl(), sharedPreferences: sl()));
   sl.registerLazySingleton(() => KioskDealRepo(dioClient: sl(), sharedPreferences: sl()));
   sl.registerLazySingleton(() => PosOrdersRepo(dioClient: sl()));
