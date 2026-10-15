@@ -1,8 +1,13 @@
+import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
+import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
-import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart' as kiosk;
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
@@ -113,6 +118,13 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// Amount keyed in for the current split.
   PosCashEntry _splitEntry = const PosCashEntry();
 
+  /// True while a split payment (charge + record) is in flight.
+  bool _splittingPayment = false;
+
+  /// The idempotency key for the current split's card charge. Stable across
+  /// retries of the same split attempt to prevent double-charge.
+  String? _splitCardIdempotencyKey;
+
   /// Null after any keypad entry — a chip stays lit only while it is what the
   /// operator actually chose. See [_onCashKey].
   PosCashDenomination? _denomination;
@@ -220,19 +232,70 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     }
   }
 
-  /// Enters split-by-payment mode: order placed upfront at [grandTotal],
-  /// now collecting splits. Resets the split entry buffer and method to defaults.
-  void _startSplit(double grandTotal) {
+  /// Enters split-by-payment mode: places the order upfront at [grandTotal],
+  /// then initializes split session and enters split entry UI. Async because
+  /// order placement is async.
+  Future<void> _startSplit(double grandTotal) async {
     if (_split.active) return;
+
+    // Place the order upfront via the normal flow (grand total, cash_on_delivery,
+    // is_partial=0). Kitchen starts immediately. Then we collect splits.
+    final CartProvider cart = context.read<CartProvider>();
+    final CouponProvider coupon = context.read<CouponProvider>();
+    final kioskSession = kiosk.KioskSession.instance;
+
+    final double payable = kioskPayableTotal(cart.cartList, coupon.discount ?? 0);
+    final double tip = _tip.value;
+    final double amount = double.parse((payable + tip).toStringAsFixed(2));
+
+    kioskSession.customerName = _sale.customerName.text.trim();
+
+    if (!context.mounted) return;
+
     setState(() {
-      _splitMethod = PosPaymentMethod.card;
-      _splitEntry = _splitEntry.withCents(0);
+      _confirming = true;
+      _phase = null;
+      _cancelling = false;
+      _declined = false;
     });
-    _split.start(
-      orderId: int.tryParse((_sale.orderNumber ?? '').trim()) ?? 0,
-      deviceId: context.read<KioskAuthProvider>().deviceId ?? 0,
-      grandTotal: grandTotal,
-    );
+
+    try {
+      final KioskPlaceResult placed = await placeKioskOrder(
+        context,
+        amount: amount,
+        tipAmountOverride: tip > 0 ? tip : null,
+      );
+
+      if (!mounted) return;
+
+      setState(() => _confirming = false);
+
+      if (!placed.success) {
+        showCustomSnackBarHelper(
+          placed.message ?? 'Order placement failed',
+          isError: true,
+        );
+        return;
+      }
+
+      // Order placed. Initialize split session with the order_id.
+      setState(() {
+        _splitMethod = PosPaymentMethod.card;
+        _splitEntry = _splitEntry.withCents(0);
+      });
+      _split.start(
+        orderId: int.tryParse((placed.orderId ?? '').trim()) ?? 0,
+        deviceId: context.read<KioskAuthProvider>().deviceId ?? 0,
+        grandTotal: amount,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _confirming = false);
+      showCustomSnackBarHelper(
+        'Order placement error: $e',
+        isError: true,
+      );
+    }
   }
 
   void _selectMethod(PosPaymentMethod method, double total) {
@@ -287,6 +350,274 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       );
       _denomination = denomination;
     });
+  }
+
+  /// Split keypad entry callback.
+  void _onSplitKey(String token) {
+    setState(() {
+      _splitEntry = _splitEntry.key(token);
+    });
+  }
+
+  /// Split keypad backspace callback.
+  void _onSplitBackspace() {
+    setState(() {
+      _splitEntry = _splitEntry.backspace();
+    });
+  }
+
+  /// Split keypad clear callback.
+  void _onSplitClear() {
+    setState(() {
+      _splitEntry = _splitEntry.clear();
+    });
+  }
+
+  /// Split method toggle (Card ↔ Cash).
+  void _onSplitMethod(PosPaymentMethod method) {
+    setState(() {
+      _splitMethod = method;
+    });
+  }
+
+  /// Process a split: charge the amount (card or cash), then POST record.
+  /// If success: update PosSplitSession, loop back to entry with decremented
+  /// remaining. If decline: show retry option. If fully_paid: show final success.
+  Future<void> _recordSplit() async {
+    if (_splittingPayment) return;
+    if (_split.value == null) return;
+
+    final PosSplitState state = _split.value!;
+    final int amountCents = _splitEntry.cents;
+    if (amountCents <= 0) return;
+
+    final double amountEur = posCentsToMoney(amountCents, decimals: _splitEntry.decimals);
+    final String reference = 'pos-split-${state.orderId}-${state.nextSequence}';
+
+    setState(() {
+      _splittingPayment = true;
+      _phase = null;
+    });
+
+    try {
+      String? transactionReference;
+
+      // Card payment: use KioskPaymentService.pay with idempotency key.
+      if (_splitMethod == PosPaymentMethod.card) {
+        _splitCardIdempotencyKey ??= 'pos-split-card-${DateTime.now().millisecondsSinceEpoch}';
+        if (!context.mounted) return;
+        setState(() => _phase = PosCheckoutPhase.awaitingTerminal);
+
+        final KioskPaymentResult payment = await di.sl<KioskPaymentService>().pay(
+          amount: amountEur,
+          idempotencyKey: _splitCardIdempotencyKey!,
+        );
+
+        if (!mounted) return;
+        setState(() => _phase = null);
+
+        switch (payment.status) {
+          case KioskPaymentStatus.paid:
+            transactionReference = payment.paymentRef;
+          case KioskPaymentStatus.failed:
+            // Show decline card with retry.
+            _showSplitDeclineCard(amountEur, state.nextSequence);
+            setState(() => _splittingPayment = false);
+            return;
+          case KioskPaymentStatus.canceled:
+            setState(() => _splittingPayment = false);
+            return;
+        }
+      }
+      // Cash: no charge, just record the tendered amount.
+
+      // POST record to backend.
+      if (!context.mounted) return;
+      setState(() => _phase = PosCheckoutPhase.placingOrder);
+
+      final PosSplitRepo repo = di.sl<PosSplitRepo>();
+      final ApiResponseModel response = await repo.record(
+        orderId: state.orderId,
+        paidWith: _splitMethod == PosPaymentMethod.card ? 'card' : 'cash',
+        paidAmount: amountEur,
+        deviceId: state.deviceId,
+        reference: reference,
+        transactionReference: transactionReference,
+      );
+
+      if (!mounted) return;
+      setState(() => _phase = null);
+
+      if (!response.isSuccess) {
+        showCustomSnackBarHelper(
+          'Split payment failed: ${response.error}',
+          isError: true,
+        );
+        setState(() => _splittingPayment = false);
+        return;
+      }
+
+      // Update split state from response.
+      final Map<String, dynamic> json =
+          Map<String, dynamic>.from(response.response.data as Map);
+      final PosSplitState updatedState = PosSplitState.fromJson(
+        json,
+        deviceId: state.deviceId,
+      );
+      _split.update(updatedState);
+
+      // Reset entry for next split.
+      setState(() {
+        _splitEntry = _splitEntry.withCents(0);
+        _splittingPayment = false;
+        _splitCardIdempotencyKey = null; // Fresh key per split.
+      });
+
+      // Show success card.
+      _showSplitSuccessCard(updatedState);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _splittingPayment = false);
+      showCustomSnackBarHelper('Split error: $e', isError: true);
+    }
+  }
+
+  /// Show decline card for a failed split; user can retry with same reference.
+  void _showSplitDeclineCard(double amount, int splitNum) {
+    showGeneralDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      pageBuilder: (context, anim, secAnim) => Center(
+        child: PosDeclinedCard(
+          amountDue: amount,
+          retrying: _splittingPayment,
+          onCancel:
+              _splittingPayment ? null : () => Navigator.pop(context),
+          onTryAgain: _splittingPayment ? null : () {
+            Navigator.pop(context);
+            _recordSplit();
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Show success card after a split is recorded.
+  void _showSplitSuccessCard(PosSplitState state) {
+    showGeneralDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      pageBuilder: (context, anim, secAnim) {
+        final bool isFinal = state.fullyPaid;
+        return Center(
+          child: Material(
+            type: MaterialType.transparency,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Container(
+                width: PosPaymentSpec.v2SuccessCardWidth,
+                padding: const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
+                decoration: BoxDecoration(
+                  color: PosHomeSpec.tileBg,
+                  borderRadius: BorderRadius.circular(
+                      PosPaymentSpec.v2SuccessCardRadius),
+                  border: Border.all(
+                    color: PosHomeSpec.hairline,
+                    width: PosPaymentSpec.v2SuccessCardBorder,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icon
+                    Image.asset(
+                      Images.checkCircle,
+                      width: PosPaymentSpec.v2SuccessIconSize,
+                      height: PosPaymentSpec.v2SuccessIconSize,
+                    ),
+                    const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
+                    Text(
+                      isFinal ? 'All payments received' : 'Payment ${state.payments.length} received',
+                      style: loewExtraBold.copyWith(
+                        fontSize: PosPaymentSpec.v2SuccessHeadingSize,
+                        color: PosHomeSpec.ink,
+                      ),
+                    ),
+                    const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
+                    // Remaining info.
+                    if (!isFinal) ...[
+                      Container(
+                        padding: const EdgeInsets.all(
+                            PosPaymentSpec.v2SuccessAmountBoxPadding),
+                        decoration: BoxDecoration(
+                          color: PosHomeSpec.tileBg,
+                          borderRadius: BorderRadius.circular(
+                              PosPaymentSpec.v2SuccessAmountBoxRadius),
+                          border: Border.all(
+                            color: PosHomeSpec.tableFieldBorder,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Remaining',
+                              style: swiss721Light.copyWith(
+                                fontSize: 11,
+                                color: PosHomeSpec.inkAlpha(0.4),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              PosHomeSpec.formatPrice(state.remaining,
+                                  padZero: false),
+                              style: loewExtraBold.copyWith(
+                                fontSize: 20,
+                                color: PosHomeSpec.ink,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
+                    ],
+                    // Button.
+                    PosPayPillBar(
+                      label: isFinal ? 'Finish' : 'Next payment',
+                      onConfirm: () {
+                        Navigator.pop(context);
+                        if (isFinal) {
+                          _completeSplit();
+                        }
+                        // Else: loop back to entry screen (UI will show it)
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Final split complete: clear cart + session, navigate home.
+  void _completeSplit() {
+    final CartProvider cart = context.read<CartProvider>();
+    final CouponProvider coupon = context.read<CouponProvider>();
+
+    endKioskCustomerSession(
+      context.mounted ? context : null,
+      cart: cart,
+      coupon: coupon,
+    );
+    _sale.reset();
+    _split.clear();
+
+    if (context.mounted) {
+      context.go(PosRoutes.home);
+    }
   }
 
   void _incrementLine(int index) {
@@ -606,11 +937,6 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                 onTip: onTip,
                                 onSelectMethod: (method) =>
                                     _selectMethod(method, grandTotal),
-                                inSplit: inSplit,
-                                splitState: splitState,
-                                splitMethod: _splitMethod,
-                                onSplitByPayment: () =>
-                                    _startSplit(grandTotal),
                                 cash: _cash,
                                 denomination: _denomination,
                                 totalCents: _totalCents(grandTotal),
@@ -622,6 +948,19 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                 onIncrement: _incrementLine,
                                 onDecrement: _decrementLine,
                                 onOptions: _openReceiptOptions,
+                                inSplit: inSplit,
+                                splitState: splitState,
+                                splitMethod: _splitMethod,
+                                splitEntry: _splitEntry,
+                                onSplitMethod: _onSplitMethod,
+                                onSplitKey: _onSplitKey,
+                                onSplitBackspace: _onSplitBackspace,
+                                onSplitClear: _onSplitClear,
+                                onSplitByPayment: () =>
+                                    _startSplit(grandTotal),
+                                onSplitConfirm:
+                                    _splittingPayment ? null : _recordSplit,
+                                splitLoading: _splittingPayment,
                               );
                             },
                           ),
@@ -784,7 +1123,14 @@ class _Content extends StatelessWidget {
   final bool inSplit;
   final PosSplitState? splitState;
   final PosPaymentMethod splitMethod;
+  final PosCashEntry splitEntry;
+  final ValueChanged<PosPaymentMethod> onSplitMethod;
+  final ValueChanged<String> onSplitKey;
+  final VoidCallback onSplitBackspace;
+  final VoidCallback onSplitClear;
   final VoidCallback? onSplitByPayment;
+  final VoidCallback? onSplitConfirm;
+  final bool splitLoading;
 
   const _Content({
     required this.lines,
@@ -816,7 +1162,14 @@ class _Content extends StatelessWidget {
     required this.inSplit,
     required this.splitState,
     required this.splitMethod,
+    required this.splitEntry,
+    required this.onSplitMethod,
+    required this.onSplitKey,
+    required this.onSplitBackspace,
+    required this.onSplitClear,
     required this.onSplitByPayment,
+    required this.onSplitConfirm,
+    required this.splitLoading,
   });
 
   Widget _orderList({required bool shrinkWrap}) => PosReceiptOrderList(
@@ -882,18 +1235,35 @@ class _Content extends StatelessWidget {
   Widget _summaryPane({required bool fill}) {
     // In split mode: show the split entry panel (node 1915:10034).
     if (inSplit && splitState != null) {
-      // Placeholder: the split panel is ready in pos_split_summary_panel.dart.
-      // For now, return a simple placeholder to complete the build.
-      // TODO(Family 2): wire split entry, keypad, and API recording.
       return PosPayCard(
         summaryBorder: true,
-        child: SizedBox(
-          height: 300,
-          child: Center(
-            child: Text('Split panel (TODO)',
-                style: loewBold.copyWith(color: PosHomeSpec.ink)),
-          ),
-        ),
+        child: fill
+            ? SingleChildScrollView(
+                child: PosSplitSummaryPanel(
+                  state: splitState!,
+                  entry: splitEntry,
+                  splitMethod: splitMethod,
+                  onSplitMethod: onSplitMethod,
+                  onKey: onSplitKey,
+                  onBackspace: onSplitBackspace,
+                  onClear: onSplitClear,
+                  tip: tip,
+                  onConfirm: onSplitConfirm,
+                  loading: splitLoading,
+                ),
+              )
+            : PosSplitSummaryPanel(
+                state: splitState!,
+                entry: splitEntry,
+                splitMethod: splitMethod,
+                onSplitMethod: onSplitMethod,
+                onKey: onSplitKey,
+                onBackspace: onSplitBackspace,
+                onClear: onSplitClear,
+                tip: tip,
+                onConfirm: onSplitConfirm,
+                loading: splitLoading,
+              ),
       );
     }
 

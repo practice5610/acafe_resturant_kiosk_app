@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
@@ -40,6 +41,12 @@ class PosSplitSummaryPanel extends StatelessWidget {
   /// informational only — tipping is closed once the order is placed.
   final double tip;
 
+  /// On tap: process the current split (POST record). Null = button disabled.
+  final VoidCallback? onConfirm;
+
+  /// Loading state (charge in flight).
+  final bool loading;
+
   const PosSplitSummaryPanel({
     super.key,
     required this.state,
@@ -50,6 +57,8 @@ class PosSplitSummaryPanel extends StatelessWidget {
     required this.onBackspace,
     required this.onClear,
     this.tip = 0,
+    this.onConfirm,
+    this.loading = false,
   });
 
   @override
@@ -86,6 +95,18 @@ class PosSplitSummaryPanel extends StatelessWidget {
             style: posCashKeypadStyleV2(backspaceAsset: Images.posKeyBackspaceSvg),
             onKey: onKey,
             onBackspace: onBackspace,
+          ),
+        ),
+        const SizedBox(height: 12),
+        // "Start Payment N" pill button.
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: PosPaymentSpec.v2CashPanelPaddingH,
+          ),
+          child: PosPayPillBar(
+            label: 'Start Payment ${state.nextSequence}',
+            loading: loading,
+            onConfirm: onConfirm,
           ),
         ),
         const SizedBox(height: 4),
