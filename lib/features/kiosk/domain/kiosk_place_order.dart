@@ -67,6 +67,13 @@ Future<KioskPlaceResult> placeKioskOrder(
   required double amount,
   String? paymentRef,
   double? bringChangeAmount,
+  // POS tips (Family 1): an explicit tip to record on the order. When null —
+  // every kiosk call site — the tip is derived from the session percent
+  // exactly as before, so the kiosk payload and behaviour are unchanged. When
+  // provided, it is used verbatim as `tip_amount` and [amount] is expected to
+  // already include it (the POS checkout adds it to both the charge and the
+  // order total). Percent-based order-note tip lines stay a kiosk-only thing.
+  double? tipAmountOverride,
 }) async {
   final cartProvider = Provider.of<CartProvider>(context, listen: false);
   final orderProvider = Provider.of<OrderProvider>(context, listen: false);
@@ -110,7 +117,11 @@ Future<KioskPlaceResult> placeKioskOrder(
   final int tipPercent = KioskSession.instance.tipPercentOrZero;
   final double payable =
       kioskPayableTotal(cartProvider.cartList, couponProvider.discount ?? 0);
-  final double tipAmount = kioskTipAmount(payable, tipPercent);
+  // Override wins when present (POS); otherwise the session-percent tip, which
+  // is `0` for every kiosk path that has not locked in a tip — identical to
+  // before this param existed.
+  final double tipAmount =
+      tipAmountOverride ?? kioskTipAmount(payable, tipPercent);
   final placeOrderBody = PlaceOrderBody(
     cart: carts,
     couponDiscountAmount: couponProvider.discount ?? 0,

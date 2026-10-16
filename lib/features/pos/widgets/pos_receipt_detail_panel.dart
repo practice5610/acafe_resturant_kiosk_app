@@ -2,10 +2,14 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
+import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 /// `receipt-details-sidebar` (1641:3300) — one settled receipt.
 ///
@@ -123,6 +127,8 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
             total: receipt?.total ?? 0,
           ),
           PosPrintReceiptButton(onPrint: widget.onPrint),
+          if (receipt != null && receipt.isRefundable)
+            _RefundButton(receipt: receipt),
         ],
       ),
     );
@@ -227,6 +233,55 @@ class _Placeholder extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Manager-gated refund entry point.  Visible only when [receipt.isRefundable].
+class _RefundButton extends StatelessWidget {
+  final PosReceiptDetail receipt;
+
+  const _RefundButton({required this.receipt});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        PosReceiptsSpec.printPaddingH,
+        0,
+        PosReceiptsSpec.printPaddingH,
+        PosReceiptsSpec.printPaddingH,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            if (!PosAccessScope.guard(context, PosPermission.processRefunds)) {
+              return;
+            }
+            PosRefundSession.instance.order = receipt;
+            PosRefundSession.instance.splits = [];
+            context.push(PosRoutes.refund);
+          },
+          borderRadius: BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
+          child: Container(
+            height: PosReceiptsSpec.printButtonHeight,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD32F2F),
+              borderRadius: BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
+            ),
+            child: Text(
+              'Refund',
+              style: loewBold.copyWith(
+                fontSize: PosReceiptsSpec.printLabelSize,
+                color: Colors.white,
+                height: 19 / 16,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

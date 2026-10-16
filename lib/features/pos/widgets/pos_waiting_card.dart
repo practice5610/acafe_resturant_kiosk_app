@@ -1,7 +1,9 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
+import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// The card shown while a card payment sits with the terminal —
 /// Figma `overlay-content-area` / `waiting-card` (**1641:4203**).
@@ -60,10 +62,19 @@ class PosPaymentStatusCard extends StatelessWidget {
   final Widget indicator;
   final String heading;
 
+  /// Optional line under the heading — Swiss 721 Light 13, `#78706E`
+  /// (`message-group` on the error frames, e.g. node 1915:11294). Null on the
+  /// waiting/declined states, which draw the heading alone.
+  final String? subheading;
+
   /// The sale total. Passed in, never recomputed — this is the same `total`
   /// the summary and the Confirm button were reading a moment ago, and it must
   /// read identically across every state of one payment attempt.
   final double amountDue;
+
+  /// The amount box's caption. "AMOUNT DUE" on most states; "STILL DUE" on the
+  /// cash-short error (node 1915:11334).
+  final String amountLabel;
 
   /// Laid out in a row with [PosPaymentSpec.declinedActionsGap] between them.
   /// Each should be `Expanded` so a single button fills the card and a pair
@@ -76,6 +87,8 @@ class PosPaymentStatusCard extends StatelessWidget {
     required this.heading,
     required this.amountDue,
     required this.actions,
+    this.subheading,
+    this.amountLabel = 'AMOUNT DUE',
   });
 
   @override
@@ -127,8 +140,19 @@ class PosPaymentStatusCard extends StatelessWidget {
                       color: PosHomeSpec.ink,
                     ),
                   ),
+                  if (subheading != null) ...[
+                    const SizedBox(height: PosPaymentSpec.v2StatusSubtitleGap),
+                    Text(
+                      subheading!,
+                      textAlign: TextAlign.center,
+                      style: swiss721Light.copyWith(
+                        fontSize: PosPaymentSpec.v2ErrorSubtitleSize,
+                        color: PosPaymentSpec.v2ErrorSubtitle,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: PosPaymentSpec.waitCardGap),
-                  _AmountDue(amount: amountDue),
+                  _AmountDue(amount: amountDue, label: amountLabel),
                   const SizedBox(height: PosPaymentSpec.waitCardGap),
                   const ColoredBox(
                     color: PosPaymentSpec.waitCardBorderColor,
@@ -150,6 +174,32 @@ class PosPaymentStatusCard extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// `error-indicator-wrapper` (nodes 1641:4222 / 1915:10478 / 11290 …) — a
+/// ringed X. The stroke is `#D9383A`, which the app already names as
+/// [PosHomeSpec.contextMenuDanger]. Shared by the declined and error cards.
+class PosPaymentErrorMark extends StatelessWidget {
+  const PosPaymentErrorMark({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: PosPaymentSpec.declinedIconSize,
+      height: PosPaymentSpec.declinedIconSize,
+      child: SvgPicture.asset(
+        Images.posErrorCircleSvg,
+        width: PosPaymentSpec.declinedIconSize,
+        height: PosPaymentSpec.declinedIconSize,
+        fit: BoxFit.contain,
+        placeholderBuilder: (_) => const Icon(
+          Icons.highlight_off,
+          size: PosPaymentSpec.declinedIconSize,
+          color: PosHomeSpec.contextMenuDanger,
         ),
       ),
     );
@@ -229,11 +279,13 @@ class _PosWaitingDotsState extends State<PosWaitingDots>
   }
 }
 
-/// `total-display-container` (1641:4212).
+/// `total-display-container` (1641:4212). [label] is the caption above the
+/// figure — "AMOUNT DUE" / "AMOUNT PAID" / "STILL DUE".
 class _AmountDue extends StatelessWidget {
   final double amount;
+  final String label;
 
-  const _AmountDue({required this.amount});
+  const _AmountDue({required this.amount, this.label = 'AMOUNT DUE'});
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +307,7 @@ class _AmountDue extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'AMOUNT DUE',
+            label,
             textAlign: TextAlign.center,
             style: loewBold.copyWith(
               fontSize: PosPaymentSpec.waitAmountLabelSize,

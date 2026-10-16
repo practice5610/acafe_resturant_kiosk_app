@@ -18,6 +18,7 @@ import 'package:acafe_customer/features/pos/screens/pos_receipts_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_report_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_settings_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_welcome_screen.dart';
+import 'package:acafe_customer/features/pos/screens/pos_refund_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_waiting_for_payment_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
@@ -107,6 +108,10 @@ class PosRouter {
         GoRoute(
           path: PosRoutes.paymentSuccess,
           builder: (context, state) => const PosPaymentSuccessScreen(),
+        ),
+        GoRoute(
+          path: PosRoutes.refund,
+          builder: (context, state) => const PosRefundScreen(),
         ),
       ];
 }

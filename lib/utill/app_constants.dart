@@ -102,6 +102,31 @@ class AppConstants {
       '/api/v1/customer/order/split-payment/record';
   static const String splitBalanceUri =
       '/api/v1/customer/order/split-payment/balance';
+  // Split-by-item (Family 3) — additive endpoints.
+  static const String splitByItemCreateGroupsUri =
+      '/api/v1/customer/order/split-by-item/create-groups';
+  static const String splitByItemRecordPaymentUri =
+      '/api/v1/customer/order/split-by-item/record-payment';
+  static const String splitByItemBalanceUri =
+      '/api/v1/customer/order/split-by-item/balance';
+  // Stand-alone terminal (Family 5) — additive endpoint.
+  static const String standaloneRecordUri =
+      '/api/v1/customer/order/standalone-payment/record';
+  // Receipt (Family 6) — send or print a receipt after any POS payment.
+  static const String receiptSendUri =
+      '/api/v1/customer/order/receipt/send';
+  // Refunds (Family 7) — two-step create → confirm lifecycle.
+  static const String refundCreateUri =
+      '/api/v1/customer/order/refund/create';
+  static const String refundConfirmUri =
+      '/api/v1/customer/order/refund/confirm';
+  static const String refundListUri =
+      '/api/v1/customer/order/refund/list';
+  // Invoice (Family 4) — additive endpoints.
+  static const String invoiceCreateUri =
+      '/api/v1/customer/order/invoice/create';
+  static const String invoiceDetailsUri =
+      '/api/v1/customer/order/invoice/details';
   static const String emailSubscribeUri = '/api/v1/subscribe-newsletter';
   static const String customerRemove = '/api/v1/customer/remove-account';
   static const String policyPage = '/api/v1/pages';

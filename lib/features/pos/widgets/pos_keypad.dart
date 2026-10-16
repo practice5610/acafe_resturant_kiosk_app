@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -44,6 +45,13 @@ class PosKeypadStyle {
   final String backspaceAsset;
   final List<BoxShadow> shadow;
 
+  /// Optional per-key overrides for the backspace cell. Null falls back to the
+  /// shared [fill] / [borderColor], so the PIN pad and the old cash pad are
+  /// unaffected; the redesigned cash pad (node 1915:10294) tints its backspace
+  /// key `#F0EBD8`.
+  final Color? backspaceFill;
+  final Color? backspaceBorderColor;
+
   const PosKeypadStyle({
     required this.keyHeight,
     required this.keyRadius,
@@ -60,6 +68,8 @@ class PosKeypadStyle {
     required this.iconColor,
     required this.backspaceAsset,
     this.shadow = const [],
+    this.backspaceFill,
+    this.backspaceBorderColor,
   });
 }
 
@@ -171,6 +181,13 @@ class _KeyState extends State<_Key> {
     final double s = widget.scale;
     final PosKeypadStyle style = widget.style;
 
+    final bool isBackspace = widget.token == PosKeypadKeys.backspace;
+    final Color keyFill =
+        isBackspace ? (style.backspaceFill ?? style.fill) : style.fill;
+    final Color keyBorder = isBackspace
+        ? (style.backspaceBorderColor ?? style.borderColor)
+        : style.borderColor;
+
     final Widget face = AnimatedScale(
       scale: _pressed ? 0.94 : 1.0,
       duration: const Duration(milliseconds: 90),
@@ -179,10 +196,10 @@ class _KeyState extends State<_Key> {
         height: style.keyHeight * s,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: style.fill,
+          color: keyFill,
           borderRadius: BorderRadius.circular(style.keyRadius * s),
           border: Border.all(
-            color: style.borderColor,
+            color: keyBorder,
             width: style.borderWidth,
           ),
           // Scaled with the pad so a shadow authored in design px does not
@@ -256,4 +273,26 @@ PosKeypadStyle posCashKeypadStyle({required String backspaceAsset}) =>
       iconSize: 24,
       iconColor: PosHomeSpec.ink,
       backspaceAsset: backspaceAsset,
+    );
+
+/// Redesigned cash-tender pad — Figma `numeric-keypad` (node **1915:10266**).
+/// 78px keys, r12, 12px gaps, Loew Bold 24, `#D8D1BE` borders; the backspace
+/// cell takes a `#F0EBD8` fill.
+PosKeypadStyle posCashKeypadStyleV2({required String backspaceAsset}) =>
+    PosKeypadStyle(
+      keyHeight: PosPaymentSpec.v2KeypadKeyHeight,
+      keyRadius: PosPaymentSpec.v2KeypadKeyRadius,
+      columnGap: PosPaymentSpec.v2KeypadGap,
+      rowGap: PosPaymentSpec.v2KeypadGap,
+      labelSize: PosPaymentSpec.v2KeypadLabelSize,
+      labelHeight: 1.0,
+      labelStyle: loewBold,
+      fill: PosHomeSpec.tileBg,
+      borderColor: PosPaymentSpec.v2KeypadKeyBorder,
+      borderWidth: PosPaymentSpec.v2KeypadKeyBorderWidth,
+      labelColor: PosHomeSpec.ink,
+      iconSize: PosPaymentSpec.v2KeypadBackspaceIconSize,
+      iconColor: PosHomeSpec.ink,
+      backspaceAsset: backspaceAsset,
+      backspaceFill: PosPaymentSpec.v2KeypadBackspaceFill,
     );

@@ -16,14 +16,16 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_settings_save_button.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart'
+    show PosCashDenomination;
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_cash_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
@@ -160,7 +162,7 @@ void main() {
 
     expect(find.text('Purchase Receipt'), findsOneWidget);
     expect(find.text('Order list'), findsOneWidget);
-    expect(find.text('SELECT PAYMENT METHOD'), findsOneWidget);
+    expect(find.text('PAYMENT METHOD'), findsOneWidget);
     expect(find.text('Confirm Payment'), findsOneWidget);
     // Figma draws the nav bar on this frame (1641:2758).
     expect(find.byType(PosTopNavBar), findsOneWidget);
@@ -182,28 +184,35 @@ void main() {
     expect(find.byKey(const Key('pos-qty-plus')), findsNWidgets(2));
   });
 
-  testWidgets('totals are the cart totals, not literals', (tester) async {
+  testWidgets('the amount due is the cart total, not a literal', (tester) async {
     await _pump(tester, lines: [
       _line('Oat Milk Matcha', 6, qty: 2),
       _line('Mango Matcha', 7, id: 2),
     ]);
 
-    expect(find.text('Subtotal'), findsOneWidget);
-    expect(find.text('Total'), findsOneWidget);
-    expect(find.text(PosHomeSpec.formatPrice(19)), findsNWidgets(2));
-    // No discount applied, so the row is absent rather than showing zero.
-    expect(find.text('Discount'), findsNothing);
+    // The redesigned summary pane shows the payable amount as one display
+    // figure (PAYMENT AMOUNT), not the old Subtotal/Total rows (those live on
+    // the home cart screen now). The figure is read from the cart.
+    expect(find.text('PAYMENT AMOUNT'), findsOneWidget);
+    expect(find.text('Amount due'), findsOneWidget);
+    expect(
+      tester
+          .widget<PosPaySummaryPanel>(find.byType(PosPaySummaryPanel))
+          .total,
+      19,
+    );
+    expect(find.text(PosHomeSpec.formatPrice(19, padZero: false)), findsWidgets);
   });
 
-  testWidgets('the customer name and table survive the route change',
-      (tester) async {
+  testWidgets('the customer name survives the route change', (tester) async {
     PosSaleSession.instance.customerName.text = 'Dylan';
-    PosSaleSession.instance.table.text = 'B1';
 
     await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
 
+    // The receipt sidebar's customer-name field shows the carried-over name.
+    // (The Table field was dropped in the Browse-POS receipt redesign; its
+    // controller is retained but no longer rendered.)
     expect(find.text('Dylan'), findsOneWidget);
-    expect(find.text('B1'), findsOneWidget);
   });
 
   testWidgets('exactly one method is selected and the choice sticks',
@@ -253,13 +262,28 @@ void main() {
       lines: [for (int i = 0; i < 12; i++) _line('Matcha $i', 6, id: i + 1)],
     );
 
-    expect(find.text('SELECT PAYMENT METHOD'), findsOneWidget);
+    // The receipt pane sits at the top of the stack; the pill CTA is pinned
+    // below the scroll area.
+    expect(find.text('Purchase Receipt'), findsOneWidget);
     expect(find.text('Confirm Payment'), findsOneWidget);
+    expect(find.byType(PosPayThreePane), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.drag(
-        find.byType(SingleChildScrollView).first, const Offset(0, -400));
-    await tester.pump();
+    // Below the desktop floor the three panes stack into one scroll
+    // (PosPayThreePane's ListView, which builds lazily). The method pane sits
+    // under the tall receipt and comes into view on scroll — proving the
+    // stack scrolls without overflowing.
+    await tester.scrollUntilVisible(
+      find.text('PAYMENT METHOD'),
+      400,
+      scrollable: find
+          .descendant(
+            of: find.byType(PosPayThreePane),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(find.text('PAYMENT METHOD'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -276,12 +300,23 @@ void main() {
     expect(confirm.onTap, isNull);
   });
 
-  testWidgets('the sticky bar uses the compact Confirm button', (tester) async {
+  testWidgets('the sticky bar is the full-width pill CTA', (tester) async {
     await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
 
-    final Size button = tester.getSize(find.byType(PosSettingsSaveButton));
-    expect(button.height, PosUI.buttonHeight);
-    expect(button.width, PosPaymentSpec.confirmWidth);
+    // The CTA is now PosPayPillBar (node 1915:9516): a full-bleed pill, not
+    // the old fixed-width compact button.
+    expect(find.byType(PosPayPillBar), findsOneWidget);
+
+    // The pill itself is 64 tall (node 1915:9517) and spans the content width
+    // (window minus the bar's 32px side padding), rather than a fixed 360.
+    final Size pill = tester.getSize(
+      find.ancestor(
+        of: find.text('Confirm Payment'),
+        matching: find.byType(InkWell),
+      ),
+    );
+    expect(pill.height, PosPaymentSpec.v2PillHeight);
+    expect(pill.width, 1366 - PosPaymentSpec.v2BarPaddingH * 2);
   });
 
   // ── Cash payment method (Figma 1641:3751) ──────────────────────────────
@@ -312,12 +347,12 @@ void main() {
     testWidgets('the panel appears only for Cash', (tester) async {
       await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
 
-      expect(find.byType(PosCashPanel), findsNothing,
+      expect(find.byType(PosPayCashSummaryPanel), findsNothing,
           reason: 'Card is the default method and has no tender panel');
 
       await selectCash(tester);
 
-      expect(find.byType(PosCashPanel), findsOneWidget);
+      expect(find.byType(PosPayCashSummaryPanel), findsOneWidget);
       expect(find.text('Amount Tendered'), findsOneWidget);
       expect(find.text('Change Due'), findsOneWidget);
       expect(find.byType(PosKeypad), findsOneWidget);
@@ -342,7 +377,7 @@ void main() {
           reason: 'exact is the common case, so it is the default, not €0');
       expect(
         tester
-            .widget<PosCashPanel>(find.byType(PosCashPanel))
+            .widget<PosPayCashSummaryPanel>(find.byType(PosPayCashSummaryPanel))
             .selectedDenomination,
         const PosCashDenomination.exact(),
       );
@@ -382,7 +417,7 @@ void main() {
           findsOneWidget);
       expect(
         tester
-            .widget<PosCashPanel>(find.byType(PosCashPanel))
+            .widget<PosPayCashSummaryPanel>(find.byType(PosPayCashSummaryPanel))
             .selectedDenomination,
         const PosCashDenomination.note(2000),
       );
@@ -413,7 +448,7 @@ void main() {
 
       expect(
         tester
-            .widget<PosCashPanel>(find.byType(PosCashPanel))
+            .widget<PosPayCashSummaryPanel>(find.byType(PosPayCashSummaryPanel))
             .selectedDenomination,
         const PosCashDenomination.note(5000),
         reason: 'the later chip wins; both must not be lit',
@@ -422,7 +457,7 @@ void main() {
       await tapKey(tester, '7');
       expect(
         tester
-            .widget<PosCashPanel>(find.byType(PosCashPanel))
+            .widget<PosPayCashSummaryPanel>(find.byType(PosPayCashSummaryPanel))
             .selectedDenomination,
         isNull,
         reason: 'manual entry clears the chip highlight',
@@ -454,7 +489,10 @@ void main() {
       // €2 against a €6 total.
       expect(
           find.text(PosHomeSpec.formatPrice(0, padZero: false)), findsWidgets);
-      expect(find.textContaining('-'), findsNothing);
+      // No negative figure anywhere (a minus next to a digit or the currency
+      // symbol). Scoped to numbers so it does not trip over "Stand-alone".
+      expect(find.textContaining(RegExp(r'-\s*\d')), findsNothing);
+      expect(find.textContaining(RegExp(r'€\s*-')), findsNothing);
     });
 
     testWidgets('change due is exact for the classic float case',
@@ -481,7 +519,7 @@ void main() {
       await tester.tap(find.text('Card'));
       await tester.pump();
 
-      expect(find.byType(PosCashPanel), findsNothing,
+      expect(find.byType(PosPayCashSummaryPanel), findsNothing,
           reason: 'Card carries no tender panel at all');
 
       await selectCash(tester);
@@ -490,7 +528,7 @@ void main() {
       // Exact, not to whatever the operator had chosen before switching away.
       expect(
         tester
-            .widget<PosCashPanel>(find.byType(PosCashPanel))
+            .widget<PosPayCashSummaryPanel>(find.byType(PosPayCashSummaryPanel))
             .selectedDenomination,
         const PosCashDenomination.exact(),
       );
@@ -508,7 +546,7 @@ void main() {
       await tester.pump();
 
       expect(
-        tester.widget<PosCashPanel>(find.byType(PosCashPanel)).entry.isEmpty,
+        tester.widget<PosPayCashSummaryPanel>(find.byType(PosPayCashSummaryPanel)).entry.isEmpty,
         isTrue,
       );
       expect(confirmEnabled(tester), isFalse);
@@ -589,7 +627,7 @@ void main() {
       expect(find.text('Cancel Transaction'), findsOneWidget);
 
       // The selector and the sticky bar step aside; the header stays.
-      expect(find.text('SELECT PAYMENT METHOD'), findsNothing);
+      expect(find.text('PAYMENT METHOD'), findsNothing);
       expect(find.text('Confirm Payment'), findsNothing);
       expect(find.byType(PosTopNavBar), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -603,8 +641,10 @@ void main() {
         tester.widget<PosWaitingCard>(find.byType(PosWaitingCard)).amountDue,
         13,
       );
+      // The figure renders on the waiting card and in the back-row caption
+      // ("… / € 13.00"), both reading the same total.
       expect(find.text(PosHomeSpec.formatPrice(13, padZero: false)),
-          findsOneWidget);
+          findsNWidgets(2));
     });
 
     testWidgets('the dots animate without disturbing the rest of the screen',
@@ -661,7 +701,7 @@ void main() {
       await settleTerminal(tester, terminal.completeCanceled);
 
       expect(find.byType(PosWaitingCard), findsNothing);
-      expect(find.text('SELECT PAYMENT METHOD'), findsOneWidget);
+      expect(find.text('PAYMENT METHOD'), findsOneWidget);
       expect(find.text('Confirm Payment'), findsOneWidget);
       expect(cart.cartList.where((l) => l != null).length, 2,
           reason: 'cancelling must not clear the sale');
@@ -677,7 +717,7 @@ void main() {
       expect(find.byType(PosWaitingCard), findsNothing);
       expect(find.byType(PosDeclinedCard), findsOneWidget);
       // The selector stays out of the way until the operator decides.
-      expect(find.text('SELECT PAYMENT METHOD'), findsNothing);
+      expect(find.text('PAYMENT METHOD'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -729,7 +769,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(PosDeclinedCard), findsNothing);
-      expect(find.text('SELECT PAYMENT METHOD'), findsOneWidget);
+      expect(find.text('PAYMENT METHOD'), findsOneWidget);
       expect(find.text('Confirm Payment'), findsOneWidget);
       expect(cart.cartList.where((l) => l != null).length, 2,
           reason: 'a decline must not clear the sale');
@@ -821,58 +861,62 @@ void main() {
     });
   });
 
-  group('desktop floor: no medium/full column swap at/above 1024', () {
-    // The medium band (5:7 flex, 20px gutter) used to run all the way to
-    // 1180 before jumping to the equal 634:634 split — a window widened
-    // past 1180 would visibly "pop". `mediumBelowWidth` is now pinned to
-    // the same 1024 floor Home uses, so nothing below 1364 (the width at
-    // which the 1300 content cap engages) should show a slope change.
-    Future<double> methodCardWidth(WidgetTester tester, double width) async {
-      await _pump(tester,
-          size: Size(width, 900), lines: [_line('Oat Milk Matcha', 6)]);
+  group('3-pane responsive shell (PosPayThreePane)', () {
+    // The screen is now a receipt / method / summary 3-pane expressed as
+    // window ratios (440/1366, 370/1366) with the summary taking the
+    // remainder. It lays the three panes side by side while they all clear
+    // their floor, and stacks into one scroll when they do not — never
+    // shrinking a column past legibility. (The old 2-pane flex model and its
+    // 1180 medium-band seam are retired.)
+    Future<double> methodCardWidth(WidgetTester tester, Size size) async {
+      await _pump(tester, size: size, lines: [_line('Oat Milk Matcha', 6)]);
       return tester.getSize(find.byType(PosPaymentMethodCard).first).width;
     }
 
-    testWidgets(
-        'the payment card grows at the same rate on both sides of the old 1180 seam',
+    testWidgets('a wide window lays the three panes side by side',
         (tester) async {
-      // All four points sit below the 1300 content-width cap (window - 64px
-      // padding < 1300), so growth is linear throughout if — and only if —
-      // the same flex ratio governs the whole stretch.
-      final double w1024 = await methodCardWidth(tester, 1024);
-      final double w1100 = await methodCardWidth(tester, 1100);
-      final double w1180 = await methodCardWidth(tester, 1180);
-      final double w1260 = await methodCardWidth(tester, 1260);
-
-      // Per window-px, not per step: the first step is 76px, the others 80,
-      // so raw deltas differ by design (19 vs 20 at a 0.25 rate).
-      final double beforeSeam = (w1100 - w1024) / 76;
-      final double acrossSeam = (w1180 - w1100) / 80;
-      final double afterSeam = (w1260 - w1180) / 80;
-
-      expect(acrossSeam, closeTo(beforeSeam, 0.01),
-          reason: 'growth rate changed approaching the old 1180 seam');
-      expect(afterSeam, closeTo(beforeSeam, 0.01),
-          reason: 'growth rate changed past the old 1180 seam');
-    });
-
-    testWidgets(
-        'the card keeps growing (not stuck on the medium ratio) up to the cap',
-        (tester) async {
-      final double w1024 = await methodCardWidth(tester, 1024);
-      final double w1364 = await methodCardWidth(tester, 1364);
-      expect(w1364, greaterThan(w1024));
-    });
-
-    testWidgets('a portrait desktop window still shows the side-by-side layout',
-        (tester) async {
-      // 1024 wide, taller than it is wide: this used to fall into whatever
-      // the surrounding shell's own orientation gate decided, but this
-      // screen's own side-by-side test is width/height threshold based, not
-      // orientation based, and must stay that way above the floor.
-      await _pump(tester,
-          size: const Size(1024, 1400), lines: [_line('Oat Milk Matcha', 6)]);
+      final double card = await methodCardWidth(tester, const Size(1366, 900));
+      // Both PRIMARY method cards render, and the method pane is a fraction of
+      // the window (its ~370/1366 ratio), which only holds in the side-by-side
+      // Row — not the stacked, full-width ListView.
       expect(find.byType(PosPaymentMethodCard), findsNWidgets(2));
+      expect(card, lessThan(1366 * 0.45));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the panes grow with the window above the min-clamp',
+        (tester) async {
+      final double w1200 = await methodCardWidth(tester, const Size(1200, 900));
+      final double w1366 = await methodCardWidth(tester, const Size(1366, 900));
+      final double w1600 = await methodCardWidth(tester, const Size(1600, 900));
+
+      // Monotonic, continuous growth — no column-swap "pop".
+      expect(w1366, greaterThan(w1200));
+      expect(w1600, greaterThan(w1366));
+      // Still a fraction of the window at every width (ratio layout, not full
+      // width).
+      expect(w1600, lessThan(1600 * 0.45));
+    });
+
+    testWidgets('a narrow window stacks the panes into one scroll',
+        (tester) async {
+      final double card = await methodCardWidth(tester, const Size(760, 1024));
+      // Stacked: the method pane spans the content width, so its card is well
+      // over half the window — the opposite of the side-by-side fraction.
+      expect(find.byType(PosPaymentMethodCard), findsNWidgets(2));
+      expect(card, greaterThan(760 * 0.6));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a portrait window wide enough for three panes stays side by side',
+        (tester) async {
+      // Width, not orientation, decides the structure. 1366 wide but portrait
+      // still holds the 3-pane Row (1024 genuinely cannot fit three panes, so
+      // this is tested at a width that can).
+      final double card =
+          await methodCardWidth(tester, const Size(1366, 1600));
+      expect(find.byType(PosPaymentMethodCard), findsNWidgets(2));
+      expect(card, lessThan(1366 * 0.45));
       expect(tester.takeException(), isNull);
     });
   });

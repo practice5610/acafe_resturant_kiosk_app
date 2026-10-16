@@ -235,4 +235,53 @@ void main() {
       expect(second['price'], '4.0');
     });
   });
+
+  // Tips — Family 1. The POS tip feature added an optional `tipAmountOverride`
+  // to `placeKioskOrder`, defaulting to null. On that null path the tip is
+  // `null ?? kioskTipAmount(payable, tipPercent)` — the exact expression that
+  // existed before the param, so the kiosk's payload is unchanged. What the
+  // kiosk actually puts on the wire is governed by PlaceOrderBody.toJson(),
+  // asserted here: the `tip_amount` key appears only for a positive tip.
+  group('tips — kiosk payload is unchanged on the null-override path', () {
+    Map<String, dynamic> bodyWithTip(double? tip) => PlaceOrderBody(
+          cart: const [],
+          couponDiscountAmount: 0,
+          couponDiscountTitle: null,
+          couponCode: null,
+          orderNote: '',
+          orderAmount: 11.50,
+          tipAmount: tip,
+          deliveryAddressId: 0,
+          orderType: 'pos',
+          paymentMethod: 'cash_on_delivery',
+          branchId: 1,
+          deliveryTime: 'now',
+          deliveryDate: '2026-09-26',
+          distance: 0,
+          isPartial: '0',
+          isCutleryRequired: '0',
+        ).toJson();
+
+    test('no tip (null) omits tip_amount entirely — byte-identical to pre-tip',
+        () {
+      final Map<String, dynamic> body = bodyWithTip(null);
+      expect(body.containsKey('tip_amount'), isFalse);
+      // The rest of the contract is untouched.
+      expect(body['order_amount'], 11.50);
+      expect(body['order_type'], 'pos');
+      expect(body['payment_method'], 'cash_on_delivery');
+    });
+
+    test('a zero tip also omits the key (the kiosk no-tip path passes null)',
+        () {
+      // placeKioskOrder sends `tipAmount > 0 ? tipAmount : null`, so a 0 tip
+      // reaches the body as null; even a literal 0 must not emit the key.
+      expect(bodyWithTip(0).containsKey('tip_amount'), isFalse);
+    });
+
+    test('a positive tip is serialized as tip_amount (the POS / kiosk path)',
+        () {
+      expect(bodyWithTip(2.50)['tip_amount'], 2.50);
+    });
+  });
 }

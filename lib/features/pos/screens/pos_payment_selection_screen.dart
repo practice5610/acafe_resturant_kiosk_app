@@ -21,8 +21,18 @@ import 'package:acafe_customer/features/pos/domain/pos_receipt_menu_actions.dart
 import 'package:acafe_customer/features/pos/domain/pos_receipt_print.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_by_item_model.dart';
+import 'package:acafe_customer/features/pos/domain/pos_invoice_model.dart';
+import 'package:acafe_customer/features/pos/domain/pos_invoice_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_standalone_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_by_item_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart'
     show PosCashDenomination;
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
@@ -77,6 +87,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   bool _confirming = false;
 
+  /// True while any OTHER-mode order placement (split, invoice, stand-alone) is
+  /// in flight. Prevents the PRIMARY radio from blinking selected between the
+  /// cancel of the old OTHER and the activation of the new one.
+  bool _startingOther = false;
+
   /// Non-null only while a confirm attempt is running. `awaitingTerminal` is
   /// what swaps the content area for the waiting card (Figma 1641:4203).
   PosCheckoutPhase? _phase;
@@ -124,6 +139,62 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// The idempotency key for the current split's card charge. Stable across
   /// retries of the same split attempt to prevent double-charge.
   String? _splitCardIdempotencyKey;
+
+  // ── Split-by-item (Family 3) ─────────────────────────────────────────────
+  /// Non-null while the operator is collecting item groups for this order.
+  late final PosSplitByItemSession _splitByItem = PosSplitByItemSession();
+
+  /// Tracks which items are selected for the current payment group.
+  late final PosSplitByItemGroupsBuilder _splitByItemGroups =
+      PosSplitByItemGroupsBuilder(groupSeq: 1);
+
+  /// Card or Cash for the current split-by-item group payment.
+  PosPaymentMethod _splitByItemMethod = PosPaymentMethod.card;
+
+  /// True while a split-by-item group payment is in flight.
+  bool _splitByItemLoading = false;
+
+  /// Card idempotency key for the current group. Stable across retries.
+  String? _splitByItemCardKey;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Invoice (Family 4) ───────────────────────────────────────────────────
+  /// True while the Invoice form is open in the right pane.
+  bool _invoiceActive = false;
+
+  /// Mutable form state (company, VAT, email, sendByEmail). Disposed with the
+  /// screen so ValueNotifiers are cleaned up when the screen exits.
+  final PosInvoiceFormState _invoiceForm = PosInvoiceFormState();
+
+  /// True while the POST invoice/create call is in flight.
+  bool _invoiceLoading = false;
+
+  /// The order_id placed upfront (same flow as split families), stored so the
+  /// invoice POST can reference it.
+  int _invoiceOrderId = 0;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Stand-alone terminal (Family 5) ──────────────────────────────────────
+  /// True while the stand-alone instructions pane is open.
+  bool _standaloneActive = false;
+
+  /// Optional approval code from the terminal slip. Held in a ValueNotifier
+  /// so only the text field rebuilds on typing — no root setState.
+  final ValueNotifier<String> _standaloneApprovalCode =
+      ValueNotifier<String>('');
+
+  /// True while the POST standalone-payment/record call is in flight.
+  bool _standaloneLoading = false;
+
+  /// The order_id placed upfront before showing the instructions pane.
+  int _standaloneOrderId = 0;
+
+  /// Grand total captured at order placement for the receipt dialog subtitle.
+  double _standaloneGrandTotal = 0;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Grand total captured at invoice order placement for receipt dialog.
+  double _invoiceGrandTotal = 0;
 
   /// Null after any keypad entry — a chip stays lit only while it is what the
   /// operator actually chose. See [_onCashKey].
@@ -175,6 +246,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void dispose() {
     _tip.dispose();
     _split.dispose();
+    _splitByItem.dispose();
+    _splitByItemGroups.dispose();
+    _invoiceForm.dispose();
+    _standaloneApprovalCode.dispose();
     super.dispose();
   }
 
@@ -254,6 +329,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
     setState(() {
       _confirming = true;
+      _startingOther = true;
       _phase = null;
       _cancelling = false;
       _declined = false;
@@ -268,7 +344,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
       if (!mounted) return;
 
-      setState(() => _confirming = false);
+      setState(() { _confirming = false; _startingOther = false; });
 
       if (!placed.success) {
         showCustomSnackBarHelper(
@@ -290,7 +366,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _confirming = false);
+      setState(() { _confirming = false; _startingOther = false; });
       showCustomSnackBarHelper(
         'Order placement error: $e',
         isError: true,
@@ -299,6 +375,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   }
 
   void _selectMethod(PosPaymentMethod method, double total) {
+    // Cancel any active OTHER mode (split, invoice, stand-alone) so the full
+    // group stays single-select: PRIMARY tap always wins.
+    _cancelActiveOther();
     if (_sale.paymentMethod == method) return;
     setState(() {
       _sale.paymentMethod = method;
@@ -583,7 +662,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                     ],
                     // Button.
                     PosPayPillBar(
-                      label: isFinal ? 'Finish' : 'Next payment',
+                      label: isFinal ? 'Next order' : 'Next payment',
                       onConfirm: () {
                         Navigator.pop(context);
                         if (isFinal) {
@@ -592,6 +671,19 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                         // Else: loop back to entry screen (UI will show it)
                       },
                     ),
+                    if (isFinal) ...[
+                      const SizedBox(height: 10),
+                      _ReceiptOutlineButton(
+                        onTap: () => _showReceiptDialog(
+                          orderId: state.orderId,
+                          total:   state.grandTotal,
+                          onAfterSend: () {
+                            Navigator.pop(context);
+                            _completeSplit();
+                          },
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -619,6 +711,891 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       context.go(PosRoutes.home);
     }
   }
+
+  // ── Split-by-item (Family 3) ─────────────────────────────────────────────
+
+  /// Entry point: operator taps "Split by item" in the OTHER row.
+  /// Places the order upfront then switches UI to item-selection mode.
+  Future<void> _startSplitByItem(double amount) async {
+    if (_splitByItem.active || _confirming) return;
+
+    final kioskSession = kiosk.KioskSession.instance;
+    kioskSession.customerName = _sale.customerName.text.trim();
+    if (!context.mounted) return;
+
+    setState(() {
+      _confirming = true;
+      _startingOther = true;
+      _phase = null;
+      _cancelling = false;
+      _declined = false;
+    });
+
+    try {
+      final KioskPlaceResult placed = await placeKioskOrder(
+        context,
+        amount: amount,
+        tipAmountOverride: _tip.value > 0 ? _tip.value : null,
+      );
+      if (!mounted) return;
+      setState(() { _confirming = false; _startingOther = false; });
+
+      if (!placed.success) {
+        showCustomSnackBarHelper(
+          placed.message ?? 'Order placement failed',
+          isError: true,
+        );
+        return;
+      }
+
+      _splitByItemGroups.nextGroup(1);
+      _splitByItem.start(
+        orderId: int.tryParse((placed.orderId ?? '').trim()) ?? 0,
+        deviceId: context.read<KioskAuthProvider>().deviceId ?? 0,
+        grandTotal: amount,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _confirming = false; _startingOther = false; });
+      showCustomSnackBarHelper('Order placement error: $e', isError: true);
+    }
+  }
+
+  /// Extract cart items as line items for the split-by-item panel.
+  List<PosSplitByItemLineItem> _buildLineItemsFromCart(List<CartModel?> lines) {
+    final List<PosSplitByItemLineItem> result = [];
+    for (int i = 0; i < lines.length; i++) {
+      final CartModel? line = lines[i];
+      if (line == null) continue;
+      final double unitPrice = line.discountedPrice ?? 0;
+      final int qty = line.quantity ?? 1;
+      result.add(PosSplitByItemLineItem(
+        id: i,
+        name: line.product?.name ?? 'Item ${i + 1}',
+        variant: line.variation?.isNotEmpty == true
+            ? (line.variation!.first.name ?? '')
+            : '',
+        price: unitPrice * qty,
+      ));
+    }
+    return result;
+  }
+
+  /// Called by the panel's "Start Payment N" button.
+  Future<void> _startSplitByItemPayment(
+      List<PosSplitByItemLineItem> items) async {
+    if (_splitByItemLoading) return;
+    final PosSplitByItemState? state = _splitByItem.value;
+    if (state == null) return;
+
+    final double amount =
+        _splitByItemGroups.value.calculateAmount(items);
+    if (amount <= 0) {
+      showCustomSnackBarHelper('Select at least one item', isError: true);
+      return;
+    }
+
+    final int groupSeq = state.nextSequence;
+    final String reference = 'pos-sbi-${state.orderId}-$groupSeq';
+
+    setState(() {
+      _splitByItemLoading = true;
+      _phase = PosCheckoutPhase.placingOrder;
+    });
+
+    try {
+      // 1. Create the group on the backend.
+      final PosSplitByItemRepo repo = di.sl<PosSplitByItemRepo>();
+      final ApiResponseModel createResp = await repo.createGroups(
+        orderId: state.orderId,
+        deviceId: state.deviceId,
+        groups: [
+          {
+            'item_ids': _splitByItemGroups.value.selectedItemIds.toList(),
+            'amount': amount,
+          }
+        ],
+      );
+      if (!mounted) return;
+
+      if (!createResp.isSuccess) {
+        showCustomSnackBarHelper(
+          'Group creation failed: ${createResp.error}',
+          isError: true,
+        );
+        setState(() {
+          _splitByItemLoading = false;
+          _phase = null;
+        });
+        return;
+      }
+
+      final PosSplitByItemState createdState = PosSplitByItemState.fromJson(
+        Map<String, dynamic>.from(createResp.response.data as Map),
+        deviceId: state.deviceId,
+      );
+      _splitByItem.update(createdState);
+      setState(() => _phase = null);
+
+      // 2. Card charge (skipped for cash).
+      String? transactionRef;
+      if (_splitByItemMethod == PosPaymentMethod.card) {
+        _splitByItemCardKey ??=
+            'pos-sbi-card-${DateTime.now().millisecondsSinceEpoch}';
+        setState(() => _phase = PosCheckoutPhase.awaitingTerminal);
+
+        final KioskPaymentResult payment =
+            await di.sl<KioskPaymentService>().pay(
+          amount: amount,
+          idempotencyKey: _splitByItemCardKey!,
+        );
+        if (!mounted) return;
+        setState(() => _phase = null);
+
+        switch (payment.status) {
+          case KioskPaymentStatus.paid:
+            transactionRef = payment.paymentRef;
+          case KioskPaymentStatus.failed:
+            _showSplitByItemDeclineCard(amount, groupSeq);
+            setState(() => _splitByItemLoading = false);
+            return;
+          case KioskPaymentStatus.canceled:
+            setState(() => _splitByItemLoading = false);
+            return;
+        }
+      }
+
+      // 3. Record payment.
+      setState(() => _phase = PosCheckoutPhase.placingOrder);
+      final ApiResponseModel recordResp = await repo.recordPayment(
+        orderId: state.orderId,
+        groupSeq: groupSeq,
+        paidWith: _splitByItemMethod == PosPaymentMethod.card ? 'card' : 'cash',
+        paidAmount: amount,
+        deviceId: state.deviceId,
+        reference: reference,
+        transactionReference: transactionRef,
+      );
+      if (!mounted) return;
+      setState(() => _phase = null);
+
+      if (!recordResp.isSuccess) {
+        showCustomSnackBarHelper(
+          'Payment recording failed: ${recordResp.error}',
+          isError: true,
+        );
+        setState(() => _splitByItemLoading = false);
+        return;
+      }
+
+      final PosSplitByItemState updatedState = PosSplitByItemState.fromJson(
+        Map<String, dynamic>.from(recordResp.response.data as Map),
+        deviceId: state.deviceId,
+      );
+      _splitByItem.update(updatedState);
+
+      setState(() {
+        _splitByItemLoading = false;
+        _splitByItemCardKey = null;
+      });
+
+      _showSplitByItemSuccessCard(updatedState);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _splitByItemLoading = false;
+        _phase = null;
+      });
+      showCustomSnackBarHelper('Split error: $e', isError: true);
+    }
+  }
+
+  /// Decline card overlay for a failed split-by-item group charge.
+  void _showSplitByItemDeclineCard(double amount, int groupSeq) {
+    showGeneralDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      pageBuilder: (context, anim, secAnim) => Center(
+        child: Material(
+          type: MaterialType.transparency,
+          child: PosDeclinedCard(
+            amountDue: amount,
+            retrying: _splitByItemLoading,
+            onCancel:
+                _splitByItemLoading ? null : () => Navigator.pop(context),
+            onTryAgain: _splitByItemLoading
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    // Retry: _splitByItemCardKey is stable across retries.
+                    final List<PosSplitByItemLineItem> items =
+                        _buildLineItemsFromCart(
+                            context.read<CartProvider>().cartList);
+                    _startSplitByItemPayment(items);
+                  },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Success overlay after each group payment. "Start next payment" or "Finish".
+  void _showSplitByItemSuccessCard(PosSplitByItemState state) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      pageBuilder: (dialogContext, anim, secAnim) {
+        final bool isFinal = state.fullyPaid;
+        return Center(
+          child: Material(
+            type: MaterialType.transparency,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Container(
+                width: PosPaymentSpec.v2SuccessCardWidth,
+                padding:
+                    const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
+                decoration: BoxDecoration(
+                  color: PosHomeSpec.tileBg,
+                  borderRadius: BorderRadius.circular(
+                      PosPaymentSpec.v2SuccessCardRadius),
+                  border: Border.all(
+                    color: PosHomeSpec.hairline,
+                    width: PosPaymentSpec.v2SuccessCardBorder,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      Images.checkCircle,
+                      width: PosPaymentSpec.v2SuccessIconSize,
+                      height: PosPaymentSpec.v2SuccessIconSize,
+                    ),
+                    const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
+                    Text(
+                      isFinal ? 'Order fully paid' : 'Payment recorded',
+                      style: loewExtraBold.copyWith(
+                        fontSize: PosPaymentSpec.v2SuccessHeadingSize,
+                        color: PosHomeSpec.ink,
+                      ),
+                    ),
+                    if (!isFinal) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '${PosHomeSpec.formatPrice(state.remaining, padZero: false)} remaining',
+                        style: swiss721Light.copyWith(
+                          fontSize: PosPaymentSpec.v2ErrorSubtitleSize,
+                          color: PosPaymentSpec.v2ErrorSubtitle,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
+                    PosPayPillBar(
+                      label: isFinal ? 'Next order' : 'Start next payment',
+                      onConfirm: () {
+                        Navigator.pop(dialogContext);
+                        if (isFinal) {
+                          _completeSplitByItem();
+                        } else {
+                          setState(() {
+                            _splitByItemGroups.nextGroup(state.nextSequence);
+                            _splitByItemMethod = PosPaymentMethod.card;
+                          });
+                        }
+                      },
+                    ),
+                    if (isFinal) ...[
+                      const SizedBox(height: 10),
+                      _ReceiptOutlineButton(
+                        onTap: () => _showReceiptDialog(
+                          orderId: state.orderId,
+                          total:   state.grandTotal,
+                          onAfterSend: () {
+                            Navigator.pop(dialogContext);
+                            _completeSplitByItem();
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Final cleanup: clear cart + session, navigate home.
+  void _completeSplitByItem() {
+    final CartProvider cart = context.read<CartProvider>();
+    final CouponProvider coupon = context.read<CouponProvider>();
+    endKioskCustomerSession(
+      context.mounted ? context : null,
+      cart: cart,
+      coupon: coupon,
+    );
+    _sale.reset();
+    _splitByItem.clear();
+    if (context.mounted) context.go(PosRoutes.home);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Invoice (Family 4) ───────────────────────────────────────────────────
+
+  /// Operator taps "Invoice" in the OTHER row.
+  ///
+  /// Places the order upfront (same as split families), then switches the
+  /// right pane to the invoice form.
+  Future<void> _startInvoice(double grandTotal) async {
+    if (_invoiceActive || _confirming) return;
+
+    final kioskSession = kiosk.KioskSession.instance;
+    kioskSession.customerName = _sale.customerName.text.trim();
+    if (!context.mounted) return;
+
+    setState(() {
+      _confirming = true;
+      _startingOther = true;
+      _phase = null;
+      _cancelling = false;
+      _declined = false;
+    });
+
+    try {
+      final KioskPlaceResult placed = await placeKioskOrder(
+        context,
+        amount: grandTotal,
+        tipAmountOverride: _tip.value > 0 ? _tip.value : null,
+      );
+      if (!mounted) return;
+      setState(() { _confirming = false; _startingOther = false; });
+
+      if (!placed.success) {
+        showCustomSnackBarHelper(
+          placed.message ?? 'Order placement failed',
+          isError: true,
+        );
+        return;
+      }
+
+      setState(() {
+        _invoiceOrderId     = int.tryParse((placed.orderId ?? '').trim()) ?? 0;
+        _invoiceGrandTotal  = grandTotal;
+        _invoiceActive      = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _confirming = false; _startingOther = false; });
+      showCustomSnackBarHelper('Order placement error: $e', isError: true);
+    }
+  }
+
+  /// Called by the "Create Invoice" button in [PosInvoicePanel].
+  Future<void> _submitInvoice() async {
+    if (_invoiceLoading || !_invoiceForm.isValid) return;
+
+    final int deviceId = context.read<KioskAuthProvider>().deviceId ?? 0;
+    final String reference =
+        'pos-inv-$_invoiceOrderId-${DateTime.now().millisecondsSinceEpoch}';
+
+    final Map<String, dynamic> payload = _invoiceForm.toPayload(
+      orderId: _invoiceOrderId,
+      deviceId: deviceId,
+      reference: reference,
+    );
+
+    setState(() {
+      _invoiceLoading = true;
+      _phase = PosCheckoutPhase.placingOrder;
+    });
+
+    try {
+      final PosInvoiceRepo repo = di.sl<PosInvoiceRepo>();
+      final ApiResponseModel response = await repo.create(payload);
+
+      if (!mounted) return;
+      setState(() {
+        _invoiceLoading = false;
+        _phase = null;
+      });
+
+      if (!response.isSuccess) {
+        showCustomSnackBarHelper(
+          'Invoice failed: ${response.error}',
+          isError: true,
+        );
+        return;
+      }
+
+      // Show success overlay then go home.
+      _showInvoiceSuccessCard();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _invoiceLoading = false;
+        _phase = null;
+      });
+      showCustomSnackBarHelper('Invoice error: $e', isError: true);
+    }
+  }
+
+  void _showInvoiceSuccessCard() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      pageBuilder: (dialogContext, anim, secAnim) => Center(
+        child: Material(
+          type: MaterialType.transparency,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Container(
+              width: PosPaymentSpec.v2SuccessCardWidth,
+              padding:
+                  const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
+              decoration: BoxDecoration(
+                color: PosHomeSpec.tileBg,
+                borderRadius:
+                    BorderRadius.circular(PosPaymentSpec.v2SuccessCardRadius),
+                border: Border.all(
+                  color: PosHomeSpec.hairline,
+                  width: PosPaymentSpec.v2SuccessCardBorder,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    Images.checkCircle,
+                    width: PosPaymentSpec.v2SuccessIconSize,
+                    height: PosPaymentSpec.v2SuccessIconSize,
+                  ),
+                  const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
+                  Text(
+                    'Invoice created',
+                    style: loewExtraBold.copyWith(
+                      fontSize: PosPaymentSpec.v2SuccessHeadingSize,
+                      color: PosHomeSpec.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Order marked as invoiced',
+                    style: swiss721Light.copyWith(
+                      fontSize: PosPaymentSpec.v2ErrorSubtitleSize,
+                      color: PosPaymentSpec.v2ErrorSubtitle,
+                    ),
+                  ),
+                  const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
+                  PosPayPillBar(
+                    label: 'Next order',
+                    onConfirm: () {
+                      Navigator.pop(dialogContext);
+                      _completeInvoice();
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _ReceiptOutlineButton(
+                    onTap: () => _showReceiptDialog(
+                      orderId: _invoiceOrderId,
+                      total:   _invoiceGrandTotal,
+                      onAfterSend: () {
+                        Navigator.pop(dialogContext);
+                        _completeInvoice();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _completeInvoice() {
+    final CartProvider cart = context.read<CartProvider>();
+    final CouponProvider coupon = context.read<CouponProvider>();
+    endKioskCustomerSession(
+      context.mounted ? context : null,
+      cart: cart,
+      coupon: coupon,
+    );
+    _sale.reset();
+    setState(() {
+      _invoiceActive = false;
+      _invoiceOrderId = 0;
+    });
+    if (context.mounted) context.go(PosRoutes.home);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Stand-alone terminal (Family 5) ──────────────────────────────────────
+
+  /// Operator taps "Stand-alone" in the OTHER row.
+  ///
+  /// Places the order upfront then shows the instruction pane.
+  Future<void> _startStandalone(double grandTotal) async {
+    if (_standaloneActive || _confirming) return;
+
+    final kioskSession = kiosk.KioskSession.instance;
+    kioskSession.customerName = _sale.customerName.text.trim();
+    if (!context.mounted) return;
+
+    setState(() {
+      _confirming = true;
+      _startingOther = true;
+      _phase = null;
+      _cancelling = false;
+      _declined = false;
+    });
+
+    try {
+      final KioskPlaceResult placed = await placeKioskOrder(
+        context,
+        amount: grandTotal,
+        tipAmountOverride: _tip.value > 0 ? _tip.value : null,
+      );
+      if (!mounted) return;
+      setState(() { _confirming = false; _startingOther = false; });
+
+      if (!placed.success) {
+        showCustomSnackBarHelper(
+          placed.message ?? 'Order placement failed',
+          isError: true,
+        );
+        return;
+      }
+
+      setState(() {
+        _standaloneOrderId    = int.tryParse((placed.orderId ?? '').trim()) ?? 0;
+        _standaloneGrandTotal = grandTotal;
+        _standaloneActive     = true;
+        _standaloneApprovalCode.value = '';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _confirming = false; _startingOther = false; });
+      showCustomSnackBarHelper('Order placement error: $e', isError: true);
+    }
+  }
+
+  /// Called by "Confirm Payment" in [PosStandalonePanel].
+  Future<void> _submitStandalone() async {
+    if (_standaloneLoading) return;
+
+    final int deviceId = context.read<KioskAuthProvider>().deviceId ?? 0;
+    final String reference =
+        'pos-sa-$_standaloneOrderId-${DateTime.now().millisecondsSinceEpoch}';
+
+    setState(() {
+      _standaloneLoading = true;
+      _phase = PosCheckoutPhase.placingOrder;
+    });
+
+    try {
+      final PosStandaloneRepo repo = di.sl<PosStandaloneRepo>();
+      final ApiResponseModel response = await repo.record(
+        orderId: _standaloneOrderId,
+        deviceId: deviceId,
+        reference: reference,
+        approvalCode: _standaloneApprovalCode.value.trim().isEmpty
+            ? null
+            : _standaloneApprovalCode.value.trim(),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _standaloneLoading = false;
+        _phase = null;
+      });
+
+      if (!response.isSuccess) {
+        showCustomSnackBarHelper(
+          'Standalone payment failed: ${response.error}',
+          isError: true,
+        );
+        return;
+      }
+
+      _showStandaloneSuccessCard();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _standaloneLoading = false;
+        _phase = null;
+      });
+      showCustomSnackBarHelper('Standalone payment error: $e', isError: true);
+    }
+  }
+
+  void _showStandaloneSuccessCard() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      pageBuilder: (dialogContext, anim, secAnim) => Center(
+        child: Material(
+          type: MaterialType.transparency,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Container(
+              width: PosPaymentSpec.v2SuccessCardWidth,
+              padding:
+                  const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
+              decoration: BoxDecoration(
+                color: PosHomeSpec.tileBg,
+                borderRadius:
+                    BorderRadius.circular(PosPaymentSpec.v2SuccessCardRadius),
+                border: Border.all(
+                  color: PosHomeSpec.hairline,
+                  width: PosPaymentSpec.v2SuccessCardBorder,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    Images.checkCircle,
+                    width: PosPaymentSpec.v2SuccessIconSize,
+                    height: PosPaymentSpec.v2SuccessIconSize,
+                  ),
+                  const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
+                  Text(
+                    'Payment confirmed',
+                    style: loewExtraBold.copyWith(
+                      fontSize: PosPaymentSpec.v2SuccessHeadingSize,
+                      color: PosHomeSpec.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Order marked as paid',
+                    style: swiss721Light.copyWith(
+                      fontSize: PosPaymentSpec.v2ErrorSubtitleSize,
+                      color: PosPaymentSpec.v2ErrorSubtitle,
+                    ),
+                  ),
+                  const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
+                  PosPayPillBar(
+                    label: 'Next order',
+                    onConfirm: () {
+                      Navigator.pop(dialogContext);
+                      _completeStandalone();
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _ReceiptOutlineButton(
+                    onTap: () => _showReceiptDialog(
+                      orderId: _standaloneOrderId,
+                      total:   _standaloneGrandTotal,
+                      onAfterSend: () {
+                        Navigator.pop(dialogContext);
+                        _completeStandalone();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Family 6 — Receipt Email / Print ─────────────────────────────────────
+
+  /// Shows the receipt options dialog on top of the current success card.
+  ///
+  /// [orderId] and [total] populate the subtitle.
+  /// [onAfterSend] is called on successful send OR when the user skips.
+  void _showReceiptDialog({
+    required int orderId,
+    required double total,
+    required VoidCallback onAfterSend,
+  }) {
+    final int deviceId =
+        context.read<KioskAuthProvider>().deviceId ?? 0;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'receipt',
+      barrierColor: Colors.black54,
+      pageBuilder: (dialogContext, anim, secAnim) => PosReceiptDialog(
+        orderId:    orderId,
+        total:      total,
+        deviceId:   deviceId,
+        onComplete: () {
+          Navigator.pop(dialogContext);
+          onAfterSend();
+        },
+        onSkip: () => Navigator.pop(dialogContext),
+      ),
+    );
+  }
+
+  /// Shows the success card for a single card / cash payment (Figma 1915:13024
+  /// pattern). Two buttons: "Next order" (dark → home) and "Receipt" (outline →
+  /// receipt dialog → home).
+  void _showSinglePaymentSuccessCard(double total, int orderId) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      pageBuilder: (dialogContext, anim, secAnim) => Center(
+        child: Material(
+          type: MaterialType.transparency,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Container(
+              width: PosPaymentSpec.v2SuccessCardWidth,
+              padding:
+                  const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
+              decoration: BoxDecoration(
+                color: PosHomeSpec.tileBg,
+                borderRadius:
+                    BorderRadius.circular(PosPaymentSpec.v2SuccessCardRadius),
+                border: Border.all(
+                  color: PosHomeSpec.hairline,
+                  width: PosPaymentSpec.v2SuccessCardBorder,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    Images.checkCircle,
+                    width: PosPaymentSpec.v2SuccessIconSize,
+                    height: PosPaymentSpec.v2SuccessIconSize,
+                  ),
+                  const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
+                  Text(
+                    'Order Paid',
+                    style: loewExtraBold.copyWith(
+                      fontSize: PosPaymentSpec.v2SuccessHeadingSize,
+                      color: PosHomeSpec.ink,
+                    ),
+                  ),
+                  const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
+                  // Total box.
+                  Container(
+                    padding: const EdgeInsets.all(
+                        PosPaymentSpec.v2SuccessAmountBoxPadding),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(
+                          PosPaymentSpec.v2SuccessAmountBoxRadius),
+                      border: Border.all(color: PosHomeSpec.tableFieldBorder),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'TOTAL PAID',
+                          style: loewBold.copyWith(
+                            fontSize: 13,
+                            letterSpacing: 1,
+                            color: PosHomeSpec.inkAlpha(0.53),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          PosHomeSpec.formatPrice(total, padZero: false),
+                          style: loewExtraBold.copyWith(
+                            fontSize: 36,
+                            color: PosHomeSpec.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
+                  // "Next order" — dark pill → go home.
+                  PosPayPillBar(
+                    label: 'Next order',
+                    onConfirm: () {
+                      Navigator.pop(dialogContext);
+                      if (context.mounted) context.go(PosRoutes.home);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  // "Receipt" — outline pill → receipt dialog.
+                  _ReceiptOutlineButton(
+                    onTap: () => _showReceiptDialog(
+                      orderId: orderId,
+                      total:   total,
+                      onAfterSend: () {
+                        Navigator.pop(dialogContext);
+                        if (context.mounted) context.go(PosRoutes.home);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Deselects / cancels whichever OTHER mode is currently active.
+  ///
+  /// For split flows the placed order stays in the system (it would need a
+  /// void/refund flow to cancel properly — that is out of scope here). The UI
+  /// returns to the normal Card/Cash selector.
+  void _cancelActiveOther() {
+    if (_split.value != null) {
+      _split.clear();
+      return;
+    }
+    if (_splitByItem.value != null) {
+      _splitByItem.clear();
+      return;
+    }
+    if (_invoiceActive) {
+      setState(() {
+        _invoiceActive = false;
+        _invoiceOrderId = 0;
+      });
+      return;
+    }
+    if (_standaloneActive) {
+      setState(() {
+        _standaloneActive = false;
+        _standaloneOrderId = 0;
+      });
+    }
+  }
+
+  void _completeStandalone() {
+    final CartProvider cart = context.read<CartProvider>();
+    final CouponProvider coupon = context.read<CouponProvider>();
+    endKioskCustomerSession(
+      context.mounted ? context : null,
+      cart: cart,
+      coupon: coupon,
+    );
+    _sale.reset();
+    setState(() {
+      _standaloneActive = false;
+      _standaloneOrderId = 0;
+    });
+    if (context.mounted) context.go(PosRoutes.home);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   void _incrementLine(int index) {
     final CartProvider cart = context.read<CartProvider>();
@@ -714,6 +1691,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
     setState(() {
       _confirming = true;
+      _startingOther = true;
       _phase = null;
       _cancelling = false;
       _declined = false;
@@ -747,15 +1725,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       case PosCheckoutStatus.placed:
         _cash = _cash.clear();
         _denomination = null;
-        showCustomSnackBarHelper(
-          result.orderId == null
-              ? 'Order placed'
-              : 'Order #${result.orderId} placed',
-          isError: false,
-        );
         await _autoPrintIfEnabled(result.orderId);
         if (!mounted) return;
-        context.go(PosRoutes.home);
+        _showSinglePaymentSuccessCard(
+          total,
+          int.tryParse((result.orderId ?? '').trim()) ?? 0,
+        );
       case PosCheckoutStatus.paymentFailed:
         // Figma 1641:4218 takes over the content area, rather than a snackbar
         // the operator can miss while looking at the customer.
@@ -913,68 +1888,126 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                         )
                       else ...[
                         Expanded(
-                          child: ValueListenableBuilder<PosSplitState?>(
-                            valueListenable: _split,
-                            builder: (context, splitState, _) {
-                              final bool inSplit = splitState != null;
-                              return _Content(
-                                lines: lines,
-                                hasItems: hasItems,
-                                imageBaseUrl:
-                                    splash.baseUrls?.productImageUrl,
-                                dealImageBaseUrl:
-                                    splash.baseUrls?.dealImageUrl,
-                                orderNumber: _sale.orderNumber,
-                                customerNameController: _sale.customerName,
-                                tableController: _sale.table,
-                                method: _sale.paymentMethod,
-                                cashEnabled: _payments.cashEnabled,
-                                cardEnabled: _payments.cardEnabled,
-                                subtotal: subtotal,
-                                discount: discount,
-                                total: grandTotal,
-                                tip: tip,
-                                onTip: onTip,
-                                onSelectMethod: (method) =>
-                                    _selectMethod(method, grandTotal),
-                                cash: _cash,
-                                denomination: _denomination,
-                                totalCents: _totalCents(grandTotal),
-                                onCashKey: _onCashKey,
-                                onCashBackspace: _onCashBackspace,
-                                onCashClear: _onCashClear,
-                                onDenomination: (d) =>
-                                    _onDenomination(d, grandTotal),
-                                onIncrement: _incrementLine,
-                                onDecrement: _decrementLine,
-                                onOptions: _openReceiptOptions,
-                                inSplit: inSplit,
-                                splitState: splitState,
-                                splitMethod: _splitMethod,
-                                splitEntry: _splitEntry,
-                                onSplitMethod: _onSplitMethod,
-                                onSplitKey: _onSplitKey,
-                                onSplitBackspace: _onSplitBackspace,
-                                onSplitClear: _onSplitClear,
-                                onSplitByPayment: () =>
-                                    _startSplit(grandTotal),
-                                onSplitConfirm:
-                                    _splittingPayment ? null : _recordSplit,
-                                splitLoading: _splittingPayment,
+                          child: ValueListenableBuilder<PosSplitByItemState?>(
+                            valueListenable: _splitByItem,
+                            builder: (context, sbiState, _) {
+                              final bool inSplitByItem = sbiState != null;
+                              final List<PosSplitByItemLineItem> sbiItems =
+                                  _buildLineItemsFromCart(lines);
+                              return ValueListenableBuilder<PosSplitState?>(
+                                valueListenable: _split,
+                                builder: (context, splitState, _) {
+                                  final bool inSplit = splitState != null;
+                                  return _Content(
+                                    lines: lines,
+                                    hasItems: hasItems,
+                                    imageBaseUrl:
+                                        splash.baseUrls?.productImageUrl,
+                                    dealImageBaseUrl:
+                                        splash.baseUrls?.dealImageUrl,
+                                    orderNumber: _sale.orderNumber,
+                                    customerNameController: _sale.customerName,
+                                    tableController: _sale.table,
+                                    method: _sale.paymentMethod,
+                                    cashEnabled: _payments.cashEnabled,
+                                    cardEnabled: _payments.cardEnabled,
+                                    subtotal: subtotal,
+                                    discount: discount,
+                                    total: grandTotal,
+                                    tip: tip,
+                                    onTip: onTip,
+                                    onSelectMethod: (method) =>
+                                        _selectMethod(method, grandTotal),
+                                    cash: _cash,
+                                    denomination: _denomination,
+                                    totalCents: _totalCents(grandTotal),
+                                    onCashKey: _onCashKey,
+                                    onCashBackspace: _onCashBackspace,
+                                    onCashClear: _onCashClear,
+                                    onDenomination: (d) =>
+                                        _onDenomination(d, grandTotal),
+                                    onIncrement: _incrementLine,
+                                    onDecrement: _decrementLine,
+                                    onOptions: _openReceiptOptions,
+                                    inSplit: inSplit,
+                                    splitState: splitState,
+                                    splitMethod: _splitMethod,
+                                    splitEntry: _splitEntry,
+                                    onSplitMethod: _onSplitMethod,
+                                    onSplitKey: _onSplitKey,
+                                    onSplitBackspace: _onSplitBackspace,
+                                    onSplitClear: _onSplitClear,
+                                    onSplitByPayment: () =>
+                                        _startSplit(grandTotal),
+                                    onSplitConfirm: _splittingPayment
+                                        ? null
+                                        : _recordSplit,
+                                    splitLoading: _splittingPayment,
+                                    inSplitByItem: inSplitByItem,
+                                    splitByItemState: sbiState,
+                                    splitByItemGroups: _splitByItemGroups,
+                                    splitByItemMethod: _splitByItemMethod,
+                                    splitByItemLineItems: sbiItems,
+                                    onSplitByItem: inSplitByItem
+                                        ? null
+                                        : () => _startSplitByItem(grandTotal),
+                                    onSplitByItemMethod: (m) =>
+                                        setState(() => _splitByItemMethod = m),
+                                    onSplitByItemStartPayment:
+                                        _splitByItemLoading
+                                            ? null
+                                            : () => _startSplitByItemPayment(
+                                                sbiItems),
+                                    invoiceActive: _invoiceActive,
+                                    invoiceForm: _invoiceForm,
+                                    invoiceLoading: _invoiceLoading,
+                                    onInvoice: _invoiceActive
+                                        ? null
+                                        : () => _startInvoice(grandTotal),
+                                    onSubmitInvoice: _submitInvoice,
+                                    standaloneActive: _standaloneActive,
+                                    standaloneTotal: grandTotal,
+                                    standaloneApprovalCode:
+                                        _standaloneApprovalCode,
+                                    standaloneLoading: _standaloneLoading,
+                                    onStandalone: _standaloneActive
+                                        ? null
+                                        : () => _startStandalone(grandTotal),
+                                    onSubmitStandalone: _submitStandalone,
+                                    onCancelActiveOther: _cancelActiveOther,
+                                    pendingOther: _startingOther,
+                                  );
+                                },
                               );
                             },
                           ),
                         ),
-                        // Full-width pill CTA — `sticky-bottom-bar` (1915:9516).
-                        PosPayPillBar(
-                          label: 'Confirm Payment',
-                          loading: _confirming,
-                          // Cash must also cover the grand total (incl. tip).
-                          onConfirm: hasItems &&
-                                  !_confirming &&
-                                  (!_isCash || _cashCovers(grandTotal))
-                              ? () => _confirm(grandTotal, tip)
-                              : null,
+                        // Pill CTA hidden while in split-by-item, split-by-payment,
+                        // invoice, or stand-alone mode (those panes own their CTAs).
+                        ValueListenableBuilder<PosSplitByItemState?>(
+                          valueListenable: _splitByItem,
+                          builder: (context, sbiState, _) {
+                            return ValueListenableBuilder<PosSplitState?>(
+                              valueListenable: _split,
+                              builder: (context, splitState, _) {
+                                if (sbiState != null ||
+                                    splitState != null ||
+                                    _invoiceActive ||
+                                    _standaloneActive) {
+                                  return const SizedBox.shrink();
+                                }
+                                return PosPayPillBar(
+                                  label: 'Confirm Payment',
+                                  loading: _confirming,
+                                  onConfirm: hasItems &&
+                                          !_confirming &&
+                                          (!_isCash || _cashCovers(grandTotal))
+                                      ? () => _confirm(grandTotal, tip)
+                                      : null,
+                                );
+                              },
+                            );
+                          },
                         ),
                       ],
                     ],
@@ -1132,6 +2165,38 @@ class _Content extends StatelessWidget {
   final VoidCallback? onSplitConfirm;
   final bool splitLoading;
 
+  // Split-by-item (Family 3) parameters.
+  final bool inSplitByItem;
+  final PosSplitByItemState? splitByItemState;
+  final PosSplitByItemGroupsBuilder splitByItemGroups;
+  final PosPaymentMethod splitByItemMethod;
+  final List<PosSplitByItemLineItem> splitByItemLineItems;
+  final VoidCallback? onSplitByItem;
+  final ValueChanged<PosPaymentMethod> onSplitByItemMethod;
+  final VoidCallback? onSplitByItemStartPayment;
+
+  // Invoice (Family 4) parameters.
+  final bool invoiceActive;
+  final PosInvoiceFormState invoiceForm;
+  final bool invoiceLoading;
+  final VoidCallback? onInvoice;
+  final VoidCallback onSubmitInvoice;
+
+  // Stand-alone terminal (Family 5) parameters.
+  final bool standaloneActive;
+  final double standaloneTotal;
+  final ValueNotifier<String> standaloneApprovalCode;
+  final bool standaloneLoading;
+  final VoidCallback? onStandalone;
+  final VoidCallback onSubmitStandalone;
+
+  /// Cancels whichever OTHER mode is currently active (deselects on re-tap).
+  final VoidCallback? onCancelActiveOther;
+
+  /// True while an OTHER-mode order is being placed (API in flight). Prevents
+  /// the PRIMARY radio from blinking selected between cancel and activation.
+  final bool pendingOther;
+
   const _Content({
     required this.lines,
     required this.hasItems,
@@ -1170,6 +2235,27 @@ class _Content extends StatelessWidget {
     required this.onSplitByPayment,
     required this.onSplitConfirm,
     required this.splitLoading,
+    required this.inSplitByItem,
+    required this.splitByItemState,
+    required this.splitByItemGroups,
+    required this.splitByItemMethod,
+    required this.splitByItemLineItems,
+    required this.onSplitByItem,
+    required this.onSplitByItemMethod,
+    required this.onSplitByItemStartPayment,
+    required this.invoiceActive,
+    required this.invoiceForm,
+    required this.invoiceLoading,
+    required this.onInvoice,
+    required this.onSubmitInvoice,
+    required this.standaloneActive,
+    required this.standaloneTotal,
+    required this.standaloneApprovalCode,
+    required this.standaloneLoading,
+    required this.onStandalone,
+    required this.onSubmitStandalone,
+    this.onCancelActiveOther,
+    this.pendingOther = false,
   });
 
   Widget _orderList({required bool shrinkWrap}) => PosReceiptOrderList(
@@ -1223,6 +2309,14 @@ class _Content extends StatelessWidget {
       onSelectMethod: onSelectMethod,
       onSplitByPayment: onSplitByPayment,
       splitActive: inSplit,
+      onSplitByItem: onSplitByItem,
+      splitByItemActive: inSplitByItem,
+      onInvoice: onInvoice,
+      invoiceActive: invoiceActive,
+      onStandalone: onStandalone,
+      standaloneActive: standaloneActive,
+      onCancelActiveOther: onCancelActiveOther,
+      pendingOther: pendingOther,
     );
     return PosPayCard(
       padding: const EdgeInsets.all(PosPaymentSpec.v2MethodCardPadding),
@@ -1230,40 +2324,72 @@ class _Content extends StatelessWidget {
     );
   }
 
-  /// Payment-summary column. When in split mode, shows the split entry panel.
-  /// Otherwise shows the Card or Cash panel as before.
+  /// Payment-summary column. Shows stand-alone panel, invoice form,
+  /// split-by-item panel, split-by-payment panel, or the normal Card/Cash
+  /// panel depending on the active mode.
   Widget _summaryPane({required bool fill}) {
+    // Stand-alone mode (Family 5): numbered instructions + approval code.
+    if (standaloneActive) {
+      return PosPayCard(
+        summaryBorder: true,
+        child: PosStandalonePanel(
+          grandTotal: standaloneTotal,
+          approvalCode: standaloneApprovalCode,
+          loading: standaloneLoading,
+          onConfirm: onSubmitStandalone,
+        ),
+      );
+    }
+
+    // Invoice mode (Family 4): company name / VAT / email form.
+    if (invoiceActive) {
+      return PosPayCard(
+        summaryBorder: true,
+        child: PosInvoicePanel(
+          grandTotal: total,
+          form: invoiceForm,
+          loading: invoiceLoading,
+          onSubmit: onSubmitInvoice,
+        ),
+      );
+    }
+
+    // Split-by-item mode (Family 3): item checklist + Card/Cash + Start Payment.
+    if (inSplitByItem && splitByItemState != null) {
+      return PosPayCard(
+        summaryBorder: true,
+        child: PosSplitByItemPanel(
+          groupSeq: splitByItemState!.nextSequence,
+          grandTotal: splitByItemState!.grandTotal,
+          remaining: splitByItemState!.remaining,
+          lineItems: splitByItemLineItems,
+          groupBuilder: splitByItemGroups,
+          paymentMethod: splitByItemMethod,
+          onToggleItem: (id) => splitByItemGroups.toggleItem(id),
+          onPaymentMethodChanged: onSplitByItemMethod,
+          onStartPayment: onSplitByItemStartPayment ?? () {},
+          onAddTip: onTip ?? () {},
+        ),
+      );
+    }
+
     // In split mode: show the split entry panel (node 1915:10034).
     if (inSplit && splitState != null) {
       return PosPayCard(
         summaryBorder: true,
-        child: fill
-            ? SingleChildScrollView(
-                child: PosSplitSummaryPanel(
-                  state: splitState!,
-                  entry: splitEntry,
-                  splitMethod: splitMethod,
-                  onSplitMethod: onSplitMethod,
-                  onKey: onSplitKey,
-                  onBackspace: onSplitBackspace,
-                  onClear: onSplitClear,
-                  tip: tip,
-                  onConfirm: onSplitConfirm,
-                  loading: splitLoading,
-                ),
-              )
-            : PosSplitSummaryPanel(
-                state: splitState!,
-                entry: splitEntry,
-                splitMethod: splitMethod,
-                onSplitMethod: onSplitMethod,
-                onKey: onSplitKey,
-                onBackspace: onSplitBackspace,
-                onClear: onSplitClear,
-                tip: tip,
-                onConfirm: onSplitConfirm,
-                loading: splitLoading,
-              ),
+        child: PosSplitSummaryPanel(
+          state: splitState!,
+          entry: splitEntry,
+          splitMethod: splitMethod,
+          onSplitMethod: onSplitMethod,
+          onKey: onSplitKey,
+          onBackspace: onSplitBackspace,
+          onClear: onSplitClear,
+          tip: tip,
+          onConfirm: onSplitConfirm,
+          loading: splitLoading,
+          fill: fill,
+        ),
       );
     }
 
@@ -1279,11 +2405,14 @@ class _Content extends StatelessWidget {
             onClear: onCashClear,
             tip: tip,
             onTipTap: onTip,
+            fill: fill,
           )
         : PosPaySummaryPanel(total: total, tip: tip, onTipTap: onTip);
+    // fill=true: cash panel scales itself via LayoutBuilder; card panel is
+    // short enough to fit — no SingleChildScrollView needed in either case.
     return PosPayCard(
       summaryBorder: true,
-      child: fill ? SingleChildScrollView(child: content) : content,
+      child: content,
     );
   }
 
@@ -1293,6 +2422,41 @@ class _Content extends StatelessWidget {
       receipt: (fill) => _receiptCard(fill: fill),
       method: (fill) => _methodPane(fill: fill),
       summary: (fill) => _summaryPane(fill: fill),
+    );
+  }
+}
+
+/// Outline "Receipt" pill button — white bg, ink border 1.5px, Loew Bold 16px ink.
+///
+/// Shown below the "Next order" dark pill on every final success card (Figma
+/// 1915:13024 / 1915:13077).
+class _ReceiptOutlineButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _ReceiptOutlineButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: PosHomeSpec.ink, width: 1.5),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Center(
+          child: Text(
+            'Receipt',
+            style: loewBold.copyWith(
+              fontSize: 16,
+              color: PosHomeSpec.ink,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

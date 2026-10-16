@@ -70,6 +70,7 @@ class PosReceiptDetail {
   final double discount;
   final double total;
   final String orderStatus;
+  final String paymentStatus;
 
   /// Adapted into [CartModel] so the shared [PosReceiptLine] draws a historical
   /// line exactly as it draws a live one — same name, unit price, size suffix
@@ -86,8 +87,16 @@ class PosReceiptDetail {
     required this.discount,
     required this.total,
     required this.orderStatus,
+    required this.paymentStatus,
     required this.lines,
   });
+
+  /// True when the order has received at least one payment and has not already
+  /// been fully refunded — the condition that enables the Refund button.
+  bool get isRefundable =>
+      paymentStatus == 'paid' ||
+      paymentStatus == 'partial_paid' ||
+      paymentStatus == 'partial_refunded';
 
   factory PosReceiptDetail.fromJson(Map<String, dynamic> json) {
     final List<CartModel> lines = [];
@@ -110,6 +119,7 @@ class PosReceiptDetail {
       discount: _asDouble(json['discount']) ?? 0,
       total: _asDouble(json['total']) ?? 0,
       orderStatus: '${json['order_status'] ?? ''}',
+      paymentStatus: '${json['payment_status'] ?? ''}',
       lines: lines,
     );
   }

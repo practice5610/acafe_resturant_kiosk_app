@@ -32,13 +32,38 @@ class PosPaymentMethodSelector extends StatelessWidget {
   final ValueChanged<PosPaymentMethod> onSelectMethod;
 
   /// When non-null, the "Split by payment" OTHER row becomes tappable and
-  /// calls this when the operator selects it. Null = row stays inert (Phase 2a
-  /// default; wired to the split flow by Phase 2 Family 2).
+  /// calls this when the operator selects it. Null = row stays inert.
   final VoidCallback? onSplitByPayment;
 
-  /// True when split-by-payment mode is active. The "Split by payment" row
-  /// renders with an ink-filled radio so the operator can see what is selected.
+  /// True when split-by-payment mode is active.
   final bool splitActive;
+
+  /// When non-null, the "Split by item" OTHER row becomes tappable.
+  final VoidCallback? onSplitByItem;
+
+  /// True when split-by-item mode is active.
+  final bool splitByItemActive;
+
+  /// When non-null, the "Invoice" OTHER row becomes tappable.
+  final VoidCallback? onInvoice;
+
+  /// True when invoice mode is active.
+  final bool invoiceActive;
+
+  /// When non-null, the "Stand-alone" OTHER row becomes tappable.
+  final VoidCallback? onStandalone;
+
+  /// True when stand-alone mode is active.
+  final bool standaloneActive;
+
+  /// Called when the operator taps the currently-active OTHER row to deselect
+  /// (cancel) it. Null = no cancellation available.
+  final VoidCallback? onCancelActiveOther;
+
+  /// True while an OTHER-mode order is being placed (API in flight). Causes
+  /// the PRIMARY radio to appear deselected so there is no blink between
+  /// cancel of the old OTHER and activation of the new one.
+  final bool pendingOther;
 
   const PosPaymentMethodSelector({
     super.key,
@@ -48,21 +73,33 @@ class PosPaymentMethodSelector extends StatelessWidget {
     required this.onSelectMethod,
     this.onSplitByPayment,
     this.splitActive = false,
+    this.onSplitByItem,
+    this.splitByItemActive = false,
+    this.onInvoice,
+    this.invoiceActive = false,
+    this.onStandalone,
+    this.standaloneActive = false,
+    this.onCancelActiveOther,
+    this.pendingOther = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // When any OTHER mode is active, neither PRIMARY method shows as selected.
+    // This enforces a single-select across the combined PRIMARY + OTHER group.
+    final bool anyOtherActive =
+        splitActive || splitByItemActive || invoiceActive || standaloneActive || pendingOther;
     final List<Widget> primary = [
       if (cardEnabled)
         PosPaymentMethodCard(
           method: PosPaymentMethod.card,
-          selected: method == PosPaymentMethod.card,
+          selected: !anyOtherActive && method == PosPaymentMethod.card,
           onTap: () => onSelectMethod(PosPaymentMethod.card),
         ),
       if (cashEnabled)
         PosPaymentMethodCard(
           method: PosPaymentMethod.cash,
-          selected: method == PosPaymentMethod.cash,
+          selected: !anyOtherActive && method == PosPaymentMethod.cash,
           onTap: () => onSelectMethod(PosPaymentMethod.cash),
         ),
     ];
@@ -87,18 +124,47 @@ class PosPaymentMethodSelector extends StatelessWidget {
           primary[i],
         ],
         const SizedBox(height: PosPaymentSpec.v2MethodGroupsGap),
-        // OTHER group. "Split by payment" (index 1) is wired to the split
-        // flow when onSplitByPayment is provided; all others remain inert.
+        // OTHER group — mutually exclusive: only one row active at a time.
+        // Tapping an active row calls [onCancelActiveOther] to deselect it.
+        // While any row is active, all other rows are inert.
         const _GroupLabel('OTHER'),
         const SizedBox(height: PosPaymentSpec.v2MethodGroupGap),
-        for (int i = 0; i < _otherMethods.length; i++) ...[
-          if (i > 0) const SizedBox(height: PosPaymentSpec.v2OtherRowGap),
-          _OtherMethodRow(
-            data: _otherMethods[i],
-            onTap: i == 1 ? onSplitByPayment : null,
-            active: i == 1 && splitActive,
-          ),
-        ],
+        Builder(builder: (context) {
+          final List<bool> active = [
+            splitByItemActive, splitActive, invoiceActive, standaloneActive,
+          ];
+          final List<VoidCallback?> startTaps = [
+            onSplitByItem, onSplitByPayment, onInvoice, onStandalone,
+          ];
+          VoidCallback? tapFor(int i) {
+            if (anyOtherActive) {
+              // Re-tap the active row → deselect it.
+              if (active[i]) return onCancelActiveOther;
+              // Tap a different OTHER row while one is active → cancel current
+              // then start the new one (single-select across the whole group).
+              final VoidCallback? start = startTaps[i];
+              if (start == null) return null;
+              return () {
+                onCancelActiveOther?.call();
+                start();
+              };
+            }
+            return startTaps[i];
+          }
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < _otherMethods.length; i++) ...[
+                if (i > 0) const SizedBox(height: PosPaymentSpec.v2OtherRowGap),
+                _OtherMethodRow(
+                  data: _otherMethods[i],
+                  onTap: tapFor(i),
+                  active: active[i],
+                ),
+              ],
+            ],
+          );
+        }),
       ],
     );
   }

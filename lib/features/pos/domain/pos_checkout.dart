@@ -87,14 +87,23 @@ Future<PosCheckoutResult> posConfirmPayment(
   required PosPaymentMethod method,
   required String idempotencyKey,
   double? tenderedAmount,
+  // POS tips (Family 1): the tip chosen on the payment screen, in currency.
+  // Default 0 keeps `amount == payable` and passes no override to
+  // placeKioskOrder — byte-identical to before. When > 0 it is added to both
+  // the charged amount and the stored order total, and sent as `tip_amount`.
+  double tipAmount = 0,
   ValueChanged<PosCheckoutPhase>? onPhase,
 }) async {
   final CartProvider cart = context.read<CartProvider>();
   final CouponProvider coupon = context.read<CouponProvider>();
   final PosSaleSession sale = PosSaleSession.instance;
 
-  final double amount =
+  final double payable =
       kioskPayableTotal(cart.cartList, coupon.discount ?? 0);
+  // The grand total charged and stored: payable + tip. With no tip this is
+  // payable, exactly as before.
+  final double tip = tipAmount > 0 ? tipAmount : 0;
+  final double amount = double.parse((payable + tip).toStringAsFixed(2));
 
   // The order note and the customer_name field are both fed from KioskSession
   // by placeKioskOrder. Hand it the name the operator typed on the receipt so
@@ -129,6 +138,9 @@ Future<PosCheckoutResult> posConfirmPayment(
     amount: amount,
     paymentRef: paymentRef,
     bringChangeAmount: tenderedAmount,
+    // Null when there is no tip, so the kiosk's session-percent path is used
+    // unchanged; the explicit amount otherwise.
+    tipAmountOverride: tip > 0 ? tip : null,
   );
 
   if (!placed.success) {

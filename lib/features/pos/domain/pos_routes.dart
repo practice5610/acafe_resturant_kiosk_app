@@ -38,6 +38,9 @@ class PosRoutes {
   static const String paymentWait = '/pos-payment-wait';
   static const String paymentSuccess = '/pos-payment-success';
 
+  /// Family 7 — Refund flow, entered from the Receipts detail panel.
+  static const String refund = '/pos-refund';
+
   /// True for any path in the POS tree.
   static bool matches(String path) => path.startsWith(prefix);
 }
