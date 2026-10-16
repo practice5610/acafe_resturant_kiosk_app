@@ -93,4 +93,13 @@ class PosReceiptsSpec {
   static const double emptyHeadingSize = 20;
   static const double emptySublineSize = 14;
   static const double emptyGap = 8;
+
+  // ── Pay-wrapper (1915:20737) ─────────────────────────────────────────
+  /// Gap between the Refund row and the Print/Email row, and between the two
+  /// half-width buttons.
+  static const double payActionsGap = 8;
+
+  // ── Receipt Actions menu (1915:20747) ────────────────────────────────
+  /// Item height differs from [PosHomeSpec.contextMenuItemHeight] (40px).
+  static const double actionsMenuItemHeight = 37;
 }

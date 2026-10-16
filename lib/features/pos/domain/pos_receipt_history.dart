@@ -36,7 +36,7 @@ class PosReceiptRow {
     return PosReceiptRow(
       id: _asInt(json['id']) ?? 0,
       placedAt: _asDate(json['created_at']),
-      customerName: '${json['customer_name'] ?? ''}'.trim(),
+      customerName: _stripWalkIn('${json['customer_name'] ?? ''}'.trim()),
       productsSummary: '${json['products_summary'] ?? ''}'.trim(),
       method: '${json['display_method'] ?? 'cash'}',
       amount: _asDouble(json['order_amount']) ?? 0,
@@ -125,6 +125,8 @@ class PosReceiptDetail {
   }
 
   String get receiptNumber => '$id';
+
+  String get methodLabel => method == 'card' ? 'Card' : 'Cash';
 }
 
 /// Rebuilds the cart line an order was placed from, out of the stored

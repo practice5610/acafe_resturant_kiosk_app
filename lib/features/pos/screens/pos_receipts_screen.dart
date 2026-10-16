@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_export.dart';
@@ -9,6 +10,8 @@ import 'package:acafe_customer/features/pos/domain/pos_receipt_print.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_detail_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_email_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_print_confirmation.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipts_table.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -178,10 +181,28 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
         hardware: settings.hardware,
         general: settings.general,
       );
+      if (!mounted) return;
+      final String printerName =
+          settings.hardware.effectiveHeader(settings.general.storeName);
+      showPosPrintConfirmation(
+        context: context,
+        receipt: receipt,
+        printerName: printerName,
+      );
     } catch (_) {
       // print() is only meaningful on the web build the POS actually ships as.
       showCustomSnackBarHelper('Printing is not available on this device');
     }
+  }
+
+  void _email(PosReceiptDetail receipt) {
+    final int deviceId =
+        context.read<KioskAuthProvider>().deviceId ?? 0;
+    showPosReceiptEmailDialog(
+      context: context,
+      receipt: receipt,
+      deviceId: deviceId,
+    );
   }
 
   @override
@@ -266,6 +287,12 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
                 loading: detailLoading,
                 imageBaseUrl: splash.baseUrls?.productImageUrl,
                 onPrint: detail == null ? null : () => _print(detail),
+                onEmail: detail == null ? null : () => _email(detail),
+                onRefresh: _selectedId == null
+                    ? null
+                    : () => context
+                        .read<KioskManagerProvider>()
+                        .loadReceiptDetail(_selectedId!),
               ),
             ],
           ),
@@ -298,6 +325,8 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
                   loading: manager.receiptDetailLoading || detail == null,
                   imageBaseUrl: splash.baseUrls?.productImageUrl,
                   onPrint: detail == null ? null : () => _print(detail),
+                  onEmail: detail == null ? null : () => _email(detail),
+                  onRefresh: () => manager.loadReceiptDetail(row.id),
                   width: null,
                 );
               },
