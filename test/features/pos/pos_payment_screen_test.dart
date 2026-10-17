@@ -16,6 +16,10 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_method_change.dart';
+import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:go_router/go_router.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_change_method_repo.dart';
+import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
@@ -82,6 +86,7 @@ Future<CartProvider> _pump(
   WidgetTester tester, {
   Size size = const Size(1366, 1024),
   List<CartModel> lines = const [],
+  bool routed = false,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -133,14 +138,31 @@ Future<CartProvider> _pump(
       child: MediaQuery(
         data: MediaQueryData(size: size),
         child: PosShell(
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            // The app's global key, so `Get.context` resolves and
-            // showCustomSnackBarHelper can find a ScaffoldMessenger — the
-            // outcome switch calls it on every non-success branch.
-            navigatorKey: navigatorKey,
-            home: const PosPaymentSelectionScreen(),
-          ),
+          child: routed
+              ? MaterialApp.router(
+                  debugShowCheckedModeBanner: false,
+                  routerConfig: GoRouter(
+                    initialLocation: PosRoutes.payment,
+                    routes: [
+                      GoRoute(
+                        path: PosRoutes.payment,
+                        builder: (_, __) => const PosPaymentSelectionScreen(),
+                      ),
+                      GoRoute(
+                        path: PosRoutes.receipts,
+                        builder: (_, __) =>
+                            const Scaffold(body: Text('receipts')),
+                      ),
+                    ],
+                  ),
+                )
+              : MaterialApp(
+                  debugShowCheckedModeBanner: false,
+                  // The app's global key, so `Get.context` resolves and
+                  // showCustomSnackBarHelper can find a ScaffoldMessenger.
+                  navigatorKey: navigatorKey,
+                  home: const PosPaymentSelectionScreen(),
+                ),
         ),
       ),
     ),
@@ -923,25 +945,173 @@ void main() {
   });
 
   group('receipt method change', () {
-    testWidgets('opens preselected with no cart and an enabled Confirm change',
-        (tester) async {
-      PosSaleSession.instance.methodChange = const PosMethodChange(
+    late _FakeChangeRepo repo;
+
+    setUp(() {
+      repo = _FakeChangeRepo();
+      if (sl.isRegistered<PosReceiptChangeMethodRepo>()) {
+        sl.unregister<PosReceiptChangeMethodRepo>();
+      }
+      sl.registerSingleton<PosReceiptChangeMethodRepo>(repo);
+    });
+
+    tearDown(() {
+      if (sl.isRegistered<PosReceiptChangeMethodRepo>()) {
+        sl.unregister<PosReceiptChangeMethodRepo>();
+      }
+    });
+
+    void seed({String to = 'cash'}) {
+      PosSaleSession.instance.methodChange = PosMethodChange(
         orderId: 9,
         fromMethod: 'card',
-        toMethod: 'cash',
+        toMethod: to,
         reason: 'paid cash after card failed',
         total: 9,
       );
+    }
+
+    PosPayPillBar pill(WidgetTester tester) =>
+        tester.widget(find.byType(PosPayPillBar).first);
+
+    testWidgets('a: opens on the method chosen in the dialog, not a stale one',
+        (tester) async {
+      seed(to: 'cash');
       await _pump(tester);
 
       expect(PosSaleSession.instance.paymentMethod, PosPaymentMethod.cash);
       expect(PosSaleSession.instance.methodChange, isNull,
           reason: 'consumed on open so it cannot leak into a normal sale');
       expect(find.text('Confirm change'), findsOneWidget);
-      final PosPayPillBar pill =
-          tester.widget(find.byType(PosPayPillBar).first);
-      expect(pill.onConfirm, isNotNull,
+      expect(pill(tester).onConfirm, isNotNull,
           reason: 'a receipt change needs no cart items');
+    });
+
+    testWidgets('b: drafting never commits; only Confirm change writes',
+        (tester) async {
+      seed(to: 'cash');
+      await _pump(tester);
+
+      // Draft around the whole list; the committed method lives on the backend
+      // and the ONLY write is _confirmMethodChange, so none of this commits.
+      await tester.tap(find.text('Card'));
+      await tester.pump();
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+      await tester.tap(find.text('Cash'));
+      await tester.pump();
+
+      expect(repo.calls, 0,
+          reason: 'leaving or abandoning the flow cannot write a method');
+      expect(find.text('Confirm change'), findsOneWidget,
+          reason: 'still in change mode, nothing committed');
+    });
+
+    testWidgets('c: every PRIMARY/OTHER method is tappable and only drafts',
+        (tester) async {
+      seed(to: 'card');
+      await _pump(tester);
+
+      // Card -> Cash (PRIMARY): the cash panel appears.
+      await tester.tap(find.text('Cash'));
+      await tester.pump();
+      expect(find.byType(PosPayCashSummaryPanel), findsOneWidget);
+
+      // Cash -> Invoice (OTHER): tile selectable, still no commit.
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+
+      // Invoice -> Stand-alone (OTHER).
+      await tester.tap(find.text('Stand-alone'));
+      await tester.pump();
+
+      // Back to Card.
+      await tester.tap(find.text('Card'));
+      await tester.pump();
+
+      expect(repo.calls, 0, reason: 'drafting commits nothing');
+      expect(find.text('Confirm change'), findsOneWidget);
+    });
+
+    testWidgets('d: Confirm change commits the draft method once', (tester) async {
+      seed(to: 'card');
+      await _pump(tester, routed: true);
+
+      // Switch the draft to Cash, then confirm.
+      await tester.tap(find.text('Cash'));
+      await tester.pump();
+      await tester.tap(find.text('Confirm change'));
+      await tester.pumpAndSettle();
+
+      expect(repo.calls, 1);
+      expect(repo.lastMethod, 'cash',
+          reason: 'commits the draft, not the dialog seed (card)');
+      expect(repo.lastReason, 'paid cash after card failed');
+      expect(find.text('receipts'), findsOneWidget,
+          reason: 'returns to Receipts after a successful commit');
+    });
+
+    testWidgets('OTHER method (invoice) is what gets committed', (tester) async {
+      seed(to: 'cash');
+      await _pump(tester, routed: true);
+
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+      await tester.tap(find.text('Confirm change'));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastMethod, 'invoice');
+    });
+
+    testWidgets('e: a failed confirm keeps the flow so the operator can retry',
+        (tester) async {
+      seed(to: 'cash');
+      repo.succeed = false;
+      await _pump(tester);
+
+      await tester.tap(find.text('Confirm change'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(repo.calls, 1);
+      // Still on the change screen, button live again for a retry.
+      expect(find.text('Confirm change'), findsOneWidget);
+      expect(pill(tester).onConfirm, isNotNull);
+      expect(tester.takeException(), isNull,
+          reason: 'failure shows a snackbar, it does not navigate or throw');
+    });
+
+    testWidgets('f: double-tapping Confirm change commits exactly once',
+        (tester) async {
+      seed(to: 'cash');
+      repo.delay = const Duration(milliseconds: 100);
+      await _pump(tester, routed: true);
+
+      await tester.tap(find.text('Confirm change'));
+      await tester.pump();
+      // The pill shows a spinner while the commit is in flight; a second tap
+      // on it must not start a second commit.
+      await tester.tap(find.byType(PosPayPillBar).first, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(repo.calls, 1);
+    });
+
+    testWidgets('h: method tile labels are unchanged in change mode',
+        (tester) async {
+      seed(to: 'cash');
+      await _pump(tester);
+
+      for (final String label in const [
+        'Card',
+        'Cash',
+        'Split by item',
+        'Split by payment',
+        'Invoice',
+        'Stand-alone',
+      ]) {
+        expect(find.text(label), findsWidgets, reason: 'label "$label" present');
+      }
     });
   });
 }
@@ -988,4 +1158,32 @@ class _FakeTerminal implements KioskPaymentService {
 
   void completeFailed() => _resolve(
       const KioskPaymentResult(KioskPaymentStatus.failed, message: 'Declined'));
+}
+
+/// Counting stand-in for [PosReceiptChangeMethodRepo]: records each call and
+/// returns success or a simulated error, without touching the network.
+class _FakeChangeRepo implements PosReceiptChangeMethodRepo {
+  int calls = 0;
+  String? lastMethod;
+  String? lastReason;
+  bool succeed = true;
+  Duration delay = Duration.zero;
+
+  @override
+  DioClient get dioClient => throw UnimplementedError();
+
+  @override
+  Future<ApiResponseModel> update({
+    required int orderId,
+    required String method,
+    String? reason,
+  }) async {
+    calls++;
+    lastMethod = method;
+    lastReason = reason;
+    if (delay != Duration.zero) await Future<void>.delayed(delay);
+    return succeed
+        ? ApiResponseModel.withSuccess(null)
+        : ApiResponseModel.withError('simulated failure');
+  }
 }
