@@ -65,6 +65,10 @@ class PosPaymentMethodSelector extends StatelessWidget {
   /// cancel of the old OTHER and activation of the new one.
   final bool pendingOther;
 
+  /// When false, Split by item / Split by payment are omitted. Use in
+  /// change-method flows where splits cannot be a display override.
+  final bool showSplitOptions;
+
   const PosPaymentMethodSelector({
     super.key,
     required this.method,
@@ -81,6 +85,7 @@ class PosPaymentMethodSelector extends StatelessWidget {
     this.standaloneActive = false,
     this.onCancelActiveOther,
     this.pendingOther = false,
+    this.showSplitOptions = true,
   });
 
   @override
@@ -104,6 +109,21 @@ class PosPaymentMethodSelector extends StatelessWidget {
         ),
     ];
 
+    // Indices into [_otherMethods]: 0 split-by-item, 1 split-by-payment,
+    // 2 invoice, 3 stand-alone. Change-method flows omit the splits.
+    final List<int> visible = [
+      if (showSplitOptions) 0,
+      if (showSplitOptions) 1,
+      2,
+      3,
+    ];
+    final List<bool> allActive = [
+      splitByItemActive, splitActive, invoiceActive, standaloneActive,
+    ];
+    final List<VoidCallback?> allStarts = [
+      onSplitByItem, onSplitByPayment, onInvoice, onStandalone,
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -124,47 +144,33 @@ class PosPaymentMethodSelector extends StatelessWidget {
           primary[i],
         ],
         const SizedBox(height: PosPaymentSpec.v2MethodGroupsGap),
-        // OTHER group — mutually exclusive: only one row active at a time.
-        // Tapping an active row calls [onCancelActiveOther] to deselect it.
-        // While any row is active, all other rows are inert.
+        // OTHER group — mutually exclusive single-select with PRIMARY.
+        // Re-tap the active row → [onCancelActiveOther]. Tap another row →
+        // call that row's start handler directly (handlers replace state;
+        // they must tear down any prior OTHER UI themselves when needed).
         const _GroupLabel('OTHER'),
         const SizedBox(height: PosPaymentSpec.v2MethodGroupGap),
-        Builder(builder: (context) {
-          final List<bool> active = [
-            splitByItemActive, splitActive, invoiceActive, standaloneActive,
-          ];
-          final List<VoidCallback?> startTaps = [
-            onSplitByItem, onSplitByPayment, onInvoice, onStandalone,
-          ];
-          VoidCallback? tapFor(int i) {
-            if (anyOtherActive) {
-              // Re-tap the active row → deselect it.
-              if (active[i]) return onCancelActiveOther;
-              // Tap a different OTHER row while one is active → cancel current
-              // then start the new one (single-select across the whole group).
-              final VoidCallback? start = startTaps[i];
-              if (start == null) return null;
-              return () {
-                onCancelActiveOther?.call();
-                start();
-              };
-            }
-            return startTaps[i];
-          }
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (int i = 0; i < _otherMethods.length; i++) ...[
-                if (i > 0) const SizedBox(height: PosPaymentSpec.v2OtherRowGap),
-                _OtherMethodRow(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (int v = 0; v < visible.length; v++) ...[
+              if (v > 0) const SizedBox(height: PosPaymentSpec.v2OtherRowGap),
+              Builder(builder: (context) {
+                final int i = visible[v];
+                final bool isActive = allActive[i];
+                final VoidCallback? start = allStarts[i];
+                // Re-tap deselects; otherwise start (or stay inert when null).
+                final VoidCallback? onTap =
+                    isActive ? onCancelActiveOther : start;
+                return _OtherMethodRow(
                   data: _otherMethods[i],
-                  onTap: tapFor(i),
-                  active: active[i],
-                ),
-              ],
+                  onTap: onTap,
+                  active: isActive,
+                );
+              }),
             ],
-          );
-        }),
+          ],
+        ),
       ],
     );
   }
@@ -210,6 +216,19 @@ class _OtherMethodRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool enabled = onTap != null;
+    final double labelOpacity = !enabled
+        ? 0.28
+        : active
+            ? 1.0
+            : PosPaymentSpec.v2OtherLabelOpacity;
+    final Color borderColor = active
+        ? PosPaymentSpec.methodSelectedBorder
+        : PosPaymentSpec.v2OtherRowBorder;
+    final double borderWidth = active
+        ? PosPaymentSpec.methodBorder
+        : PosPaymentSpec.v2OtherRowBorderWidth;
+
     final Widget content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -219,46 +238,60 @@ class _OtherMethodRow extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                width: PosPaymentSpec.v2OtherIconWell,
-                height: PosPaymentSpec.v2OtherIconWell,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: PosPaymentSpec.methodIdleIconBg,
-                  borderRadius: BorderRadius.circular(
-                      PosPaymentSpec.v2OtherIconWellRadius),
-                ),
-                child: SvgPicture.string(
-                  data.iconSvg,
-                  width: PosPaymentSpec.v2OtherIconSize,
-                  height: PosPaymentSpec.v2OtherIconSize,
-                  fit: BoxFit.contain,
+              Opacity(
+                opacity: enabled ? 1.0 : 0.40,
+                child: Container(
+                  width: PosPaymentSpec.v2OtherIconWell,
+                  height: PosPaymentSpec.v2OtherIconWell,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: active
+                        ? PosHomeSpec.ink
+                        : PosPaymentSpec.methodIdleIconBg,
+                    borderRadius: BorderRadius.circular(
+                        PosPaymentSpec.v2OtherIconWellRadius),
+                  ),
+                  child: SvgPicture.string(
+                    data.iconSvg,
+                    width: PosPaymentSpec.v2OtherIconSize,
+                    height: PosPaymentSpec.v2OtherIconSize,
+                    fit: BoxFit.contain,
+                    colorFilter: active
+                        ? const ColorFilter.mode(
+                            PosHomeSpec.pageBg,
+                            BlendMode.srcIn,
+                          )
+                        : null,
+                  ),
                 ),
               ),
-              SizedBox(
-                width: PosPaymentSpec.v2OtherRadioSize,
-                height: PosPaymentSpec.v2OtherRadioSize,
-                child: active
-                    ? SvgPicture.asset(
-                        Images.posRadioOnSvg,
-                        width: PosPaymentSpec.v2OtherRadioSize,
-                        height: PosPaymentSpec.v2OtherRadioSize,
-                        placeholderBuilder: (_) => const Icon(
-                          Icons.radio_button_checked,
-                          size: PosPaymentSpec.v2OtherRadioSize,
-                          color: PosHomeSpec.ink,
+              Opacity(
+                opacity: enabled ? 1.0 : 0.40,
+                child: SizedBox(
+                  width: PosPaymentSpec.v2OtherRadioSize,
+                  height: PosPaymentSpec.v2OtherRadioSize,
+                  child: active
+                      ? SvgPicture.asset(
+                          Images.posRadioOnSvg,
+                          width: PosPaymentSpec.v2OtherRadioSize,
+                          height: PosPaymentSpec.v2OtherRadioSize,
+                          placeholderBuilder: (_) => const Icon(
+                            Icons.radio_button_checked,
+                            size: PosPaymentSpec.v2OtherRadioSize,
+                            color: PosHomeSpec.ink,
+                          ),
+                        )
+                      : SvgPicture.asset(
+                          Images.posRadioOffSvg,
+                          width: PosPaymentSpec.v2OtherRadioSize,
+                          height: PosPaymentSpec.v2OtherRadioSize,
+                          placeholderBuilder: (_) => const Icon(
+                            Icons.radio_button_unchecked,
+                            size: PosPaymentSpec.v2OtherRadioSize,
+                            color: PosHomeSpec.itemDivider,
+                          ),
                         ),
-                      )
-                    : SvgPicture.asset(
-                        Images.posRadioOffSvg,
-                        width: PosPaymentSpec.v2OtherRadioSize,
-                        height: PosPaymentSpec.v2OtherRadioSize,
-                        placeholderBuilder: (_) => const Icon(
-                          Icons.radio_button_unchecked,
-                          size: PosPaymentSpec.v2OtherRadioSize,
-                          color: PosHomeSpec.itemDivider,
-                        ),
-                      ),
+                ),
               ),
             ],
           ),
@@ -270,7 +303,7 @@ class _OtherMethodRow extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: loewMedium.copyWith(
             fontSize: PosPaymentSpec.v2OtherLabelSize,
-            color: PosHomeSpec.inkAlpha(PosPaymentSpec.v2OtherLabelOpacity),
+            color: PosHomeSpec.inkAlpha(labelOpacity),
           ),
         ),
       ],
@@ -284,15 +317,12 @@ class _OtherMethodRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: PosHomeSpec.tileBg,
         borderRadius: BorderRadius.circular(PosPaymentSpec.v2OtherRowRadius),
-        border: Border.all(
-          color: PosPaymentSpec.v2OtherRowBorder,
-          width: PosPaymentSpec.v2OtherRowBorderWidth,
-        ),
+        border: Border.all(color: borderColor, width: borderWidth),
       ),
       child: content,
     );
 
-    if (onTap == null) return container;
+    if (!enabled) return container;
     return Material(
       color: Colors.transparent,
       child: InkWell(onTap: onTap, child: container),

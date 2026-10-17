@@ -1626,7 +1626,14 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// For split flows the placed order stays in the system (it would need a
   /// void/refund flow to cancel properly — that is out of scope here). The UI
   /// returns to the normal Card/Cash selector.
+  ///
+  /// In receipt change-method mode this also clears [_changeOther] so re-tapping
+  /// Invoice / Stand-alone actually deselects back to PRIMARY.
   void _cancelActiveOther() {
+    if (_changeOther != null) {
+      setState(() => _changeOther = null);
+      return;
+    }
     if (_split.value != null) {
       _split.clear();
       return;
@@ -2014,7 +2021,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     onSplitClear: _onSplitClear,
                                     onSplitByPayment: _change != null
                                         ? null
-                                        : () => _startSplit(grandTotal),
+                                        : () {
+                                            _cancelActiveOther();
+                                            _startSplit(grandTotal);
+                                          },
                                     onSplitConfirm: _splittingPayment
                                         ? null
                                         : _recordSplit,
@@ -2026,7 +2036,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     splitByItemLineItems: sbiItems,
                                     onSplitByItem: _change != null || inSplitByItem
                                         ? null
-                                        : () => _startSplitByItem(grandTotal),
+                                        : () {
+                                            _cancelActiveOther();
+                                            _startSplitByItem(grandTotal);
+                                          },
                                     onSplitByItemMethod: (m) =>
                                         setState(() => _splitByItemMethod = m),
                                     onSplitByItemStartPayment:
@@ -2038,12 +2051,17 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     invoiceForm: _invoiceForm,
                                     invoiceLoading: _invoiceLoading,
                                     changeOther: _changeOther,
+                                    // Change mode: draft only. Normal sale:
+                                    // tear down any prior OTHER then place.
                                     onInvoice: _change != null
                                         ? () => setState(
                                             () => _changeOther = 'invoice')
                                         : _invoiceActive
                                             ? null
-                                            : () => _startInvoice(grandTotal),
+                                            : () {
+                                                _cancelActiveOther();
+                                                _startInvoice(grandTotal);
+                                              },
                                     onSubmitInvoice: _submitInvoice,
                                     standaloneActive: _standaloneActive,
                                     standaloneTotal: grandTotal,
@@ -2055,10 +2073,14 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                             () => _changeOther = 'standalone')
                                         : _standaloneActive
                                             ? null
-                                            : () => _startStandalone(grandTotal),
+                                            : () {
+                                                _cancelActiveOther();
+                                                _startStandalone(grandTotal);
+                                              },
                                     onSubmitStandalone: _submitStandalone,
                                     onCancelActiveOther: _cancelActiveOther,
                                     pendingOther: _startingOther,
+                                    showSplitOptions: _change == null,
                                   );
                                 },
                               );
@@ -2294,6 +2316,9 @@ class _Content extends StatelessWidget {
   /// the PRIMARY radio from blinking selected between cancel and activation.
   final bool pendingOther;
 
+  /// False in receipt change-method mode (splits are not a display override).
+  final bool showSplitOptions;
+
   const _Content({
     required this.lines,
     required this.hasItems,
@@ -2355,6 +2380,7 @@ class _Content extends StatelessWidget {
     required this.onSubmitStandalone,
     this.onCancelActiveOther,
     this.pendingOther = false,
+    this.showSplitOptions = true,
   });
 
   Widget _orderList({required bool shrinkWrap}) => PosReceiptOrderList(
@@ -2416,6 +2442,7 @@ class _Content extends StatelessWidget {
       standaloneActive: standaloneActive || changeOther == 'standalone',
       onCancelActiveOther: onCancelActiveOther,
       pendingOther: pendingOther,
+      showSplitOptions: showSplitOptions,
     );
     return PosPayCard(
       padding: const EdgeInsets.all(PosPaymentSpec.v2MethodCardPadding),

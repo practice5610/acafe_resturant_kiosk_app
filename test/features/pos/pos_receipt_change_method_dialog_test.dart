@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_change_method_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -145,8 +146,9 @@ void main() {
     });
   });
 
-  group('showPosReceiptChangeMethodDialog – method selection', () {
-    testWidgets('Invoice tile is tappable and gets selected', (tester) async {
+  group('shared selector reuse', () {
+    testWidgets('dialog uses PosPaymentMethodSelector, not bespoke tiles',
+        (tester) async {
       await tester.pumpWidget(_wrap(
         Builder(builder: (ctx) {
           return TextButton(
@@ -160,22 +162,70 @@ void main() {
       ));
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      expect(find.byType(PosPaymentMethodSelector), findsOneWidget);
+    });
+  });
 
-      // Tap the Invoice tile
+  group('showPosReceiptChangeMethodDialog – method selection', () {
+    Future<void> openLarge(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1400, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_wrap(
+        Builder(builder: (ctx) {
+          return TextButton(
+            onPressed: () => showPosReceiptChangeMethodDialog(
+              context: ctx,
+              receipt: _detail(method: 'cash'),
+            ),
+            child: const Text('open'),
+          );
+        }),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Invoice tile is tappable and gets selected', (tester) async {
+      await openLarge(tester);
+      await tester.ensureVisible(find.text('Invoice'));
       await tester.tap(find.text('Invoice'));
       await tester.pump();
-      // No crash = tile is tappable
       expect(find.text('Invoice'), findsWidgets);
     });
 
     testWidgets('Stand-alone tile is tappable', (tester) async {
+      await openLarge(tester);
+      await tester.ensureVisible(find.text('Stand-alone'));
+      await tester.tap(find.text('Stand-alone'));
+      await tester.pump();
+      expect(find.text('Stand-alone'), findsWidgets);
+    });
+
+    testWidgets('hides Split options in change-method dialog', (tester) async {
+      await openLarge(tester);
+      expect(find.text('Split by item'), findsNothing);
+      expect(find.text('Split by payment'), findsNothing);
+      expect(find.text('Invoice'), findsOneWidget);
+      expect(find.text('Stand-alone'), findsOneWidget);
+    });
+
+    testWidgets('Invoice <-> Stand-alone switches and confirm returns last',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      PosMethodChangeDraft? result;
       await tester.pumpWidget(_wrap(
         Builder(builder: (ctx) {
           return TextButton(
-            onPressed: () => showPosReceiptChangeMethodDialog(
-              context: ctx,
-              receipt: _detail(method: 'cash'),
-            ),
+            onPressed: () async {
+              result = await showPosReceiptChangeMethodDialog(
+                context: ctx,
+                receipt: _detail(method: 'cash'),
+              );
+            },
             child: const Text('open'),
           );
         }),
@@ -183,9 +233,22 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.text('Invoice'));
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
       await tester.tap(find.text('Stand-alone'));
       await tester.pump();
-      expect(find.text('Stand-alone'), findsWidgets);
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField).first, 'switched to invoice');
+      await tester.pump();
+      await tester.ensureVisible(find.text('Confirm change'));
+      await tester.tap(find.text('Confirm change'));
+      await tester.pumpAndSettle();
+
+      expect(result?.method, 'invoice');
+      expect(result?.reason, 'switched to invoice');
     });
   });
 

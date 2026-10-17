@@ -1097,7 +1097,7 @@ void main() {
       expect(repo.calls, 1);
     });
 
-    testWidgets('h: method tile labels are unchanged in change mode',
+    testWidgets('h: change mode shows PRIMARY + Invoice/Stand-alone, hides splits',
         (tester) async {
       seed(to: 'cash');
       await _pump(tester);
@@ -1105,13 +1105,53 @@ void main() {
       for (final String label in const [
         'Card',
         'Cash',
-        'Split by item',
-        'Split by payment',
         'Invoice',
         'Stand-alone',
       ]) {
         expect(find.text(label), findsWidgets, reason: 'label "$label" present');
       }
+      // Splits cannot be a display override — omit them so they cannot look
+      // tappable while doing nothing.
+      expect(find.text('Split by item'), findsNothing);
+      expect(find.text('Split by payment'), findsNothing);
+    });
+
+    testWidgets('OTHER Invoice <-> Stand-alone switches and commits the last one',
+        (tester) async {
+      seed(to: 'cash');
+      await _pump(tester, routed: true);
+
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+      await tester.tap(find.text('Stand-alone'));
+      await tester.pump();
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+      await tester.tap(find.text('Stand-alone'));
+      await tester.pump();
+
+      await tester.tap(find.text('Confirm change'));
+      await tester.pumpAndSettle();
+
+      expect(repo.calls, 1);
+      expect(repo.lastMethod, 'standalone');
+    });
+
+    testWidgets('re-tapping Invoice deselects back to PRIMARY draft',
+        (tester) async {
+      seed(to: 'card');
+      await _pump(tester, routed: true);
+
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+      // Re-tap deselects OTHER → Primary Card remains the draft.
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+
+      await tester.tap(find.text('Confirm change'));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastMethod, 'card');
     });
   });
 }
