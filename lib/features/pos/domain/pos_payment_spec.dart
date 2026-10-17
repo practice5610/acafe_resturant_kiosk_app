@@ -269,7 +269,10 @@ class PosPaymentSpec {
   /// `content-area` is `flex gap-20 px-32`, authored at 1366 wide.
   static const double v2ContentPaddingH = 32;
   static const double v2ContentGap = 20;
-  static const double v2ContentPaddingBottom = 0; // back row supplies the top
+  // Breathing room between the three cards and the sticky bottom bar's
+  // hairline (Figma 1915:9902: cards end 20px above the bar). The back row
+  // supplies the top, so only the bottom needs an inset.
+  static const double v2ContentPaddingBottom = 20;
   static const double v2CardRadius = 16;
 
   /// The reference frame width the two fixed panes were measured against, held

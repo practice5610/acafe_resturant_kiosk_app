@@ -83,8 +83,7 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
 
   /// Local working copy of receipt lines while in edit mode.
   /// Empty outside edit mode. Updated by [showPosReceiptEditLineDialog].
-  final ValueNotifier<List<CartModel>> _editLines =
-      ValueNotifier(const []);
+  final ValueNotifier<List<CartModel>> _editLines = ValueNotifier(const []);
 
   @override
   void initState() {
@@ -150,8 +149,7 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
                 _sidebarMode.value = _ReceiptSidebarMode.view;
               },
               onSaveChanges: () {
-                final delta =
-                    _computeEditDelta(receipt, _editLines.value);
+                final delta = _computeEditDelta(receipt, _editLines.value);
                 final newTotal = receipt.total + delta;
                 showPosReceiptConfirmChangesDialog(
                   context: context,
@@ -160,8 +158,8 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
                   delta: delta,
                   onConfirm: () async {
                     final editLines = _editLines.value;
-                    final result = await sl<PosReceiptSaveChangesRepo>()
-                        .saveChanges(
+                    final result =
+                        await sl<PosReceiptSaveChangesRepo>().saveChanges(
                       orderId: receipt.id,
                       editLines: editLines,
                     );
@@ -228,55 +226,65 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
                     : (btnCtx) => showPosReceiptActionsMenu(
                           context: context,
                           anchorContext: btnCtx,
-                          onChangeMethod: () async {
-                            final PosMethodChangeDraft? draft =
-                                await showPosReceiptChangeMethodDialog(
-                              context: context,
-                              receipt: receipt,
-                            );
-                            if (!mounted) return;
-                            if (draft == null) {
-                              widget.onRefresh?.call();
-                              return;
-                            }
-                            PosSaleSession.instance.methodChange = PosMethodChange(
-                              orderId: receipt.id,
-                              fromMethod: receipt.method,
-                              toMethod: draft.method,
-                              reason: draft.reason,
-                              total: receipt.total,
-                            );
-                            // go, not push: the payment screen sits outside the
-                            // shell, so pushing would stack two nav bars.
-                            context.go(PosRoutes.payment);
-                          },
-                          onReopenReceipt: () => showPosReceiptReopenDialog(
-                            context: context,
-                            receipt: receipt,
-                            onConfirm: (reason) async {
-                              final result =
-                                  await sl<PosReceiptReopenRepo>().reopen(
-                                orderId: receipt.id,
-                                reason: reason,
-                              );
-                              if (!mounted) return;
-                              if (result.isSuccess) {
-                                _editLines.value =
-                                    List<CartModel>.from(receipt.lines);
-                                _sidebarMode.value = _ReceiptSidebarMode.edit;
-                              } else {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      (result.error?.toString()) ??
-                                          'Failed to reopen receipt',
-                                    ),
+                          // A refunded sale is closed: both actions go inert
+                          // (null = disabled row in the menu).
+                          onChangeMethod: receipt.isRefunded
+                              ? null
+                              : () async {
+                                  final PosMethodChangeDraft? draft =
+                                      await showPosReceiptChangeMethodDialog(
+                                    context: context,
+                                    receipt: receipt,
+                                  );
+                                  if (!mounted) return;
+                                  if (draft == null) {
+                                    widget.onRefresh?.call();
+                                    return;
+                                  }
+                                  PosSaleSession.instance.methodChange =
+                                      PosMethodChange(
+                                    orderId: receipt.id,
+                                    fromMethod: receipt.method,
+                                    toMethod: draft.method,
+                                    reason: draft.reason,
+                                    total: receipt.total,
+                                  );
+                                  // go, not push: the payment screen sits outside the
+                                  // shell, so pushing would stack two nav bars.
+                                  context.go(PosRoutes.payment);
+                                },
+                          onReopenReceipt: receipt.isRefunded
+                              ? null
+                              : () => showPosReceiptReopenDialog(
+                                    context: context,
+                                    receipt: receipt,
+                                    onConfirm: (reason) async {
+                                      final result =
+                                          await sl<PosReceiptReopenRepo>()
+                                              .reopen(
+                                        orderId: receipt.id,
+                                        reason: reason,
+                                      );
+                                      if (!mounted) return;
+                                      if (result.isSuccess) {
+                                        _editLines.value =
+                                            List<CartModel>.from(receipt.lines);
+                                        _sidebarMode.value =
+                                            _ReceiptSidebarMode.edit;
+                                      } else {
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              (result.error?.toString()) ??
+                                                  'Failed to reopen receipt',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
                                   ),
-                                );
-                              }
-                            },
-                          ),
                         ),
               ),
               PosReceiptCustomerInfo(
@@ -444,7 +452,8 @@ class _RefundButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: PosHomeSpec.ink,
-            borderRadius: BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
+            borderRadius:
+                BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
           ),
           child: Text(
             'Refund',
@@ -526,8 +535,7 @@ class _HalfOutlinedButton extends StatelessWidget {
       opacity: enabled ? 1.0 : 0.35,
       child: Material(
         color: PosReceiptsSpec.surface,
-        borderRadius:
-            BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
+        borderRadius: BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
         child: InkWell(
           onTap: onTap,
           borderRadius:
@@ -562,8 +570,7 @@ class _HalfOutlinedButton extends StatelessWidget {
 
 /// Computes the add-on price delta between the original receipt lines and the
 /// current edited lines. Positive = extra charge; negative = refund.
-double _computeEditDelta(
-    PosReceiptDetail receipt, List<CartModel> editLines) {
+double _computeEditDelta(PosReceiptDetail receipt, List<CartModel> editLines) {
   double delta = 0;
   final orig = receipt.lines;
   for (int i = 0; i < editLines.length && i < orig.length; i++) {

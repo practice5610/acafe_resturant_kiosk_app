@@ -62,10 +62,14 @@ class PosReceiptRow {
 
 String _methodLabel(String method) {
   switch (method) {
-    case 'card':       return 'Card';
-    case 'invoice':    return 'Invoice';
-    case 'standalone': return 'Stand-alone';
-    default:           return 'Cash';
+    case 'card':
+      return 'Card';
+    case 'invoice':
+      return 'Invoice';
+    case 'standalone':
+      return 'Stand-alone';
+    default:
+      return 'Cash';
   }
 }
 
@@ -110,6 +114,11 @@ class PosReceiptDetail {
       paymentStatus == 'paid' ||
       paymentStatus == 'partial_paid' ||
       paymentStatus == 'partial_refunded';
+
+  /// Fully refunded (`refunded`, set by RefundController once the refunds
+  /// cover the paid total). A refunded sale is closed: it can't be reopened
+  /// or have its payment method changed.
+  bool get isRefunded => paymentStatus == 'refunded';
 
   factory PosReceiptDetail.fromJson(Map<String, dynamic> json) {
     final List<CartModel> lines = [];

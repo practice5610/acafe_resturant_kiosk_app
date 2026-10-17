@@ -63,7 +63,7 @@ class PosPayThreePane extends StatelessWidget {
               PosPaymentSpec.v2ContentPaddingH,
               0,
               PosPaymentSpec.v2ContentPaddingH,
-              0,
+              PosPaymentSpec.v2ContentPaddingBottom,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
