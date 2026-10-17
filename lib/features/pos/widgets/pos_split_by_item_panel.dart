@@ -1,5 +1,4 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
-import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dart';
 import 'package:acafe_customer/utill/styles.dart';

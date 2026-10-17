@@ -13,6 +13,8 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.d
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_checkout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_method_change.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_change_method_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
@@ -205,10 +207,15 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// which sets the amount back to empty on purpose.
   bool _cashDefaulted = false;
 
-  /// Set when the screen was opened from the Receipts "Change payment method"
-  /// flow and the cart is empty — [build] uses it as the order total instead
-  /// of the (zero) cart total. Captured in [initState] so it survives rebuilds.
-  double? _overrideTotal;
+  /// Set when this screen was opened to confirm a receipt's payment-method
+  /// change. Nothing is charged or placed in this mode; the only write is the
+  /// change itself, made by [_confirmMethodChange] when the operator confirms.
+  PosMethodChange? _change;
+
+  /// The OTHER method (`invoice` / `standalone`) chosen while changing a
+  /// receipt's method. Shown as selected; the change is still only committed
+  /// by [_confirmMethodChange].
+  String? _changeOther;
 
   /// The tip applied to this sale, in currency (Family 1). Held in a
   /// ValueNotifier so changing it rebuilds only the total-dependent subtree,
@@ -246,25 +253,19 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       card: _payments.cardEnabled,
     );
 
-    // When navigating here from a "Change payment method" action on the
-    // Receipts screen, the session may carry a pre-selected OTHER method.
-    // Apply it once and clear so the next normal sale is unaffected.
-    final String? other = PosSaleSession.instance.pendingOtherMethod;
-    if (other != null) {
-      PosSaleSession.instance.pendingOtherMethod = null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (other == 'invoice') setState(() => _invoiceActive = true);
-        if (other == 'standalone') setState(() => _standaloneActive = true);
-      });
-    }
-
-    // Likewise: capture the receipt total passed in (if any) ONCE here, not
-    // in build(). Clear the session field so a later normal sale is unaffected.
-    final double? pendingTotal = PosSaleSession.instance.pendingReceiptTotal;
-    if (pendingTotal != null) {
-      _overrideTotal = pendingTotal;
-      PosSaleSession.instance.pendingReceiptTotal = null;
+    // Taken once and cleared, so a later normal sale is unaffected.
+    final PosMethodChange? change = PosSaleSession.instance.methodChange;
+    PosSaleSession.instance.methodChange = null;
+    _change = change;
+    if (change != null) {
+      switch (change.toMethod) {
+        case 'card':
+          _sale.paymentMethod = PosPaymentMethod.card;
+        case 'cash':
+          _sale.paymentMethod = PosPaymentMethod.cash;
+        default:
+          _changeOther = change.toMethod;
+      }
     }
   }
 
@@ -324,6 +325,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   }
 
   void _back() {
+    // A method change came from Receipts; leaving goes back there.
+    if (_change != null) {
+      context.go(PosRoutes.receipts);
+      return;
+    }
     // The cart lives in CartProvider and the ticket in PosSaleSession, so
     // leaving loses neither.
     if (context.canPop()) {
@@ -404,6 +410,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     // Cancel any active OTHER mode (split, invoice, stand-alone) so the full
     // group stays single-select: PRIMARY tap always wins.
     _cancelActiveOther();
+    if (_changeOther != null) setState(() => _changeOther = null);
     if (_sale.paymentMethod == method) return;
     setState(() {
       _sale.paymentMethod = method;
@@ -423,6 +430,37 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         _denomination = null;
       }
     });
+  }
+
+  /// Commits the receipt's method change. The only write in change mode.
+  Future<void> _confirmMethodChange() async {
+    final PosMethodChange? change = _change;
+    if (change == null || _confirming) return;
+    final String method = _changeOther ??
+        (_sale.paymentMethod == PosPaymentMethod.cash ? 'cash' : 'card');
+
+    setState(() => _confirming = true);
+    final ApiResponseModel response =
+        await di.sl<PosReceiptChangeMethodRepo>().update(
+      orderId: change.orderId,
+      method: method,
+      reason: change.reason,
+    );
+    if (!mounted) return;
+    setState(() => _confirming = false);
+
+    if (!response.isSuccess) {
+      final String? error = response.error;
+      showCustomSnackBarHelper(
+        (error != null && error.isNotEmpty)
+            ? error
+            : 'Could not update payment method. Please try again.',
+        isError: true,
+      );
+      return;
+    }
+    _change = null;
+    context.go(PosRoutes.receipts);
   }
 
   void _onCashKey(String token) {
@@ -1844,9 +1882,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     // Opened from Receipts "Change payment method"? Show that receipt's total
     // instead of the (zero) cart total. The field is captured in initState so
     // repeated build calls don't lose it.
-    final double total = (_overrideTotal != null && !hasItems)
-        ? _overrideTotal!
-        : kioskPayableTotal(lines, discount);
+    final double total = _change?.total ?? kioskPayableTotal(lines, discount);
 
     // Same exact-tender default as switching onto Cash by hand (see
     // _selectMethod) — but for the sale that already opens on Cash, so an
@@ -1976,8 +2012,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     onSplitKey: _onSplitKey,
                                     onSplitBackspace: _onSplitBackspace,
                                     onSplitClear: _onSplitClear,
-                                    onSplitByPayment: () =>
-                                        _startSplit(grandTotal),
+                                    onSplitByPayment: _change != null
+                                        ? null
+                                        : () => _startSplit(grandTotal),
                                     onSplitConfirm: _splittingPayment
                                         ? null
                                         : _recordSplit,
@@ -1987,7 +2024,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     splitByItemGroups: _splitByItemGroups,
                                     splitByItemMethod: _splitByItemMethod,
                                     splitByItemLineItems: sbiItems,
-                                    onSplitByItem: inSplitByItem
+                                    onSplitByItem: _change != null || inSplitByItem
                                         ? null
                                         : () => _startSplitByItem(grandTotal),
                                     onSplitByItemMethod: (m) =>
@@ -2000,18 +2037,25 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     invoiceActive: _invoiceActive,
                                     invoiceForm: _invoiceForm,
                                     invoiceLoading: _invoiceLoading,
-                                    onInvoice: _invoiceActive
-                                        ? null
-                                        : () => _startInvoice(grandTotal),
+                                    changeOther: _changeOther,
+                                    onInvoice: _change != null
+                                        ? () => setState(
+                                            () => _changeOther = 'invoice')
+                                        : _invoiceActive
+                                            ? null
+                                            : () => _startInvoice(grandTotal),
                                     onSubmitInvoice: _submitInvoice,
                                     standaloneActive: _standaloneActive,
                                     standaloneTotal: grandTotal,
                                     standaloneApprovalCode:
                                         _standaloneApprovalCode,
                                     standaloneLoading: _standaloneLoading,
-                                    onStandalone: _standaloneActive
-                                        ? null
-                                        : () => _startStandalone(grandTotal),
+                                    onStandalone: _change != null
+                                        ? () => setState(
+                                            () => _changeOther = 'standalone')
+                                        : _standaloneActive
+                                            ? null
+                                            : () => _startStandalone(grandTotal),
                                     onSubmitStandalone: _submitStandalone,
                                     onCancelActiveOther: _cancelActiveOther,
                                     pendingOther: _startingOther,
@@ -2034,6 +2078,15 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     _invoiceActive ||
                                     _standaloneActive) {
                                   return const SizedBox.shrink();
+                                }
+                                if (_change != null) {
+                                  return PosPayPillBar(
+                                    label: 'Confirm change',
+                                    loading: _confirming,
+                                    onConfirm: _confirming
+                                        ? null
+                                        : _confirmMethodChange,
+                                  );
                                 }
                                 return PosPayPillBar(
                                   label: 'Confirm Payment',
@@ -2180,6 +2233,10 @@ class _Content extends StatelessWidget {
   /// Opens the tip modal. Null when tipping is disabled → row inert.
   final VoidCallback? onTip;
   final ValueChanged<PosPaymentMethod> onSelectMethod;
+
+  /// The OTHER method picked while changing a receipt's method. Lights its
+  /// tile only; it does not start that method's order flow.
+  final String? changeOther;
   final PosCashEntry cash;
   final PosCashDenomination? denomination;
   final int totalCents;
@@ -2285,6 +2342,7 @@ class _Content extends StatelessWidget {
     required this.onSplitByItemMethod,
     required this.onSplitByItemStartPayment,
     required this.invoiceActive,
+    this.changeOther,
     required this.invoiceForm,
     required this.invoiceLoading,
     required this.onInvoice,
@@ -2353,9 +2411,9 @@ class _Content extends StatelessWidget {
       onSplitByItem: onSplitByItem,
       splitByItemActive: inSplitByItem,
       onInvoice: onInvoice,
-      invoiceActive: invoiceActive,
+      invoiceActive: invoiceActive || changeOther == 'invoice',
       onStandalone: onStandalone,
-      standaloneActive: standaloneActive,
+      standaloneActive: standaloneActive || changeOther == 'standalone',
       onCancelActiveOther: onCancelActiveOther,
       pendingOther: pendingOther,
     );

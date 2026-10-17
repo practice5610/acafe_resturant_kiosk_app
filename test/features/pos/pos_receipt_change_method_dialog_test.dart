@@ -211,4 +211,40 @@ void main() {
       expect(d.customerName, 'Alice');
     });
   });
+
+  group('change-method dialog result', () {
+    testWidgets('confirm returns the draft and writes nothing', (tester) async {
+      tester.view.physicalSize = const Size(1366, 1024);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      PosMethodChangeDraft? result;
+      await tester.pumpWidget(_wrap(
+        Builder(builder: (ctx) {
+          return TextButton(
+            onPressed: () async {
+              result = await showPosReceiptChangeMethodDialog(
+                context: ctx,
+                receipt: _detail(method: 'cash'),
+              );
+            },
+            child: const Text('open'),
+          );
+        }),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Card').first);
+      await tester.pump();
+      await tester.enterText(find.byType(TextField).first, 'Card declined');
+      await tester.pump();
+      await tester.ensureVisible(find.text('Confirm change'));
+      await tester.tap(find.text('Confirm change'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(result?.method, 'card');
+      expect(result?.reason, 'Card declined');
+    });
+  });
 }

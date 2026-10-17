@@ -1,6 +1,4 @@
-import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
-import 'package:acafe_customer/features/pos/domain/pos_receipt_change_method_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -84,15 +82,24 @@ const _svgX =
     '<path d="m16.5 9.5-7 7"/><path d="m9.5 9.5 7 7"/></svg>';
 
 
+/// The operator's choice in the change-method dialog. Not yet applied: the
+/// payment screen commits it when the operator confirms there.
+class PosMethodChangeDraft {
+  final String method;
+  final String reason;
+
+  const PosMethodChangeDraft({required this.method, required this.reason});
+}
+
 /// Opens the "Change payment method" modal (Figma 1915:20539, State 08).
 ///
 /// Returns the new method string (e.g. 'card', 'cash', 'invoice', 'standalone')
 /// on a confirmed change, or null if the dialog was dismissed without saving.
-Future<String?> showPosReceiptChangeMethodDialog({
+Future<PosMethodChangeDraft?> showPosReceiptChangeMethodDialog({
   required BuildContext context,
   required PosReceiptDetail receipt,
 }) {
-  return showGeneralDialog<String>(
+  return showGeneralDialog<PosMethodChangeDraft>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Dismiss',
@@ -120,7 +127,6 @@ class _ChangeMethodDialog extends StatefulWidget {
 class _ChangeMethodDialogState extends State<_ChangeMethodDialog> {
   late String? _selectedMethod;
   final TextEditingController _reasonCtrl = TextEditingController();
-  bool _loading = false;
   bool _reasonTouched = false;
 
   @override
@@ -146,40 +152,15 @@ class _ChangeMethodDialogState extends State<_ChangeMethodDialog> {
     }
   }
 
-  Future<void> _confirm() async {
-    if (_loading || _selectedMethod == null) return;
-
-    // Reason is required.
-    if (_reasonCtrl.text.trim().isEmpty) {
+  void _confirm() {
+    final String? method = _selectedMethod;
+    final String reason = _reasonCtrl.text.trim();
+    if (method == null) return;
+    if (reason.isEmpty) {
       setState(() => _reasonTouched = true);
       return;
     }
-
-    setState(() {
-      _reasonTouched = true;
-      _loading = true;
-    });
-
-    final response = await di.sl<PosReceiptChangeMethodRepo>().update(
-      orderId: widget.receipt.id,
-      method: _selectedMethod!,
-      reason: _reasonCtrl.text.trim(),
-    );
-
-    if (!mounted) return;
-    if (!response.isSuccess) {
-      setState(() => _loading = false);
-      final String msg = (response.error?.isNotEmpty == true)
-          ? response.error!
-          : 'Could not update payment method. Please try again.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
-      return;
-    }
-
-    if (!mounted) return;
-    Navigator.of(context).pop(_selectedMethod);
+    Navigator.of(context).pop(PosMethodChangeDraft(method: method, reason: reason));
   }
 
   @override
@@ -193,7 +174,7 @@ class _ChangeMethodDialogState extends State<_ChangeMethodDialog> {
       selectedMethod: _selectedMethod,
       reasonCtrl: _reasonCtrl,
       reasonError: reasonEmpty ? 'Please enter a reason for this change.' : null,
-      loading: _loading,
+      loading: false,
       onSelect: (m) => setState(() => _selectedMethod = m),
       onReasonChanged: (_) {
         if (_reasonTouched) setState(() {});

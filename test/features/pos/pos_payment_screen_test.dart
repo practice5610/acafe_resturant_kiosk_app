@@ -15,6 +15,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart'
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_method_change.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
@@ -918,6 +919,29 @@ void main() {
       expect(find.byType(PosPaymentMethodCard), findsNWidgets(2));
       expect(card, lessThan(1366 * 0.45));
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('receipt method change', () {
+    testWidgets('opens preselected with no cart and an enabled Confirm change',
+        (tester) async {
+      PosSaleSession.instance.methodChange = const PosMethodChange(
+        orderId: 9,
+        fromMethod: 'card',
+        toMethod: 'cash',
+        reason: 'paid cash after card failed',
+        total: 9,
+      );
+      await _pump(tester);
+
+      expect(PosSaleSession.instance.paymentMethod, PosPaymentMethod.cash);
+      expect(PosSaleSession.instance.methodChange, isNull,
+          reason: 'consumed on open so it cannot leak into a normal sale');
+      expect(find.text('Confirm change'), findsOneWidget);
+      final PosPayPillBar pill =
+          tester.widget(find.byType(PosPayPillBar).first);
+      expect(pill.onConfirm, isNotNull,
+          reason: 'a receipt change needs no cart items');
     });
   });
 }
