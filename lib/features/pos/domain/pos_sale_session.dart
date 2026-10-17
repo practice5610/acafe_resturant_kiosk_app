@@ -99,6 +99,18 @@ class PosSaleSession {
   /// receipt header falls back to its design placeholder until then.
   String? orderNumber;
 
+  /// When a "Change payment method" receipt action pre-selects a non-primary
+  /// method (invoice / standalone), the payment screen reads this once in
+  /// initState and clears it so it is not applied again on the next sale.
+  /// Null means "use the normal primary selector".
+  String? pendingOtherMethod;
+
+  /// When navigating to the payment screen from outside the normal cart flow
+  /// (e.g. "Change payment method" from the Receipts screen), the cart may be
+  /// empty and would report €0. The payment screen reads this once and uses it
+  /// as the order total if the cart is empty, then clears it.
+  double? pendingReceiptTotal;
+
   /// Clear the ticket after a completed (or abandoned) sale.
   void reset() {
     customerName.clear();
@@ -111,5 +123,7 @@ class PosSaleSession {
       cardEnabled: cardEnabled,
     );
     orderNumber = null;
+    pendingOtherMethod = null;
+    pendingReceiptTotal = null;
   }
 }

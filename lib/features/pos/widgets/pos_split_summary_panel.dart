@@ -85,9 +85,9 @@ class PosSplitSummaryPanel extends StatelessWidget {
           const SizedBox(height: 4),
           _PastPaymentsList(payments: state.payments),
         ],
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         _EntryCard(seq: state.nextSequence, entry: entry, method: splitMethod, onMethod: onSplitMethod, onClear: onClear),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: PosPaymentSpec.v2CashPanelPaddingH),
           child: PosKeypad(
@@ -97,7 +97,7 @@ class PosSplitSummaryPanel extends StatelessWidget {
             onBackspace: onBackspace,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: PosPaymentSpec.v2CashPanelPaddingH),
           child: PosPayPillBar(label: 'Start Payment ${state.nextSequence}', loading: loading, onConfirm: onConfirm),
@@ -123,9 +123,9 @@ class PosSplitSummaryPanel extends StatelessWidget {
           const SizedBox(height: 4),
           _PastPaymentsList(payments: state.payments),
         ],
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         _EntryCard(seq: state.nextSequence, entry: entry, method: splitMethod, onMethod: onSplitMethod, onClear: onClear),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         // Keypad takes all remaining space; scale = available / natural so the
         // keypad fills exactly its allocation without overflowing.
         Expanded(
@@ -168,7 +168,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -181,7 +181,7 @@ class _Header extends StatelessWidget {
               color: PosPaymentSpec.v2SplitLabelInk,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             'Overview for split payment',
             style: swiss721Light.copyWith(
@@ -189,7 +189,7 @@ class _Header extends StatelessWidget {
               color: PosPaymentSpec.v2SplitSubtitleInk,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 8),
           Text(
             PosHomeSpec.formatPrice(grandTotal, padZero: false),
             maxLines: 1,
@@ -198,7 +198,7 @@ class _Header extends StatelessWidget {
               color: PosHomeSpec.ink,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             'Total to pay',
             style: swiss721Light.copyWith(
@@ -230,10 +230,7 @@ class _RemainingBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(
               PosPaymentSpec.v2SplitRemainRadius),
         ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: PosPaymentSpec.v2SplitRemainPaddingH,
-          vertical: PosPaymentSpec.v2SplitRemainPaddingV,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
             Text(

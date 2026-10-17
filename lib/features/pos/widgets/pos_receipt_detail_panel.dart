@@ -1,6 +1,8 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/di_container.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_reopen_repo.dart';
@@ -8,6 +10,7 @@ import 'package:acafe_customer/features/pos/domain/pos_receipt_save_changes_repo
 import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_actions_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_change_method_dialog.dart';
@@ -227,12 +230,44 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
                           context: context,
                           anchorContext: btnCtx,
                           onChangeMethod: () async {
-                            await showPosReceiptChangeMethodDialog(
+                            final String? newMethod =
+                                await showPosReceiptChangeMethodDialog(
                               context: context,
                               receipt: receipt,
                             );
                             if (!mounted) return;
-                            widget.onRefresh?.call();
+                            if (newMethod != null) {
+                              context
+                                  .read<KioskManagerProvider>()
+                                  .patchTransactionMethod(
+                                      receipt.id, newMethod);
+                              // Pre-select the chosen method on the payment
+                              // screen, then navigate there.
+                              final session = PosSaleSession.instance;
+                              // Pass the receipt total so the payment screen
+                              // shows the correct amount even when the cart
+                              // is empty (navigating from Receipts screen).
+                              session.pendingReceiptTotal = receipt.total;
+                              if (newMethod == 'invoice' ||
+                                  newMethod == 'standalone') {
+                                session.pendingOtherMethod = newMethod;
+                              } else {
+                                session.paymentMethod =
+                                    newMethod == 'card'
+                                        ? PosPaymentMethod.card
+                                        : PosPaymentMethod.cash;
+                                session.pendingOtherMethod = null;
+                              }
+                              if (mounted) {
+                                // go, not push: the payment screen sits
+                                // OUTSIDE the shell, so pushing from inside
+                                // leaves both the shell nav bar and the
+                                // payment screen's own nav bar on screen.
+                                context.go(PosRoutes.payment);
+                              }
+                            } else {
+                              widget.onRefresh?.call();
+                            }
                           },
                           onReopenReceipt: () => showPosReceiptReopenDialog(
                             context: context,
@@ -418,7 +453,9 @@ class _RefundButton extends StatelessWidget {
           }
           PosRefundSession.instance.order = receipt;
           PosRefundSession.instance.splits = [];
-          context.push(PosRoutes.refund);
+          // go, not push: /pos-refund lives outside the shell. push stacks
+          // the shell nav bar underneath the refund screen's own nav bar.
+          context.go(PosRoutes.refund);
         },
         borderRadius: BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
         child: Container(

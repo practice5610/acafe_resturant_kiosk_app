@@ -113,7 +113,7 @@ class PosPaymentSpec {
   static const double cashFieldLabelSize = 13;
   static const double cashFieldLabelHeight = 16 / 13;
   static const double cashFieldLabelOpacity = 0.53;
-  static const double cashFieldPadding = 16;
+  static const double cashFieldPadding = 12;
   static const double cashFieldRadius = 12;
   static const double cashFieldBorder = 2;
   static const double cashAmountSize = 22;
@@ -125,8 +125,8 @@ class PosPaymentSpec {
   static const double denomBorder = 1.5;
   static const double denomLabelSize = 14;
   static const double denomLabelHeight = 17 / 14;
-  static const double denomPaddingH = 16;
-  static const double denomPaddingV = 12;
+  static const double denomPaddingH = 12;
+  static const double denomPaddingV = 9;
   static const EdgeInsets denomPadding = EdgeInsets.symmetric(
     horizontal: denomPaddingH,
     vertical: denomPaddingV,
@@ -142,7 +142,7 @@ class PosPaymentSpec {
   static const double _keypadHeight =
       keypadRows * keypadKeyHeight + (keypadRows - 1) * keypadRowGap;
 
-  static const double changeBannerPadding = 16;
+  static const double changeBannerPadding = 12;
   static const double changeBannerRadius = 12;
   static const double changeBannerBorder = 1;
   static const double changeLabelSize = 15;
@@ -342,8 +342,8 @@ class PosPaymentSpec {
   // ── Cash tender in the summary pane (node 1915:10234 / 10244) ─────────
   /// `cash-payment-panel` wrapper: `px-16 py-8`, 12px between sections.
   static const double v2CashPanelPaddingH = 16;
-  static const double v2CashPanelPaddingV = 8;
-  static const double v2CashPanelGap = 12;
+  static const double v2CashPanelPaddingV = 6;
+  static const double v2CashPanelGap = 10;
 
   /// Numeric keypad (node 1915:10266): 3-col, 78px keys, r12, 12px gaps, Loew
   /// Bold 24. Keys are white with a `#D8D1BE` border; the backspace key takes a
@@ -404,8 +404,8 @@ class PosPaymentSpec {
   static const double v2SplitHeaderSize = 13;
   static const double v2SplitHeaderTracking = 1.0;
 
-  /// Grand total display — Loew ExtraBold 36.
-  static const double v2SplitTotalSize = 36;
+  /// Grand total display — Loew ExtraBold 30 (compact to keep right pane on screen).
+  static const double v2SplitTotalSize = 30;
 
   /// Remaining bar: `#F0EBD8` fill (= [PosHomeSpec.hairline]), r8, px10 py6.
   static const double v2SplitRemainRadius = 8;
@@ -414,9 +414,9 @@ class PosPaymentSpec {
   static const double v2SplitRemainLabelSize = 10;
   static const double v2SplitRemainAmountSize = 13;
 
-  /// Payment-N entry card: #E8E3D5 1.5px border (= v2OtherRowBorder), r12, h62.
+  /// Payment-N entry card: #E8E3D5 1.5px border (= v2OtherRowBorder), r12, h54.
   static const double v2SplitPaymentCardRadius = 12;
-  static const double v2SplitPaymentCardHeight = 62;
+  static const double v2SplitPaymentCardHeight = 54;
   static const double v2SplitPaymentAmountSize = 20;
   static const double v2SplitPaymentLabelTracking = 0.6;
 
@@ -424,7 +424,7 @@ class PosPaymentSpec {
   static const double v2SplitToggleRadius = 8;
   static const double v2SplitToggleInnerRadius = 6;
   static const double v2SplitTogglePadding = 3;
-  static const double v2SplitToggleLabelSize = 10;
+  static const double v2SplitToggleLabelSize = 12;
 }
 
 /// Vertical density for the payment column.

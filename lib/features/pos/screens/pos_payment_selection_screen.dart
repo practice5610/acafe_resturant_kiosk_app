@@ -205,6 +205,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// which sets the amount back to empty on purpose.
   bool _cashDefaulted = false;
 
+  /// Set when the screen was opened from the Receipts "Change payment method"
+  /// flow and the cart is empty — [build] uses it as the order total instead
+  /// of the (zero) cart total. Captured in [initState] so it survives rebuilds.
+  double? _overrideTotal;
+
   /// The tip applied to this sale, in currency (Family 1). Held in a
   /// ValueNotifier so changing it rebuilds only the total-dependent subtree,
   /// never the whole screen. 0 = no tip (the screen then behaves exactly as it
@@ -240,6 +245,27 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       cash: _payments.cashEnabled,
       card: _payments.cardEnabled,
     );
+
+    // When navigating here from a "Change payment method" action on the
+    // Receipts screen, the session may carry a pre-selected OTHER method.
+    // Apply it once and clear so the next normal sale is unaffected.
+    final String? other = PosSaleSession.instance.pendingOtherMethod;
+    if (other != null) {
+      PosSaleSession.instance.pendingOtherMethod = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (other == 'invoice') setState(() => _invoiceActive = true);
+        if (other == 'standalone') setState(() => _standaloneActive = true);
+      });
+    }
+
+    // Likewise: capture the receipt total passed in (if any) ONCE here, not
+    // in build(). Clear the session field so a later normal sale is unaffected.
+    final double? pendingTotal = PosSaleSession.instance.pendingReceiptTotal;
+    if (pendingTotal != null) {
+      _overrideTotal = pendingTotal;
+      PosSaleSession.instance.pendingReceiptTotal = null;
+    }
   }
 
   @override
@@ -1808,7 +1834,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     final bool hasItems = lines.any((line) => line != null);
     final double discount = coupon.discount ?? 0;
     final double subtotal = kioskCartTotal(lines);
-    final double total = kioskPayableTotal(lines, discount);
+    // Opened from Receipts "Change payment method"? Show that receipt's total
+    // instead of the (zero) cart total. The field is captured in initState so
+    // repeated build calls don't lose it.
+    final double total = (_overrideTotal != null && !hasItems)
+        ? _overrideTotal!
+        : kioskPayableTotal(lines, discount);
 
     // Same exact-tender default as switching onto Cash by hand (see
     // _selectMethod) — but for the sale that already opens on Cash, so an

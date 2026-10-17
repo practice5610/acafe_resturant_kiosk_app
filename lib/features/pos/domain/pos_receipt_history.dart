@@ -2,6 +2,10 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:intl/intl.dart';
 
+// Backend returns "Walk-in" when no customer name was entered. Treat it as
+// empty so the POS UI shows the field blank rather than the backend sentinel.
+String _stripWalkIn(String v) => v.toLowerCase() == 'walk-in' ? '' : v;
+
 /// One row of the Receipts list, from `GET /kiosk/manager/transactions`.
 ///
 /// `customer_name`, `products_summary` and `display_method` are the additive
@@ -53,7 +57,16 @@ class PosReceiptRow {
       ? '—'
       : DateFormat('d MMMM, h:mm a').format(placedAt!.toLocal());
 
-  String get methodLabel => method == 'card' ? 'Card' : 'Cash';
+  String get methodLabel => _methodLabel(method);
+}
+
+String _methodLabel(String method) {
+  switch (method) {
+    case 'card':       return 'Card';
+    case 'invoice':    return 'Invoice';
+    case 'standalone': return 'Stand-alone';
+    default:           return 'Cash';
+  }
 }
 
 /// A receipt in full, from `GET /kiosk/manager/transactions/{id}`.
@@ -112,7 +125,7 @@ class PosReceiptDetail {
     return PosReceiptDetail(
       id: _asInt(json['id']) ?? 0,
       placedAt: _asDate(json['created_at']),
-      customerName: '${json['customer_name'] ?? ''}'.trim(),
+      customerName: _stripWalkIn('${json['customer_name'] ?? ''}'.trim()),
       table: (table == null || table.isEmpty) ? null : table,
       method: '${json['display_method'] ?? 'cash'}',
       subtotal: _asDouble(json['subtotal']) ?? 0,
@@ -126,7 +139,7 @@ class PosReceiptDetail {
 
   String get receiptNumber => '$id';
 
-  String get methodLabel => method == 'card' ? 'Card' : 'Cash';
+  String get methodLabel => _methodLabel(method);
 }
 
 /// Rebuilds the cart line an order was placed from, out of the stored

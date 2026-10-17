@@ -17,7 +17,6 @@ const _hintText     = Color(0xFFA6A199);
 const _helperText   = Color(0xFF78706E);
 const _ctaBg        = Color(0xFF241F20);
 const _ctaLabel     = Color(0xFFF7F1DE);
-const _successGreen = Color(0xFF2A8456);
 
 // ── layout constants (Figma 1915:20539) ──────────────────────────────────────
 const _modalWidth       = 820.0;
@@ -84,21 +83,16 @@ const _svgX =
     '<circle cx="13" cy="13" r="11"/>'
     '<path d="m16.5 9.5-7 7"/><path d="m9.5 9.5 7 7"/></svg>';
 
-const _svgSuccessIcon =
-    '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">'
-    '<circle cx="24" cy="24" r="22" stroke="#2A8456" stroke-width="2"/>'
-    '<path d="M14 25l7 7 13-13" stroke="#2A8456" stroke-width="2.5" '
-    'stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /// Opens the "Change payment method" modal (Figma 1915:20539, State 08).
 ///
-/// On a successful PATCH the dialog transitions to the "Payment Method Changed"
-/// confirmation view (State 09) inline, then closes on BACK.
-Future<void> showPosReceiptChangeMethodDialog({
+/// Returns the new method string (e.g. 'card', 'cash', 'invoice', 'standalone')
+/// on a confirmed change, or null if the dialog was dismissed without saving.
+Future<String?> showPosReceiptChangeMethodDialog({
   required BuildContext context,
   required PosReceiptDetail receipt,
 }) {
-  return showGeneralDialog<void>(
+  return showGeneralDialog<String>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Dismiss',
@@ -124,11 +118,16 @@ class _ChangeMethodDialog extends StatefulWidget {
 }
 
 class _ChangeMethodDialogState extends State<_ChangeMethodDialog> {
-  String? _selectedMethod;
+  late String? _selectedMethod;
   final TextEditingController _reasonCtrl = TextEditingController();
   bool _loading = false;
-  bool _confirmed = false;
-  String? _newMethod;
+  bool _reasonTouched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMethod = widget.receipt.method;
+  }
 
   @override
   void dispose() {
@@ -136,17 +135,35 @@ class _ChangeMethodDialogState extends State<_ChangeMethodDialog> {
     super.dispose();
   }
 
-  String get _currentMethod =>
-      widget.receipt.method == 'card' ? 'Card' : 'Cash';
+  String get _currentMethod => _labelFor(widget.receipt.method);
+
+  static String _labelFor(String method) {
+    switch (method) {
+      case 'card':       return 'Card';
+      case 'invoice':    return 'Invoice';
+      case 'standalone': return 'Stand-alone';
+      default:           return 'Cash';
+    }
+  }
 
   Future<void> _confirm() async {
     if (_loading || _selectedMethod == null) return;
-    setState(() => _loading = true);
+
+    // Reason is required.
+    if (_reasonCtrl.text.trim().isEmpty) {
+      setState(() => _reasonTouched = true);
+      return;
+    }
+
+    setState(() {
+      _reasonTouched = true;
+      _loading = true;
+    });
 
     final response = await di.sl<PosReceiptChangeMethodRepo>().update(
       orderId: widget.receipt.id,
       method: _selectedMethod!,
-      reason: _reasonCtrl.text,
+      reason: _reasonCtrl.text.trim(),
     );
 
     if (!mounted) return;
@@ -161,31 +178,26 @@ class _ChangeMethodDialogState extends State<_ChangeMethodDialog> {
       return;
     }
 
-    setState(() {
-      _loading = false;
-      _confirmed = true;
-      _newMethod = _selectedMethod;
-    });
+    if (!mounted) return;
+    Navigator.of(context).pop(_selectedMethod);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_confirmed && _newMethod != null) {
-      return _ConfirmedView(
-        receipt: widget.receipt,
-        oldMethod: _currentMethod,
-        newMethod: _newMethod! == 'card' ? 'Card' : 'Cash',
-        onBack: () => Navigator.of(context).pop(),
-      );
-    }
+    final bool reasonEmpty =
+        _reasonTouched && _reasonCtrl.text.trim().isEmpty;
 
     return _SelectionModal(
       receipt: widget.receipt,
       currentMethod: _currentMethod,
       selectedMethod: _selectedMethod,
       reasonCtrl: _reasonCtrl,
+      reasonError: reasonEmpty ? 'Please enter a reason for this change.' : null,
       loading: _loading,
       onSelect: (m) => setState(() => _selectedMethod = m),
+      onReasonChanged: (_) {
+        if (_reasonTouched) setState(() {});
+      },
       onConfirm: _selectedMethod != null ? _confirm : null,
       onClose: () => Navigator.of(context).pop(),
     );
@@ -199,8 +211,10 @@ class _SelectionModal extends StatelessWidget {
   final String currentMethod;
   final String? selectedMethod;
   final TextEditingController reasonCtrl;
+  final String? reasonError;
   final bool loading;
   final ValueChanged<String> onSelect;
+  final ValueChanged<String> onReasonChanged;
   final VoidCallback? onConfirm;
   final VoidCallback onClose;
 
@@ -211,48 +225,55 @@ class _SelectionModal extends StatelessWidget {
     required this.reasonCtrl,
     required this.loading,
     required this.onSelect,
+    required this.onReasonChanged,
     required this.onConfirm,
     required this.onClose,
+    this.reasonError,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: _modalWidth,
-      decoration: BoxDecoration(
-        color: _bg,
-        border: Border.all(color: _border, width: 1.5),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x26000000),
-            blurRadius: 16,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _ModalHeader(
-              receipt: receipt,
-              currentMethod: currentMethod,
-              onClose: onClose,
+    final double maxH = MediaQuery.of(context).size.height * 0.90;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: _modalWidth, maxHeight: maxH),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _bg,
+          border: Border.all(color: _border, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x26000000),
+              blurRadius: 16,
+              offset: Offset(0, 12),
             ),
-            const SizedBox(height: 16),
-            const Divider(color: _border, thickness: 1, height: 1),
-            const SizedBox(height: 16),
-            _ModalBody(
-              selectedMethod: selectedMethod,
-              reasonCtrl: reasonCtrl,
-              onSelect: onSelect,
-            ),
-            const SizedBox(height: 16),
-            _ConfirmButton(loading: loading, onTap: onConfirm),
           ],
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ModalHeader(
+                receipt: receipt,
+                currentMethod: currentMethod,
+                onClose: onClose,
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: _border, thickness: 1, height: 1),
+              const SizedBox(height: 16),
+              _ModalBody(
+                selectedMethod: selectedMethod,
+                reasonCtrl: reasonCtrl,
+                reasonError: reasonError,
+                onSelect: onSelect,
+                onReasonChanged: onReasonChanged,
+              ),
+              const SizedBox(height: 16),
+              _ConfirmButton(loading: loading, onTap: onConfirm),
+            ],
+          ),
         ),
       ),
     );
@@ -272,11 +293,12 @@ class _ModalHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: Stack(
-        children: [
-          Column(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 34),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -297,16 +319,16 @@ class _ModalHeader extends StatelessWidget {
               ),
             ],
           ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: GestureDetector(
-              onTap: onClose,
-              child: SvgPicture.string(_svgX, width: 26, height: 26),
-            ),
+        ),
+        Positioned(
+          top: 0,
+          right: 0,
+          child: GestureDetector(
+            onTap: onClose,
+            child: SvgPicture.string(_svgX, width: 26, height: 26),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -314,12 +336,16 @@ class _ModalHeader extends StatelessWidget {
 class _ModalBody extends StatelessWidget {
   final String? selectedMethod;
   final TextEditingController reasonCtrl;
+  final String? reasonError;
   final ValueChanged<String> onSelect;
+  final ValueChanged<String> onReasonChanged;
 
   const _ModalBody({
     required this.selectedMethod,
     required this.reasonCtrl,
     required this.onSelect,
+    required this.onReasonChanged,
+    this.reasonError,
   });
 
   @override
@@ -327,7 +353,6 @@ class _ModalBody extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left: method picker
         Expanded(
           child: _MethodGroup(
             selectedMethod: selectedMethod,
@@ -335,9 +360,12 @@ class _ModalBody extends StatelessWidget {
           ),
         ),
         const SizedBox(width: _bodyColumnGap),
-        // Right: reason input
         Expanded(
-          child: _ReasonGroup(ctrl: reasonCtrl),
+          child: _ReasonGroup(
+            ctrl: reasonCtrl,
+            error: reasonError,
+            onChanged: onReasonChanged,
+          ),
         ),
       ],
     );
@@ -401,9 +429,21 @@ class _MethodGroup extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        const _OtherMethodTile(label: 'Invoice', iconBuilder: _svgFileText),
+        _OtherMethodTile(
+          label: 'Invoice',
+          value: 'invoice',
+          iconBuilder: _svgFileText,
+          selected: selectedMethod == 'invoice',
+          onTap: () => onSelect('invoice'),
+        ),
         const SizedBox(height: 8),
-        const _OtherMethodTile(label: 'Stand-alone', iconBuilder: _svgSmartphone),
+        _OtherMethodTile(
+          label: 'Stand-alone',
+          value: 'standalone',
+          iconBuilder: _svgSmartphone,
+          selected: selectedMethod == 'standalone',
+          onTap: () => onSelect('standalone'),
+        ),
       ],
     );
   }
@@ -491,17 +531,28 @@ class _PrimaryMethodTile extends StatelessWidget {
 
 class _OtherMethodTile extends StatelessWidget {
   final String label;
+  final String value;
   final _IconBuilder iconBuilder;
+  final bool selected;
+  final VoidCallback onTap;
 
   const _OtherMethodTile({
     required this.label,
+    required this.value,
     required this.iconBuilder,
+    required this.selected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: 0.40,
+    final Color borderColor =
+        selected ? _tileBorderSelected : _tileBorderOther;
+    final Color iconBoxBg = selected ? PosHomeSpec.ink : _iconBgDim;
+    final String iconStroke = selected ? 'white' : '#241F20';
+
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: _otherTileH,
@@ -509,7 +560,10 @@ class _OtherMethodTile extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: _tileBorderOther, width: 1.0),
+          border: Border.all(
+            color: borderColor,
+            width: selected ? 1.5 : 1.0,
+          ),
           borderRadius: BorderRadius.circular(_otherTileRadius),
         ),
         child: Column(
@@ -523,20 +577,20 @@ class _OtherMethodTile extends StatelessWidget {
                   height: _otherIconBox,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: _iconBgDim,
+                    color: iconBoxBg,
                     borderRadius:
                         BorderRadius.circular(_otherIconBoxRadius),
                   ),
                   child: SvgPicture.string(
-                    iconBuilder('#241F20'),
+                    iconBuilder(iconStroke),
                     width: _otherIconSize,
                     height: _otherIconSize,
                   ),
                 ),
                 SvgPicture.string(
-                  _svgRadioOff,
-                  width: _radioOffSize,
-                  height: _radioOffSize,
+                  selected ? _svgRadioOn : _svgRadioOff,
+                  width: selected ? _radioOnSize : _radioOffSize,
+                  height: selected ? _radioOnSize : _radioOffSize,
                 ),
               ],
             ),
@@ -547,7 +601,9 @@ class _OtherMethodTile extends StatelessWidget {
                 label,
                 style: loewMedium.copyWith(
                   fontSize: _otherLabelSize,
-                  color: PosHomeSpec.inkAlpha(0.47),
+                  color: selected
+                      ? PosHomeSpec.ink
+                      : PosHomeSpec.inkAlpha(0.47),
                 ),
               ),
             ),
@@ -562,29 +618,48 @@ class _OtherMethodTile extends StatelessWidget {
 
 class _ReasonGroup extends StatelessWidget {
   final TextEditingController ctrl;
+  final String? error;
+  final ValueChanged<String>? onChanged;
 
-  const _ReasonGroup({required this.ctrl});
+  const _ReasonGroup({
+    required this.ctrl,
+    this.error,
+    this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final bool hasError = error != null;
+    final Color borderColor = hasError ? const Color(0xFFD32F2F) : PosHomeSpec.ink;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'REASON',
-          style: loewBold.copyWith(
-            fontSize: _sectionLabelSize,
-            color: PosHomeSpec.inkAlpha(0.60),
-            letterSpacing: 0.5,
-          ),
+        Row(
+          children: [
+            Text(
+              'REASON',
+              style: loewBold.copyWith(
+                fontSize: _sectionLabelSize,
+                color: PosHomeSpec.inkAlpha(0.60),
+                letterSpacing: 0.5,
+              ),
+            ),
+            Text(
+              ' *',
+              style: loewBold.copyWith(
+                fontSize: _sectionLabelSize,
+                color: const Color(0xFFD32F2F),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         Container(
           height: _reasonHeight,
           decoration: BoxDecoration(
             color: Colors.white,
-            border: Border.all(color: PosHomeSpec.ink, width: 1.5),
+            border: Border.all(color: borderColor, width: 1.5),
             borderRadius: BorderRadius.circular(_reasonRadius),
           ),
           child: TextField(
@@ -592,6 +667,7 @@ class _ReasonGroup extends StatelessWidget {
             maxLines: null,
             expands: true,
             textAlignVertical: TextAlignVertical.top,
+            onChanged: onChanged,
             style: loewRegular.copyWith(
               fontSize: 14,
               color: PosHomeSpec.ink,
@@ -613,13 +689,22 @@ class _ReasonGroup extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          'The amount stays the same. The change is logged with your name and time.',
-          style: loewBold.copyWith(
-            fontSize: 12,
-            color: _helperText,
+        if (hasError)
+          Text(
+            error!,
+            style: loewBold.copyWith(
+              fontSize: 12,
+              color: const Color(0xFFD32F2F),
+            ),
+          )
+        else
+          Text(
+            'The amount stays the same. The change is logged with your name and time.',
+            style: loewBold.copyWith(
+              fontSize: 12,
+              color: _helperText,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -669,204 +754,3 @@ class _ConfirmButton extends StatelessWidget {
   }
 }
 
-// ── State 09: Confirmed view ──────────────────────────────────────────────────
-
-class _ConfirmedView extends StatelessWidget {
-  final PosReceiptDetail receipt;
-  final String oldMethod;
-  final String newMethod;
-  final VoidCallback onBack;
-
-  const _ConfirmedView({
-    required this.receipt,
-    required this.oldMethod,
-    required this.newMethod,
-    required this.onBack,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final String customerLabel =
-        receipt.customerName.isEmpty ? '—' : receipt.customerName;
-
-    return SizedBox(
-      width: _modalWidth,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Success card
-          Container(
-            width: 520,
-            padding: const EdgeInsets.all(40),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: PosHomeSpec.ink, width: 2),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: PosHomeSpec.ink.withValues(alpha: 0.07),
-                  blurRadius: 12,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Icon
-                SvgPicture.string(
-                  _svgSuccessIcon,
-                  width: 48,
-                  height: 48,
-                ),
-                const SizedBox(height: 20),
-                // Title
-                Text(
-                  'Payment Method Changed',
-                  textAlign: TextAlign.center,
-                  style: loewExtraBold.copyWith(
-                    fontSize: 28,
-                    color: PosHomeSpec.ink,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Divider
-                const Divider(
-                  color: Color(0xFFEEE9D8),
-                  thickness: 1,
-                  height: 1,
-                ),
-                const SizedBox(height: 20),
-                // Summary
-                _SuccessSummarySection(
-                  receipt: receipt,
-                  customerLabel: customerLabel,
-                  oldMethod: oldMethod,
-                  newMethod: newMethod,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          // BACK button (mimics Figma sticky bottom bar)
-          GestureDetector(
-            onTap: onBack,
-            child: Container(
-              height: 64,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: PosHomeSpec.ink,
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Text(
-                'BACK',
-                style: loewBold.copyWith(
-                  fontSize: 16,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SuccessSummarySection extends StatelessWidget {
-  final PosReceiptDetail receipt;
-  final String customerLabel;
-  final String oldMethod;
-  final String newMethod;
-
-  const _SuccessSummarySection({
-    required this.receipt,
-    required this.customerLabel,
-    required this.oldMethod,
-    required this.newMethod,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'RECEIPT SUMMARY',
-          style: loewExtraBold.copyWith(
-            fontSize: 12,
-            color: PosHomeSpec.inkAlpha(0.50),
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _SummaryRow(
-          label: 'Receipt Number',
-          value: '#${receipt.id}',
-        ),
-        const SizedBox(height: 12),
-        _SummaryRow(
-          label: 'Customer',
-          value: customerLabel,
-        ),
-        const SizedBox(height: 12),
-        _SummaryRow(
-          label: 'Method',
-          value: '$oldMethod → $newMethod',
-        ),
-        const SizedBox(height: 16),
-        // Total amount row
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Total Amount',
-              style: loewExtraBold.copyWith(
-                fontSize: 16,
-                color: PosHomeSpec.ink,
-              ),
-            ),
-            Text(
-              PosHomeSpec.formatPrice(receipt.total),
-              style: loewExtraBold.copyWith(
-                fontSize: 20,
-                color: _successGreen,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _SummaryRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: loewMedium.copyWith(
-            fontSize: 14,
-            color: PosHomeSpec.inkAlpha(0.50),
-          ),
-        ),
-        Text(
-          value,
-          style: loewBold.copyWith(
-            fontSize: 14,
-            color: PosHomeSpec.ink,
-          ),
-        ),
-      ],
-    );
-  }
-}

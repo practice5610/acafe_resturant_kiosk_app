@@ -79,48 +79,54 @@ class _ReopenDialogState extends State<_ReopenDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 560,
-      decoration: BoxDecoration(
-        color: _bg,
-        border: Border.all(color: _border, width: 1.5),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x26000000),
-            blurRadius: 16,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _DialogHeader(receipt: widget.receipt, onClose: () => Navigator.of(context).pop()),
-            const SizedBox(height: 16),
-            const Divider(color: _border, thickness: 1, height: 1),
-            const SizedBox(height: 16),
-            Text(
-              'You can change add-ons, quantities and the customer name. '
-              'If the total changes, the difference is charged or refunded on the original payment method.',
-              style: loewRegular.copyWith(
-                fontSize: 14,
-                color: PosHomeSpec.ink,
-                fontFamily: 'Swiss721Light',
-              ),
-            ),
-            const SizedBox(height: 16),
-            _ReasonInput(ctrl: _reason),
-            const SizedBox(height: 16),
-            _Footer(
-              loading: _loading,
-              onCancel: () => Navigator.of(context).pop(),
-              onConfirm: _submit,
+    final double maxH = MediaQuery.of(context).size.height * 0.90;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: 560, maxHeight: maxH),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _bg,
+          border: Border.all(color: _border, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x26000000),
+              blurRadius: 16,
+              offset: Offset(0, 12),
             ),
           ],
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DialogHeader(
+                receipt: widget.receipt,
+                onClose: () => Navigator.of(context).pop(),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: _border, thickness: 1, height: 1),
+              const SizedBox(height: 16),
+              Text(
+                'You can change add-ons, quantities and the customer name. '
+                'If the total changes, the difference is charged or refunded on the original payment method.',
+                style: loewRegular.copyWith(
+                  fontSize: 14,
+                  color: PosHomeSpec.ink,
+                  fontFamily: 'Swiss721Light',
+                ),
+              ),
+              const SizedBox(height: 16),
+              _ReasonInput(ctrl: _reason),
+              const SizedBox(height: 16),
+              _Footer(
+                loading: _loading,
+                onCancel: () => Navigator.of(context).pop(),
+                onConfirm: _submit,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -138,11 +144,12 @@ class _DialogHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String currentMethod = receipt.method == 'card' ? 'Card' : 'Cash';
-    return SizedBox(
-      height: 42,
-      child: Stack(
-        children: [
-          Column(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 34),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -163,16 +170,16 @@ class _DialogHeader extends StatelessWidget {
               ),
             ],
           ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: GestureDetector(
-              onTap: onClose,
-              child: SvgPicture.string(_svgX, width: 26, height: 26),
-            ),
+        ),
+        Positioned(
+          top: 0,
+          right: 0,
+          child: GestureDetector(
+            onTap: onClose,
+            child: SvgPicture.string(_svgX, width: 26, height: 26),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

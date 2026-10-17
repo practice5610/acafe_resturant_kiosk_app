@@ -367,8 +367,25 @@ class KioskManagerProvider extends ChangeNotifier {
   /// paint the first row's response.
   int _receiptDetailRequestId = 0;
 
-  Future<void> loadReceiptDetail(int id) async {
-    if (_receiptDetailId == id &&
+  /// Patches the cached list row and the cached detail map so both update
+  /// instantly without waiting for a list reload.  Called after a successful
+  /// "Change payment method" to keep the Method column in sync.
+  void patchTransactionMethod(int id, String newMethod) {
+    final int idx = _transactions.indexWhere((t) => t['id'] == id);
+    if (idx != -1) {
+      _transactions[idx] = Map<String, dynamic>.from(_transactions[idx])
+        ..['display_method'] = newMethod;
+    }
+    if (_receiptDetail != null && _receiptDetail!['id'] == id) {
+      _receiptDetail = Map<String, dynamic>.from(_receiptDetail!)
+        ..['display_method'] = newMethod;
+    }
+    notifyListeners();
+  }
+
+  Future<void> loadReceiptDetail(int id, {bool force = false}) async {
+    if (!force &&
+        _receiptDetailId == id &&
         _receiptDetail != null &&
         !_receiptDetailLoading) {
       return;
