@@ -176,7 +176,8 @@ void main() {
     final (ctx, _, productProvider) =
         await pumpHost(tester, [_largeRegularWithShot(product)]);
 
-    // This is what `pos_home_cart_screen._addToCart` does: product only.
+    // No line handed in: opens blank. `_addToCart` passes the existing line
+    // explicitly (cart:, no cartIndex) so a grid tap pre-fills it.
     openPosCustomize(ctx, product);
     await tester.pump();
     await tester.pump();

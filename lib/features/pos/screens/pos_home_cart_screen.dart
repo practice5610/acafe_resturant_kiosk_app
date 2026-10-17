@@ -263,9 +263,11 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
       _openingProduct = false;
     }
     if (!mounted) return;
+    final CartModel? existing = _lastCustomisableLineFor(product);
     openPosCustomize(
       context,
       product,
+      cart: existing,
       customerNameController: _customerName,
       tableController: _table,
       orderType: _orderType,
@@ -329,6 +331,17 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     return (ProductHelper.effectiveVariations(product)?.isNotEmpty ?? false) ||
         (product.addOns?.isNotEmpty ?? false) ||
         product.effectiveAddOnGroups.isNotEmpty;
+  }
+
+  /// The line a grid tap on [product] should pre-fill from: the most recent
+  /// customisable line for the same product, if one is already on the receipt.
+  CartModel? _lastCustomisableLineFor(Product product) {
+    CartModel? match;
+    for (final CartModel? line in _cartLines) {
+      if (line == null || line.product?.id != product.id) continue;
+      if (_lineIsCustomisable(line)) match = line;
+    }
+    return match;
   }
 
   void _incrementLine(int index) {
