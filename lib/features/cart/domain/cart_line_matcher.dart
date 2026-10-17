@@ -67,11 +67,28 @@ bool cartLinesMatch(CartModel a, CartModel b) {
     }
     return true;
   }
+  if ((a.instruction ?? '').trim() != (b.instruction ?? '').trim()) return false;
+  return cartLinesMatchIgnoringNote(a, b);
+}
+
+/// Same product, variation picks and add-ons, whatever the note says. The POS
+/// uses this to fold a repeat of an item into its existing line, so one line
+/// carries one note however many units it covers.
+bool cartLinesMatchIgnoringNote(CartModel a, CartModel b) {
+  if (a.isDeal || b.isDeal) return false;
   if (a.product?.id != b.product?.id) return false;
   if (!_variationSelectionsMatch(a.variations, b.variations)) return false;
-  if (!_addOnsMatch(a.addOnIds, b.addOnIds)) return false;
-  if ((a.instruction ?? '').trim() != (b.instruction ?? '').trim()) return false;
-  return true;
+  return _addOnsMatch(a.addOnIds, b.addOnIds);
+}
+
+/// Index of the first line that is the same configuration as [candidate] when
+/// notes are ignored, or -1.
+int findSameConfigLineIndex(List<CartModel?> cartList, CartModel candidate) {
+  for (int i = 0; i < cartList.length; i++) {
+    final line = cartList[i];
+    if (line != null && cartLinesMatchIgnoringNote(line, candidate)) return i;
+  }
+  return -1;
 }
 
 bool _variationSelectionsMatch(List<List<bool?>>? a, List<List<bool?>>? b) {

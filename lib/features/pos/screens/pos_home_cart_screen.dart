@@ -267,7 +267,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     openPosCustomize(
       context,
       product,
-      cart: existing,
+      cart: existing?.copyWithQuantity(1),
       customerNameController: _customerName,
       tableController: _table,
       orderType: _orderType,
@@ -359,7 +359,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
       openPosCustomize(
         context,
         product,
-        cart: line,
+        cart: line.copyWithQuantity(1),
         customerNameController: _customerName,
         tableController: _table,
         orderType: _orderType,

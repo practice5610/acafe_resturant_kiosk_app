@@ -301,4 +301,55 @@ void main() {
       expect(signature, isNot(cartLineSignature(_line(productId: 1))));
     });
   });
+
+  group('findSameConfigLineIndex (POS: note ignored)', () {
+    CartModel withNote(CartModel line, String note) => CartModel(
+          10,
+          10,
+          const [],
+          0,
+          line.quantity ?? 1,
+          0,
+          line.addOnIds ?? const [],
+          line.product,
+          line.variations ?? const [],
+          instruction: note,
+        );
+
+    test('a repeat of the same item merges even when the line has a note', () {
+      final noted = withNote(_line(productId: 5), 'no sugar');
+      expect(findSameConfigLineIndex([noted], _line(productId: 5)), 0);
+    });
+
+    test('a changed variation does not merge', () {
+      final cart = [
+        _line(productId: 1, variations: [
+          [true, false],
+        ]),
+      ];
+      final changed = _line(productId: 1, variations: [
+        [false, true],
+      ]);
+      expect(findSameConfigLineIndex(cart, changed), -1);
+    });
+
+    test('a changed add-on does not merge', () {
+      final cart = [
+        _line(productId: 1, addOns: [AddOn(id: 3, quantity: 1)]),
+      ];
+      expect(
+        findSameConfigLineIndex(
+          cart,
+          _line(productId: 1, addOns: [AddOn(id: 4, quantity: 1)]),
+        ),
+        -1,
+      );
+    });
+
+    test('the note-sensitive matcher still separates a noted and un-noted line', () {
+      final noted = withNote(_line(productId: 5), 'no sugar');
+      expect(cartLinesMatch(noted, _line(productId: 5)), isFalse);
+      expect(cartLinesMatchIgnoringNote(noted, _line(productId: 5)), isTrue);
+    });
+  });
 }

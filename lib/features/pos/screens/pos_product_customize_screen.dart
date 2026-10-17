@@ -1,6 +1,7 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
+import 'package:acafe_customer/features/cart/domain/cart_line_matcher.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
@@ -349,15 +350,42 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
       }
       return;
     }
-    final CartModel built = buildKioskCartModel(
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    if (widget.cartIndex != null) {
+      final CartModel built = buildKioskCartModel(
+        context,
+        _product,
+        instruction: _instruction,
+      );
+      cartProvider.addToCart(built, widget.cartIndex, showMessage: false);
+    } else {
+      _commitAdd(cartProvider);
+    }
+    Navigator.of(context).pop();
+  }
+
+  /// Adds the configured item as a new line, or folds it into the line that
+  /// already has the same size, variations and add-ons. A folded line keeps one
+  /// note: the one typed here if any, otherwise the line's existing note.
+  void _commitAdd(CartProvider cart) {
+    final CartModel draft = buildKioskCartModel(
       context,
       _product,
       instruction: _instruction,
     );
-    final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    final int index = widget.cartIndex ?? productProvider.cartIndex;
-    cartProvider.addToCart(built, index, showMessage: false);
-    Navigator.of(context).pop();
+    final int sameIndex = findSameConfigLineIndex(cart.cartList, draft);
+    if (sameIndex < 0) {
+      cart.addToCart(draft, -1, showMessage: false);
+      return;
+    }
+    final CartModel existing = cart.cartList[sameIndex]!;
+    final String? note = _instruction ?? existing.instruction;
+    final CartModel merged = buildKioskCartModel(
+      context,
+      _product,
+      instruction: note,
+    ).copyWithQuantity((existing.quantity ?? 1) + (draft.quantity ?? 1));
+    cart.addToCart(merged, sameIndex, showMessage: false);
   }
 
   /// Opens the "Add Note" modal (Figma 1915:14827) and stores the result on
@@ -387,12 +415,7 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
       }
       return;
     }
-    final CartModel built = buildKioskCartModel(
-      context,
-      _product,
-      instruction: _instruction,
-    );
-    context.read<CartProvider>().addToCart(built, -1, showMessage: false);
+    _commitAdd(context.read<CartProvider>());
     showCustomSnackBarHelper('Item duplicated', isError: false);
   }
 
