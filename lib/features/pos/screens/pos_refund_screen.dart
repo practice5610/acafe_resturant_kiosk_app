@@ -43,8 +43,10 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
   @override
   void initState() {
     super.initState();
-    // Reset so a re-entry is clean.
-    _session.reset();
+    // Clear per-flow state so a re-entry is clean, but KEEP the inbound
+    // order / splits that the caller just set — a full reset would wipe them
+    // and _createRefund would crash on _session.order!.id.
+    _session.resetFlow();
   }
 
   @override
@@ -53,36 +55,13 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
       backgroundColor: PosHomeSpec.panelBg,
       body: Column(
         children: [
-          PosTopNavBar(
+          const PosTopNavBar(
             currentPath: PosRoutes.receipts,
           ),
           Expanded(child: _body),
         ],
       ),
     );
-  }
-
-  String get _navTitle {
-    final id = _session.order?.id;
-    return id == null ? 'Refund' : 'Refund / Order #$id';
-  }
-
-  bool get _canGoBack =>
-      _step == _RefundStep.selectItems ||
-      _step == _RefundStep.chooseSplit ||
-      _step == _RefundStep.chooseMethod;
-
-  void _handleBack() {
-    switch (_step) {
-      case _RefundStep.chooseMethod:
-        setState(() => _step = _session.isSplitOrder
-            ? _RefundStep.chooseSplit
-            : _RefundStep.selectItems);
-      case _RefundStep.chooseSplit:
-        setState(() => _step = _RefundStep.selectItems);
-      default:
-        context.go(PosRoutes.receipts);
-    }
   }
 
   Widget get _body {
@@ -120,18 +99,25 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
   }
 
   Future<void> _createRefund() async {
+    final order = _session.order;
+    if (order == null) {
+      _session.error.value =
+          'Refund session has no order. Please re-open the refund from the receipt.';
+      return;
+    }
+
     _session.busy.value = true;
     _session.error.value = null;
 
     final int deviceId =
         Provider.of<KioskAuthProvider>(context, listen: false).deviceId ?? 0;
     final String ref =
-        'refund-${_session.order!.id}-${DateTime.now().millisecondsSinceEpoch}';
+        'refund-${order.id}-${DateTime.now().millisecondsSinceEpoch}';
     _session.pendingRef.value = ref;
 
     final ApiResponseModel result =
         await di.sl<PosRefundRepo>().create(
-      orderId: _session.order!.id,
+      orderId: order.id,
       deviceId: deviceId,
       reference: ref,
       reason: _session.reason.value?.label,
@@ -159,6 +145,13 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
   }
 
   Future<void> _confirmRefund() async {
+    final order = _session.order;
+    if (order == null) {
+      _session.error.value =
+          'Refund session has no order. Please re-open the refund from the receipt.';
+      return;
+    }
+
     _session.busy.value = true;
     _session.error.value = null;
 
@@ -167,7 +160,7 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
 
     final ApiResponseModel result =
         await di.sl<PosRefundRepo>().confirm(
-      orderId: _session.order!.id,
+      orderId: order.id,
       refundSeq: _session.pendingRefundSeq.value ?? 1,
       method: _session.refundMethod.value,
       reference: _session.pendingRef.value ?? '',
@@ -201,90 +194,68 @@ class _SelectItemsStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final PosRefundSession session = PosRefundSession.instance;
     final lines = session.order?.lines ?? [];
+    final int? id = session.order?.id;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(PosPaymentSpec.contentPadding),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Reason
-                _SectionLabel('Reason for refund'),
-                const SizedBox(height: 12),
-                ValueListenableBuilder<PosRefundReason?>(
-                  valueListenable: session.reason,
-                  builder: (_, current, __) => Column(
-                    children: PosRefundReason.values.map((r) {
-                      return _RadioRow(
-                        label: r.label,
-                        selected: current == r,
-                        onTap: () => session.reason.value = r,
-                      );
-                    }).toList(),
-                  ),
-                ),
-
-                const SizedBox(height: 28),
-                _SectionLabel('Items to refund'),
-                const SizedBox(height: 12),
-                if (lines.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text('Full order refund',
-                        style: loewRegular.copyWith(
-                            fontSize: 15, color: PosHomeSpec.inkAlpha(0.6))),
-                  ),
-                ...List.generate(lines.length, (i) {
-                  final line = lines[i];
-                  return ValueListenableBuilder<Set<int>>(
-                    valueListenable: session.selectedItemIndices,
-                    builder: (_, selected, __) => _ItemRow(
-                      name: line.product?.name ?? '',
-                      qty: line.quantity ?? 1,
-                      selected: selected.contains(i) || lines.isEmpty,
-                      onToggle: lines.isEmpty
-                          ? null
-                          : (v) {
-                              final next = Set<int>.from(selected);
-                              if (v == true) {
-                                next.add(i);
-                              } else {
-                                next.remove(i);
-                              }
-                              session.selectedItemIndices.value = next;
-                            },
-                    ),
-                  );
-                }),
-
-                const SizedBox(height: 28),
-                ValueListenableBuilder<bool>(
-                  valueListenable: session.busy,
-                  builder: (_, busy, __) => _PrimaryButton(
-                    label: 'Continue to refund method',
-                    onTap: busy ? null : onContinue,
-                  ),
-                ),
-                ValueListenableBuilder<String?>(
-                  valueListenable: session.error,
-                  builder: (_, err, __) => err == null
-                      ? const SizedBox.shrink()
-                      : Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(err,
-                              style: loewRegular.copyWith(
-                                  fontSize: 13, color: const Color(0xFFB5490A)),
-                              textAlign: TextAlign.center),
-                        ),
-                ),
-              ],
-            ),
+    return _RefundStepShell(
+      title: 'Refund order',
+      subtitle: id == null ? null : 'Receipt #$id',
+      children: [
+        const _SectionLabel('Reason for refund'),
+        const SizedBox(height: 10),
+        ValueListenableBuilder<PosRefundReason?>(
+          valueListenable: session.reason,
+          builder: (_, current, __) => Column(
+            children: PosRefundReason.values.map((r) {
+              return _RadioRow(
+                label: r.label,
+                selected: current == r,
+                onTap: () => session.reason.value = r,
+              );
+            }).toList(),
           ),
         ),
-      ),
+        const SizedBox(height: 20),
+        const _SectionLabel('Items to refund'),
+        const SizedBox(height: 10),
+        if (lines.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text('Full order refund',
+                style: loewRegular.copyWith(
+                    fontSize: 14, color: PosHomeSpec.inkAlpha(0.6))),
+          ),
+        ...List.generate(lines.length, (i) {
+          final line = lines[i];
+          return ValueListenableBuilder<Set<int>>(
+            valueListenable: session.selectedItemIndices,
+            builder: (_, selected, __) => _ItemRow(
+              name: line.product?.name ?? '',
+              qty: line.quantity ?? 1,
+              selected: selected.contains(i) || lines.isEmpty,
+              onToggle: lines.isEmpty
+                  ? null
+                  : (v) {
+                      final next = Set<int>.from(selected);
+                      if (v == true) {
+                        next.add(i);
+                      } else {
+                        next.remove(i);
+                      }
+                      session.selectedItemIndices.value = next;
+                    },
+            ),
+          );
+        }),
+        const SizedBox(height: 24),
+        ValueListenableBuilder<bool>(
+          valueListenable: session.busy,
+          builder: (_, busy, __) => _PrimaryButton(
+            label: 'Continue to refund method',
+            onTap: busy ? null : onContinue,
+          ),
+        ),
+        _ErrorText(session.error),
+      ],
     );
   }
 }
@@ -299,52 +270,104 @@ class _ChooseMethodStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final PosRefundSession session = PosRefundSession.instance;
     final String detectedMethod = session.order?.method ?? 'cash';
+    final double amount = session.order?.total ?? 0;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(PosPaymentSpec.contentPadding),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _SectionLabel('Refund method'),
-                const SizedBox(height: 8),
+    return _RefundStepShell(
+      title: 'Choose refund method',
+      subtitle:
+          'Original payment: ${detectedMethod == 'card' ? 'Card' : 'Cash'}'
+          ' · ${_formatMoney(amount)}',
+      children: [
+        ValueListenableBuilder<String>(
+          valueListenable: session.refundMethod,
+          builder: (_, method, __) => Column(
+            children: [
+              _RadioRow(
+                label: 'Card — process on physical terminal',
+                selected: method == 'card',
+                onTap: () => session.refundMethod.value = 'card',
+              ),
+              _RadioRow(
+                label: 'Cash — hand to customer from drawer',
+                selected: method == 'cash',
+                onTap: () => session.refundMethod.value = 'cash',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        ValueListenableBuilder<bool>(
+          valueListenable: session.busy,
+          builder: (_, busy, __) => _PrimaryButton(
+            label: busy ? 'Processing…' : 'Confirm refund method',
+            onTap: busy ? null : onContinue,
+          ),
+        ),
+        _ErrorText(session.error),
+      ],
+    );
+  }
+}
+
+String _formatMoney(double v) => '€${v.toStringAsFixed(2)}';
+
+/// Shared visual shell for the refund steps: title + subtitle + content card,
+/// top-aligned with a sensible max-width — the previous `Center` wrapper left
+/// the content floating in the middle of a 1920-wide screen with huge empty
+/// space above it.
+class _RefundStepShell extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final List<Widget> children;
+
+  const _RefundStepShell({
+    required this.title,
+    required this.children,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                title,
+                style: loewExtraBold.copyWith(
+                  fontSize: 24,
+                  color: PosHomeSpec.ink,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 4),
                 Text(
-                  'Original payment method: ${detectedMethod == 'card' ? 'Card' : 'Cash'}',
+                  subtitle!,
                   style: loewRegular.copyWith(
-                      fontSize: 14, color: PosHomeSpec.inkAlpha(0.6)),
-                ),
-                const SizedBox(height: 20),
-                ValueListenableBuilder<String>(
-                  valueListenable: session.refundMethod,
-                  builder: (_, method, __) => Column(
-                    children: [
-                      _RadioRow(
-                        label: 'Card — process on physical terminal',
-                        selected: method == 'card',
-                        onTap: () => session.refundMethod.value = 'card',
-                      ),
-                      _RadioRow(
-                        label: 'Cash — hand to customer from drawer',
-                        selected: method == 'cash',
-                        onTap: () => session.refundMethod.value = 'cash',
-                      ),
-                    ],
+                    fontSize: 13,
+                    color: PosHomeSpec.inkAlpha(0.6),
                   ),
                 ),
-                const SizedBox(height: 28),
-                ValueListenableBuilder<bool>(
-                  valueListenable: session.busy,
-                  builder: (_, busy, __) => _PrimaryButton(
-                    label: busy ? 'Processing…' : 'Confirm refund method',
-                    onTap: busy ? null : onContinue,
-                  ),
-                ),
-                _ErrorText(session.error),
               ],
-            ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: PosHomeSpec.hairline),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: children,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -362,56 +385,39 @@ class _ChooseSplitStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final PosRefundSession session = PosRefundSession.instance;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(PosPaymentSpec.contentPadding),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _SectionLabel('Select payment to refund'),
-                const SizedBox(height: 8),
-                Text(
-                  'Choose which split payment to refund. Each split is refunded independently.',
-                  style: loewRegular.copyWith(
-                      fontSize: 14, color: PosHomeSpec.inkAlpha(0.6)),
-                ),
-                const SizedBox(height: 20),
-                ValueListenableBuilder<PosRefundSplit?>(
-                  valueListenable: session.selectedSplit,
-                  builder: (_, selected, __) => Column(
-                    children: session.splits.map((s) {
-                      return _RadioRow(
-                        label: s.label,
-                        selected: selected?.id == s.id,
-                        onTap: () {
-                          session.selectedSplit.value = s;
-                          session.refundMethod.value = s.method;
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 28),
-                ValueListenableBuilder<PosRefundSplit?>(
-                  valueListenable: session.selectedSplit,
-                  builder: (_, selected, __) =>
-                      ValueListenableBuilder<bool>(
-                    valueListenable: session.busy,
-                    builder: (_, busy, __) => _PrimaryButton(
-                      label: busy ? 'Processing…' : 'Confirm split selection',
-                      onTap: (selected == null || busy) ? null : onContinue,
-                    ),
-                  ),
-                ),
-                _ErrorText(session.error),
-              ],
+    return _RefundStepShell(
+      title: 'Select payment to refund',
+      subtitle:
+          'Choose which split payment to refund. Each split is refunded independently.',
+      children: [
+        ValueListenableBuilder<PosRefundSplit?>(
+          valueListenable: session.selectedSplit,
+          builder: (_, selected, __) => Column(
+            children: session.splits.map((s) {
+              return _RadioRow(
+                label: s.label,
+                selected: selected?.id == s.id,
+                onTap: () {
+                  session.selectedSplit.value = s;
+                  session.refundMethod.value = s.method;
+                },
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 24),
+        ValueListenableBuilder<PosRefundSplit?>(
+          valueListenable: session.selectedSplit,
+          builder: (_, selected, __) => ValueListenableBuilder<bool>(
+            valueListenable: session.busy,
+            builder: (_, busy, __) => _PrimaryButton(
+              label: busy ? 'Processing…' : 'Confirm split selection',
+              onTap: (selected == null || busy) ? null : onContinue,
             ),
           ),
         ),
-      ),
+        _ErrorText(session.error),
+      ],
     );
   }
 }

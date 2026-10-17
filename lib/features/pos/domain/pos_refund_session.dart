@@ -77,9 +77,11 @@ class PosRefundSession {
 
   bool get isSplitOrder => splits.isNotEmpty;
 
-  void reset() {
-    order = null;
-    splits = [];
+  /// Clears per-flow state (selections, reason, pending result, errors, busy)
+  /// WITHOUT touching [order] / [splits], which the caller sets before
+  /// navigating in. Use this at the top of the refund screen so a re-entry is
+  /// clean but the order it was opened with is preserved.
+  void resetFlow() {
     selectedItemIndices.value = {};
     reason.value = null;
     selectedSplit.value = null;
@@ -91,5 +93,13 @@ class PosRefundSession {
     approvalCode.clear();
     busy.value  = false;
     error.value = null;
+  }
+
+  /// Full reset — clears flow state AND the inbound [order] / [splits]. Call
+  /// this after a successful refund or when leaving the flow entirely.
+  void reset() {
+    order = null;
+    splits = [];
+    resetFlow();
   }
 }
