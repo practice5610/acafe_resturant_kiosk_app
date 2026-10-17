@@ -33,6 +33,7 @@ import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart'
@@ -217,6 +218,13 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// by [_confirmMethodChange].
   String? _changeOther;
 
+  /// Method that was just committed in change mode (`card`, `cash`, `invoice`,
+  /// `standalone`). Non-null swaps the body for the success card + BACK bar.
+  String? _changedTo;
+
+  /// The receipt total the committed change applied to (for the success card).
+  double _changedTotal = 0;
+
   /// The tip applied to this sale, in currency (Family 1). Held in a
   /// ValueNotifier so changing it rebuilds only the total-dependent subtree,
   /// never the whole screen. 0 = no tip (the screen then behaves exactly as it
@@ -326,7 +334,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   void _back() {
     // A method change came from Receipts; leaving goes back there.
-    if (_change != null) {
+    if (_change != null || _changedTo != null) {
       context.go(PosRoutes.receipts);
       return;
     }
@@ -459,8 +467,20 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       );
       return;
     }
-    _change = null;
-    context.go(PosRoutes.receipts);
+    setState(() {
+      _changedTotal = change.total;
+      _change = null;
+      _changedTo = method;
+    });
+  }
+
+  static String _methodLabel(String method) {
+    switch (method) {
+      case 'card':       return 'Card';
+      case 'invoice':    return 'Invoice';
+      case 'standalone': return 'Stand-alone';
+      default:           return 'Cash';
+    }
   }
 
   void _onCashKey(String token) {
@@ -1903,6 +1923,33 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       }
     }
 
+    final String? changedTo = _changedTo;
+    if (changedTo != null) {
+      return Scaffold(
+        backgroundColor: PosHomeSpec.pageBg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              const PosTopNavBar(currentPath: PosRoutes.home),
+              _BackRow(
+                onBack: _back,
+                label: _backRowLabel(_changedTotal),
+              ),
+              Expanded(
+                child: PosPaymentSuccessCard(
+                  title: 'Payment method changed',
+                  amount: _changedTotal,
+                  amountLabel: 'NOW PAID BY ${_methodLabel(changedTo).toUpperCase()}',
+                  buttonLabel: 'Back to receipts',
+                  onContinue: _back,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: PosHomeSpec.pageBg,
       body: SafeArea(
@@ -2454,6 +2501,32 @@ class _Content extends StatelessWidget {
   /// split-by-item panel, split-by-payment panel, or the normal Card/Cash
   /// panel depending on the active mode.
   Widget _summaryPane({required bool fill}) {
+    // Receipt change-method mode: the drafted OTHER method shows the SAME
+    // shared panel the order flow uses, in changeMode (no placement CTA/form).
+    if (changeOther == 'standalone') {
+      return PosPayCard(
+        summaryBorder: true,
+        child: PosStandalonePanel(
+          grandTotal: standaloneTotal,
+          approvalCode: standaloneApprovalCode,
+          loading: false,
+          onConfirm: () {},
+          changeMode: true,
+        ),
+      );
+    }
+    if (changeOther == 'invoice') {
+      return PosPayCard(
+        summaryBorder: true,
+        child: PosInvoicePanel(
+          grandTotal: total,
+          form: invoiceForm,
+          loading: false,
+          onSubmit: () {},
+          changeMode: true,
+        ),
+      );
+    }
     // Stand-alone mode (Family 5): numbered instructions + approval code.
     if (standaloneActive) {
       return PosPayCard(

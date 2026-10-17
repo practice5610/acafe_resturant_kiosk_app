@@ -23,12 +23,18 @@ class PosInvoicePanel extends StatelessWidget {
   final bool loading;
   final VoidCallback onSubmit;
 
+  /// True in the receipt change-method flow: the panel shows the header and
+  /// amount only. The details form and "Create Invoice" CTA belong to order
+  /// placement; the change flow commits through the screen's own bar.
+  final bool changeMode;
+
   const PosInvoicePanel({
     super.key,
     required this.grandTotal,
     required this.form,
     required this.loading,
     required this.onSubmit,
+    this.changeMode = false,
   });
 
   @override
@@ -73,6 +79,9 @@ class PosInvoicePanel extends StatelessWidget {
               color: PosHomeSpec.inkAlpha(_headerOpacity),
             ),
           ),
+          if (changeMode) ...[
+            const SizedBox(height: 8),
+          ] else ...[
           const SizedBox(height: 16),
 
           // ── Divider ─────────────────────────────────────────────────
@@ -188,6 +197,7 @@ class PosInvoicePanel extends StatelessWidget {
             },
           ),
           const SizedBox(height: 8),
+          ],
         ],
       ),
     );

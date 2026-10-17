@@ -22,12 +22,17 @@ class PosStandalonePanel extends StatelessWidget {
   final bool loading;
   final VoidCallback onConfirm;
 
+  /// True in the receipt change-method flow: hides the approval-code input and
+  /// the order-placement CTA; the screen's own Confirm change bar commits.
+  final bool changeMode;
+
   const PosStandalonePanel({
     super.key,
     required this.grandTotal,
     required this.approvalCode,
     required this.loading,
     required this.onConfirm,
+    this.changeMode = false,
   });
 
   @override
@@ -108,6 +113,7 @@ class PosStandalonePanel extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          if (!changeMode) ...[
           // ── Approval code input ──────────────────────────────────────
           Text(
             'Approval code (optional)',
@@ -150,6 +156,7 @@ class PosStandalonePanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
+          ],
         ],
       ),
     );

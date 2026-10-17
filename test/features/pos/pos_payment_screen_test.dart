@@ -32,6 +32,10 @@ import 'package:acafe_customer/features/pos/widgets/pos_pay_cash_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
@@ -1047,8 +1051,68 @@ void main() {
       expect(repo.lastMethod, 'cash',
           reason: 'commits the draft, not the dialog seed (card)');
       expect(repo.lastReason, 'paid cash after card failed');
+      expect(find.byType(PosPaymentSuccessCard), findsOneWidget,
+          reason: 'success card shows after a successful commit');
+      expect(find.text('Confirm change'), findsNothing);
+      await tester.tap(find.text('Back to receipts'));
+      await tester.pumpAndSettle();
       expect(find.text('receipts'), findsOneWidget,
-          reason: 'returns to Receipts after a successful commit');
+          reason: 'BACK returns to Receipts');
+    });
+
+    testWidgets('selector is the shared widget; one method list',
+        (tester) async {
+      seed(to: 'cash');
+      await _pump(tester);
+      expect(find.byType(PosPaymentMethodSelector), findsOneWidget);
+    });
+
+    testWidgets('every method shows its own panel; full switch cycle',
+        (tester) async {
+      seed(to: 'card');
+      await _pump(tester);
+
+      void expectPanel({bool cash = false, bool invoice = false, bool sa = false}) {
+        expect(find.byType(PosPayCashSummaryPanel),
+            cash ? findsOneWidget : findsNothing);
+        expect(find.byType(PosInvoicePanel),
+            invoice ? findsOneWidget : findsNothing);
+        expect(find.byType(PosStandalonePanel),
+            sa ? findsOneWidget : findsNothing);
+        expect(find.byType(PosPaySummaryPanel),
+            (cash || invoice || sa) ? findsNothing : findsOneWidget);
+      }
+
+      expectPanel();
+      await tester.tap(find.text('Invoice'));
+      await tester.pump();
+      expectPanel(invoice: true);
+      await tester.tap(find.text('Stand-alone'));
+      await tester.pump();
+      expectPanel(sa: true);
+      await tester.tap(find.text('Cash'));
+      await tester.pump();
+      expectPanel(cash: true);
+      await tester.tap(find.text('Card'));
+      await tester.pump();
+      expectPanel();
+      expect(repo.calls, 0);
+      // The order-placement CTAs never appear in change mode.
+      expect(find.text('Create Invoice'), findsNothing);
+      expect(find.text('Confirm Payment'), findsNothing);
+      expect(find.text('Confirm change'), findsOneWidget);
+    });
+
+    testWidgets('confirming Stand-alone shows the success card', (tester) async {
+      seed(to: 'cash');
+      await _pump(tester, routed: true);
+      await tester.tap(find.text('Stand-alone'));
+      await tester.pump();
+      await tester.tap(find.text('Confirm change'));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastMethod, 'standalone');
+      expect(find.byType(PosPaymentSuccessCard), findsOneWidget);
     });
 
     testWidgets('OTHER method (invoice) is what gets committed', (tester) async {
