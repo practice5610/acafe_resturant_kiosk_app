@@ -132,4 +132,51 @@ void main() {
       expect(yen.withCents(500).raw, '500');
     });
   });
+
+  group('typed (text field input)', () {
+    test('digits and one decimal mark are kept', () {
+      expect(empty.typed('20.5').raw, '20.5');
+      expect(empty.typed('20.5').cents, 2050);
+    });
+
+    test('a comma is read as the decimal mark', () {
+      expect(empty.typed('4,5').raw, '4.5');
+      expect(empty.typed('4,5').cents, 450);
+    });
+
+    test('a second decimal mark is dropped', () {
+      expect(empty.typed('1.2.3').raw, '1.23');
+    });
+
+    test('letters and symbols are dropped', () {
+      expect(empty.typed('1a€2').raw, '12');
+    });
+
+    test('fraction is capped at the currency precision', () {
+      expect(empty.typed('1.999').raw, '1.99');
+    });
+
+    test('leading zeros are not kept', () {
+      expect(empty.typed('0005').raw, '5');
+      expect(empty.typed('0.5').raw, '0.5');
+    });
+
+    test('a leading decimal mark gets a zero', () {
+      expect(empty.typed('.5').raw, '0.5');
+    });
+
+    test('an empty or all-invalid input clears the buffer', () {
+      expect(empty.typed('').raw, '');
+      expect(empty.typed('abc').raw, '');
+    });
+
+    test('integer digits are capped', () {
+      final String long = '1' * 15;
+      expect(empty.typed(long).raw.length, PosCashEntry.maxIntegerDigits);
+    });
+
+    test('no decimal mark is accepted when the currency has none', () {
+      expect(PosCashEntry(decimals: 0).typed('12.5').raw, '125');
+    });
+  });
 }

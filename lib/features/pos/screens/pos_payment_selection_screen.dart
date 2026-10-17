@@ -441,6 +441,13 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
   }
 
+  void _onCashTyped(String text) {
+    setState(() {
+      _cash = _cash.typed(text);
+      _denomination = null;
+    });
+  }
+
   void _onCashClear() {
     setState(() {
       _cash = _cash.clear();
@@ -1953,6 +1960,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     denomination: _denomination,
                                     totalCents: _totalCents(grandTotal),
                                     onCashKey: _onCashKey,
+                                    onCashTyped: _onCashTyped,
                                     onCashBackspace: _onCashBackspace,
                                     onCashClear: _onCashClear,
                                     onDenomination: (d) =>
@@ -2176,6 +2184,7 @@ class _Content extends StatelessWidget {
   final PosCashDenomination? denomination;
   final int totalCents;
   final ValueChanged<String> onCashKey;
+  final ValueChanged<String> onCashTyped;
   final VoidCallback onCashBackspace;
   final VoidCallback onCashClear;
   final ValueChanged<PosCashDenomination> onDenomination;
@@ -2249,6 +2258,7 @@ class _Content extends StatelessWidget {
     required this.denomination,
     required this.totalCents,
     required this.onCashKey,
+    required this.onCashTyped,
     required this.onCashBackspace,
     required this.onCashClear,
     required this.onDenomination,
@@ -2432,6 +2442,7 @@ class _Content extends StatelessWidget {
             selectedDenomination: denomination,
             onDenomination: onDenomination,
             onKey: onCashKey,
+            onTyped: onCashTyped,
             onBackspace: onCashBackspace,
             onClear: onCashClear,
             tip: tip,

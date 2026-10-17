@@ -7,6 +7,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// The payment-summary column for the **Cash** method — `payment-summary-card`
@@ -26,6 +27,7 @@ class PosPayCashSummaryPanel extends StatelessWidget {
   final PosCashDenomination? selectedDenomination;
   final ValueChanged<PosCashDenomination> onDenomination;
   final ValueChanged<String> onKey;
+  final ValueChanged<String> onTyped;
   final VoidCallback onBackspace;
   final VoidCallback onClear;
 
@@ -47,6 +49,7 @@ class PosPayCashSummaryPanel extends StatelessWidget {
     required this.selectedDenomination,
     required this.onDenomination,
     required this.onKey,
+    required this.onTyped,
     required this.onBackspace,
     required this.onClear,
     this.tip = 0,
@@ -78,7 +81,7 @@ class PosPayCashSummaryPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _TenderedField(entry: entry, onClear: onClear),
+              _TenderedField(entry: entry, onTyped: onTyped, onClear: onClear),
               const SizedBox(height: gap),
               _ChangeDueBanner(cents: entry.cents - totalCents, covered: entry.cents >= totalCents),
               const SizedBox(height: gap),
@@ -118,7 +121,7 @@ class PosPayCashSummaryPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _TenderedField(entry: entry, onClear: onClear),
+              _TenderedField(entry: entry, onTyped: onTyped, onClear: onClear),
               const SizedBox(height: PosPaymentSpec.v2CashPanelGap),
               _ChangeDueBanner(cents: entry.cents - totalCents, covered: entry.cents >= totalCents),
               const SizedBox(height: PosPaymentSpec.v2CashPanelGap),
@@ -157,14 +160,68 @@ class PosPayCashSummaryPanel extends StatelessWidget {
 
 /// `tendered-field` (node 1915:10245): label + a 2px-ink-bordered box carrying
 /// the tendered amount and a clear control.
-class _TenderedField extends StatelessWidget {
+///
+/// The box is a real text input, so a tap focuses it and a keyboard — physical
+/// or the on-screen one on a tablet or phone — types straight into it. Typed
+/// text is handed to [onTyped], which runs it through the same rules as the
+/// keypad; the keypad writes back through [entry], which re-syncs the text.
+class _TenderedField extends StatefulWidget {
   final PosCashEntry entry;
+  final ValueChanged<String> onTyped;
   final VoidCallback onClear;
 
-  const _TenderedField({required this.entry, required this.onClear});
+  const _TenderedField({
+    required this.entry,
+    required this.onTyped,
+    required this.onClear,
+  });
+
+  @override
+  State<_TenderedField> createState() => _TenderedFieldState();
+}
+
+class _TenderedFieldState extends State<_TenderedField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: _displayFor(widget.entry));
+  late final FocusNode _focus = FocusNode()..addListener(_sync);
+
+  /// Editing shows the digits as typed; at rest it shows the formatted amount,
+  /// the same way the keypad has always displayed it.
+  String _displayFor(PosCashEntry entry) => _focus.hasFocus
+      ? entry.raw
+      : PosHomeSpec.formatPrice(
+          posCentsToMoney(entry.cents, decimals: entry.decimals),
+          padZero: false,
+        );
+
+  void _sync() {
+    final String next = _displayFor(widget.entry);
+    if (_controller.text == next) return;
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _TenderedField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final TextStyle amountStyle = loewExtraBold.copyWith(
+      fontSize: PosPaymentSpec.cashAmountSize, // 22
+      color: PosHomeSpec.ink,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -178,7 +235,10 @@ class _TenderedField extends StatelessWidget {
         ),
         const SizedBox(height: PosPaymentSpec.cashFieldLabelGap), // 8
         Container(
-          padding: const EdgeInsets.all(PosPaymentSpec.cashFieldPadding), // 16
+          padding: const EdgeInsets.symmetric(
+            horizontal: PosPaymentSpec.cashFieldPadding,
+            vertical: 4,
+          ),
           decoration: BoxDecoration(
             color: PosHomeSpec.tileBg,
             borderRadius:
@@ -191,21 +251,32 @@ class _TenderedField extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  PosHomeSpec.formatPrice(
-                    posCentsToMoney(entry.cents, decimals: entry.decimals),
-                    padZero: false,
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focus,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: loewExtraBold.copyWith(
-                    fontSize: PosPaymentSpec.cashAmountSize, // 22
-                    color: PosHomeSpec.ink,
+                  textInputAction: TextInputAction.done,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  onChanged: widget.onTyped,
+                  style: amountStyle,
+                  cursorColor: PosHomeSpec.ink,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    hintText: '0.00',
+                    hintStyle: amountStyle.copyWith(
+                      color: PosHomeSpec.inkAlpha(0.3),
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-              _ClearButton(enabled: !entry.isEmpty, onTap: onClear),
+              _ClearButton(enabled: !widget.entry.isEmpty, onTap: widget.onClear),
             ],
           ),
         ),

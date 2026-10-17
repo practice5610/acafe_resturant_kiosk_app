@@ -78,6 +78,37 @@ class PosCashEntry {
 
   PosCashEntry clear() => _with('');
 
+  /// Replaces the buffer with whatever a text field now holds, applying the same
+  /// rules as [key]: digits only, one decimal mark (`,` or `.`), the currency's
+  /// precision and the integer-digit cap. Used by the typed amount field.
+  PosCashEntry typed(String text) {
+    final StringBuffer out = StringBuffer();
+    bool seenDecimal = false;
+    for (final String c in text.split('')) {
+      if (c == ',' || c == decimalMark) {
+        if (decimals == 0 || seenDecimal) continue;
+        seenDecimal = true;
+        out.write(decimalMark);
+      } else if (_isDigit(c)) {
+        out.write(c);
+      }
+    }
+    final String s = out.toString();
+    final int dot = s.indexOf(decimalMark);
+    String whole = dot < 0 ? s : s.substring(0, dot);
+    String fraction = dot < 0 ? '' : s.substring(dot + 1);
+    whole = whole.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    if (whole.length > maxIntegerDigits) {
+      whole = whole.substring(0, maxIntegerDigits);
+    }
+    if (fraction.length > decimals) fraction = fraction.substring(0, decimals);
+    if (dot < 0 && whole.isEmpty) return clear();
+    final String next = dot < 0
+        ? whole
+        : '${whole.isEmpty ? '0' : whole}$decimalMark$fraction';
+    return _with(next);
+  }
+
   /// Sets the buffer to an exact amount in minor units — how a denomination
   /// chip and `Exact` load a value.
   PosCashEntry withCents(int value) {
