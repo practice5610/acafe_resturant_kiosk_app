@@ -11,6 +11,51 @@ or colour · **Low** = ≤2px or sub-pixel.
 
 ---
 
+## Summary
+
+| | Count |
+|---|---|
+| Frames audited | 32 / 32 |
+| Differences found | **122** (27 High · 51 Med · 40 Low · 4 info) |
+| Fixed | **114** |
+| Not fixed — need logic / a feature (see D7, D9, D12, render-only errors) | 6 |
+| Skipped (reason given) | 1 — customer-name text 1.5px inset; shared with the Receipts panel that has another session's uncommitted edits |
+| Already matching | 1 |
+
+**Verification.** `test/features/pos/pos_payment_audit_golden_test.dart` renders 27 frames under the production theme
+with each frame's sample data (goldens in `test/features/pos/goldens/payment_audit/`), and every text anchor was measured
+against the Figma frame coordinates — they match to the pixel except where a Figma inconsistency is noted.
+`pos_payment_audit_responsive_test.dart` runs all of them at 1366×1024, 1024×768, 1280×800, 1920×1080, 768×1024
+(portrait) and 900×600, plus stress states (14 long lines, a five-figure total, a 55-character customer name, empty cart):
+**165 / 165 pass, no overflow or exception.** Full suite: 114 failures vs 115 on the clean pre-audit tree, all pre-existing
+(goldens / environment baseline); no new failures. Analyzer: no new issues.
+
+**Extra bugs found beyond Figma** (all fixed unless marked):
+1. Split-by-item: an item already paid in an earlier group could be ticked again and charged twice → now an inert "Paid" row.
+2. Refund: the ticked items are never sent to the backend (`items_json`) — **not fixed, money path, D11**.
+3. Split-payment decline dialog had no `Material` ancestor → debug-underlined text.
+4. Zero-padded amounts ("€ 09.50") on the stand-alone pane, its step text, and the receipt dialog subtitle.
+5. Refund amounts formatted "€6.00" by hand, ignoring the currency config.
+6. Quick-amount chips formatted inconsistently ("17,283.84" vs "17285.00").
+7. The whole layer inherited Material 3 line heights (1.43–1.5×), inflating every untyped label by 3–6px.
+
+**Files changed** (lib): `domain/pos_payment_spec.dart`, `screens/pos_payment_selection_screen.dart`,
+`screens/pos_refund_screen.dart`, and in `widgets/`: `pos_pay_shell.dart`, `pos_pay_summary_panel.dart`,
+`pos_pay_cash_panel.dart`, `pos_payment_method_selector.dart`, `pos_payment_method_card.dart`,
+`pos_split_summary_panel.dart`, `pos_split_by_item_panel.dart`, `pos_invoice_panel.dart`, `pos_standalone_panel.dart`,
+`pos_waiting_card.dart`, `pos_declined_card.dart`, `pos_payment_error_card.dart`, `pos_payment_success_card.dart`,
+`pos_receipt_dialog.dart`, `pos_receipt_line.dart`, `pos_receipt_panel.dart`, `pos_keypad.dart`.
+Tests: `pos_payment_screen_test.dart`, `pos_payment_layout_test.dart`, `pos_navigation_test.dart`,
+`pos_refund_regression_test.dart` (assertions moved to the Figma values); new `pos_payment_audit_golden_test.dart`,
+`pos_payment_audit_responsive_test.dart`.
+
+**Shared-component safety.** Changes to widgets used outside this layer are opt-in parameters with unchanged defaults:
+`PosReceiptLine.inset/trailing/background`, `PosReceiptCustomerInfo.paddingTop`, `PosPaymentCardButton.insideStroke`
+(the order-complete dialog keeps its original button). The Receipts change-method dialog shares the method selector
+and picks up the Figma radios / icons; its tests pass.
+
+---
+
 ## Layer-wide (shared) findings
 
 These were root causes behind many per-screen deltas, so they were fixed once at the source.
@@ -37,6 +82,7 @@ These were root causes behind many per-screen deltas, so they were fixed once at
 | 6 | Summary header — gap before amount | `gap-10` (header 151) | 20 | `widgets/pos_pay_summary_panel.dart` `PosPaySummaryHeader` | Med | Fixed |
 | 7 | Quick-amount chips | Custom · **19.00** · 20.00 / 25.00 · 30.00 · 50.00 | Custom · 19.00 · 20.00 / 50.00 · 55.00 · 60.00 | `pos_pay_summary_panel.dart` `_QuickAmountGrid._presets` | Med | Fixed — next €5, +€5, next €10, next €50 (inert chips; display only) |
 | 8 | Quick-amount row gap | 10 (`ontvangen-section` gap-10) | 8 | same | Low | Fixed (`v2ReceivedGap`) |
+| 8b | Quick-amount figures (extra bug, found in the stress pass) | one format for all chips | selected chip grouped ("17,283.84"), presets not ("17285.00") | same | Low | Fixed — all chips use the app formatter |
 | 9 | "Amount received" icon | `bi:cash` filled glyph, 16×10 | lucide banknote, stroked, 14×14 | `pos_pay_summary_panel.dart` | Med | Fixed — Figma vector inlined |
 | 10 | Tip row — "Add tip" | Loew Bold **12** | 14 | `PosPayTipRow` | Med | Fixed |
 | 11 | Tip row — subtitle | Swiss 10 | 12 | `PosPayTipRow` | Med | Fixed |

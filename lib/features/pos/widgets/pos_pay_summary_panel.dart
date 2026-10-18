@@ -323,15 +323,15 @@ class _QuickAmountGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<double> presets = _presets();
+    // The frame writes the figures without the currency sign ("19.00"); every
+    // chip goes through the same formatter so grouping and decimals agree.
+    String figure(double v) => PosHomeSpec.formatPrice(v, padZero: false)
+        .replaceAll(RegExp(r'[^\d.,]'), '')
+        .trim();
     final List<_Chip> chips = [
       const _Chip(label: 'Custom'),
-      _Chip(
-        label: PosHomeSpec.formatPrice(total, padZero: false)
-            .replaceAll(RegExp(r'[^\d.,]'), '')
-            .trim(),
-        selected: true,
-      ),
-      for (final double v in presets) _Chip(label: v.toStringAsFixed(2)),
+      _Chip(label: figure(total), selected: true),
+      for (final double v in presets) _Chip(label: figure(v)),
     ];
 
     return Column(

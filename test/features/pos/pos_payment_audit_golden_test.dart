@@ -138,12 +138,16 @@ List<CartModel> figmaTicket() => [
 
 /// Mounts [home] under the providers and the production theme the payment
 /// screen runs with.
+/// Window the audit frames render at; the responsive sweep changes it.
+Size auditSize = const Size(1366, 1024);
+
 Future<CartProvider> pumpPaymentApp(
   WidgetTester tester,
   Widget Function(SharedPreferences prefs) home, {
-  Size size = const Size(1366, 1024),
+  Size? size,
   List<CartModel>? lines,
 }) async {
+  size ??= auditSize;
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -209,7 +213,7 @@ Future<CartProvider> pumpPaymentApp(
 
 Future<void> pumpPaymentScreen(
   WidgetTester tester, {
-  Size size = const Size(1366, 1024),
+  Size? size,
   List<CartModel>? lines,
   PosPaymentMethod method = PosPaymentMethod.card,
 }) async {
@@ -609,23 +613,36 @@ Future<void> _refundFrame(WidgetTester tester,
   await tester.pump();
   if (step == 25) return;
 
-  await tester.tap(find.text('Continue to refund method'));
+  // On a narrow window the panes stack into one scroll; bring each control
+  // into view before tapping it, as an operator would.
+  Future<void> tap(Finder f) async {
+    final Finder panes = find.descendant(
+        of: find.byType(PosPayThreePane), matching: find.byType(Scrollable));
+    if (f.evaluate().isEmpty && panes.evaluate().isNotEmpty) {
+      await tester.scrollUntilVisible(f, 200, scrollable: panes.first);
+    }
+    await tester.ensureVisible(f);
+    await tester.pump();
+    await tester.tap(f);
+  }
+
+  await tap(find.text('Continue to refund method'));
   await tester.pump();
   if (split) {
-    await tester.tap(find.text('Payment 1'));
+    await tap(find.text('Payment 1'));
   } else {
-    await tester.tap(find.text('Original payment'));
+    await tap(find.text('Original payment'));
   }
   await tester.pump();
   if (step == 26) return;
 
-  await tester.tap(find.textContaining('Confirm refund'));
+  await tap(find.textContaining('Confirm refund'));
   await tester.runAsync(() => Future<void>.delayed(Duration.zero));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
   if (step == 27 || step == 29) return;
 
-  await tester.tap(find.text(split ? 'Refund € 12.00' : 'Confirm Refund'));
+  await tap(find.text(split ? 'Refund € 12.00' : 'Confirm Refund'));
   await tester.runAsync(() => Future<void>.delayed(Duration.zero));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
