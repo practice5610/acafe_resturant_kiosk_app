@@ -12,6 +12,7 @@ import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/screens/pos_orders_list_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_card_tile.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_item_status_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
@@ -214,6 +215,19 @@ class _Manager implements KioskManagerRepo {
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
+/// The same order with addressable lines, so each row draws its action.
+class _ManagerWithIds extends _Manager {
+  @override
+  Future<ApiResponseModel> getTransactionDetail(int id) async {
+    final ApiResponseModel response = await super.getTransactionDetail(id);
+    int next = 0;
+    for (final item in (response.response!.data as Map)['items'] as List) {
+      (item as Map)['id'] = ++next;
+    }
+    return response;
+  }
+}
+
 class _Check {
   final String name;
   final double figma;
@@ -254,11 +268,11 @@ void _printReport(String title) {
   }
 }
 
-Future<SharedPreferences> _prefs() async {
+Future<SharedPreferences> _prefs({bool images = false}) async {
   SharedPreferences.setMockInitialValues({
     AppConstants.token: 'device-token',
     AppConstants.branch: 1,
-    AppConstants.kioskShowImages: false,
+    AppConstants.kioskShowImages: images,
   });
   return SharedPreferences.getInstance();
 }
@@ -556,6 +570,77 @@ void main() {
         cap.top - 12 - itemsLabel.top, strict: false);
 
     _printReport('modal');
+    expect(tester.takeException(), isNull);
+    _expectAllMatch();
+  });
+
+  testWidgets(
+      'thumbnail + station pill + action: the pill keeps Figma\'s '
+      'top-right place (1915:16923)', (tester) async {
+    tester.view
+      ..physicalSize = const Size(1366, 1024)
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final prefs = await _prefs(images: true);
+
+    await tester.pumpWidget(_host(
+      prefs,
+      PosOrderDetailOverlay(
+        order: PosOrderCard(
+          id: 1234,
+          createdAt: DateTime(2026, 6, 23, 10, 55),
+          orderStatus: 'new',
+          orderType: 'pos',
+          channelKey: 'web_app',
+          orderAmount: 11.7,
+          customerName: 'Max Mustermann (Alias 123)',
+          addressLines: const [],
+          displayMethod: 'card',
+        ),
+        repo: _ManagerWithIds(),
+        ordersRepo: _Repo(),
+        onAdvance: (_) async => const PosAdvanceResult.advanced(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Beside a thumbnail, "Kitchen · Pending" and a Start button leave the
+    // name too little room on one line; the row used to drop both under the
+    // text. Figma keeps the pill top-right on the name's line.
+    final Rect itemsLabel = rectOf(tester, find.text('ORDER ITEMS'));
+    final double columnRight = itemsLabel.left + 420;
+    final Rect name = rectOf(tester, find.text('Croissant'));
+    final Rect pill = rectOf(
+        tester,
+        find
+            .ancestor(
+                of: find.text('Kitchen · Pending').at(1),
+                matching: find.byType(AnimatedContainer))
+            .first);
+    _expectFigma('pill right inset', 16, columnRight - pill.right);
+    _expectFigma('pill dy from name', 2, pill.top - name.top);
+    _expectFigma('pill height', 21, pill.height);
+
+    // The action hangs under its own pill, flush right with it.
+    final Rect start = find
+        .text('Start')
+        .evaluate()
+        .map((e) => tester.getRect(find
+            .ancestor(
+                of: find.byWidget(e.widget),
+                matching: find.byType(PosItemActionButton))
+            .first))
+        .firstWhere((r) => r.top > pill.top && r.top < pill.bottom + 20);
+    _expectFigma('action gap under pill', 8, start.top - pill.bottom,
+        strict: false);
+    _expectFigma('action right = pill right', pill.right, start.right);
+    _expectFigma('action height', 44, start.height);
+    // Every name stays on one readable line.
+    for (final String n in const ['Cappuccino', 'Croissant', 'Flat White']) {
+      _expectFigma('$n on one line', 17, rectOf(tester, find.text(n)).height);
+    }
+
+    _printReport('item rows with thumbnails');
     expect(tester.takeException(), isNull);
     _expectAllMatch();
   });

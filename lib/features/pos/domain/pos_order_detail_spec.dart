@@ -204,10 +204,19 @@ class PosOrderDetailSpec {
   /// item's text instead of beside it.
   static const double itemRowStackBelowWidth = 400;
 
-  /// …or when an item's name would get less than this beside the order's
-  /// widest pill and an action. 100 keeps a station-less order side by side
-  /// at the 420 column even with thumbnails, as it always was.
+  /// The readable floor for an item name. Beside the order's widest pill and
+  /// an action it moves the pill top-right with the action under it (Figma's
+  /// placement); only if the name is still short of it do both go under the
+  /// text. 100 keeps a station-less order side by side at the 420 column even
+  /// with thumbnails, as it always was.
   static const double itemNameMinWidth = 100;
+
+  /// Figma's `item-status-pill` sits 2px below the top of `item-details`
+  /// (y 14 vs 12) when it rides top-right beside the text.
+  static const double itemPillTopInset = 2;
+
+  /// Pill to action when the action hangs under a top-right pill.
+  static const double itemTrailingGap = 8;
 
   /// The header's per-station pills (1915:16209): the item pill at 12px.
   static const double headerStationTextSize = 12;
