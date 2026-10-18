@@ -253,15 +253,10 @@ void main() {
           reason: '$path must be routed outside the POS shell');
     }
 
-    // The payment-selection frame (Figma 1641:2757) draws the nav bar itself.
-    // It is mounted by the screen, not inherited, and PosTopNavBar.interactive
-    // is what stops tab switching while a charge is actually in flight.
-    RouterHelper.goRoutes.go(PosRoutes.payment);
-    await tester.pumpAndSettle();
-    expect(find.byType(PosTopNavBar), findsOneWidget);
-
-    // The remaining payment steps have no Figma chrome and mount none.
+    // No payment step mounts the nav bar: no frame in the "POS payment"
+    // layer (Figma 1915:9314) draws one — the selector opens on its back row.
     for (final path in [
+      PosRoutes.payment,
       PosRoutes.paymentCash,
       PosRoutes.paymentWait,
       PosRoutes.paymentSuccess,

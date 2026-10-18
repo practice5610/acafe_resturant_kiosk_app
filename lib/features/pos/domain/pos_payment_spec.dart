@@ -92,6 +92,7 @@ class PosPaymentSpec {
   static const double methodPadding = 12;
   static const double methodInnerGap = 8;
   static const double methodTopRowHeight = 40;
+  static const double methodTopRowHeightCard = 46; // node 1915:9427
   static const double methodIconBox = 32;
   static const double methodIconBoxRadius = 8;
   static const double methodIconSize = 18;
@@ -258,6 +259,10 @@ class PosPaymentSpec {
   /// Add tip), node 1915:9486.
   static const Color v2SectionIconBg = Color(0xFFF0EAD6);
 
+  /// `ontvangen-section` (1915:9484): gap-10 between the title row and each
+  /// quick-amount row.
+  static const double v2ReceivedGap = 10;
+
   // NB: the file also carries `#1A1A2E` (near-black, on "Amount received" and
   // the tip labels) and `#8A94A6` (slate, on the tip subtitle). Both are
   // off-palette template leftovers — per sign-off `#1A1A2E` maps to
@@ -265,14 +270,25 @@ class PosPaymentSpec {
   // are deliberately NOT added as constants.
   static const double v2MutedInkOpacity = 0.4;
 
+  /// Figma's `leading-normal` line box for [fontSize], as a [TextStyle.height]
+  /// multiplier: `round(1.2 × size) / size` (12 → 14, 13 → 16, 48 → 58). Loew's
+  /// own metrics already land here; Swiss 721 Light's run ~2px taller, so every
+  /// Swiss caption in the layer passes this.
+  static double figmaLeading(double fontSize) =>
+      (fontSize * 1.2).roundToDouble() / fontSize;
+
   // ── 3-pane content shell (node 1915:9352) ────────────────────────────
   /// `content-area` is `flex gap-20 px-32`, authored at 1366 wide.
   static const double v2ContentPaddingH = 32;
   static const double v2ContentGap = 20;
   // Breathing room between the three cards and the sticky bottom bar's
-  // hairline (Figma 1915:9902: cards end 20px above the bar). The back row
-  // supplies the top, so only the bottom needs an inset.
-  static const double v2ContentPaddingBottom = 20;
+  // hairline. Figma 1915:9346: panes are 834 tall starting at y67, the bar
+  // starts at y920 — 19px. The back row supplies the top, so only the bottom
+  // needs an inset.
+  static const double v2ContentPaddingBottom = 19;
+
+  /// `customer-info` (1915:9361) is `py-16`; the counter frame has no top pad.
+  static const double v2CustomerInfoPaddingTop = 16;
   static const double v2CardRadius = 16;
 
   /// The reference frame width the two fixed panes were measured against, held
@@ -338,6 +354,8 @@ class PosPaymentSpec {
   static const double v2OtherIconWellRadius = 5;
   static const double v2OtherIconSize = 13;
   static const double v2OtherRadioSize = 18;
+  /// The ring the 18px slot draws (`inset -16.67%` → 24px), node 1915:9452.
+  static const double v2OtherRadioDrawn = 24;
   static const double v2OtherLabelSize = 12;
   static const double v2OtherLabelOpacity = 0.47;
   /// Idle icon well: `rgba(36,31,32,0.1)` — same as [methodIdleIconBg].
@@ -347,6 +365,20 @@ class PosPaymentSpec {
   static const double v2CashPanelPaddingH = 20;
   static const double v2CashPanelPaddingV = 6;
   static const double v2CashPanelGap = 10;
+
+  // ── Cash tender section (`cash-payment-panel` 1915:10244) ─────────────
+  // The split panes keep the px-20 above; the single-tender cash pane is
+  // px-16 py-8 gap-12.
+  static const double v2CashTenderPaddingH = 16;
+  static const double v2CashTenderPaddingV = 8;
+  static const double v2CashTenderGap = 12;
+  /// The Cash frame pins the 48px amount to a 47px line (node 1915:10240).
+  static const double v2CashAmountLineHeight = 47;
+  /// `amount-input-box` (1915:10247): 58 tall including its 2px border.
+  static const double v2CashFieldHeight = 58;
+  static const double v2CashFieldPadding = 16;
+  /// `change-due-banner` (1915:10252) is p-16.
+  static const double v2ChangeBannerPaddingH = 16;
 
   /// Numeric keypad (node 1915:10266): 3-col, 78px keys, r12, 12px gaps, Loew
   /// Bold 24. Keys are white with a `#D8D1BE` border; the backspace key takes a

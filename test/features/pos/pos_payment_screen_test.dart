@@ -129,7 +129,8 @@ Future<CartProvider> _pump(
         ChangeNotifierProvider<CouponProvider>(
           create: (_) => CouponProvider(couponRepo: null),
         ),
-        // The payment frame draws its own PosTopNavBar (Figma 1641:2758),
+        // Kept for any staff-role reads below the screen; the payment layer
+        // itself (Figma 1915:9314) draws no nav bar.
         // which reads the signed-in staff role. Owner keeps every tab
         // visible, matching what these tests otherwise assume by default.
         ChangeNotifierProvider<PosSessionProvider>(
@@ -191,8 +192,8 @@ void main() {
     expect(find.text('Order list'), findsOneWidget);
     expect(find.text('PAYMENT METHOD'), findsOneWidget);
     expect(find.text('Confirm Payment'), findsOneWidget);
-    // Figma draws the nav bar on this frame (1641:2758).
-    expect(find.byType(PosTopNavBar), findsOneWidget);
+    // No frame in the payment layer (Figma 1915:9314) draws the nav bar.
+    expect(find.byType(PosTopNavBar), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -656,7 +657,7 @@ void main() {
       // The selector and the sticky bar step aside; the header stays.
       expect(find.text('PAYMENT METHOD'), findsNothing);
       expect(find.text('Confirm Payment'), findsNothing);
-      expect(find.byType(PosTopNavBar), findsOneWidget);
+      expect(find.byType(PosTopNavBar), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -766,8 +767,8 @@ void main() {
       expect(find.text('AMOUNT DUE'), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
       expect(find.text('Try Again'), findsOneWidget);
-      // Header survives; the sticky bar does not.
-      expect(find.byType(PosTopNavBar), findsOneWidget);
+      // The sticky bar steps aside; there is no nav bar on this layer.
+      expect(find.byType(PosTopNavBar), findsNothing);
       expect(find.text('Confirm Payment'), findsNothing);
       expect(tester.takeException(), isNull);
     });

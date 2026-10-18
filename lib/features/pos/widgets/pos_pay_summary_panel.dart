@@ -48,7 +48,11 @@ class PosPaySummaryPanel extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const PosPaySectionIcon(svg: posPayIconBanknote),
+                  const PosPaySectionIcon(
+                    svg: posPayIconCash,
+                    glyphWidth: 16,
+                    glyphHeight: 10,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Amount received',
@@ -67,7 +71,7 @@ class PosPaySummaryPanel extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: PosPaymentSpec.v2ReceivedGap),
               _QuickAmountGrid(total: total),
             ],
           ),
@@ -89,19 +93,31 @@ class PosPaySummaryHeader extends StatelessWidget {
   /// Compact amount font size for fill mode. Defaults to 48 (Figma spec).
   final double amountFontSize;
 
+  /// Line box of the 48px amount. Null = the font's own (58, Card frame
+  /// node 1915:9481); the Cash frame pins it to 47 (node 1915:10240).
+  final double? amountLineHeight;
+
+  /// pb-12 on both frames; the Cash frame's header box is a fixed 139 against
+  /// 140 of content, so it passes 11.
+  final double paddingBottom;
+
   const PosPaySummaryHeader({
     super.key,
     required this.total,
     required this.subtitle,
     this.amountFontSize = 48,
+    this.amountLineHeight,
+    this.paddingBottom = 12,
   });
 
   @override
   Widget build(BuildContext context) {
     final double amtFont = amountFontSize;
-    final double gapBeforeAmt = (amtFont < 42) ? 10 : 20;
+    // `summary-header` (1915:9476): pt-16 px-20 pb-12, gap-10 between the
+    // caption block and the total display.
+    const double gapBeforeAmt = 10;
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, amtFont < 42 ? 12 : 16, 20, amtFont < 42 ? 8 : 12),
+      padding: EdgeInsets.fromLTRB(20, amtFont < 42 ? 12 : 16, 20, amtFont < 42 ? 8 : paddingBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -119,21 +135,27 @@ class PosPaySummaryHeader extends StatelessWidget {
             subtitle,
             style: swiss721Light.copyWith(
               fontSize: 12,
-              color: PosHomeSpec.inkAlpha(0.33),
+              height: PosPaymentSpec.figmaLeading(12),
+color: PosHomeSpec.inkAlpha(0.33),
             ),
           ),
-          SizedBox(height: gapBeforeAmt),
+          const SizedBox(height: gapBeforeAmt),
           Text(
             PosHomeSpec.formatPrice(total, padZero: false),
             maxLines: 1,
-            style: loewExtraBold.copyWith(fontSize: amtFont, color: PosHomeSpec.ink),
+            style: loewExtraBold.copyWith(
+              fontSize: amtFont,
+              color: PosHomeSpec.ink,
+              height: amountLineHeight == null ? null : amountLineHeight! / amtFont,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             'Amount due',
             style: swiss721Light.copyWith(
               fontSize: 13,
-              color: PosHomeSpec.inkAlpha(0.4),
+              height: PosPaymentSpec.figmaLeading(13),
+color: PosHomeSpec.inkAlpha(0.4),
             ),
           ),
         ],
@@ -178,7 +200,11 @@ class PosPayTipRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          const PosPaySectionIcon(svg: posPayIconPlusCircle),
+          const PosPaySectionIcon(
+            svg: posPayIconPlusCircle,
+            glyphWidth: 12,
+            glyphHeight: 12,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -187,14 +213,15 @@ class PosPayTipRow extends StatelessWidget {
               children: [
                 Text(
                   'Add tip',
-                  style: loewBold.copyWith(fontSize: 14, color: PosHomeSpec.ink),
+                  style: loewBold.copyWith(fontSize: 12, color: PosHomeSpec.ink),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   'Add the tip you received here',
                   style: swiss721Light.copyWith(
-                    fontSize: 12,
-                    color: PosHomeSpec.inkAlpha(
+                    fontSize: 10,
+                    height: PosPaymentSpec.figmaLeading(10),
+color: PosHomeSpec.inkAlpha(
                         PosPaymentSpec.v2MutedInkOpacity), // #8A94A6
                   ),
                 ),
@@ -204,14 +231,10 @@ class PosPayTipRow extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             // The receipt frame draws the figure without a currency symbol
-            // ("0.00"); a chosen tip keeps that treatment but in ink + bold.
+            // ("0.00").
             hasTip ? PosHomeSpec.formatPrice(amount, padZero: false) : '0.00',
-            style: loewBold.copyWith(
-              fontSize: 17,
-              color: hasTip
-                  ? PosHomeSpec.ink
-                  : PosHomeSpec.inkAlpha(PosPaymentSpec.v2MutedInkOpacity),
-            ),
+            // Node 1915:9513: Loew Bold 14, #1A1A2E (→ ink) — not muted.
+            style: loewBold.copyWith(fontSize: 14, color: PosHomeSpec.ink),
           ),
           const SizedBox(width: 10),
           SvgPicture.string(
@@ -236,7 +259,17 @@ class PosPayTipRow extends StatelessWidget {
 class PosPaySectionIcon extends StatelessWidget {
   final String svg;
 
-  const PosPaySectionIcon({super.key, required this.svg});
+  /// The glyph box inside the 24px well — `bi:cash` is 16×10 (node
+  /// 1915:9487), `plus-circle` 12×12 (node 1915:9508).
+  final double glyphWidth;
+  final double glyphHeight;
+
+  const PosPaySectionIcon({
+    super.key,
+    required this.svg,
+    this.glyphWidth = 14,
+    this.glyphHeight = 14,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +281,12 @@ class PosPaySectionIcon extends StatelessWidget {
         color: PosPaymentSpec.v2SectionIconBg,
         borderRadius: BorderRadius.circular(5),
       ),
-      child: SvgPicture.string(svg, width: 14, height: 14, fit: BoxFit.contain),
+      child: SvgPicture.string(
+        svg,
+        width: glyphWidth,
+        height: glyphHeight,
+        fit: BoxFit.contain,
+      ),
     );
   }
 }
@@ -261,16 +299,16 @@ class _QuickAmountGrid extends StatelessWidget {
 
   const _QuickAmountGrid({required this.total});
 
+  /// The frame's sequence for € 19.00 is 20 · 25 · 30 · 50 (nodes 1915:9496–
+  /// 9503): the next €5 above the total, €5 more, the next €10 above that,
+  /// then the next €50.
   List<double> _presets() {
-    final List<double> out = [];
-    for (final int step in const [5, 10, 20, 50]) {
-      final double v = (total / step).ceil() * step.toDouble();
-      if (v > total && !out.contains(v)) out.add(v);
-    }
-    while (out.length < 4) {
-      out.add((out.isEmpty ? total : out.last) + 5);
-    }
-    return out.take(4).toList();
+    double above(double v, int step) => ((v / step).floor() + 1) * step.toDouble();
+    final double first = above(total, 5);
+    final double second = first + 5;
+    final double third = above(second, 10);
+    final double fourth = above(third, 50);
+    return [first, second, third, fourth];
   }
 
   @override
@@ -290,7 +328,7 @@ class _QuickAmountGrid extends StatelessWidget {
     return Column(
       children: [
         Row(children: _spread(chips.sublist(0, 3))),
-        const SizedBox(height: 8),
+        const SizedBox(height: PosPaymentSpec.v2ReceivedGap),
         Row(children: _spread(chips.sublist(3, math.min(6, chips.length)))),
       ],
     );
@@ -340,22 +378,25 @@ class _Chip extends StatelessWidget {
   }
 }
 
-const String _ink = '#241F20';
+/// The frame's own vectors, inlined (no Figma asset URLs, no new bundled
+/// files, so a stale web AssetManifest cannot blank them).
+///
+/// `bi:cash` (node 1915:9487) — filled, 16×10.
+const String posPayIconCash =
+    '<svg width="16" height="10" viewBox="0 0 16 10" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M8 7C8.53043 7 9.03914 6.78929 9.41421 6.41421C9.78929 6.03914 10 5.53043 10 5C10 4.46957 9.78929 3.96086 9.41421 3.58579C9.03914 3.21071 8.53043 3 8 3C7.46957 3 6.96086 3.21071 6.58579 3.58579C6.21071 3.96086 6 4.46957 6 5C6 5.53043 6.21071 6.03914 6.58579 6.41421C6.96086 6.78929 7.46957 7 8 7Z" fill="black"/>'
+    '<path d="M0 1C0 0.734784 0.105357 0.48043 0.292893 0.292893C0.48043 0.105357 0.734784 0 1 0H15C15.2652 0 15.5196 0.105357 15.7071 0.292893C15.8946 0.48043 16 0.734784 16 1V9C16 9.26522 15.8946 9.51957 15.7071 9.70711C15.5196 9.89464 15.2652 10 15 10H1C0.734784 10 0.48043 9.89464 0.292893 9.70711C0.105357 9.51957 0 9.26522 0 9V1ZM3 1C3 1.53043 2.78929 2.03914 2.41421 2.41421C2.03914 2.78929 1.53043 3 1 3V7C1.53043 7 2.03914 7.21071 2.41421 7.58579C2.78929 7.96086 3 8.46957 3 9H13C13 8.46957 13.2107 7.96086 13.5858 7.58579C13.9609 7.21071 14.4696 7 15 7V3C14.4696 3 13.9609 2.78929 13.5858 2.41421C13.2107 2.03914 13 1.53043 13 1H3Z" fill="black"/>'
+    '</svg>';
 
-/// Inlined lucide vectors (matching the file's icon set) — no Figma asset URLs,
-/// no new bundled files, so a stale web AssetManifest cannot blank them.
-const String posPayIconBanknote =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_ink" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/>'
-    '<path d="M6 12h.01M18 12h.01"/></svg>';
-
+/// `plus-circle` (node 1915:9508), 12×12. The file strokes it `#5A6A8A`, an
+/// off-palette slate like `#1A1A2E`; drawn in ink per the same sign-off.
 const String posPayIconPlusCircle =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_ink" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>';
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M3.99984 6H6M6 6H8.00016M6 6V3.99984M6 6V8.00016M11.0004 6C11.0004 8.76164 8.76164 11.0004 6 11.0004C3.23836 11.0004 0.9996 8.76164 0.9996 6C0.9996 3.23836 3.23836 0.9996 6 0.9996C8.76164 0.9996 11.0004 3.23836 11.0004 6Z" '
+    'stroke="#241F20" stroke-width="2" stroke-linecap="round"/></svg>';
 
+/// `chevron-right` (node 1915:9514), 16×16. `#8A94A6` in the file → ink @0.4
+/// ([PosPaymentSpec.v2MutedInkOpacity]), per the sign-off.
 const String posPayIconChevronRight =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_ink" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<path d="m9 18 6-6-6-6"/></svg>';
+    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M6 12L10 8L6 4" stroke="#241F20" stroke-opacity="0.4" stroke-width="2" stroke-linecap="round"/></svg>';

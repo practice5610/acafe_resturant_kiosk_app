@@ -26,6 +26,12 @@ class PosReceiptOrderList extends StatelessWidget {
   /// payment layout) and must size to its content instead of scrolling.
   final bool shrinkWrap;
 
+  /// The payment layer's `order-items` (Figma 1915:9368): the list is inset
+  /// `px-24`, so each row's hairline stops 24px short of the card edges, and
+  /// rows carry no product thumbnail. The counter frame keeps full-bleed rows
+  /// with thumbnails, which is the default.
+  final bool inset;
+
   const PosReceiptOrderList({
     super.key,
     required this.lines,
@@ -35,6 +41,7 @@ class PosReceiptOrderList extends StatelessWidget {
     required this.onDecrement,
     this.onEdit,
     this.shrinkWrap = false,
+    this.inset = false,
   });
 
   @override
@@ -47,7 +54,9 @@ class PosReceiptOrderList extends StatelessWidget {
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: ListView.builder(
-        padding: EdgeInsets.zero,
+        padding: inset
+            ? const EdgeInsets.symmetric(horizontal: PosHomeSpec.panelPaddingH)
+            : EdgeInsets.zero,
         clipBehavior: Clip.hardEdge,
         shrinkWrap: shrinkWrap,
         physics:
@@ -69,6 +78,7 @@ class PosReceiptOrderList extends StatelessWidget {
             onIncrement: () => onIncrement(index),
             onDecrement: () => onDecrement(index),
             onEdit: onEdit == null ? null : () => onEdit!(index),
+            inset: inset,
           );
         },
       ),
@@ -102,6 +112,10 @@ class PosReceiptLine extends StatelessWidget {
   /// false, so the counter and payment rows keep their stepper.
   final bool quantityOnly;
 
+  /// True for a row inside an inset list ([PosReceiptOrderList.inset]): no
+  /// horizontal padding of its own and no thumbnail (Figma 1915:9369).
+  final bool inset;
+
   const PosReceiptLine({
     super.key,
     required this.line,
@@ -110,6 +124,7 @@ class PosReceiptLine extends StatelessWidget {
     this.onDecrement,
     this.onEdit,
     this.quantityOnly = false,
+    this.inset = false,
   });
 
   @override
@@ -126,8 +141,8 @@ class PosReceiptLine extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: PosHomeSpec.linePaddingH,
+        padding: EdgeInsets.symmetric(
+          horizontal: inset ? 0 : PosHomeSpec.linePaddingH,
           vertical: PosHomeSpec.linePaddingV,
         ),
         child: Row(
@@ -135,7 +150,7 @@ class PosReceiptLine extends StatelessWidget {
               ? CrossAxisAlignment.center
               : CrossAxisAlignment.start,
           children: [
-            if (context.watch<KioskAuthProvider>().showImages) ...[
+            if (!inset && context.watch<KioskAuthProvider>().showImages) ...[
               _Thumb(imageUrl: imageUrl),
               const SizedBox(width: PosHomeSpec.lineGap),
             ],
@@ -173,7 +188,9 @@ class PosReceiptLine extends StatelessWidget {
             ),
             const SizedBox(width: PosHomeSpec.lineGap),
             SizedBox(
-              width: PosHomeSpec.lineActionsWidth,
+              // Inset rows hug the stepper the way the payment frame's
+              // auto-layout does (trash 26 · 8 · digit · 8 · plus 31).
+              width: inset ? null : PosHomeSpec.lineActionsWidth,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -189,6 +206,7 @@ class PosReceiptLine extends StatelessWidget {
                       quantity: line.quantity ?? 1,
                       onIncrement: onIncrement ?? () {},
                       onDecrement: onDecrement ?? () {},
+                      hug: inset,
                     ),
                 ],
               ),
@@ -351,21 +369,38 @@ class _QtyControls extends StatelessWidget {
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
 
+  /// Size each control to its content instead of the counter frame's fixed
+  /// slots (see [PosReceiptLine.inset]).
+  final bool hug;
+
   const _QtyControls({
     required this.quantity,
     required this.onIncrement,
     required this.onDecrement,
+    this.hug = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final bool isSingle = quantity <= 1;
+    final Widget digit = Text(
+      '$quantity',
+      textAlign: TextAlign.center,
+      maxLines: 1,
+      overflow: TextOverflow.clip,
+      style: loewExtraBold.copyWith(
+        fontSize: PosHomeSpec.qtyLabelSize,
+        color: PosHomeSpec.ink,
+        height: 24 / 20,
+      ),
+    );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisSize: hug ? MainAxisSize.min : MainAxisSize.max,
       children: [
         if (isSingle)
-          _DeleteButton(onTap: onDecrement)
+          _DeleteButton(onTap: onDecrement, hug: hug)
         else
           _QtyChip(
             key: const Key('pos-qty-minus'),
@@ -374,20 +409,10 @@ class _QtyControls extends StatelessWidget {
             onTap: onDecrement,
           ),
         const SizedBox(width: PosHomeSpec.qtyGap),
-        SizedBox(
-          width: PosHomeSpec.qtyDigitWidth,
-          child: Text(
-            '$quantity',
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.clip,
-            style: loewExtraBold.copyWith(
-              fontSize: PosHomeSpec.qtyLabelSize,
-              color: PosHomeSpec.ink,
-              height: 24 / 20,
-            ),
-          ),
-        ),
+        if (hug)
+          digit
+        else
+          SizedBox(width: PosHomeSpec.qtyDigitWidth, child: digit),
         const SizedBox(width: PosHomeSpec.qtyGap),
         _QtyChip(
           key: const Key('pos-qty-plus'),
@@ -461,14 +486,15 @@ class _DeleteButton extends StatelessWidget {
 ''';
 
   final VoidCallback onTap;
+  final bool hug;
 
-  const _DeleteButton({required this.onTap});
+  const _DeleteButton({required this.onTap, this.hug = false});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       key: const Key('pos-qty-delete'),
-      width: PosHomeSpec.qtyMinusWidth,
+      width: hug ? PosHomeSpec.qtyTrashSize : PosHomeSpec.qtyMinusWidth,
       height: PosHomeSpec.qtyControlHeight,
       child: Material(
         color: Colors.transparent,

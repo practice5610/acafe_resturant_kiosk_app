@@ -48,7 +48,6 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_tip_dialog.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -1925,10 +1924,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     if (changedTo != null) {
       return Scaffold(
         backgroundColor: PosHomeSpec.pageBg,
-        body: SafeArea(
+        body: PosPayTextScope(
+        child: SafeArea(
           child: Column(
             children: [
-              const PosTopNavBar(currentPath: PosRoutes.home),
               _BackRow(
                 onBack: _back,
                 label: _backRowLabel(_changedTotal),
@@ -1945,22 +1944,22 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
             ],
           ),
         ),
+      ),
       );
     }
 
     return Scaffold(
       backgroundColor: PosHomeSpec.pageBg,
-      body: SafeArea(
+      body: PosPayTextScope(
+        child: SafeArea(
         child: Column(
           children: [
-            // Figma 1641:2757 draws the full nav bar on this frame. It is
-            // frozen, not hidden, while a charge is in flight — see
-            // PosTopNavBar.interactive.
-            PosTopNavBar(
-              currentPath: PosRoutes.home,
-              interactive: !_confirming,
-            ),
-            // Everything below the nav bar reacts to the tip: the displayed
+            // No top nav bar: no frame in the "POS payment" layer (1915:9314)
+            // draws one — the screen opens on `back-btn-row`, and the back
+            // button is the way out, which also keeps an operator from tabbing
+            // away mid-charge.
+            //
+            // Everything below reacts to the tip: the displayed
             // total (back row + summary), the cash coverage and the charged
             // amount all become payable + tip. A ValueNotifier rebuilds just
             // this subtree when the tip changes — no root setState.
@@ -2176,6 +2175,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -2429,6 +2429,8 @@ class _Content extends StatelessWidget {
   });
 
   Widget _orderList({required bool shrinkWrap}) => PosReceiptOrderList(
+        // `order-items` (1915:9368): inset px-24, no thumbnails.
+        inset: true,
         lines: lines,
         imageBaseUrl: imageBaseUrl,
         dealImageBaseUrl: dealImageBaseUrl,
@@ -2461,6 +2463,8 @@ class _Content extends StatelessWidget {
             nameController: customerNameController,
             tableController: tableController,
             showBottomHairline: false,
+            // `customer-info` (1915:9361) is py-16.
+            paddingTop: PosPaymentSpec.v2CustomerInfoPaddingTop,
           ),
           const PosReceiptOrderListLabel(),
           if (fill) Expanded(child: list) else list,

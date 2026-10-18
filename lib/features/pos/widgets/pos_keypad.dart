@@ -286,7 +286,8 @@ PosKeypadStyle posPaymentKeypadStyle({required String backspaceAsset}) =>
       columnGap: PosPaymentSpec.keyGap,
       rowGap: PosPaymentSpec.keyGap,
       labelSize: PosPaymentSpec.v2KeypadLabelSize,
-      labelHeight: 1.0,
+      // Figma's 24px Bold line box is 29 (`leading-normal`).
+      labelHeight: 29 / 24,
       labelStyle: loewBold,
       fill: PosHomeSpec.tileBg,
       borderColor: PosPaymentSpec.v2KeypadKeyBorder,

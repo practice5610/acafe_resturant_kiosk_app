@@ -34,14 +34,16 @@ Widget _cashPanel({bool fill = true}) => MaterialApp(
     );
 
 void main() {
-  testWidgets('Right pane content width is 412px', (tester) async {
+  // Figma 1915:10244: 452 card, px-16 -> 420 (tendered field / keypad width).
+  testWidgets('Right pane content width is 420px', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1366, 1024));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(_cashPanel());
-    expect(tester.getSize(find.byKey(const Key('pad-box'))).width, 412);
+    expect(tester.getSize(find.byKey(const Key('pad-box'))).width, 420);
   });
 
-  testWidgets('Quick denomination buttons are 76x41 with 8px gap',
+  // Figma 1915:10256: (420 - 4 x 8) / 5 = 77.6 x 41.
+  testWidgets('Quick denomination buttons are 77.6x41 with 8px gap',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1366, 1024));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -50,7 +52,7 @@ void main() {
     expect(chips, findsNWidgets(PosCashDenomination.defaults.length));
     for (int i = 0; i < 5; i++) {
       final Size s = tester.getSize(chips.at(i));
-      expect(s.width, closeTo(76, 1));
+      expect(s.width, closeTo(77.6, 0.5));
       expect(s.height, 41);
     }
     final double gap = tester.getTopLeft(chips.at(1)).dx -

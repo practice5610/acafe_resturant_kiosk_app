@@ -264,24 +264,29 @@ class PosReceiptCustomerInfo extends StatelessWidget {
   /// their editable fields.
   final bool readOnly;
 
+  /// Space above the field. The counter frame draws none; the payment layer's
+  /// `customer-info` (Figma 1915:9361) is `py-16`, so it passes 16.
+  final double paddingTop;
+
   const PosReceiptCustomerInfo({
     super.key,
     required this.nameController,
     required this.tableController,
     this.showBottomHairline = true,
     this.readOnly = false,
+    this.paddingTop = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: PosHomeSpec.customerInfoHeight,
+      height: PosHomeSpec.customerInfoHeight + paddingTop,
       child: Stack(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(
+            padding: EdgeInsets.fromLTRB(
               PosHomeSpec.panelPaddingH,
-              0,
+              paddingTop,
               PosHomeSpec.panelPaddingH,
               PosHomeSpec.customerInfoPaddingBottom,
             ),

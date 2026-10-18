@@ -4,6 +4,87 @@ import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
+/// Gives the "POS payment" layer Figma's `leading-normal` line boxes.
+///
+/// The app theme is Material 3, whose text styles carry explicit line heights
+/// (`bodyMedium` 1.43, `bodyLarge` 1.5). Every `Text` without its own `height`
+/// inherits one — directly, or via the `Material` that each `InkWell` / card
+/// re-applies — so a 14px Loew label lays out 20px tall where Figma draws 17.
+///
+/// Below this scope the theme's text styles carry no `height`, so Loew falls
+/// back to its own metrics, which equal Figma's "normal" leading at every size
+/// the layer uses (10 → 12 … 48 → 58). Swiss 721 Light runs ~2px taller than
+/// Figma by its own metrics, so its captions set [PosPaymentSpec.figmaLeading]
+/// explicitly.
+///
+/// Wrap each route body and dialog root of the layer in this.
+class PosPayTextScope extends StatelessWidget {
+  final Widget child;
+
+  const PosPayTextScope({super.key, required this.child});
+
+  /// [style] with `height` dropped (TextStyle.copyWith cannot null a field).
+  static TextStyle? _normal(TextStyle? style) {
+    if (style == null) return null;
+    return TextStyle(
+      inherit: style.inherit,
+      color: style.color,
+      backgroundColor: style.backgroundColor,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      fontStyle: style.fontStyle,
+      letterSpacing: style.letterSpacing,
+      wordSpacing: style.wordSpacing,
+      textBaseline: style.textBaseline,
+      leadingDistribution: style.leadingDistribution,
+      locale: style.locale,
+      foreground: style.foreground,
+      background: style.background,
+      shadows: style.shadows,
+      fontFeatures: style.fontFeatures,
+      fontVariations: style.fontVariations,
+      decoration: style.decoration,
+      decorationColor: style.decorationColor,
+      decorationStyle: style.decorationStyle,
+      decorationThickness: style.decorationThickness,
+      debugLabel: style.debugLabel,
+      fontFamily: style.fontFamily,
+      fontFamilyFallback: style.fontFamilyFallback,
+      overflow: style.overflow,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final TextTheme t = theme.textTheme;
+    final TextTheme normal = TextTheme(
+      displayLarge: _normal(t.displayLarge),
+      displayMedium: _normal(t.displayMedium),
+      displaySmall: _normal(t.displaySmall),
+      headlineLarge: _normal(t.headlineLarge),
+      headlineMedium: _normal(t.headlineMedium),
+      headlineSmall: _normal(t.headlineSmall),
+      titleLarge: _normal(t.titleLarge),
+      titleMedium: _normal(t.titleMedium),
+      titleSmall: _normal(t.titleSmall),
+      bodyLarge: _normal(t.bodyLarge),
+      bodyMedium: _normal(t.bodyMedium),
+      bodySmall: _normal(t.bodySmall),
+      labelLarge: _normal(t.labelLarge),
+      labelMedium: _normal(t.labelMedium),
+      labelSmall: _normal(t.labelSmall),
+    );
+    return Theme(
+      data: theme.copyWith(textTheme: normal),
+      child: DefaultTextStyle(
+        style: normal.bodyMedium ?? const TextStyle(),
+        child: child,
+      ),
+    );
+  }
+}
+
 /// The redesigned payment screen's content shell — `content-area`
 /// (Figma **1915:9352**, "POS payment" layer 1915:9314).
 ///
@@ -118,12 +199,20 @@ class PosPayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosPaymentSpec.v2CardRadius);
+    // Figma strokes sit inside the frame and do not move its content, so the
+    // border is painted over the child rather than insetting it the way a
+    // Container border would (content would otherwise land 1–1.5px off).
     return Container(
       padding: padding,
       clipBehavior: padding == null ? Clip.antiAlias : Clip.none,
       decoration: BoxDecoration(
         color: PosHomeSpec.panelBg,
-        borderRadius: BorderRadius.circular(PosPaymentSpec.v2CardRadius),
+        borderRadius: radius,
+      ),
+      foregroundDecoration: BoxDecoration(
+        borderRadius: radius,
         border: Border.all(
           color: summaryBorder
               ? PosPaymentSpec.v2SummaryBorder

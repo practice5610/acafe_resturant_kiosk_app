@@ -267,30 +267,30 @@ class _OtherMethodRow extends StatelessWidget {
               ),
               Opacity(
                 opacity: enabled ? 1.0 : 0.40,
+                // An 18px slot drawing the 24px ring — the frame's radio is an
+                // 18 box with its vector at `inset -16.67%` (node 1915:9452),
+                // so the ring overhangs the slot by 3px each side.
                 child: SizedBox(
                   width: PosPaymentSpec.v2OtherRadioSize,
                   height: PosPaymentSpec.v2OtherRadioSize,
-                  child: active
-                      ? SvgPicture.asset(
-                          Images.posRadioOnSvg,
-                          width: PosPaymentSpec.v2OtherRadioSize,
-                          height: PosPaymentSpec.v2OtherRadioSize,
-                          placeholderBuilder: (_) => const Icon(
-                            Icons.radio_button_checked,
-                            size: PosPaymentSpec.v2OtherRadioSize,
-                            color: PosHomeSpec.ink,
-                          ),
-                        )
-                      : SvgPicture.asset(
-                          Images.posRadioOffSvg,
-                          width: PosPaymentSpec.v2OtherRadioSize,
-                          height: PosPaymentSpec.v2OtherRadioSize,
-                          placeholderBuilder: (_) => const Icon(
-                            Icons.radio_button_unchecked,
-                            size: PosPaymentSpec.v2OtherRadioSize,
-                            color: PosHomeSpec.itemDivider,
-                          ),
-                        ),
+                  child: OverflowBox(
+                    minWidth: PosPaymentSpec.v2OtherRadioDrawn,
+                    maxWidth: PosPaymentSpec.v2OtherRadioDrawn,
+                    minHeight: PosPaymentSpec.v2OtherRadioDrawn,
+                    maxHeight: PosPaymentSpec.v2OtherRadioDrawn,
+                    child: SvgPicture.asset(
+                      active ? Images.posRadioOnSvg : Images.posRadioOffSvg,
+                      width: PosPaymentSpec.v2OtherRadioDrawn,
+                      height: PosPaymentSpec.v2OtherRadioDrawn,
+                      placeholderBuilder: (_) => Icon(
+                        active
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                        size: PosPaymentSpec.v2OtherRadioDrawn,
+                        color: active ? PosHomeSpec.ink : PosHomeSpec.itemDivider,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -317,6 +317,11 @@ class _OtherMethodRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: PosHomeSpec.tileBg,
         borderRadius: BorderRadius.circular(PosPaymentSpec.v2OtherRowRadius),
+      ),
+      // Inside stroke: the row is 64 tall (10 + 24 + 6 + 14 + 10), border
+      // included, as in node 1915:9447.
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(PosPaymentSpec.v2OtherRowRadius),
         border: Border.all(color: borderColor, width: borderWidth),
       ),
       child: content,
@@ -330,9 +335,9 @@ class _OtherMethodRow extends StatelessWidget {
   }
 }
 
-/// One OTHER-group entry. Icons are inlined vectors (lucide, matching the
-/// file's icon set) rather than Figma asset URLs or new bundled files, so a
-/// stale web AssetManifest cannot blank them.
+/// One OTHER-group entry. Icons are the frame's own vectors (nodes 1915:9450 /
+/// 9457 / 9464 / 9471), inlined rather than bundled so a stale web
+/// AssetManifest cannot blank them.
 class _OtherMethod {
   final String label;
   final String iconSvg;
@@ -340,34 +345,25 @@ class _OtherMethod {
   const _OtherMethod({required this.label, required this.iconSvg});
 }
 
-const String _inkStroke = '#241F20';
-
+// Figma draws the same banknote glyph on both split rows.
 const List<_OtherMethod> _otherMethods = [
-  _OtherMethod(label: 'Split by item', iconSvg: _iconLayoutGrid),
-  _OtherMethod(label: 'Split by payment', iconSvg: _iconSplit),
+  _OtherMethod(label: 'Split by item', iconSvg: _iconBanknote),
+  _OtherMethod(label: 'Split by payment', iconSvg: _iconBanknote),
   _OtherMethod(label: 'Invoice', iconSvg: _iconFileText),
   _OtherMethod(label: 'Stand-alone', iconSvg: _iconSmartphone),
 ];
 
-const String _iconLayoutGrid =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_inkStroke" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/>'
-    '<rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>';
-
-const String _iconSplit =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_inkStroke" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<path d="M16 3h5v5"/><path d="M8 3H3v5"/>'
-    '<path d="M12 22v-8.3a4 4 0 0 0-1.17-2.83L3 3"/><path d="m15 9 6-6"/></svg>';
+const String _iconBanknote =
+    '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M3.24982 6.5H3.25524M9.75034 6.5H9.75576M2.1664 3.25H10.8338C11.4321 3.25 11.9172 3.73502 11.9172 4.33333V8.66667C11.9172 9.26497 11.4321 9.75 10.8338 9.75H2.1664C1.56804 9.75 1.08298 9.26497 1.08298 8.66667V4.33333C1.08298 3.73502 1.56804 3.25 2.1664 3.25ZM7.5835 6.5C7.5835 7.09831 7.09844 7.58333 6.50008 7.58333C5.90172 7.58333 5.41666 7.09831 5.41666 6.5C5.41666 5.90169 5.90172 5.41667 6.50008 5.41667C7.09844 5.41667 7.5835 5.90169 7.5835 6.5Z" '
+    'stroke="#241F20" stroke-width="1.44444" stroke-linecap="round"/></svg>';
 
 const String _iconFileText =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_inkStroke" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/>'
-    '<path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>';
+    '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M7.58322 1.0829H3.25032C2.96304 1.0829 2.68751 1.19705 2.48437 1.40023C2.28123 1.60341 2.1671 1.87898 2.1671 2.16632V10.8337C2.1671 11.121 2.28123 11.3966 2.48437 11.5998C2.68751 11.803 2.96304 11.9171 3.25032 11.9171H9.74967C10.037 11.9171 10.3125 11.803 10.5156 11.5998C10.7188 11.3966 10.8329 11.121 10.8329 10.8337V4.33316M7.58322 1.0829C7.75467 1.08262 7.92448 1.11627 8.08288 1.18191C8.24127 1.24755 8.38512 1.34388 8.50613 1.46535L10.4494 3.409C10.5712 3.53008 10.6678 3.67409 10.7336 3.83271C10.7994 3.99133 10.8332 4.16142 10.8329 4.33316M7.58322 1.0829V3.79145C7.58322 3.93512 7.64029 4.07291 7.74186 4.1745C7.84343 4.27609 7.98119 4.33316 8.12484 4.33316L10.8329 4.33316M5.41677 4.87487H4.33355M8.66645 7.04171H4.33355M8.66645 9.20855H4.33355" '
+    'stroke="#241F20" stroke-width="2" stroke-linecap="round"/></svg>';
 
 const String _iconSmartphone =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_inkStroke" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>';
+    '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M6.5 9.75026H6.50542M3.79136 1.0829H9.20864C9.80702 1.0829 10.2921 1.56796 10.2921 2.16632V10.8337C10.2921 11.432 9.80702 11.9171 9.20864 11.9171H3.79136C3.19298 11.9171 2.7079 11.432 2.7079 10.8337V2.16632C2.7079 1.56796 3.19298 1.0829 3.79136 1.0829Z" '
+    'stroke="#241F20" stroke-width="2" stroke-linecap="round"/></svg>';

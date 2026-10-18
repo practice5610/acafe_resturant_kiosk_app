@@ -38,6 +38,13 @@ class PosPaymentMethodCard extends StatelessWidget {
       ? Images.posBanknoteSvg
       : Images.posCreditCardSvg;
 
+  /// The icon/radio row is 46 tall on the Card tile and 40 on the Cash tile in
+  /// both frames that draw them (nodes 1915:9427 / 9437, 1915:10186 / 10194),
+  /// so "Card" sits 6px lower in its tile than "Cash".
+  double get _topRowHeight => method == PosPaymentMethod.card
+      ? PosPaymentSpec.methodTopRowHeightCard
+      : PosPaymentSpec.methodTopRowHeight;
+
   @override
   Widget build(BuildContext context) {
     final BorderRadius radius =
@@ -47,8 +54,10 @@ class PosPaymentMethodCard extends StatelessWidget {
     // few px of slack at full size. Text shrinks slower than spacing (see
     // [PosPaymentDensity]), so below full density that slack can invert into
     // an overflow — never shrink past what the label actually needs.
-    final double contentHeight = density.px(PosPaymentSpec.methodPadding) * 2 +
-        density.px(PosPaymentSpec.methodTopRowHeight) +
+    // No bottom padding term: the tile is a fixed 95 with the label hanging
+    // from the top (the Card tile's content runs 96 in the file).
+    final double contentHeight = density.px(PosPaymentSpec.methodPadding) +
+        density.px(_topRowHeight) +
         density.px(PosPaymentSpec.methodInnerGap) +
         density.text(PosPaymentSpec.methodLabelSize) *
             PosPaymentSpec.methodLabelHeight;
@@ -66,9 +75,15 @@ class PosPaymentMethodCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: radius,
           child: Container(
-            constraints: BoxConstraints(minHeight: height),
-            padding: EdgeInsets.all(density.px(PosPaymentSpec.methodPadding)),
-            decoration: BoxDecoration(
+            height: height,
+            padding: EdgeInsets.fromLTRB(
+              density.px(PosPaymentSpec.methodPadding),
+              density.px(PosPaymentSpec.methodPadding),
+              density.px(PosPaymentSpec.methodPadding),
+              0,
+            ),
+            // Inside stroke, as in the file: the border does not move content.
+            foregroundDecoration: BoxDecoration(
               borderRadius: radius,
               border: Border.all(
                 color: selected
@@ -82,7 +97,7 @@ class PosPaymentMethodCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  height: density.px(PosPaymentSpec.methodTopRowHeight),
+                  height: density.px(_topRowHeight),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
