@@ -34,29 +34,40 @@ void main() {
     }
   });
 
-  testWidgets('PosKeypad keys have correct height (78px)', (tester) async {
+  testWidgets('PosKeypad keys are 56px tall', (tester) async {
     await tester.pumpWidget(_pad());
     for (final Element e in find.byType(AnimatedScale).evaluate()) {
-      expect(tester.getSize(find.byWidget(e.widget)).height, 78);
+      expect(tester.getSize(find.byWidget(e.widget)).height, 56);
     }
   });
 
-  testWidgets('keys are ~129px wide in a 412px keypad', (tester) async {
+  testWidgets('keys are ~131px wide in a 412px keypad (10px gaps)',
+      (tester) async {
     await tester.pumpWidget(_pad());
     expect(tester.getSize(find.byType(AnimatedScale).first).width,
-        closeTo((412 - 24) / 3, 0.5));
+        closeTo((412 - 20) / 3, 0.5));
+  });
+
+  test('payment keys: tile stroke, soft shadow, Loew Bold 22', () {
+    final PosKeypadStyle style = posPaymentKeypadStyle(backspaceAsset: 'x');
+    expect(style.borderColor, const Color(0xFFE8E3D5));
+    expect(style.borderWidth, 1);
+    expect(style.labelSize, 22);
+    expect(style.shadow, hasLength(1));
+    expect(style.backspaceFill, const Color(0xFFF0EBD8));
   });
 
   test('Only one keypad style exists', () {
     final String src =
         File('lib/features/pos/widgets/pos_keypad.dart').readAsStringSync();
         expect(RegExp(r'PosKeypadStyle posPaymentKeypadStyle\(').hasMatch(src), isTrue);
-    expect(posPaymentKeypadStyle(backspaceAsset: 'x').keyHeight, 78);
+    expect(posPaymentKeypadStyle(backspaceAsset: 'x').keyHeight, 56);
     expect(posCompactKeypadStyle(backspaceAsset: 'x').keyHeight, 48);
   });
 
-  testWidgets('Keypad total height is 348px', (tester) async {
+  testWidgets('Keypad total height is 254px', (tester) async {
     await tester.pumpWidget(_pad());
-    expect(tester.getSize(find.byKey(const Key('pad'))).height, 348);
+    expect(PosPaymentSpec.keypadHeight, 254);
+    expect(tester.getSize(find.byKey(const Key('pad'))).height, 254);
   });
 }

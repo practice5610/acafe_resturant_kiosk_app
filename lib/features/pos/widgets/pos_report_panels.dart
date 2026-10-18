@@ -128,7 +128,7 @@ class _DeviceCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   row.name,
-                  style: PosUI.text(
+                  style: posReportText(
                     context,
                     size: PosReportSpec.paymentNameSize,
                     weight: FontWeight.w700,
@@ -142,7 +142,7 @@ class _DeviceCard extends StatelessWidget {
           ),
           Text(
             PosHomeSpec.formatPrice(row.amount, padZero: false),
-            style: PosUI.text(
+            style: posReportText(
               context,
               size: PosReportSpec.kpiValueSize * 0.77,
               weight: FontWeight.w800,
@@ -153,7 +153,7 @@ class _DeviceCard extends StatelessWidget {
           Text(
             '${row.orderCount} order${row.orderCount == 1 ? '' : 's'}'
             ' · avg ${PosHomeSpec.formatPrice(row.averageOrderValue, padZero: false)}',
-            style: PosUI.text(
+            style: posReportText(
               context,
               size: PosReportSpec.paymentSubSize,
               weight: FontWeight.w400,
@@ -187,7 +187,7 @@ class _DeviceCard extends StatelessWidget {
 
 // ── Payment Methods ─────────────────────────────────────────────────────
 
-/// `payment-methods-card` (Figma **1641:5518**).
+/// `payment-methods-card` (Figma **1915:18155**).
 ///
 /// Rows come from `payment_methods.methods[]`, which the backend builds with
 /// `ZReportService::classifyPayment()`. That is deliberately NOT the Receipts
@@ -218,7 +218,7 @@ class PosReportPaymentMethodsPanel extends StatelessWidget {
 
   static const Map<String, String> _labels = <String, String>{
     'cash': 'Cash',
-    'card': 'PIN / Card',
+    'card': 'PIN/Card',
     'wallet': 'Wallet',
   };
 
@@ -326,7 +326,7 @@ class _PaymentRow extends StatelessWidget {
               children: <Widget>[
                 Text(
                   label,
-                  style: PosUI.text(
+                  style: posReportText(
                     context,
                     size: PosReportSpec.paymentNameSize,
                     weight: FontWeight.w800,
@@ -338,7 +338,7 @@ class _PaymentRow extends StatelessWidget {
                 SizedBox(height: posPx(context, 2)),
                 Text(
                   '${row.orderCount} transaction${row.orderCount == 1 ? '' : 's'}',
-                  style: PosUI.text(
+                  style: posReportText(
                     context,
                     size: PosReportSpec.paymentSubSize,
                     weight: FontWeight.w400,
@@ -350,10 +350,10 @@ class _PaymentRow extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: posPx(context, 8)),
+          SizedBox(width: posPx(context, PosReportSpec.paymentRowGap)),
           Text(
             PosHomeSpec.formatPrice(row.amount, padZero: false),
-            style: PosUI.text(
+            style: posReportText(
               context,
               size: PosReportSpec.paymentAmountSize,
               weight: FontWeight.w800,
@@ -410,8 +410,7 @@ class PosReportTopProductsPanel extends StatelessWidget {
                       ),
                     ),
                     for (int i = 0; i < rows.length; i++) ...<Widget>[
-                      if (i > 0)
-                        SizedBox(height: posPx(context, PosReportSpec.tableGap)),
+                      SizedBox(height: posPx(context, PosReportSpec.tableGap)),
                       _ProductRow(row: rows[i], featured: i == 0),
                     ],
                   ],
@@ -457,7 +456,7 @@ class _ProductRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     row.name,
-                    style: PosUI.text(
+                    style: posReportText(
                       context,
                       size: PosReportSpec.tableRowSize,
                       weight: FontWeight.w700,
@@ -470,13 +469,12 @@ class _ProductRow extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: posPx(context, 8)),
           SizedBox(
             width: posPx(context, PosReportSpec.qtyColumnWidth),
             child: Text(
               '${row.quantity} sold',
               textAlign: TextAlign.right,
-              style: PosUI.text(
+              style: posReportText(
                 context,
                 size: PosReportSpec.tableRowSize,
                 weight: FontWeight.w600,
@@ -490,7 +488,7 @@ class _ProductRow extends StatelessWidget {
             child: Text(
               PosHomeSpec.formatPrice(row.amount, padZero: false),
               textAlign: TextAlign.right,
-              style: PosUI.text(
+              style: posReportText(
                 context,
                 size: PosReportSpec.tableRowSize,
                 weight: FontWeight.w800,
@@ -594,13 +592,15 @@ class PosReportCashDrawerPanel extends StatelessWidget {
                   label: 'Cash Out (${data.cashRefundsCount} refunds)',
                   value:
                       '−${PosHomeSpec.formatPrice(data.cashRefunds, padZero: false)}',
-                  valueColor:
-                      data.cashRefunds > 0 ? PosUI.danger : PosReportSpec.ink,
                 ),
+                SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
+                const PosReportDivider(),
                 SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
                 PosReportDetailRow(
                   label: 'Expected in drawer',
-                  labelWeight: FontWeight.w700,
+                  labelWeight: FontWeight.w800,
+                  labelColor: PosReportSpec.ink,
+                  valueWeight: FontWeight.w800,
                   value: PosHomeSpec.formatPrice(data.expectedInDrawer,
                       padZero: false),
                 ),
@@ -611,22 +611,49 @@ class PosReportCashDrawerPanel extends StatelessWidget {
                     value: PosHomeSpec.formatPrice(counted, padZero: false),
                   ),
                   if (difference != null) ...<Widget>[
-                    SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
-                    PosReportDetailRow(
-                      label: 'Difference',
-                      labelWeight: FontWeight.w700,
-                      labelColor:
-                          difference.abs() >= 0.005 ? PosUI.danger : null,
-                      valueColor:
-                          difference.abs() >= 0.005 ? PosUI.danger : null,
-                      value: difference < 0
-                          ? '−${PosHomeSpec.formatPrice(difference.abs(), padZero: false)}'
-                          : PosHomeSpec.formatPrice(difference, padZero: false),
-                    ),
+                    SizedBox(
+                        height: posPx(context, PosReportSpec.detailRowGap)),
+                    _DifferenceRow(difference: difference),
                   ],
                 ],
               ],
             ),
+    );
+  }
+}
+
+/// The `Difference` line. An off drawer sits in the red pill Figma draws; a
+/// balanced one stays a plain row, since red would claim a problem.
+class _DifferenceRow extends StatelessWidget {
+  final double difference;
+
+  const _DifferenceRow({required this.difference});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool off = difference.abs() >= 0.005;
+    final Widget row = PosReportDetailRow(
+      label: 'Difference',
+      labelWeight: FontWeight.w700,
+      labelColor: off ? PosReportSpec.negativeText : null,
+      valueWeight: off ? FontWeight.w800 : FontWeight.w700,
+      valueColor: off ? PosReportSpec.negativeText : null,
+      value: difference < 0
+          ? '−${PosHomeSpec.formatPrice(difference.abs(), padZero: false)}'
+          : PosHomeSpec.formatPrice(difference, padZero: false),
+    );
+    if (!off) return row;
+
+    return Container(
+      padding:
+          EdgeInsets.all(posPx(context, PosReportSpec.differenceRowPadding)),
+      decoration: BoxDecoration(
+        color: PosReportSpec.negativeFill,
+        borderRadius: BorderRadius.circular(
+          posPx(context, PosReportSpec.differenceRowRadius),
+        ),
+      ),
+      child: row,
     );
   }
 }
@@ -747,7 +774,7 @@ class _LegendRow extends StatelessWidget {
         Expanded(
           child: Text(
             row.name,
-            style: PosUI.text(
+            style: posReportText(
               context,
               size: PosReportSpec.detailRowSize,
               weight: FontWeight.w400,
@@ -760,10 +787,10 @@ class _LegendRow extends StatelessWidget {
         SizedBox(width: posPx(context, 8)),
         Text(
           '${PosHomeSpec.formatPrice(row.amount, padZero: false)} (${row.percentage.toStringAsFixed(0)}%)',
-          style: PosUI.text(
+          style: posReportText(
             context,
             size: PosReportSpec.detailRowSize,
-            weight: FontWeight.w600,
+            weight: FontWeight.w700,
             color: PosReportSpec.ink,
           ),
           maxLines: 1,
@@ -835,7 +862,7 @@ class PosReportStaffTipsPanel extends StatelessWidget {
             Text(
               "Orders record the terminal, not the person, so sales and "
               "tips can't be split per staff member yet.",
-              style: PosUI.text(
+              style: posReportText(
                 context,
                 size: 11,
                 weight: FontWeight.w500,
@@ -862,36 +889,44 @@ class _StaffRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: posPx(context, PosReportSpec.compactRowHeight),
+    // Figma's row is one line; the role rides beside the name rather than
+    // under it so the row keeps that height.
+    return Container(
+      padding: EdgeInsets.all(posPx(context, PosReportSpec.staffRowPadding)),
+      decoration: BoxDecoration(
+        color: PosReportSpec.rowFill,
+        borderRadius:
+            BorderRadius.circular(posPx(context, PosReportSpec.staffRowRadius)),
+      ),
       child: Row(
         children: <Widget>[
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: <Widget>[
-                Text(
-                  member.name,
-                  style: PosUI.text(
-                    context,
-                    size: PosReportSpec.tableRowSize,
-                    weight: FontWeight.w700,
-                    color: PosReportSpec.ink,
+                Flexible(
+                  child: Text(
+                    member.name,
+                    style: posReportText(
+                      context,
+                      size: PosReportSpec.detailRowSize,
+                      weight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  member.role,
-                  style: PosUI.text(
-                    context,
-                    size: PosReportSpec.tableRowSize - 2,
-                    weight: FontWeight.w500,
-                    color: PosReportSpec.inkMuted,
+                SizedBox(width: posPx(context, PosReportSpec.legendGap)),
+                Flexible(
+                  child: Text(
+                    member.role,
+                    style: posReportText(
+                      context,
+                      size: PosReportSpec.paymentSubSize,
+                      color: PosReportSpec.inkMuted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -901,9 +936,9 @@ class _StaffRow extends StatelessWidget {
             child: Text(
               '—',
               textAlign: TextAlign.right,
-              style: PosUI.text(
+              style: posReportText(
                 context,
-                size: PosReportSpec.tableRowSize,
+                size: PosReportSpec.detailRowSize,
                 weight: FontWeight.w600,
                 color: PosReportSpec.inkMuted,
               ),
@@ -914,11 +949,10 @@ class _StaffRow extends StatelessWidget {
             child: Text(
               '—',
               textAlign: TextAlign.right,
-              style: PosUI.text(
+              style: posReportText(
                 context,
-                size: PosReportSpec.tableRowSize,
-                weight: FontWeight.w600,
-                color: PosReportSpec.inkMuted,
+                size: PosReportSpec.detailRowSize,
+                weight: FontWeight.w700,
               ),
             ),
           ),
@@ -944,6 +978,9 @@ class PosReportRefundsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     String row(int count, double amount) =>
         '$count (${PosHomeSpec.formatPrice(amount, padZero: false)})';
+    // Figma greys a line that has nothing in it (`0 (€ 0.00)`).
+    Color valueColor(int count) =>
+        count == 0 ? PosReportSpec.inkMuted : PosReportSpec.ink;
 
     return PosReportCard(
       title: 'Refunds & Discounts',
@@ -959,6 +996,7 @@ class PosReportRefundsPanel extends StatelessWidget {
               value: row(data.refundCount, data.refundValue),
               labelColor: PosReportSpec.ink,
               valueWeight: FontWeight.w800,
+              valueColor: valueColor(data.refundCount),
             ),
             SizedBox(height: posPx(context, PosReportSpec.refundRowGap)),
             PosReportDetailRow(
@@ -966,6 +1004,7 @@ class PosReportRefundsPanel extends StatelessWidget {
               value: row(data.staffDiscountCount, data.staffDiscountValue),
               labelColor: PosReportSpec.ink,
               valueWeight: FontWeight.w800,
+              valueColor: valueColor(data.staffDiscountCount),
             ),
             SizedBox(height: posPx(context, PosReportSpec.refundRowGap)),
             PosReportDetailRow(
@@ -973,6 +1012,7 @@ class PosReportRefundsPanel extends StatelessWidget {
               value: row(data.promoDiscountCount, data.promoDiscountValue),
               labelColor: PosReportSpec.ink,
               valueWeight: FontWeight.w800,
+              valueColor: valueColor(data.promoDiscountCount),
             ),
           ],
         ),

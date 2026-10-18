@@ -1,15 +1,23 @@
+import 'package:acafe_customer/features/pos/domain/pos_close_day_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:flutter/material.dart';
 
-/// Figma **1641:5518** — Report Overview.
+/// Figma **1915:18091** (redesign of 1641:5518) — Report Overview.
 ///
 /// Authored against the 1366px frame in the design file, not the 1920px board
 /// the rest of POS uses. That difference is why this screen keeps its own
 /// tokens instead of borrowing [PosHomeSpec]: the numbers below are literal
 /// Figma values and only mean anything against that frame. They still travel
-/// through `posPx()` like every other POS token, so density still follows
-/// [PosMetrics].
+/// through `posPx()` like every other POS token, but never below [minScale] —
+/// see `PosReportScreen`.
 class PosReportSpec {
   PosReportSpec._();
+
+  /// Floor for the shell's density scale on this screen. The shell scales
+  /// against the 1920 board, which would draw these 1366-frame values at
+  /// ~71% on the very 1366 terminal they were designed for. Larger displays
+  /// still scale up as before.
+  static const double minScale = 1.0;
 
   // ── Palette ──────────────────────────────────────────────────────────
   /// The report frames use `#E1DBC4` for card borders — a step warmer than
@@ -28,6 +36,18 @@ class PosReportSpec {
   /// Unhighlighted hourly bar / neutral chart fill.
   static const Color barIdle = Color(0xFFE1DBC4);
 
+  /// In-card rules (VAT breakdown, cash drawer) — Figma's `Line` stroke,
+  /// lighter than [cardBorder].
+  static const Color divider = PosHomeSpec.hairline;
+
+  /// Label on the dark KPI pills (`32 pending prep`).
+  static const Color solidBadgeText = Colors.white;
+
+  /// Cash drawer `Difference` row — the same red pair Close Day uses for its
+  /// discrepancy badge.
+  static const Color negativeText = PosCloseDaySpec.discrepancyRed;
+  static const Color negativeFill = PosCloseDaySpec.discrepancyBadgeBg;
+
   /// Category stacked-bar palette, in order. Cycled when a day has more
   /// categories than colours.
   static const List<Color> categoryColors = <Color>[
@@ -44,21 +64,24 @@ class PosReportSpec {
   static const double bodyPaddingTop = 16;
   static const double bodyPaddingBottom = 24;
   static const double sectionGap = 16;
+
+  /// Between cards in a row.
   static const double cardGap = 12;
+
+  /// Between the rows themselves (KPI → middle → hourly → bottom): the
+  /// `body` auto-layout gap, wider than the in-row gap.
+  static const double rowGap = 16;
 
   // ── Card ─────────────────────────────────────────────────────────────
   static const double cardRadius = 16;
   static const double cardPadding = 16;
   static const double cardInnerGap = 12;
 
-  /// Panel titles: 16 in the middle row, 15 in the bottom row.
+  /// Panel titles: 16 in the middle row, 15 in the bottom row. The title row
+  /// hugs its content, as drawn: 23 with a pill and 19 without at 16px, 21
+  /// and 18 at 15px.
   static const double panelTitleSize = 16;
   static const double panelTitleSizeSmall = 15;
-
-  /// Fixed height for the title row. Some panels carry a pill in that row and
-  /// some do not; without a common height the four bottom cards start their
-  /// content at different depths and the row visibly fails to line up.
-  static const double panelTitleHeight = 26;
 
   // ── Badge pill ───────────────────────────────────────────────────────
   static const double badgeRadius = 999;
@@ -73,6 +96,14 @@ class PosReportSpec {
   static const double kpiSectionLabelSize = 11;
   static const double kpiRowSize = 12;
   static const double kpiTightGap = 4;
+
+  /// The note + pill block under the figure on Orders / AOV / Tips: 8 above,
+  /// 8 between.
+  static const double kpiFootPaddingTop = 8;
+  static const double kpiFootGap = 8;
+
+  /// `Gross Sales` sits 2 lower than the other VAT rows.
+  static const double kpiTotalRowPaddingTop = 2;
 
   // ── Date header ──────────────────────────────────────────────────────
   static const double controlRadius = 12;
@@ -128,6 +159,9 @@ class PosReportSpec {
   static const double chartBarGap = 8;
   static const double chartBarRadius = 4;
   static const double chartLabelSize = 10;
+
+  /// Inter 10's `leading-normal` line box.
+  static const double chartLabelHeight = 12;
   static const double chartLabelGap = 4;
 
   /// Widest a single bar is allowed to get. Figma's day spans fifteen hours,
@@ -154,6 +188,8 @@ class PosReportSpec {
   static const double staffRowRadius = 8;
   static const double staffRowPadding = 6;
   static const double staffColumnWidth = 80;
+  static const double differenceRowPadding = 6;
+  static const double differenceRowRadius = 8;
 
   // ── Device breakdown cards ("Revenue by Terminal") ────────────────────
   static const double deviceCardWidth = 176;

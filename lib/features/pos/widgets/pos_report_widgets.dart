@@ -1,12 +1,40 @@
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
+import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
-/// Shared building blocks for the Report Overview panels (Figma **1641:5518**).
+/// Shared building blocks for the Report Overview panels (Figma **1915:18091**).
 ///
 /// Every panel on that screen is the same card: white fill, `#E1DBC4` hairline,
 /// 16px radius, 16px padding, a title row, then content at a 12px rhythm. These
 /// live in one place so the nine panels cannot drift apart.
+
+/// [PosUI.text] in Inter, the face every Report panel is set in. Scaled by
+/// `PosMetrics` like every other POS style.
+TextStyle posReportText(
+  BuildContext context, {
+  required double size,
+  FontWeight weight = FontWeight.w400,
+  Color color = PosReportSpec.ink,
+  double? height,
+}) =>
+    PosUI.text(context,
+            size: size, weight: weight, color: color, height: height)
+        .copyWith(fontFamily: interRegular.fontFamily);
+
+/// The 1px in-card rule (Figma `Line`).
+class PosReportDivider extends StatelessWidget {
+  const PosReportDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      width: double.infinity,
+      color: PosReportSpec.divider,
+    );
+  }
+}
 
 /// A report panel. [trailing] is the pill on the right of the title row.
 class PosReportCard extends StatelessWidget {
@@ -40,31 +68,27 @@ class PosReportCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           if (title != null) ...<Widget>[
-            SizedBox(
-              height: posPx(context, PosReportSpec.panelTitleHeight),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      title!,
-                      style: PosUI.text(
-                        context,
-                        size: compactTitle
-                            ? PosReportSpec.panelTitleSizeSmall
-                            : PosReportSpec.panelTitleSize,
-                        weight: FontWeight.w800,
-                        color: PosReportSpec.ink,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    title!,
+                    style: posReportText(
+                      context,
+                      size: compactTitle
+                          ? PosReportSpec.panelTitleSizeSmall
+                          : PosReportSpec.panelTitleSize,
+                      weight: FontWeight.w800,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (trailing != null) ...<Widget>[
-                    SizedBox(width: posPx(context, 8)),
-                    Flexible(child: trailing!),
-                  ],
+                ),
+                if (trailing != null) ...<Widget>[
+                  SizedBox(width: posPx(context, 8)),
+                  Flexible(child: trailing!),
                 ],
-              ),
+              ],
             ),
             SizedBox(height: posPx(context, PosReportSpec.cardInnerGap)),
           ],
@@ -93,6 +117,9 @@ class PosReportBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(posPx(context, PosReportSpec.badgeRadius));
+
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: posPx(context, PosReportSpec.badgePaddingH),
@@ -100,19 +127,23 @@ class PosReportBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: solid ? PosReportSpec.ink : PosReportSpec.rowFill,
-        borderRadius:
-            BorderRadius.circular(posPx(context, PosReportSpec.badgeRadius)),
-        border: solid
-            ? null
-            : Border.all(color: PosReportSpec.cardBorder, width: 1),
+        borderRadius: radius,
       ),
+      // Figma strokes sit inside the pill; a decoration border would inset
+      // the label and make the pill 2px taller than drawn.
+      foregroundDecoration: solid
+          ? null
+          : BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(color: PosReportSpec.cardBorder, width: 1),
+            ),
       child: Text(
         label,
-        style: PosUI.text(
+        style: posReportText(
           context,
           size: textSize,
           weight: FontWeight.w700,
-          color: solid ? PosUI.pageBg : PosReportSpec.ink,
+          color: solid ? PosReportSpec.solidBadgeText : PosReportSpec.ink,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -151,7 +182,7 @@ class PosReportDetailRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: PosUI.text(
+            style: posReportText(
               context,
               size: size,
               weight: labelWeight,
@@ -164,7 +195,7 @@ class PosReportDetailRow extends StatelessWidget {
         SizedBox(width: posPx(context, 8)),
         Text(
           value,
-          style: PosUI.text(
+          style: posReportText(
             context,
             size: size,
             weight: valueWeight,
@@ -198,7 +229,7 @@ class PosReportTableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle style = PosUI.text(
+    final TextStyle style = posReportText(
       context,
       size: PosReportSpec.tableHeaderSize,
       weight: FontWeight.w700,
@@ -278,7 +309,7 @@ class PosReportEmptyState extends StatelessWidget {
         children: <Widget>[
           Text(
             message,
-            style: PosUI.text(
+            style: posReportText(
               context,
               size: PosReportSpec.detailRowSize,
               weight: FontWeight.w700,
@@ -289,7 +320,7 @@ class PosReportEmptyState extends StatelessWidget {
             SizedBox(height: posPx(context, 4)),
             Text(
               detail!,
-              style: PosUI.text(
+              style: posReportText(
                 context,
                 size: PosReportSpec.paymentSubSize,
                 weight: FontWeight.w400,

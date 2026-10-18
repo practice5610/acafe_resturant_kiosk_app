@@ -103,10 +103,8 @@ class AppConstants {
   static const String splitBalanceUri =
       '/api/v1/customer/order/split-payment/balance';
   // Split-by-item (Family 3) — additive endpoints.
-  static const String splitByItemCreateGroupsUri =
-      '/api/v1/customer/order/split-by-item/create-groups';
-  static const String splitByItemRecordPaymentUri =
-      '/api/v1/customer/order/split-by-item/record-payment';
+  static const String splitByItemPayItemsUri =
+      '/api/v1/customer/order/split-by-item/pay-items';
   static const String splitByItemBalanceUri =
       '/api/v1/customer/order/split-by-item/balance';
   // Stand-alone terminal (Family 5) — additive endpoint.

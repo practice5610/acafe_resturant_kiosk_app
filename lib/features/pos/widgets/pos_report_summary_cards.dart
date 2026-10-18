@@ -5,21 +5,29 @@ import 'package:acafe_customer/features/pos/widgets/pos_report_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:flutter/material.dart';
 
-/// The `kpi-row` of Figma **1641:5518** — Total Revenue, Total Orders, Average
+/// The `kpi-row` of Figma **1915:18091** — Total Revenue, Total Orders, Average
 /// Order Value, Tips Received.
 ///
 /// The four cards are siblings in an IntrinsicHeight row so the Total Revenue
 /// card's VAT table sets a common height and the other three do not float at
 /// different depths.
 
-/// One KPI card: label, big figure, a note line, and optional extra content
-/// below a divider.
+/// One KPI card: label, big figure, then either a bold note + extra content
+/// below a divider (Total Revenue), or a muted description + dark pill
+/// (Total Orders, Average Order Value, Tips Received).
+///
+/// The two shapes space differently in Figma: Total Revenue stacks label,
+/// figure and note 4 apart; the other three cards sit them on the card's 12px
+/// rhythm and set the description block 8 lower again.
 class PosReportKpiCard extends StatelessWidget {
   final String label;
   final String value;
 
-  /// The small line directly under the figure (`~5% vs yesterday`).
+  /// The bold line directly under the figure (`~5% vs yesterday`).
   final String? note;
+
+  /// The muted sentence under the figure on the simpler cards.
+  final String? description;
 
   /// The dark pill at the foot of the card (`32 pending prep`).
   final String? badge;
@@ -32,12 +40,18 @@ class PosReportKpiCard extends StatelessWidget {
     required this.label,
     required this.value,
     this.note,
+    this.description,
     this.badge,
     this.extra,
   });
 
   @override
   Widget build(BuildContext context) {
+    final double headGap = posPx(
+      context,
+      extra != null ? PosReportSpec.kpiTightGap : PosReportSpec.cardInnerGap,
+    );
+
     return PosReportCard(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -45,7 +59,7 @@ class PosReportKpiCard extends StatelessWidget {
         children: <Widget>[
           Text(
             label,
-            style: PosUI.text(
+            style: posReportText(
               context,
               size: PosReportSpec.kpiLabelSize,
               weight: FontWeight.w700,
@@ -54,48 +68,60 @@ class PosReportKpiCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(height: posPx(context, PosReportSpec.kpiTightGap)),
+          SizedBox(height: headGap),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: PosUI.text(
+              style: posReportText(
                 context,
                 size: PosReportSpec.kpiValueSize,
                 weight: FontWeight.w800,
-                color: PosReportSpec.ink,
               ),
               maxLines: 1,
             ),
           ),
           if (note != null) ...<Widget>[
-            SizedBox(height: posPx(context, PosReportSpec.kpiTightGap)),
+            SizedBox(height: headGap),
             Text(
               note!,
-              style: PosUI.text(
+              style: posReportText(
                 context,
                 size: PosReportSpec.kpiNoteSize,
                 weight: FontWeight.w700,
-                color: PosReportSpec.ink,
-                height: 1.35,
               ),
             ),
           ],
-          if (badge != null) ...<Widget>[
-            SizedBox(height: posPx(context, PosReportSpec.cardInnerGap)),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: PosReportBadge(badge!, solid: true),
+          if (description != null || badge != null) ...<Widget>[
+            SizedBox(height: headGap),
+            Padding(
+              padding: EdgeInsets.only(
+                top: posPx(context, PosReportSpec.kpiFootPaddingTop),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (description != null)
+                    Text(
+                      description!,
+                      style: posReportText(
+                        context,
+                        size: PosReportSpec.kpiNoteSize,
+                        color: PosReportSpec.inkMuted,
+                      ),
+                    ),
+                  if (description != null && badge != null)
+                    SizedBox(height: posPx(context, PosReportSpec.kpiFootGap)),
+                  if (badge != null) PosReportBadge(badge!, solid: true),
+                ],
+              ),
             ),
           ],
           if (extra != null) ...<Widget>[
             SizedBox(height: posPx(context, PosReportSpec.cardInnerGap)),
-            Container(
-              height: 1,
-              width: double.infinity,
-              color: PosReportSpec.cardBorder,
-            ),
+            const PosReportDivider(),
             SizedBox(height: posPx(context, PosReportSpec.cardInnerGap)),
             extra!,
           ],
@@ -139,7 +165,7 @@ class PosReportRevenueCard extends StatelessWidget {
         children: <Widget>[
           Text(
             'VAT / BTW BREAKDOWN',
-            style: PosUI.text(
+            style: posReportText(
               context,
               size: PosReportSpec.kpiSectionLabelSize,
               weight: FontWeight.w700,
@@ -173,7 +199,12 @@ class PosReportRevenueCard extends StatelessWidget {
                 valueWeight: FontWeight.w600,
               ),
             ],
-          SizedBox(height: posPx(context, PosReportSpec.kpiTightGap)),
+          SizedBox(
+            height: posPx(
+              context,
+              PosReportSpec.kpiTightGap + PosReportSpec.kpiTotalRowPaddingTop,
+            ),
+          ),
           PosReportDetailRow(
             // Figma's "Gross Sales" is the sum of the rows above it — the same
             // figure as the headline. It is restated here as the total of the
@@ -198,7 +229,7 @@ class PosReportSummaryCards {
   static Widget totalOrders(PosReportData data) => PosReportKpiCard(
         label: 'Total Orders',
         value: '${data.orderCount}',
-        note: '${data.completedOrderCount} completed today.',
+        description: '${data.completedOrderCount} completed today.',
         badge: data.pendingPrepCount > 0
             ? '${data.pendingPrepCount} pending prep'
             : null,
@@ -211,7 +242,7 @@ class PosReportSummaryCards {
         // that looks like a bug otherwise: AOV is net sales over *completed*
         // orders, while Total Orders counts every non-delivery order including
         // cancelled ones. Both are correct; they measure different sets.
-        note: 'Across ${data.completedOrderCount} completed orders.',
+        description: 'Across ${data.completedOrderCount} completed orders.',
       );
 
   static Widget tips(PosReportData data) => PosReportKpiCard(
@@ -222,6 +253,6 @@ class PosReportSummaryCards {
         // per terminal rather than per person (Phase 1, Decision 2). Today this
         // figure is effectively kiosk-originated, since the POS flow has no
         // tipping step.
-        note: 'Branch pool for the day.',
+        description: 'Branch pool for the day.',
       );
 }

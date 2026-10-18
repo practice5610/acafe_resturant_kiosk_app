@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/di_container.dart' show sl;
@@ -18,6 +20,9 @@ import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
@@ -47,38 +52,72 @@ ApiResponseModel _ok(Map<String, dynamic> data) =>
 
 int _cents(num v) => (v * 100).round();
 
-/// The terminal: approves every charge unless told otherwise.
+/// The terminal: approves every charge unless told otherwise. With [hold] a
+/// charge waits (the waiting card stays up) until [release] or a cancel.
 class FakeTerminal implements KioskPaymentService {
   final List<double> charged = [];
+  final List<String> keys = [];
   KioskPaymentStatus answer = KioskPaymentStatus.paid;
+  bool hold = false;
+  Completer<KioskPaymentResult>? _pending;
 
   @override
   Future<KioskPaymentResult> pay({
     required double amount,
     required String idempotencyKey,
-  }) async {
+  }) {
     charged.add(amount);
-    return KioskPaymentResult(answer, paymentRef: 'tx-${charged.length}');
+    keys.add(idempotencyKey);
+    if (hold) {
+      _pending = Completer<KioskPaymentResult>();
+      return _pending!.future;
+    }
+    return Future.value(
+        KioskPaymentResult(answer, paymentRef: 'tx-${charged.length}'));
+  }
+
+  void release([KioskPaymentStatus? status]) {
+    final Completer<KioskPaymentResult>? pending = _pending;
+    _pending = null;
+    pending?.complete(KioskPaymentResult(status ?? answer,
+        paymentRef: 'tx-${charged.length}'));
   }
 
   @override
-  Future<void> cancel() async {}
+  Future<void> cancel() async => release(KioskPaymentStatus.canceled);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// `SplitPaymentController::record`: 422 above what is still owed.
+/// `SplitPaymentController::record`: 422 above what is still owed; a
+/// replayed reference returns the same snapshot without a second row.
 class FakeSplitRepo implements PosSplitRepo {
   double grandTotal = 19;
 
   /// Backend-needs B3: the snapshot carries each payment's id.
   bool withIds = false;
+
+  /// The next record fails as a dropped connection would: nothing saved.
+  bool failNext = false;
   final List<Map<String, dynamic>> payments = [];
   final List<double> rejected = [];
+  final List<String> references = [];
 
   int get _paidCents =>
       payments.fold(0, (a, p) => a + _cents(p['paid_amount'] as double));
+
+  Map<String, dynamic> _snapshot(int orderId) {
+    final int left = _cents(grandTotal) - _paidCents;
+    return {
+      'order_id': orderId,
+      'grand_total': grandTotal,
+      'payments': payments,
+      'paid': _paidCents / 100,
+      'remaining': left / 100,
+      'fully_paid': left == 0,
+    };
+  }
 
   @override
   Future<ApiResponseModel> record({
@@ -89,6 +128,14 @@ class FakeSplitRepo implements PosSplitRepo {
     required String reference,
     String? transactionReference,
   }) async {
+    references.add(reference);
+    if (failNext) {
+      failNext = false;
+      return ApiResponseModel.withError('Connection lost');
+    }
+    if (payments.any((p) => p['reference'] == reference)) {
+      return _ok(_snapshot(orderId)..['replayed'] = true);
+    }
     final int remaining = _cents(grandTotal) - _paidCents;
     if (_cents(paidAmount) <= 0 || _cents(paidAmount) > remaining) {
       rejected.add(paidAmount);
@@ -101,35 +148,29 @@ class FakeSplitRepo implements PosSplitRepo {
       'paid_amount': paidAmount,
       'reference': reference,
     });
-    final int left = _cents(grandTotal) - _paidCents;
-    return _ok({
-      'order_id': orderId,
-      'grand_total': grandTotal,
-      'payments': payments,
-      'paid': _paidCents / 100,
-      'remaining': left / 100,
-      'fully_paid': left == 0,
-    });
+    return _ok(_snapshot(orderId)..['replayed'] = false);
   }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// `SplitByItemController`: create-groups must sum to the order total (±1
-/// cent) and replaces any groups already there; record-payment settles one
-/// group and must not exceed it. Response shapes as the controller's.
+/// `SplitByItemController::payItems`: one guest's items recorded as a paid
+/// group; rejects an item already paid and more than the remaining balance;
+/// idempotent on the reference. Response shape as the controller's.
 class FakeSbiRepo implements PosSplitByItemRepo {
   double grandTotal = 19;
   bool withIds = false;
+  bool failNext = false;
   List<Map<String, dynamic>> groups = [];
-  final List<List<Map<String, dynamic>>> creates = [];
-  final List<(int, String, double)> records = [];
+
+  /// Each saved payment: (item ids joined, method, amount).
+  final List<(String, String, double)> pays = [];
+  final List<String> rejected = [];
 
   Map<String, dynamic> _snapshot(int orderId) {
-    final int paid = groups
-        .where((g) => g['status'] == 'succeeded')
-        .fold(0, (a, g) => a + _cents(g['amount'] as double));
+    final int paid =
+        groups.fold(0, (a, g) => a + _cents(g['amount'] as double));
     final int left = _cents(grandTotal) - paid;
     return {
       'order_id': orderId,
@@ -142,63 +183,46 @@ class FakeSbiRepo implements PosSplitByItemRepo {
   }
 
   @override
-  Future<ApiResponseModel> createGroups({
+  Future<ApiResponseModel> payItems({
     required int orderId,
     required int deviceId,
-    required List<Map<String, dynamic>> groups,
-  }) async {
-    creates.add(groups);
-    final int sum =
-        groups.fold(0, (a, g) => a + _cents((g['amount'] as num).toDouble()));
-    if ((sum - _cents(grandTotal)).abs() > 1) {
-      return ApiResponseModel.withError('Group amounts must sum to order total.');
-    }
-    this.groups = [
-      for (int i = 0; i < groups.length; i++)
-        {
-          if (withIds) 'id': 200 + i + 1,
-          'seq': i + 1,
-          'amount': (groups[i]['amount'] as num).toDouble(),
-          'item_ids': groups[i]['item_ids'],
-          'status': 'pending',
-        },
-    ];
-    return _ok({
-      'order_id': orderId,
-      'grand_total': grandTotal,
-      'groups': [
-        for (final g in this.groups)
-          {
-            if (withIds) 'id': g['id'],
-            'seq': g['seq'],
-            'amount': g['amount'],
-            'item_ids': g['item_ids'],
-            'status': g['status'],
-          },
-      ],
-    });
-  }
-
-  @override
-  Future<ApiResponseModel> recordPayment({
-    required int orderId,
-    required int groupSeq,
+    required List<int> itemIds,
+    required double amount,
     required String paidWith,
-    required double paidAmount,
-    required int deviceId,
     required String reference,
     String? transactionReference,
   }) async {
-    final Map<String, dynamic>? g =
-        groups.where((g) => g['seq'] == groupSeq).firstOrNull;
-    if (g == null) return ApiResponseModel.withError('Group not found.');
-    if (_cents(paidAmount) > _cents(g['amount'] as double)) {
-      return ApiResponseModel.withError('Payment exceeds group amount.');
+    if (failNext) {
+      failNext = false;
+      return ApiResponseModel.withError('Connection lost');
     }
-    records.add((groupSeq, paidWith, paidAmount));
-    g['status'] = 'succeeded';
-    g['paid_with'] = paidWith;
-    g['reference'] = reference;
+    if (groups.any((g) => g['reference'] == reference)) {
+      return _ok(_snapshot(orderId)..['replayed'] = true);
+    }
+    final Set<int> paidIds = {
+      for (final g in groups) ...(g['item_ids'] as List).cast<int>(),
+    };
+    if (itemIds.any(paidIds.contains)) {
+      rejected.add(reference);
+      return ApiResponseModel.withError('Item already paid.');
+    }
+    final int paid =
+        groups.fold(0, (a, g) => a + _cents(g['amount'] as double));
+    final int remaining = _cents(grandTotal) - paid;
+    if (_cents(amount) <= 0 || _cents(amount) > remaining) {
+      rejected.add(reference);
+      return ApiResponseModel.withError('The payment exceeds the remaining balance.');
+    }
+    pays.add((itemIds.join(','), paidWith, amount));
+    groups.add({
+      if (withIds) 'id': 200 + groups.length + 1,
+      'seq': groups.length + 1,
+      'amount': amount,
+      'item_ids': itemIds,
+      'paid_with': paidWith,
+      'status': 'succeeded',
+      'reference': reference,
+    });
     return _ok(_snapshot(orderId)..['replayed'] = false);
   }
 
@@ -321,9 +345,19 @@ class FakeReceiptSendRepo implements PosReceiptSendRepo {
 /// `InvoiceController::create` / `StandalonePaymentController::record`.
 class FakeInvoiceRepo implements PosInvoiceRepo {
   final List<Map<String, dynamic>> created = [];
+  final List<String> references = [];
+  bool failNext = false;
 
   @override
   Future<ApiResponseModel> create(Map<String, dynamic> payload) async {
+    references.add('${payload['reference']}');
+    if (failNext) {
+      failNext = false;
+      return ApiResponseModel.withError('Connection lost');
+    }
+    if (created.any((c) => c['reference'] == payload['reference'])) {
+      return _ok({'invoice_id': 1, 'replayed': true});
+    }
     created.add(payload);
     return _ok({'invoice_id': 1, 'replayed': false});
   }
@@ -334,6 +368,8 @@ class FakeInvoiceRepo implements PosInvoiceRepo {
 
 class FakeStandaloneRepo implements PosStandaloneRepo {
   final List<(int, String?)> recorded = [];
+  final List<String> references = [];
+  bool failNext = false;
 
   @override
   Future<ApiResponseModel> record({
@@ -342,6 +378,11 @@ class FakeStandaloneRepo implements PosStandaloneRepo {
     required String reference,
     String? approvalCode,
   }) async {
+    references.add(reference);
+    if (failNext) {
+      failNext = false;
+      return ApiResponseModel.withError('Connection lost');
+    }
     recorded.add((orderId, approvalCode));
     return _ok({'payment_status': 'paid', 'replayed': false});
   }
@@ -362,6 +403,9 @@ late FakeStandaloneRepo standaloneRepo;
 late List<double> placed;
 bool placeFails = false;
 
+/// When set, the order post waits for it — a slow network.
+Completer<void>? placeGate;
+
 void _register<T extends Object>(T instance) {
   if (sl.isRegistered<T>()) sl.unregister<T>();
   sl.registerSingleton<T>(instance);
@@ -377,6 +421,7 @@ void setUpFlowFakes() {
   standaloneRepo = FakeStandaloneRepo();
   placed = [];
   placeFails = false;
+  placeGate = null;
   _register<KioskPaymentService>(terminal);
   _register<PosSplitRepo>(splitRepo);
   _register<PosSplitByItemRepo>(sbiRepo);
@@ -389,6 +434,7 @@ void setUpFlowFakes() {
       paymentRef,
       bringChangeAmount,
       tipAmountOverride}) async {
+    if (placeGate != null) await placeGate!.future;
     if (placeFails) {
       return const KioskPlaceResult(success: false, message: 'Server down');
     }
@@ -496,6 +542,9 @@ void main() {
     PosSaleSession.instance.reset();
   });
 
+  Finder snack(String text) =>
+      find.descendant(of: find.byType(SnackBar), matching: find.textContaining(text));
+
   group('2a · split chooser (frame 13)', () {
     testWidgets('"Split by item" opens the chooser; nothing is placed yet',
         (tester) async {
@@ -518,28 +567,25 @@ void main() {
       expect(placed, isEmpty);
     });
 
-    testWidgets('a failed order placement keeps the chooser up',
-        (tester) async {
+    testWidgets('Continue is instant and places nothing', (tester) async {
       await openChooser(tester);
-      placeFails = true;
       await confirmBar(tester);
-      expect(find.byType(PosSplitChooserPanel), findsOneWidget);
-      expect(bar(tester), ('Continue', true));
+      expect(find.byType(PosSplitByItemPanel), findsOneWidget);
+      expect(placed, isEmpty, reason: 'placed with the first payment');
     });
   });
 
-  group('2a · split by item', () {
+  group('2a · split by item: each guest pays for their own items', () {
     Future<void> pick(WidgetTester tester, List<String> names) async {
       for (final n in names) {
         await tap(tester, inPane(PosSplitByItemPanel, n));
       }
     }
 
-    testWidgets('card, two guests: groups sum to the total, then Order Paid',
+    testWidgets('two guests, card: one order, two payments, then Order Paid',
         (tester) async {
       await openChooser(tester);
       await confirmBar(tester);
-      expect(placed, [19]);
       expect(find.text('SELECT ITEMS FOR PAYMENT 1'), findsOneWidget);
       expect(bar(tester), ('Start Payment 1 · € 0.00', false));
 
@@ -547,61 +593,71 @@ void main() {
       expect(bar(tester), ('Start Payment 1 · € 12.00', true));
       await confirmBar(tester);
 
-      // One create-groups call defining the whole split (the pick + the
-      // rest), summing to the order total.
-      expect(sbiRepo.creates, hasLength(1));
-      expect(sbiRepo.creates.single, [
-        {'item_ids': [0, 1], 'amount': 12.0},
-        {'item_ids': [2], 'amount': 7.0},
-      ]);
+      // Charged first, then the order placed once, then the guest's items.
       expect(terminal.charged, [12]);
-      expect(sbiRepo.records, [(1, 'card', 12.0)]);
+      expect(placed, [19]);
+      expect(sbiRepo.pays, [('0,1', 'card', 12.0)]);
       expect(find.text('Split Payment 1 Successful'), findsOneWidget);
 
       await tap(tester, find.text('Start next payment'));
-      // The rest comes ticked; the paid items are inert "Paid" rows.
+      // What is still unpaid comes ticked; the paid items are inert "Paid".
       expect(find.text('SELECT ITEMS FOR PAYMENT 2'), findsOneWidget);
+      expect(find.text('Paid'), findsNWidgets(2));
       expect(bar(tester), ('Start Payment 2 · € 7.00', true));
       await confirmBar(tester);
 
-      expect(sbiRepo.creates, hasLength(1), reason: 'never re-created');
+      expect(placed, [19], reason: 'never placed twice');
       expect(terminal.charged, [12, 7]);
-      expect(sbiRepo.records.last, (2, 'card', 7.0));
+      expect(sbiRepo.pays.last, ('2', 'card', 7.0));
       expect(find.text('Order Paid'), findsOneWidget);
 
       await tap(tester, find.text('Next order'));
       expect(find.text('ROUTE /pos-home'), findsOneWidget);
     });
 
-    testWidgets('payment 2 must settle the remaining group as a whole',
+    testWidgets('three guests: guest 2 pays for one of the remaining items',
         (tester) async {
       await openChooser(tester);
       await confirmBar(tester);
       await pick(tester, ['Oat Milk Matcha']);
       await confirmBar(tester);
       await tap(tester, find.text('Start next payment'));
+
+      // Both remaining items come ticked; guest 2 only had the latte.
       expect(bar(tester), ('Start Payment 2 · € 13.00', true));
-      // Unticking one of the remaining items cannot be paid separately.
       await pick(tester, ['Mango Matcha']);
-      expect(bar(tester).$2, isFalse);
-      await pick(tester, ['Mango Matcha']);
-      expect(bar(tester), ('Start Payment 2 · € 13.00', true));
+      expect(bar(tester), ('Start Payment 2 · € 6.00', true));
+      expect(find.text('€ 7.00 remaining after this payment'), findsOneWidget);
+      await tap(tester, inPane(PosPayWithRow, 'Cash'));
+      await confirmBar(tester); // the cash step
+      await confirmBar(tester); // Exact
+      await tap(tester, find.text('Start next payment'));
+
+      expect(find.text('SELECT ITEMS FOR PAYMENT 3'), findsOneWidget);
+      expect(bar(tester), ('Start Payment 3 · € 7.00', true));
+      await confirmBar(tester);
+
+      expect(sbiRepo.pays, [
+        ('0', 'card', 6.0),
+        ('1', 'cash', 6.0),
+        ('2', 'card', 7.0),
+      ]);
+      expect(placed, [19]);
+      expect(find.text('Order Paid'), findsOneWidget);
     });
 
-    testWidgets('every item in one payment: a single group, the whole total',
+    testWidgets('every item in one payment: the whole total, Order Paid',
         (tester) async {
       await openChooser(tester);
       await confirmBar(tester);
       await pick(tester, ['Oat Milk Matcha', 'Vanilla Matcha Latte', 'Mango Matcha']);
       expect(bar(tester), ('Start Payment 1 · € 19.00', true));
       await confirmBar(tester);
-      expect(sbiRepo.creates.single, [
-        {'item_ids': [0, 1, 2], 'amount': 19.0},
-      ]);
+      expect(sbiRepo.pays.single, ('0,1,2', 'card', 19.0));
       expect(find.text('Order Paid'), findsOneWidget);
     });
 
-    testWidgets('a declined card retries without re-creating the groups',
+    testWidgets('a declined card places nothing; Try Again pays once',
         (tester) async {
       await openChooser(tester);
       await confirmBar(tester);
@@ -609,14 +665,18 @@ void main() {
       terminal.answer = KioskPaymentStatus.failed;
       await confirmBar(tester);
       expect(find.text('Try Again'), findsOneWidget);
+      expect(placed, isEmpty, reason: 'no order for a declined card');
+
       terminal.answer = KioskPaymentStatus.paid;
       await tap(tester, find.text('Try Again'));
-      expect(sbiRepo.creates, hasLength(1));
       expect(terminal.charged, [12, 12]);
-      expect(sbiRepo.records, [(1, 'card', 12.0)]);
+      expect(terminal.keys.toSet(), hasLength(1),
+          reason: 'the retry is the same payment to the terminal');
+      expect(sbiRepo.pays, [('0,1', 'card', 12.0)]);
+      expect(placed, [19]);
     });
 
-    testWidgets('cash (frame 15): tender, change due, records the amount due',
+    testWidgets('cash (frame 15): tender, change due, records the share',
         (tester) async {
       await openChooser(tester);
       await confirmBar(tester);
@@ -625,8 +685,9 @@ void main() {
       expect(bar(tester), ('Start Payment 1 · € 12.00', true));
       await confirmBar(tester);
 
-      // The tender step: nothing sent yet, Exact by default.
-      expect(sbiRepo.creates, isEmpty);
+      // The tender step: nothing taken or placed yet, Exact by default.
+      expect(sbiRepo.pays, isEmpty);
+      expect(placed, isEmpty);
       expect(find.text('PAYMENT 1 · AMOUNT DUE € 12.00'), findsOneWidget);
       expect(find.text('By item · Oat Milk Matcha, Vanilla Matcha Latte'),
           findsOneWidget);
@@ -646,7 +707,7 @@ void main() {
       await confirmBar(tester);
 
       expect(terminal.charged, isEmpty, reason: 'cash never hits the terminal');
-      expect(sbiRepo.records, [(1, 'cash', 12.0)]);
+      expect(sbiRepo.pays, [('0,1', 'cash', 12.0)]);
       expect(find.text('Split Payment 1 Successful'), findsOneWidget);
     });
 
@@ -667,6 +728,27 @@ void main() {
       expect(find.text('SELECT ITEMS FOR PAYMENT 1'), findsOneWidget);
       expect(bar(tester), ('Start Payment 1 · € 6.00', true));
     });
+
+    testWidgets('rows read as frame 21: add-ons under the name, "× 2"',
+        (tester) async {
+      await pumpPaymentScreen(tester, routed: true, lines: [
+        ...figmaTicket(),
+        figmaLine('Iced Americano', 3.5, id: 4),
+        figmaLine('Cappuccino', 3.8, added: const ['Oat milk'], id: 5)
+          ..quantity = 2,
+      ]);
+      await tap(tester, find.text('Split by item'));
+      await confirmBar(tester);
+      expect(inPane(PosSplitByItemPanel, 'Cappuccino × 2'), findsOneWidget);
+      expect(inPane(PosSplitByItemPanel, '€ 7.60'), findsOneWidget);
+      expect(
+          inPane(PosSplitByItemPanel,
+              'Mango purée · Coconut milk · Honey drizzle · Chia seeds · No whipped cream'),
+          findsOneWidget);
+      // No add-ons: the unit.
+      expect(inPane(PosSplitByItemPanel, 'Cup'), findsOneWidget);
+    });
+
   });
 
   group('2a · custom amount (frame 19)', () {
@@ -679,7 +761,7 @@ void main() {
     testWidgets('validates: no zero, no overpay, currency decimals',
         (tester) async {
       await openCustom(tester);
-      expect(placed, [19]);
+      expect(placed, isEmpty);
       expect(find.text('GUEST 1 · CUSTOM AMOUNT'), findsOneWidget);
       expect(find.text('Enter the amount this guest pays'), findsOneWidget);
       expect(bar(tester), ('Start Payment 1', false));
@@ -689,7 +771,8 @@ void main() {
 
       await backspace(tester);
       await keys(tester, '25');
-      expect(bar(tester), ('Start Payment 1', false), reason: 'over € 19.00');
+      expect(bar(tester), ('Enter at most € 19.00', false),
+          reason: 'over € 19.00');
 
       await backspace(tester, 2);
       await keys(tester, '8,555');
@@ -706,6 +789,7 @@ void main() {
       await keys(tester, '8,5');
       await confirmBar(tester);
       expect(terminal.charged, [8.5]);
+      expect(placed, [19]);
       expect(splitRepo.payments.single['paid_amount'], 8.5);
       await tap(tester, find.text('Start next payment'));
 
@@ -724,18 +808,54 @@ void main() {
       await confirmBar(tester);
       expect(splitRepo.rejected, isEmpty);
       expect(splitRepo.payments.last['paid_amount'], 10.5);
+      expect(placed, [19]);
       expect(find.text('Order Paid'), findsOneWidget);
     });
   });
 
-  group('split by payment (unchanged saving path)', () {
-    testWidgets('card above the remaining is blocked before the backend',
-        (tester) async {
+  group('split by payment', () {
+    Future<void> openSplit(WidgetTester tester) async {
       await pumpPaymentScreen(tester, routed: true);
       await tap(tester, find.text('Split by payment'));
+    }
+
+    Future<void> toCash(WidgetTester tester) => tap(
+        tester,
+        find.descendant(
+            of: find.byType(PosSplitMethodToggle),
+            matching: find.text('Cash')));
+
+    testWidgets('€ 19: € 12 on card, the rest in cash — one order, Order Paid',
+        (tester) async {
+      await openSplit(tester);
+      expect(placed, isEmpty, reason: 'entering the mode places nothing');
+      await keys(tester, '12');
+      expect(bar(tester), ('Start Payment 1', true));
+      await confirmBar(tester);
+      expect(terminal.charged, [12]);
       expect(placed, [19]);
+      expect(splitRepo.payments.single['paid_amount'], 12.0);
+      expect(find.text('Split Payment 1 Successful'), findsOneWidget);
+      await tap(tester, find.text('Start next payment'));
+
+      expect(find.text('PAYMENT 2'), findsOneWidget);
+      await toCash(tester);
+      await tap(tester, find.text('Exact'));
+      await confirmBar(tester);
+      expect(terminal.charged, [12], reason: 'cash never hits the terminal');
+      expect(splitRepo.payments.last['paid_with'], 'cash');
+      expect(splitRepo.payments.last['paid_amount'], 7.0);
+      expect(placed, [19], reason: 'never placed twice');
+      expect(find.text('Order Paid'), findsOneWidget);
+      await tap(tester, find.text('Next order'));
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
+    });
+
+    testWidgets('card above the remaining says so and is blocked',
+        (tester) async {
+      await openSplit(tester);
       await keys(tester, '25');
-      expect(bar(tester), ('Start Payment 1', false));
+      expect(bar(tester), ('Enter at most € 19.00', false));
       await backspace(tester, 2);
       await keys(tester, '9');
       expect(bar(tester), ('Start Payment 1', true));
@@ -746,18 +866,145 @@ void main() {
 
     testWidgets('cash over-tender records only what is owed (was a 422)',
         (tester) async {
-      await pumpPaymentScreen(tester, routed: true);
-      await tap(tester, find.text('Split by payment'));
-      await tap(
-          tester,
-          find.descendant(
-              of: find.byType(PosSplitMethodToggle),
-              matching: find.text('Cash')));
+      await openSplit(tester);
+      await toCash(tester);
       await tap(tester, find.text('€ 50'));
       await confirmBar(tester);
       expect(splitRepo.rejected, isEmpty);
       expect(splitRepo.payments.single['paid_amount'], 19.0);
       expect(find.text('Order Paid'), findsOneWidget);
+    });
+
+    testWidgets('switching away before paying leaves no order behind',
+        (tester) async {
+      await openSplit(tester);
+      await tap(tester, inPane(PosPaymentMethodSelector, 'Card'));
+      await tap(tester, find.text('Split by payment'));
+      await tap(tester, find.text('Split by item'));
+      await tap(tester, find.text('Split by payment'));
+      expect(placed, isEmpty, reason: 'was one kitchen order per tap');
+      expect(find.text('PAYMENT 1'), findsOneWidget);
+    });
+
+    testWidgets('the waiting card quotes the payment, not the order total',
+        (tester) async {
+      await openSplit(tester);
+      await keys(tester, '9');
+      terminal.hold = true;
+      await confirmBarNoSettle(tester);
+      expect(
+          find.descendant(
+              of: find.byType(PosWaitingCard), matching: find.text('€ 9.00')),
+          findsOneWidget);
+      terminal.release();
+      await tester.pumpAndSettle();
+      expect(find.text('Split Payment 1 Successful'), findsOneWidget);
+    });
+
+    testWidgets('after a cancelled charge the next one can still be cancelled',
+        (tester) async {
+      await openSplit(tester);
+      await keys(tester, '9');
+      terminal.hold = true;
+      await confirmBarNoSettle(tester);
+      await tapAndPump(tester, find.text('Cancel Transaction'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PosWaitingCard), findsNothing);
+      expect(placed, isEmpty);
+
+      await confirmBarNoSettle(tester);
+      final PosWaitingCard card =
+          tester.widget<PosWaitingCard>(find.byType(PosWaitingCard));
+      expect(card.cancelling, isFalse, reason: 'was stuck on "Cancelling..."');
+      expect(card.onCancel, isNotNull);
+      terminal.release();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('card approved but the save fails: saving again never re-charges',
+        (tester) async {
+      await openSplit(tester);
+      await keys(tester, '9');
+      splitRepo.failNext = true;
+      await confirmBar(tester);
+      expect(terminal.charged, [9]);
+      expect(splitRepo.payments, isEmpty);
+      expect(snack('the card will not be charged again'), findsOneWidget);
+      expect(bar(tester), ('Save Payment 1 · € 9.00', true));
+
+      // The amount is what was charged: the keypad no longer changes it.
+      await keys(tester, '5');
+      expect(bar(tester), ('Save Payment 1 · € 9.00', true));
+
+      await confirmBar(tester);
+      expect(terminal.charged, [9], reason: 'not charged again');
+      expect(placed, [19], reason: 'not placed again');
+      expect(splitRepo.payments.single['paid_amount'], 9.0);
+      expect(splitRepo.references.toSet(), hasLength(1),
+          reason: 'the retry replays the same reference');
+      expect(find.text('Split Payment 1 Successful'), findsOneWidget);
+    });
+
+    testWidgets('card approved but the order fails to place: retry places once',
+        (tester) async {
+      await openSplit(tester);
+      await keys(tester, '9');
+      placeFails = true;
+      await confirmBar(tester);
+      expect(terminal.charged, [9]);
+      expect(placed, isEmpty);
+      expect(bar(tester), ('Save Payment 1 · € 9.00', true));
+
+      placeFails = false;
+      await confirmBar(tester);
+      expect(terminal.charged, [9]);
+      expect(placed, [19]);
+      expect(splitRepo.payments.single['paid_amount'], 9.0);
+    });
+
+    testWidgets('once a payment is in, the method and the ticket are locked',
+        (tester) async {
+      await openSplit(tester);
+      await keys(tester, '9');
+      await confirmBar(tester);
+      await tap(tester, find.text('Start next payment'));
+
+      await tap(tester, inPane(PosPaymentMethodSelector, 'Cash'));
+      expect(snack('Finish this split payment first'), findsOneWidget);
+      expect(find.text('PAYMENT 2'), findsOneWidget);
+
+      tester
+          .widget<PosReceiptLine>(find.byType(PosReceiptLine).first)
+          .onIncrement!();
+      await tester.pumpAndSettle();
+      expect(find.text('€ 10.00'), findsWidgets,
+          reason: 'still € 10.00 to pay: the ticket did not change');
+    });
+
+    testWidgets('Back mid-split asks first; Stay keeps it, Leave ends the sale',
+        (tester) async {
+      await openSplit(tester);
+      await keys(tester, '9');
+      await confirmBar(tester);
+      await tap(tester, find.text('Start next payment'));
+
+      await tester.tap(find.descendant(
+          of: find.byType(PosPayBackRow), matching: find.byType(InkWell)));
+      await tester.pumpAndSettle();
+      expect(find.text('Leave this split payment?'), findsOneWidget);
+      expect(
+          find.text('€ 9.00 is paid and € 10.00 is still open. The order '
+              'stays saved as partially paid.'),
+          findsOneWidget);
+      await tap(tester, find.text('Stay'));
+      expect(find.text('PAYMENT 2'), findsOneWidget);
+
+      await tester.tap(find.descendant(
+          of: find.byType(PosPayBackRow), matching: find.byType(InkWell)));
+      await tester.pumpAndSettle();
+      await tap(tester, find.text('Leave'));
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
+      expect(placed, [19]);
     });
   });
 
@@ -1047,7 +1294,7 @@ void main() {
         (tester) async {
       await pumpPaymentScreen(tester, routed: true);
       await tap(tester, find.text('Invoice'));
-      expect(placed, [19]);
+      expect(placed, isEmpty, reason: 'placed at Confirm Payment');
       expect(bar(tester), ('Confirm Payment', false));
       await tester.enterText(
           find.descendant(
@@ -1057,7 +1304,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(bar(tester), ('Confirm Payment', true));
       await confirmBar(tester);
+      expect(placed, [19]);
       expect(invoiceRepo.created.single['company_name'], 'Acafe B.V.');
+      expect(invoiceRepo.created.single['reference'], 'pos-inv-27362');
       expect(find.text('Invoice created'), findsOneWidget);
       receiptAboveNext(tester);
       await tap(tester, find.text('Next order'));
@@ -1068,7 +1317,7 @@ void main() {
         (tester) async {
       await pumpPaymentScreen(tester, routed: true);
       await tap(tester, find.text('Stand-alone'));
-      expect(placed, [19]);
+      expect(placed, isEmpty, reason: 'placed at Confirm Payment');
       await tester.enterText(
           find.descendant(
               of: find.byType(PosStandalonePanel),
@@ -1076,7 +1325,9 @@ void main() {
           '123456');
       await tester.pumpAndSettle();
       await confirmBar(tester);
+      expect(placed, [19]);
       expect(standaloneRepo.recorded.single, (27362, '123456'));
+      expect(standaloneRepo.references, ['pos-sa-27362']);
       expect(find.text('Payment confirmed'), findsOneWidget);
       receiptAboveNext(tester);
       await tap(tester, find.text('Receipt'));
@@ -1084,6 +1335,99 @@ void main() {
       await tap(tester, find.text('Print receipt'));
       expect(receiptRepo.sent, [(27362, 'print')]);
       expect(find.text('ROUTE /pos-home'), findsOneWidget);
+    });
+  });
+
+  group('invoice · stand-alone: instant, no flash, nothing left behind', () {
+    Future<void> fillCompany(WidgetTester tester) async {
+      await tester.enterText(
+          find.descendant(
+              of: find.byType(PosInvoicePanel),
+              matching: find.byType(TextField)).first,
+          'Acafe B.V.');
+      await tester.pumpAndSettle();
+    }
+
+    for (final String option in ['Invoice', 'Stand-alone']) {
+      testWidgets('$option opens in the same frame — the keypad never flashes',
+          (tester) async {
+        await pumpPaymentScreen(tester,
+            routed: true, method: PosPaymentMethod.cash);
+        expect(find.byType(PosKeypad), findsOneWidget);
+        // A slow network: had the tap placed the order, the cash pane would
+        // still be up while it waited.
+        placeGate = Completer<void>();
+        await tester.tap(find.text(option));
+        await tester.pump();
+        expect(find.byType(PosKeypad), findsNothing);
+        expect(
+            find.byType(option == 'Invoice'
+                ? PosInvoicePanel
+                : PosStandalonePanel),
+            findsOneWidget);
+        expect(placed, isEmpty);
+        placeGate!.complete();
+        await tester.pumpAndSettle();
+      });
+    }
+
+    testWidgets('switching between the options places nothing', (tester) async {
+      await pumpPaymentScreen(tester, routed: true);
+      await tap(tester, find.text('Invoice'));
+      await tap(tester, find.text('Stand-alone'));
+      await tap(tester, find.text('Invoice'));
+      await tap(tester, inPane(PosPaymentMethodSelector, 'Card'));
+      await tap(tester, find.text('Stand-alone'));
+      expect(placed, isEmpty, reason: 'was one kitchen order per tap');
+    });
+
+    testWidgets('a failed invoice is retried on the same order and reference',
+        (tester) async {
+      await pumpPaymentScreen(tester, routed: true);
+      await tap(tester, find.text('Invoice'));
+      await fillCompany(tester);
+      invoiceRepo.failNext = true;
+      await confirmBar(tester);
+      expect(snack('Tap Confirm Payment to try again'), findsOneWidget);
+      expect(find.byType(PosInvoicePanel), findsOneWidget);
+      expect(placed, [19]);
+
+      // The order is sent: switching method is no longer possible.
+      await tap(tester, inPane(PosPaymentMethodSelector, 'Card'));
+      expect(snack('already sent'), findsOneWidget);
+
+      await confirmBar(tester);
+      expect(placed, [19], reason: 'not placed twice');
+      expect(invoiceRepo.references, ['pos-inv-27362', 'pos-inv-27362']);
+      expect(invoiceRepo.created, hasLength(1));
+      expect(find.text('Invoice created'), findsOneWidget);
+    });
+
+    testWidgets('a failed stand-alone save is retried on the same order',
+        (tester) async {
+      await pumpPaymentScreen(tester, routed: true);
+      await tap(tester, find.text('Stand-alone'));
+      standaloneRepo.failNext = true;
+      await confirmBar(tester);
+      expect(snack('Tap Confirm Payment to try again'), findsOneWidget);
+      await confirmBar(tester);
+      expect(placed, [19]);
+      expect(standaloneRepo.references, ['pos-sa-27362', 'pos-sa-27362']);
+      expect(standaloneRepo.recorded, hasLength(1));
+      expect(find.text('Payment confirmed'), findsOneWidget);
+    });
+
+    testWidgets('a declined card leaves Card selected (was deselected)',
+        (tester) async {
+      await pumpPaymentScreen(tester, routed: true);
+      terminal.answer = KioskPaymentStatus.failed;
+      await confirmBar(tester);
+      tester.widget<PosDeclinedCard>(find.byType(PosDeclinedCard)).onCancel!();
+      await tester.pumpAndSettle();
+      final PosPaymentMethodCard card = tester.widget<PosPaymentMethodCard>(
+          find.byType(PosPaymentMethodCard).first);
+      expect(card.method, PosPaymentMethod.card);
+      expect(card.selected, isTrue);
     });
   });
 
@@ -1138,7 +1482,7 @@ void main() {
         expect(find.textContaining('AMOUNT DUE € 1,234.56'), findsOneWidget);
         expect(tester.takeException(), isNull);
         await confirmBar(tester);
-        expect(sbiRepo.records.single.$3, 1234.56);
+        expect(sbiRepo.pays.single.$3, 1234.56);
         expect(tester.takeException(), isNull);
       });
 

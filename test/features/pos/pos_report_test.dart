@@ -23,12 +23,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Rubik is the app-wide family (see `light_theme.dart`) and POS widgets never
-/// override it, so that is what this screen actually renders in. Loew is loaded
-/// too because the shell chrome uses it. Without both, every glyph in the
-/// golden is a tofu box and the file is worthless as a comparison.
+/// Inter is what the Report panels are set in (Figma 1915:18091); Loew is the
+/// date controls, Close Day and the shell chrome; Rubik is the app-wide
+/// fallback (see `light_theme.dart`). Without them every glyph in the golden is
+/// a tofu box and the file is worthless as a comparison.
 Future<void> _loadFonts() async {
   const Map<String, List<String>> families = <String, List<String>>{
+    'Inter': <String>[
+      'assets/fonts/Inter-Regular.ttf',
+      'assets/fonts/Inter-SemiBold.ttf',
+      'assets/fonts/Inter-Bold.ttf',
+      'assets/fonts/Inter-ExtraBold.ttf',
+    ],
     'Rubik': <String>[
       'assets/fonts/Rubik-Regular.ttf',
       'assets/fonts/Rubik-Medium.ttf',
@@ -563,7 +569,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
 
       // Step 2 — still pending prep in the fixture, so Confirm stays gated
@@ -573,7 +579,7 @@ void main() {
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
@@ -606,7 +612,7 @@ void main() {
 
       expect(find.text('€ 120.00'), findsWidgets);
 
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
@@ -616,7 +622,7 @@ void main() {
           find.widgetWithText(TextField, 'Reason for difference (optional)'),
           'Short till');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
       await tester.pumpAndSettle();
 
       final Map<String, dynamic> payload = manager.closedPayloads.single;
@@ -644,7 +650,7 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
@@ -656,8 +662,13 @@ void main() {
       await tester.tap(find.text('Accept difference'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Difference accepted ✓'), findsOneWidget);
-      await tester.tap(find.text('Confirm & Close Day'));
+      // Figma 1915:19604: the button keeps its label; the optional reason
+      // field opening under it is what confirms the choice.
+      expect(
+        find.widgetWithText(TextField, 'Reason for difference (optional)'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
@@ -675,7 +686,7 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
@@ -686,7 +697,7 @@ void main() {
         'Tip left in drawer',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
       await tester.pumpAndSettle();
 
       expect(manager.closedPayloads.single['closing_cash_counted'], 900.0);
@@ -725,14 +736,14 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
 
       await tester.enterText(
           find.widgetWithText(TextField, 'Enter PIN'), '9999');
-      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
       await tester.pumpAndSettle();
 
       // Checked against the device's configuration_code server-side, and a
@@ -743,7 +754,7 @@ void main() {
 
       await tester.enterText(
           find.widgetWithText(TextField, 'Enter PIN'), '1234');
-      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
@@ -759,11 +770,11 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
       await tester.pumpAndSettle();
 
       // Nothing in this system makes the PIN mandatory, so an untouched field
@@ -782,12 +793,12 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
       // Ticked by default: admins get the report unless opted out.
-      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
       await tester.pumpAndSettle();
 
       expect(manager.closedPayloads.single['email_report'], isTrue);
@@ -805,9 +816,9 @@ void main() {
 
       await tester.tap(find.text('Close Day'));
       await tester.pumpAndSettle();
-      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('CANCEL'), findsOneWidget);
 
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('CANCEL'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, isEmpty);
@@ -1122,12 +1133,12 @@ void main() {
     testWidgets(
         'the KPI row is already 4-across just above the floor, below the old 1040 seam',
         (tester) async {
-      // Window, not content, width: `_Dashboard` subtracts scaled body
-      // padding first. At this window size `PosMetrics.scale` sits at its
-      // 0.68 floor, so padding costs a fixed ~32.6px either side — landing
-      // the content width at ~1027, between the desktop floor (1024) and the
-      // old kpiWrapWidth seam (1040): a band that used to be 2-column.
-      await pumpAt(tester, const Size(1060, 1024));
+      // Window, not content, width: `_Dashboard` subtracts body padding
+      // first. The report holds a 1:1 scale here (PosReportSpec.minScale), so
+      // padding costs 24px either side — landing the content width at 1032,
+      // between the desktop floor (1024) and the old kpiWrapWidth seam
+      // (1040): a band that used to be 2-column.
+      await pumpAt(tester, const Size(1080, 1024));
 
       // `PosReportRevenueCard.build()` returns a `PosReportKpiCard` directly,
       // so all four KPI cards — Revenue, Total Orders, Average Order Value,
@@ -1285,7 +1296,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('Report Overview golden at 1366x926 (Figma 1641:5518)',
+    testWidgets('Report Overview golden at 1366x926 (Figma 1915:18091)',
         (tester) async {
       // Pinned to Figma's own date so the golden does not change every midnight.
       await pumpAt(
@@ -1300,7 +1311,7 @@ void main() {
       );
     }, skip: !Platform.isMacOS && !Platform.isLinux);
 
-    testWidgets('Close Day Step 1 golden at 1366 (Figma 1641:6042)',
+    testWidgets('Close Day Step 1 golden at 1366 (Figma 1915:18618)',
         (tester) async {
       await pumpAt(
         tester,
@@ -1317,7 +1328,7 @@ void main() {
       );
     }, skip: !Platform.isMacOS && !Platform.isLinux);
 
-    testWidgets('Close Day Step 1 denomination golden (Figma 1641:6362)',
+    testWidgets('Close Day Step 1 denomination golden (Figma 1915:18940)',
         (tester) async {
       await pumpAt(
         tester,
@@ -1336,7 +1347,7 @@ void main() {
       );
     }, skip: !Platform.isMacOS && !Platform.isLinux);
 
-    testWidgets('Close Day Step 2 discrepancy golden (Figma 1641:6706)',
+    testWidgets('Close Day Step 2 discrepancy golden (Figma 1915:19286)',
         (tester) async {
       await pumpAt(
         tester,
@@ -1351,7 +1362,7 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
 
       await expectLater(
@@ -1360,7 +1371,7 @@ void main() {
       );
     }, skip: !Platform.isMacOS && !Platform.isLinux);
 
-    testWidgets('Close Day Step 2 resolved golden (Figma 1641:6761)',
+    testWidgets('Close Day Step 2 resolved golden (Figma 1915:19604)',
         (tester) async {
       await pumpAt(
         tester,
@@ -1374,21 +1385,21 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('CONTINUE'));
       await tester.pumpAndSettle();
 
       // Both blockers cleared, both boxes ticked, PIN entered — the state
-      // Figma 1641:6761 shows, with Confirm live.
+      // Figma 1915:19604 shows, with Confirm live. The email box starts
+      // ticked, so only Print needs a tap.
       await tester.tap(find.text('Accept difference'));
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.widgetWithText(TextField, 'Reason for difference'),
+        find.widgetWithText(TextField, 'Reason for difference (optional)'),
         'Change error at morning shift',
       );
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Print Z-report'));
-      await tester.tap(find.text('Email report to accountant'));
       await tester.enterText(
           find.widgetWithText(TextField, 'Enter PIN'), '1234');
       await tester.pumpAndSettle();
@@ -1447,7 +1458,7 @@ void main() {
           await tester.tap(find.text(key).first);
           await tester.pumpAndSettle();
         }
-        await tester.tap(find.text('Continue'));
+        await tester.tap(find.text('CONTINUE'));
         await tester.pumpAndSettle();
 
         // Discrepancy + pending-orders banners are both showing here, which is

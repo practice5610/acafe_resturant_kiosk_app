@@ -89,10 +89,6 @@ class PosTipSpec {
   static const double inputSuffixSize = 14; // Loew Bold
   static const Color inputPlaceholder = Color(0xFFB9B5A6);
 
-  /// The payment keypad (78px keys) at 56px — it sits under the input inside
-  /// the custom card.
-  static const double keypadScale = 56 / 78;
-
   // ── Tip summary + preview (discount preview 1915:14464) ─────────────────
   static const double cardRadius = 12;
   static const double cardPadding = 16;

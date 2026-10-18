@@ -33,7 +33,10 @@ Future<double?> showPosTipDialog({
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor: PosTipSpec.scrim,
     transitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (dialogContext, _, __) => PosPayTextScope(
+    // On the payment layer's 1366×1024 canvas, like the screen behind it,
+    // so a short window scales the modal instead of cutting its keypad off.
+    pageBuilder: (dialogContext, _, __) => PosPayCanvas(
+      child: PosPayTextScope(
       child: Material(
         type: MaterialType.transparency,
         child: SafeArea(
@@ -50,6 +53,7 @@ Future<double?> showPosTipDialog({
             ),
           ),
         ),
+      ),
       ),
     ),
     transitionBuilder: (context, animation, _, child) {
@@ -431,9 +435,10 @@ class _PosTipModalState extends State<PosTipModal> {
                 rows: PosKeypad.digitRows(
                   decimal: percentUnit ? PosKeypadKeys.spacer : ',',
                 ),
+                // The payment keypad as is: its 56px keys are the size
+                // this card was drawn around.
                 style: posPaymentKeypadStyle(
                     backspaceAsset: Images.posKeyBackspaceSvg),
-                scale: PosTipSpec.keypadScale,
                 onKey: _key,
                 onBackspace: _backspace,
               ),

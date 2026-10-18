@@ -33,6 +33,8 @@ import 'package:acafe_customer/features/pos/domain/pos_standalone_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_fit_column.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
@@ -87,11 +89,6 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   bool _confirming = false;
 
-  /// True while any OTHER-mode order placement (split, invoice, stand-alone) is
-  /// in flight. Prevents the PRIMARY radio from blinking selected between the
-  /// cancel of the old OTHER and the activation of the new one.
-  bool _startingOther = false;
-
   /// Non-null only while a confirm attempt is running. `awaitingTerminal` is
   /// what swaps the content area for the waiting card (Figma 1641:4203).
   PosCheckoutPhase? _phase;
@@ -120,49 +117,37 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// the counter screen the way the customer name does.
   PosCashEntry _cash = const PosCashEntry();
 
-  /// Split-by-payment mode (Family 2): when non-null, the order has been
-  /// placed upfront and is collecting splits. null = normal single-tender sale.
-  /// Held in a ValueNotifier so the split UI rebuilds surgically (not root
-  /// setState) and the split state stays in sync across retry/success.
+  /// Split-by-payment mode (Family 2): non-null while the operator is taking
+  /// a sale in several payments. Nothing is placed by entering it — the order
+  /// is placed with the first payment (see [_ensureSplitOrder]) — so switching
+  /// away before then leaves nothing behind. Held in a ValueNotifier so the
+  /// split UI rebuilds surgically.
   late final PosSplitSession _split = PosSplitSession();
 
-  /// Current split method choice (Card/Cash) — isolated from the main
-  /// [PosPaymentMethod] which is for normal single-tender sales.
+  /// Card or Cash for the payment being keyed in.
   PosPaymentMethod _splitMethod = PosPaymentMethod.card;
 
-  /// Amount keyed in for the current split.
+  /// Amount keyed in for the payment (on Cash: the tender).
   PosCashEntry _splitEntry = const PosCashEntry();
 
   /// The denomination chip behind [_splitEntry] on a cash split (frame 10);
   /// cleared by any keypad entry, like [_denomination] on a plain cash sale.
   PosCashDenomination? _splitDenomination;
 
-  /// True while a split payment (charge + record) is in flight.
-  bool _splittingPayment = false;
-
-  /// The idempotency key for the current split's card charge. Stable across
-  /// retries of the same split attempt to prevent double-charge.
-  String? _splitCardIdempotencyKey;
-
   // ── Split-by-item (Family 3) ─────────────────────────────────────────────
-  /// Non-null while the operator is collecting item groups for this order.
+  /// Non-null while guests are paying for their own items. As with
+  /// [_split], the order is placed with the first payment.
   late final PosSplitByItemSession _splitByItem = PosSplitByItemSession();
 
-  /// Tracks which items are selected for the current payment group.
+  /// Which items are ticked for the payment being assembled.
   late final PosSplitByItemGroupsBuilder _splitByItemGroups =
       PosSplitByItemGroupsBuilder(groupSeq: 1);
 
-  /// Card or Cash for the current split-by-item group payment.
+  /// Card or Cash for the guest paying now.
   PosPaymentMethod _splitByItemMethod = PosPaymentMethod.card;
 
-  /// True while a split-by-item group payment is in flight.
-  bool _splitByItemLoading = false;
-
-  /// Card idempotency key for the current group. Stable across retries.
-  String? _splitByItemCardKey;
-
-  /// Frame 13: "Split by item" opens a chooser — By item or Custom amount —
-  /// before any order is placed. True while it is on screen.
+  /// Frame 13: "Split by item" opens a chooser — By item or Custom amount.
+  /// True while it is on screen.
   bool _splitChooser = false;
 
   /// The chooser's pick; By item is the frame's default.
@@ -175,9 +160,35 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   /// Frame 15: the cash step of a split-by-item payment. Non-null while the
   /// operator keys the tender for the picked items; the payment itself is
-  /// still recorded at the group's amount.
+  /// recorded at the guest's share.
   PosCashEntry? _sbiTender;
   PosCashDenomination? _sbiDenomination;
+
+  // ── Shared by both split modes ───────────────────────────────────────────
+  /// True while a split payment is being charged or saved.
+  bool _splitBusy = false;
+
+  /// The sale's order once a split payment, an invoice or a stand-alone
+  /// payment has placed it — always at that step's confirm, never on tapping
+  /// the option, so switching options leaves nothing in the kitchen. From
+  /// then on the sale is committed: the method can't be switched and the
+  /// ticket can't be edited until it is finished.
+  int? _saleOrderId;
+
+  /// The grand total [_saleOrderId] was placed at.
+  double _saleTotal = 0;
+
+  /// A payment whose money is in but which is not saved yet. Kept until it
+  /// is, so a retry only re-sends it and never charges the card again.
+  _TakenPayment? _taken;
+
+  /// What the waiting card quotes while the terminal has a split payment —
+  /// that payment's amount, not the order total. Null otherwise.
+  double? _waitingAmount;
+
+  /// Try Again on the declined card for a split payment; null for the plain
+  /// sale, which retries through [_tryAgain].
+  VoidCallback? _declinedRetry;
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Invoice (Family 4) ───────────────────────────────────────────────────
@@ -188,12 +199,8 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// screen so ValueNotifiers are cleaned up when the screen exits.
   final PosInvoiceFormState _invoiceForm = PosInvoiceFormState();
 
-  /// True while the POST invoice/create call is in flight.
+  /// True while Confirm Payment is placing the order / creating the invoice.
   bool _invoiceLoading = false;
-
-  /// The order_id placed upfront (same flow as split families), stored so the
-  /// invoice POST can reference it.
-  int _invoiceOrderId = 0;
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Stand-alone terminal (Family 5) ──────────────────────────────────────
@@ -205,18 +212,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   final ValueNotifier<String> _standaloneApprovalCode =
       ValueNotifier<String>('');
 
-  /// True while the POST standalone-payment/record call is in flight.
+  /// True while Confirm Payment is placing the order / recording the payment.
   bool _standaloneLoading = false;
-
-  /// The order_id placed upfront before showing the instructions pane.
-  int _standaloneOrderId = 0;
-
-  /// Grand total captured at order placement for the receipt dialog subtitle.
-  double _standaloneGrandTotal = 0;
   // ─────────────────────────────────────────────────────────────────────────
-
-  /// Grand total captured at invoice order placement for receipt dialog.
-  double _invoiceGrandTotal = 0;
 
   /// Null after any keypad entry — a chip stays lit only while it is what the
   /// operator actually chose. See [_onCashKey].
@@ -359,10 +357,14 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     return name.isEmpty ? amount : '$name / $amount';
   }
 
-  void _back() {
+  Future<void> _back() async {
     // A method change came from Receipts; leaving goes back there.
     if (_change != null || _changedTo != null) {
       context.go(PosRoutes.receipts);
+      return;
+    }
+    if (_saleLocked) {
+      await _leaveCommittedSale();
       return;
     }
     // The cart lives in CartProvider and the ticket in PosSaleSession, so
@@ -374,80 +376,273 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     }
   }
 
-  /// Enters split-by-payment mode: places the order upfront at [grandTotal],
-  /// then initializes split session and enters split entry UI. Async because
-  /// order placement is async.
+  /// The sale's total right now: the cart's payable plus the tip.
+  double _liveGrandTotal() {
+    final CartProvider cart = context.read<CartProvider>();
+    final CouponProvider coupon = context.read<CouponProvider>();
+    final double payable =
+        kioskPayableTotal(cart.cartList, coupon.discount ?? 0);
+    return double.parse((payable + _tip.value).toStringAsFixed(2));
+  }
+
+  /// The split-by-payment state as the screen quotes it: the live total
+  /// until the order is placed, the backend's figures after.
+  PosSplitState? get _splitView => _split.value?.withLiveTotal(_liveGrandTotal());
+
+  PosSplitByItemState? get _sbiView =>
+      _splitByItem.value?.withLiveTotal(_liveGrandTotal());
+
+  /// The order is placed (or a split payment is taken): the sale is
+  /// committed to its method until it is finished.
+  bool get _saleLocked => _saleOrderId != null || _taken != null;
+
+  /// What is still open on the split in progress.
+  double get _splitRemaining =>
+      _splitView?.remaining ?? _sbiView?.remaining ?? 0;
+
+  /// Stops anything that would abandon a committed sale — switching method,
+  /// editing the ticket — and says why. Returns true when it stopped it.
+  bool _saleGuard() {
+    if (!_saleLocked) return false;
+    showCustomSnackBarHelper(
+      _invoiceActive
+          ? 'This order is already sent — finish the invoice first.'
+          : _standaloneActive
+              ? 'This order is already sent — confirm the stand-alone '
+                  'payment first.'
+              : 'Finish this split payment first — '
+                  '${PosHomeSpec.formatPrice(_splitRemaining, padZero: false)} '
+                  'is still to pay.',
+      isError: true,
+    );
+    return true;
+  }
+
+  int get _deviceId => context.read<KioskAuthProvider>().deviceId ?? 0;
+
+  /// Enters split by payment. Instant and local: nothing is placed until the
+  /// first payment is taken.
   ///
   /// [custom] = started from the split chooser's "Custom amount" (frame 19):
   /// the same split-payment saving path, worded per guest.
-  Future<void> _startSplit(double grandTotal, {bool custom = false}) async {
+  void _startSplit({bool custom = false}) {
     if (_split.active) return;
-
-    // Place the order upfront via the normal flow (grand total, cash_on_delivery,
-    // is_partial=0). Kitchen starts immediately. Then we collect splits.
-    final CartProvider cart = context.read<CartProvider>();
-    final CouponProvider coupon = context.read<CouponProvider>();
-    final kioskSession = kiosk.KioskSession.instance;
-
-    final double payable = kioskPayableTotal(cart.cartList, coupon.discount ?? 0);
-    final double tip = _tip.value;
-    final double amount = double.parse((payable + tip).toStringAsFixed(2));
-
-    kioskSession.customerName = _sale.customerName.text.trim();
-
-    if (!context.mounted) return;
-
     setState(() {
-      _confirming = true;
-      _startingOther = true;
+      _splitMethod = PosPaymentMethod.card;
+      _splitEntry = _splitEntry.clear();
+      _splitDenomination = null;
+      _splitCustom = custom;
+      _splitChooser = false;
+    });
+    _split.start(
+      orderId: 0,
+      deviceId: _deviceId,
+      grandTotal: _liveGrandTotal(),
+    );
+  }
+
+  /// Places the sale's order at the first confirm that needs it (a split
+  /// payment saved, an invoice or a stand-alone payment confirmed) and hands
+  /// back the same order every time after. Null (with [onError] told why)
+  /// when it could not be placed — nothing is ever placed twice.
+  Future<int?> _ensureSaleOrder(ValueChanged<String> onError) async {
+    final int? existing = _saleOrderId;
+    if (existing != null) return existing;
+
+    final double grandTotal = _liveGrandTotal();
+    final double tip = _tip.value;
+    kiosk.KioskSession.instance.customerName = _sale.customerName.text.trim();
+    final KioskPlaceResult placed = await posPlaceOrder(
+      context,
+      amount: grandTotal,
+      tipAmountOverride: tip > 0 ? tip : null,
+    );
+    if (!mounted) return null;
+    final int orderId = int.tryParse((placed.orderId ?? '').trim()) ?? 0;
+    if (!placed.success || orderId <= 0) {
+      onError(placed.message ?? 'The order could not be placed.');
+      return null;
+    }
+    _saleOrderId = orderId;
+    _saleTotal = grandTotal;
+    _split.attachOrder(orderId, grandTotal);
+    _splitByItem.attachOrder(orderId, grandTotal);
+    return orderId;
+  }
+
+  /// Charges one split payment on the terminal. True once the card has paid;
+  /// a decline shows the declined card, whose Try Again runs [retry].
+  Future<({bool paid, String? reference})> _chargeSplitCard({
+    required int seq,
+    required int cents,
+    required VoidCallback retry,
+  }) async {
+    final double amount = posCentsToMoney(cents, decimals: _cash.decimals);
+    setState(() {
+      _declined = false;
+      _declinedRetry = null;
+      _cancelling = false;
+      _waitingAmount = amount;
+      _phase = PosCheckoutPhase.awaitingTerminal;
+    });
+    final KioskPaymentResult payment = await di.sl<KioskPaymentService>().pay(
+      amount: amount,
+      // Same payment, same amount → same key: a retry after a decline cannot
+      // charge twice. A different amount is a different payment.
+      idempotencyKey: '$_idempotencyKey-split-$seq-$cents',
+    );
+    if (!mounted) return (paid: false, reference: null);
+    setState(() {
       _phase = null;
       _cancelling = false;
-      _declined = false;
+      _waitingAmount = null;
+    });
+    switch (payment.status) {
+      case KioskPaymentStatus.paid:
+        return (paid: true, reference: payment.paymentRef);
+      case KioskPaymentStatus.failed:
+        setState(() {
+          _declined = true;
+          _declinedAmount = amount;
+          _declinedRetry = retry;
+        });
+      case KioskPaymentStatus.canceled:
+        showCustomSnackBarHelper('Payment canceled', isError: false);
+    }
+    return (paid: false, reference: null);
+  }
+
+  /// Saves [_taken]: places the order if this is the first payment, then
+  /// records the payment against it — by amount (split by payment) or for
+  /// the guest's items (split by item). On failure the payment stays taken
+  /// and the sticky bar offers to save it again.
+  Future<void> _saveTaken() async {
+    final _TakenPayment? taken = _taken;
+    if (taken == null || _splitBusy) return;
+    setState(() {
+      _splitBusy = true;
+      _phase = PosCheckoutPhase.placingOrder;
     });
 
+    String? error;
     try {
-      final KioskPlaceResult placed = await posPlaceOrder(
-        context,
-        amount: amount,
-        tipAmountOverride: tip > 0 ? tip : null,
-      );
-
+      final int? orderId = await _ensureSaleOrder((m) => error = m);
       if (!mounted) return;
-
-      setState(() { _confirming = false; _startingOther = false; });
-
-      if (!placed.success) {
-        showCustomSnackBarHelper(
-          placed.message ?? 'Order placement failed',
-          isError: true,
-        );
-        return;
+      if (orderId != null) {
+        if (_split.value != null) {
+          final ApiResponseModel r = await di.sl<PosSplitRepo>().record(
+            orderId: orderId,
+            paidWith: taken.method,
+            paidAmount: taken.amount,
+            deviceId: _deviceId,
+            reference: 'pos-split-$orderId-${taken.seq}',
+            transactionReference: taken.transactionReference,
+          );
+          if (!mounted) return;
+          final dynamic data = r.response?.data;
+          if (r.isSuccess && data is Map) {
+            final PosSplitState next = PosSplitState.fromJson(
+                Map<String, dynamic>.from(data),
+                deviceId: _deviceId);
+            _split.update(next);
+            setState(() {
+              _taken = null;
+              _splitBusy = false;
+              _phase = null;
+              _splitEntry = _splitEntry.clear();
+              _splitDenomination = null;
+            });
+            if (next.fullyPaid) await _autoPrintIfEnabled('$orderId');
+            if (mounted) _showSplitSuccessCard(next);
+            return;
+          }
+          error = r.error;
+        } else if (_splitByItem.value != null) {
+          final ApiResponseModel r = await di.sl<PosSplitByItemRepo>().payItems(
+            orderId: orderId,
+            deviceId: _deviceId,
+            itemIds: taken.itemIds,
+            amount: taken.amount,
+            paidWith: taken.method,
+            reference: 'pos-sbi-$orderId-${taken.seq}',
+            transactionReference: taken.transactionReference,
+          );
+          if (!mounted) return;
+          final dynamic data = r.response?.data;
+          if (r.isSuccess && data is Map) {
+            final PosSplitByItemState next = PosSplitByItemState.fromJson(
+                Map<String, dynamic>.from(data),
+                deviceId: _deviceId);
+            _splitByItem.update(next);
+            setState(() {
+              _taken = null;
+              _splitBusy = false;
+              _phase = null;
+              _sbiTender = null;
+              _sbiDenomination = null;
+            });
+            if (next.fullyPaid) await _autoPrintIfEnabled('$orderId');
+            if (mounted) _showSplitByItemSuccessCard(next);
+            return;
+          }
+          error = r.error;
+        }
       }
-
-      // Order placed. Initialize split session with the order_id.
-      setState(() {
-        _splitMethod = PosPaymentMethod.card;
-        _splitEntry = _splitEntry.withCents(0);
-        _splitDenomination = null;
-        _splitCustom = custom;
-        _splitChooser = false;
-      });
-      _split.start(
-        orderId: int.tryParse((placed.orderId ?? '').trim()) ?? 0,
-        deviceId: context.read<KioskAuthProvider>().deviceId ?? 0,
-        grandTotal: amount,
-      );
     } catch (e) {
-      if (!mounted) return;
-      setState(() { _confirming = false; _startingOther = false; });
+      error = '$e';
+    }
+    if (!mounted) return;
+    setState(() {
+      _splitBusy = false;
+      _phase = null;
+    });
+    final String reason =
+        (error == null || error!.isEmpty) ? '' : ': ${error!}';
+    showCustomSnackBarHelper(
+      taken.method == 'card'
+          ? 'The card payment was approved but Payment ${taken.seq} could '
+              'not be saved$reason. Tap "Save Payment ${taken.seq}" to try '
+              'again — the card will not be charged again.'
+          : 'Payment ${taken.seq} could not be saved$reason. Tap "Save '
+              'Payment ${taken.seq}" to try again.',
+      isError: true,
+    );
+  }
+
+  /// Back during a committed sale. A split payment that is taken but not
+  /// saved must be saved first — leaving would lose the record of money
+  /// already taken. Otherwise the operator confirms: the order stays saved
+  /// (partially paid / unpaid, as Orders and Receipts show it) and the till
+  /// moves on.
+  Future<void> _leaveCommittedSale() async {
+    final _TakenPayment? taken = _taken;
+    if (taken != null) {
       showCustomSnackBarHelper(
-        'Order placement error: $e',
+        'Save Payment ${taken.seq} before leaving — its money was already '
+        'taken.',
         isError: true,
       );
+      return;
     }
+    final bool split = _split.value != null || _splitByItem.value != null;
+    final double paid = _splitView?.paid ?? _sbiView?.paid ?? 0;
+    final bool? leave = await PosCompleteConfirmationDialog.show(
+      context,
+      heading: split ? 'Leave this split payment?' : 'Leave this order?',
+      subtext: split
+          ? '${PosHomeSpec.formatPrice(paid, padZero: false)} is paid and '
+              '${PosHomeSpec.formatPrice(_splitRemaining, padZero: false)} is '
+              'still open. The order stays saved as partially paid.'
+          : 'It was already sent and stays saved as unpaid.',
+      cancelLabel: 'Stay',
+      confirmLabel: 'Leave',
+      compact: true,
+    );
+    if (leave == true && mounted) _endSale();
   }
 
   void _selectMethod(PosPaymentMethod method, double total) {
+    if (_saleGuard()) return;
     // Cancel any active OTHER mode (split, invoice, stand-alone) so the full
     // group stays single-select: PRIMARY tap always wins.
     _cancelActiveOther();
@@ -555,8 +750,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
   }
 
-  /// Split keypad entry callback.
+  /// Split keypad entry. Inert while a taken payment waits to be saved: its
+  /// amount is what was charged.
   void _onSplitKey(String token) {
+    if (_taken != null) return;
     setState(() {
       _splitEntry = _splitEntry.key(token);
       _splitDenomination = null;
@@ -566,8 +763,8 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// Cash split denomination chip: a note value, or Exact = what is still
   /// owed on the order.
   void _onSplitDenomination(PosCashDenomination denomination) {
-    final PosSplitState? state = _split.value;
-    if (state == null) return;
+    final PosSplitState? state = _splitView;
+    if (state == null || _taken != null) return;
     setState(() {
       _splitEntry = _splitEntry.withCents(denomination.exact
           ? posMoneyToCents(state.remaining, decimals: _splitEntry.decimals)
@@ -576,24 +773,17 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
   }
 
-  /// Split keypad backspace callback.
   void _onSplitBackspace() {
+    if (_taken != null) return;
     setState(() {
       _splitEntry = _splitEntry.backspace();
       _splitDenomination = null;
     });
   }
 
-  /// Split keypad clear callback.
-  void _onSplitClear() {
-    setState(() {
-      _splitEntry = _splitEntry.clear();
-      _splitDenomination = null;
-    });
-  }
-
   /// Split method toggle (Card ↔ Cash).
   void _onSplitMethod(PosPaymentMethod method) {
+    if (_taken != null) return;
     setState(() {
       _splitMethod = method;
       _splitDenomination = null;
@@ -606,7 +796,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// is still owed — the excess is the change the banner shows, not part of
   /// the payment. Zero / nothing keyed is never valid.
   int? _splitAppliedCents() {
-    final PosSplitState? state = _split.value;
+    final PosSplitState? state = _splitView;
     if (state == null || _splitEntry.cents <= 0) return null;
     final int remaining =
         posMoneyToCents(state.remaining, decimals: _splitEntry.decimals);
@@ -617,130 +807,42 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     return _splitEntry.cents > remaining ? null : _splitEntry.cents;
   }
 
-  /// Process a split: charge the amount (card or cash), then POST record.
-  /// If success: update PosSplitSession, loop back to entry with decremented
-  /// remaining. If decline: show retry option. If fully_paid: show final success.
-  Future<void> _recordSplit() async {
-    if (_splittingPayment) return;
-    if (_split.value == null) return;
+  /// A card amount above what is still owed — the bar says so instead of
+  /// just going dark.
+  bool _splitCardOver(PosSplitState state) =>
+      _splitMethod == PosPaymentMethod.card &&
+      _splitEntry.cents >
+          posMoneyToCents(state.remaining, decimals: _splitEntry.decimals);
 
-    final PosSplitState state = _split.value!;
-    final int? amountCents = _splitAppliedCents();
-    if (amountCents == null) return;
+  /// "Start Payment N": takes the keyed amount — on the terminal for Card,
+  /// from the drawer for Cash — then saves it ([_saveTaken]). With a payment
+  /// already taken this only saves it again.
+  Future<void> _takeSplitPayment() async {
+    if (_splitBusy) return;
+    if (_taken != null) return _saveTaken();
+    final PosSplitState? state = _splitView;
+    final int? cents = _splitAppliedCents();
+    if (state == null || cents == null) return;
 
-    final double amountEur = posCentsToMoney(amountCents, decimals: _splitEntry.decimals);
-    final String reference = 'pos-split-${state.orderId}-${state.nextSequence}';
-
-    setState(() {
-      _splittingPayment = true;
-      _phase = null;
-    });
-
-    try {
-      String? transactionReference;
-
-      // Card payment: use KioskPaymentService.pay with idempotency key.
-      if (_splitMethod == PosPaymentMethod.card) {
-        _splitCardIdempotencyKey ??= 'pos-split-card-${DateTime.now().millisecondsSinceEpoch}';
-        if (!context.mounted) return;
-        setState(() => _phase = PosCheckoutPhase.awaitingTerminal);
-
-        final KioskPaymentResult payment = await di.sl<KioskPaymentService>().pay(
-          amount: amountEur,
-          idempotencyKey: _splitCardIdempotencyKey!,
-        );
-
-        if (!mounted) return;
-        setState(() => _phase = null);
-
-        switch (payment.status) {
-          case KioskPaymentStatus.paid:
-            transactionReference = payment.paymentRef;
-          case KioskPaymentStatus.failed:
-            // Show decline card with retry.
-            _showSplitDeclineCard(amountEur, state.nextSequence);
-            setState(() => _splittingPayment = false);
-            return;
-          case KioskPaymentStatus.canceled:
-            setState(() => _splittingPayment = false);
-            return;
-        }
-      }
-      // Cash: no charge, just record the tendered amount.
-
-      // POST record to backend.
-      if (!context.mounted) return;
-      setState(() => _phase = PosCheckoutPhase.placingOrder);
-
-      final PosSplitRepo repo = di.sl<PosSplitRepo>();
-      final ApiResponseModel response = await repo.record(
-        orderId: state.orderId,
-        paidWith: _splitMethod == PosPaymentMethod.card ? 'card' : 'cash',
-        paidAmount: amountEur,
-        deviceId: state.deviceId,
-        reference: reference,
-        transactionReference: transactionReference,
-      );
-
+    final int seq = state.nextSequence;
+    final bool card = _splitMethod == PosPaymentMethod.card;
+    String? reference;
+    if (card) {
+      setState(() => _splitBusy = true);
+      final charge = await _chargeSplitCard(
+          seq: seq, cents: cents, retry: _takeSplitPayment);
       if (!mounted) return;
-      setState(() => _phase = null);
-
-      if (!response.isSuccess) {
-        showCustomSnackBarHelper(
-          'Split payment failed: ${response.error}',
-          isError: true,
-        );
-        setState(() => _splittingPayment = false);
-        return;
-      }
-
-      // Update split state from response.
-      final Map<String, dynamic> json =
-          Map<String, dynamic>.from(response.response.data as Map);
-      final PosSplitState updatedState = PosSplitState.fromJson(
-        json,
-        deviceId: state.deviceId,
-      );
-      _split.update(updatedState);
-
-      // Reset entry for next split.
-      setState(() {
-        _splitEntry = _splitEntry.withCents(0);
-        _splittingPayment = false;
-        _splitCardIdempotencyKey = null; // Fresh key per split.
-      });
-
-      // Show success card.
-      _showSplitSuccessCard(updatedState);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _splittingPayment = false);
-      showCustomSnackBarHelper('Split error: $e', isError: true);
+      setState(() => _splitBusy = false);
+      if (!charge.paid) return;
+      reference = charge.reference;
     }
-  }
-
-  /// Show decline card for a failed split; user can retry with same reference.
-  void _showSplitDeclineCard(double amount, int splitNum) {
-    showGeneralDialog(
-      context: context,
-      // Frame 07: the card on the page background, nothing behind it.
-      barrierColor: PosHomeSpec.pageBg,
-      pageBuilder: (context, anim, secAnim) => PosPayTextScope(
-        child: Material(
-          type: MaterialType.transparency,
-          child: PosDeclinedCard(
-          amountDue: amount,
-          retrying: _splittingPayment,
-          onCancel:
-              _splittingPayment ? null : () => Navigator.pop(context),
-          onTryAgain: _splittingPayment ? null : () {
-            Navigator.pop(context);
-            _recordSplit();
-          },
-          ),
-        ),
-      ),
+    _taken = _TakenPayment(
+      seq: seq,
+      method: card ? 'card' : 'cash',
+      amount: posCentsToMoney(cents, decimals: _splitEntry.decimals),
+      transactionReference: reference,
     );
+    await _saveTaken();
   }
 
   /// Shows a success state — Figma `success-card` (1915:9317 / 12227) on the
@@ -750,10 +852,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       context: context,
       barrierDismissible: false,
       barrierColor: PosHomeSpec.pageBg,
-      pageBuilder: (dialogContext, anim, secAnim) => PosPayTextScope(
-        child: Material(
-          type: MaterialType.transparency,
-          child: card(dialogContext),
+      pageBuilder: (dialogContext, anim, secAnim) => PosPayCanvas(
+        child: PosPayTextScope(
+          child: Material(
+            type: MaterialType.transparency,
+            child: card(dialogContext),
+          ),
         ),
       ),
     );
@@ -772,33 +876,38 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
           onContinue: () => Navigator.pop(dialogContext),
         );
       }
-      return PosPaymentSuccessCard(
+      return _orderPaidCard(dialogContext, state.orderId, state.grandTotal);
+    });
+  }
+
+  /// Frame 18 once a split order is fully paid: Receipt above Next order.
+  Widget _orderPaidCard(BuildContext dialogContext, int orderId, double total) =>
+      PosPaymentSuccessCard(
         title: 'Order Paid',
-        amount: state.grandTotal,
+        amount: total,
         amountLabel: 'TOTAL PAID',
         secondaryLabel: 'Receipt',
         onSecondary: () => _showReceiptDialog(
-          orderId: state.orderId,
-          total: state.grandTotal,
+          orderId: orderId,
+          total: total,
           onAfterSend: () {
             Navigator.pop(dialogContext);
-            _completeSplit();
+            _endSale();
           },
         ),
         buttonLabel: 'Next order',
         onContinue: () {
           Navigator.pop(dialogContext);
-          _completeSplit();
+          _endSale();
         },
       );
-    });
-  }
 
-  /// Final split complete: clear cart + session, navigate home.
-  void _completeSplit() {
+  /// Ends a sale whose order is placed — finished, or left by the operator —
+  /// clearing the cart and the ticket (the order already holds them) and
+  /// going home.
+  void _endSale() {
     final CartProvider cart = context.read<CartProvider>();
     final CouponProvider coupon = context.read<CouponProvider>();
-
     endKioskCustomerSession(
       context.mounted ? context : null,
       cart: cart,
@@ -806,10 +915,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     );
     _sale.reset();
     _split.clear();
-
-    if (context.mounted) {
-      context.go(PosRoutes.home);
-    }
+    _splitByItem.clear();
+    _saleOrderId = null;
+    _taken = null;
+    _invoiceActive = false;
+    _standaloneActive = false;
+    if (context.mounted) context.go(PosRoutes.home);
   }
 
   // ── Refund one payment (pill on frames 09–12 / 16 → 29 → 27 → 30) ───────
@@ -907,9 +1018,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   // ── Split chooser (frame 13) ─────────────────────────────────────────────
 
-  /// "Split by item" in the OTHER group: show the chooser. Nothing is placed
-  /// until Continue.
+  /// "Split by item" in the OTHER group: show the chooser. Nothing is placed.
   void _openSplitChooser() {
+    if (_saleGuard()) return;
     _cancelActiveOther();
     setState(() {
       _splitChooser = true;
@@ -918,35 +1029,33 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   }
 
   /// Continue on the chooser: By item → the item picker (frame 14), Custom
-  /// amount → the per-guest amount entry (frame 19). Both place the order
-  /// first, exactly as before; the chooser stays up if that fails.
-  Future<void> _continueSplitChooser(double grandTotal) async {
-    if (_confirming) return;
+  /// amount → the per-guest amount entry (frame 19). Both are instant; the
+  /// order is placed with the first payment.
+  void _continueSplitChooser() {
     if (_splitChoice == PosSplitChoice.byItem) {
-      await _startSplitByItem(grandTotal);
+      _startSplitByItem();
     } else {
-      await _startSplit(grandTotal, custom: true);
+      _startSplit(custom: true);
     }
   }
 
   // ── Split by item → cash (frame 15) ──────────────────────────────────────
 
   /// "Start Payment N" on Cash: open the tender step for the picked items.
-  /// Nothing is sent until the tender covers the amount due.
+  /// Nothing is taken until the tender covers the guest's share.
   void _startSbiCash(List<PosSplitByItemLineItem> items) {
-    final double? charge = _sbiCharge(items);
-    if (charge == null) return;
-    final int due = posMoneyToCents(charge, decimals: _cash.decimals);
+    final PosSplitByItemQuote quote = _sbiQuote(items);
+    if (!quote.payable) return;
     setState(() {
       // Exact, like a plain cash sale (see _selectMethod).
-      _sbiTender = PosCashEntry(decimals: _cash.decimals).withCents(due);
+      _sbiTender = PosCashEntry(decimals: _cash.decimals).withCents(quote.cents);
       _sbiDenomination = const PosCashDenomination.exact();
     });
   }
 
   void _onSbiKey(String token) {
     final PosCashEntry? tender = _sbiTender;
-    if (tender == null) return;
+    if (tender == null || _taken != null) return;
     setState(() {
       _sbiTender = tender.key(token);
       _sbiDenomination = null;
@@ -955,7 +1064,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   void _onSbiBackspace() {
     final PosCashEntry? tender = _sbiTender;
-    if (tender == null) return;
+    if (tender == null || _taken != null) return;
     setState(() {
       _sbiTender = tender.backspace();
       _sbiDenomination = null;
@@ -964,7 +1073,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   void _onSbiDenomination(PosCashDenomination d, int dueCents) {
     final PosCashEntry? tender = _sbiTender;
-    if (tender == null) return;
+    if (tender == null || _taken != null) return;
     setState(() {
       _sbiTender = tender.withCents(d.exact ? dueCents : d.cents!);
       _sbiDenomination = d;
@@ -974,7 +1083,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// The segmented control on frame 15: Card leaves the tender step for the
   /// item picker, on Card.
   void _onSbiMethod(PosPaymentMethod method) {
-    if (method == PosPaymentMethod.cash) return;
+    if (method == PosPaymentMethod.cash || _taken != null) return;
     setState(() {
       _sbiTender = null;
       _sbiDenomination = null;
@@ -984,71 +1093,47 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   // ── Split-by-item (Family 3) ─────────────────────────────────────────────
 
-  /// Entry point: operator taps "Split by item" in the OTHER row.
-  /// Places the order upfront then switches UI to item-selection mode.
-  Future<void> _startSplitByItem(double amount) async {
-    if (_splitByItem.active || _confirming) return;
-
-    final kioskSession = kiosk.KioskSession.instance;
-    kioskSession.customerName = _sale.customerName.text.trim();
-    if (!context.mounted) return;
-
+  /// Enters split by item. Instant and local: the order is placed with the
+  /// first guest's payment.
+  void _startSplitByItem() {
+    if (_splitByItem.active) return;
     setState(() {
-      _confirming = true;
-      _startingOther = true;
-      _phase = null;
-      _cancelling = false;
-      _declined = false;
+      _splitChooser = false;
+      _splitByItemMethod = PosPaymentMethod.card;
+      _sbiTender = null;
+      _sbiDenomination = null;
     });
-
-    try {
-      final KioskPlaceResult placed = await posPlaceOrder(
-        context,
-        amount: amount,
-        tipAmountOverride: _tip.value > 0 ? _tip.value : null,
-      );
-      if (!mounted) return;
-      setState(() { _confirming = false; _startingOther = false; });
-
-      if (!placed.success) {
-        showCustomSnackBarHelper(
-          placed.message ?? 'Order placement failed',
-          isError: true,
-        );
-        return;
-      }
-
-      setState(() {
-        _splitChooser = false;
-        _splitByItemMethod = PosPaymentMethod.card;
-        _sbiTender = null;
-        _sbiDenomination = null;
-      });
-      _splitByItemGroups.nextGroup(1);
-      _splitByItem.start(
-        orderId: int.tryParse((placed.orderId ?? '').trim()) ?? 0,
-        deviceId: context.read<KioskAuthProvider>().deviceId ?? 0,
-        grandTotal: amount,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() { _confirming = false; _startingOther = false; });
-      showCustomSnackBarHelper('Order placement error: $e', isError: true);
-    }
+    _splitByItemGroups.nextGroup(1);
+    _splitByItem.start(
+      orderId: 0,
+      deviceId: _deviceId,
+      grandTotal: _liveGrandTotal(),
+    );
   }
 
-  /// Extract cart items as line items for the split-by-item panel.
+  /// The ticket as split-by-item rows: one per line (frame 21 — "Cappuccino ×
+  /// 2" is one row), its add-ons under the name, else its unit.
   List<PosSplitByItemLineItem> _buildLineItemsFromCart(List<CartModel?> lines) {
     final List<PosSplitByItemLineItem> result = [];
     for (int i = 0; i < lines.length; i++) {
       final CartModel? line = lines[i];
       if (line == null) continue;
       final int qty = line.quantity ?? 1;
+      final List<String> notes = [
+        for (final PosReceiptNote n in posReceiptNotes(line))
+          n.included
+              ? n.label
+              : 'No ${n.label.isEmpty ? '' : n.label[0].toLowerCase()}'
+                  '${n.label.length > 1 ? n.label.substring(1) : ''}',
+      ];
+      final String name = posReceiptLineName(line);
       result.add(PosSplitByItemLineItem(
         id: i,
-        name: line.product?.name ?? 'Item ${i + 1}',
-        // The chosen Cup / Can, as frame 14 writes it ("Cup").
-        variant: posReceiptUnit(line) ?? '',
+        name: name.isEmpty ? 'Item ${i + 1}' : name,
+        detail: notes.isNotEmpty
+            ? notes.join(' · ')
+            : (posReceiptUnit(line) ?? ''),
+        quantity: qty,
         // What the receipt charges for the line: unit price incl. paid
         // add-ons, times quantity.
         price: double.parse((kioskLineUnitPrice(line) * qty).toStringAsFixed(2)),
@@ -1057,225 +1142,71 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     return result;
   }
 
-  /// What a split-by-item payment charges for the current pick, or null when
-  /// the pick cannot be paid.
-  ///
-  /// The backend (`SplitByItemController::createGroups`) takes the whole split
-  /// in one call — groups that sum to the order total — and a second call
-  /// would delete the groups already paid. So the first payment defines two
-  /// groups, the picked items and the rest; the next payment settles the rest
-  /// as a whole. A pick of every remaining item charges what is still owed
-  /// (which also carries any tip or discount on the order).
-  double? _sbiCharge(List<PosSplitByItemLineItem> items) {
-    final PosSplitByItemState? state = _splitByItem.value;
-    if (state == null) return null;
-    final Set<int> picked = _splitByItemGroups.value.selectedItemIds;
-    if (picked.isEmpty) return null;
-    final PosSplitByItemGroup? pending = state.pendingGroup;
-    if (pending != null) {
-      return picked.length == pending.itemIds.length &&
-              pending.itemIds.every(picked.contains)
-          ? pending.amount
-          : null;
-    }
-    final Set<int> paidIds = {for (final g in state.paidGroups) ...g.itemIds};
-    final bool everything = items
-        .where((i) => !paidIds.contains(i.id))
-        .every((i) => picked.contains(i.id));
-    if (everything) return state.remaining;
-    final double amount = _splitByItemGroups.value.calculateAmount(items);
-    return amount > 0 && amount < state.remaining ? amount : null;
-  }
-
-  /// Called by the sticky bar's "Start Payment N" (card) or, on cash, by
-  /// "Confirm Payment" after the tender step (frame 15).
-  Future<void> _startSplitByItemPayment(
-      List<PosSplitByItemLineItem> items) async {
-    if (_splitByItemLoading) return;
-    final PosSplitByItemState? state = _splitByItem.value;
-    if (state == null) return;
-
-    final double? charge = _sbiCharge(items);
-    if (charge == null) {
-      showCustomSnackBarHelper(
-        state.pendingGroup == null
-            ? 'Select at least one item'
-            : 'Pay the remaining items together',
-        isError: true,
-      );
-      return;
-    }
-    final Set<int> picked = _splitByItemGroups.value.selectedItemIds;
-
-    setState(() {
-      _splitByItemLoading = true;
-      _phase = PosCheckoutPhase.placingOrder;
-    });
-
-    try {
-      final PosSplitByItemRepo repo = di.sl<PosSplitByItemRepo>();
-      PosSplitByItemGroup? group = state.pendingGroup;
-
-      // 1. First payment: define the split on the backend (the pick, and the
-      //    rest as one group) — once per order.
-      if (group == null) {
-        final List<int> rest = [
-          for (final i in items)
-            if (!picked.contains(i.id)) i.id,
-        ];
-        final double restAmount =
-            double.parse((state.grandTotal - charge).toStringAsFixed(2));
-        final ApiResponseModel createResp = await repo.createGroups(
-          orderId: state.orderId,
-          deviceId: state.deviceId,
-          groups: [
-            {'item_ids': picked.toList()..sort(), 'amount': charge},
-            if (rest.isNotEmpty && restAmount > 0)
-              {'item_ids': rest, 'amount': restAmount},
-          ],
-        );
-        if (!mounted) return;
-
-        if (!createResp.isSuccess) {
-          showCustomSnackBarHelper(
-            'Group creation failed: ${createResp.error}',
-            isError: true,
-          );
-          setState(() {
-            _splitByItemLoading = false;
-            _phase = null;
-          });
-          return;
-        }
-
-        final PosSplitByItemState createdState = PosSplitByItemState.fromJson(
-          Map<String, dynamic>.from(createResp.response!.data as Map),
-          deviceId: state.deviceId,
-        );
-        _splitByItem.update(createdState);
-        group = createdState.pendingGroup;
-        if (group == null) {
-          setState(() {
-            _splitByItemLoading = false;
-            _phase = null;
-          });
-          showCustomSnackBarHelper('Group creation failed', isError: true);
-          return;
-        }
-      }
-      if (!mounted) return;
-      setState(() => _phase = null);
-      final int groupSeq = group.seq;
-      final double amount = group.amount;
-      final String reference = 'pos-sbi-${state.orderId}-$groupSeq';
-
-      // 2. Card charge (skipped for cash).
-      String? transactionRef;
-      if (_splitByItemMethod == PosPaymentMethod.card) {
-        _splitByItemCardKey ??=
-            'pos-sbi-card-${DateTime.now().millisecondsSinceEpoch}';
-        setState(() => _phase = PosCheckoutPhase.awaitingTerminal);
-
-        final KioskPaymentResult payment =
-            await di.sl<KioskPaymentService>().pay(
-          amount: amount,
-          idempotencyKey: _splitByItemCardKey!,
-        );
-        if (!mounted) return;
-        setState(() => _phase = null);
-
-        switch (payment.status) {
-          case KioskPaymentStatus.paid:
-            transactionRef = payment.paymentRef;
-          case KioskPaymentStatus.failed:
-            _showSplitByItemDeclineCard(amount, groupSeq);
-            setState(() => _splitByItemLoading = false);
-            return;
-          case KioskPaymentStatus.canceled:
-            setState(() => _splitByItemLoading = false);
-            return;
-        }
-      }
-
-      // 3. Record payment.
-      setState(() => _phase = PosCheckoutPhase.placingOrder);
-      final ApiResponseModel recordResp = await repo.recordPayment(
-        orderId: state.orderId,
-        groupSeq: groupSeq,
-        paidWith: _splitByItemMethod == PosPaymentMethod.card ? 'card' : 'cash',
-        paidAmount: amount,
-        deviceId: state.deviceId,
-        reference: reference,
-        transactionReference: transactionRef,
-      );
-      if (!mounted) return;
-      setState(() => _phase = null);
-
-      if (!recordResp.isSuccess) {
-        showCustomSnackBarHelper(
-          'Payment recording failed: ${recordResp.error}',
-          isError: true,
-        );
-        setState(() => _splitByItemLoading = false);
-        return;
-      }
-
-      final PosSplitByItemState updatedState = PosSplitByItemState.fromJson(
-        Map<String, dynamic>.from(recordResp.response!.data as Map),
-        deviceId: state.deviceId,
-      );
-      _splitByItem.update(updatedState);
-
-      setState(() {
-        _splitByItemLoading = false;
-        _splitByItemCardKey = null;
-        _sbiTender = null;
-        _sbiDenomination = null;
-      });
-
-      _showSplitByItemSuccessCard(updatedState);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _splitByItemLoading = false;
-        _phase = null;
-      });
-      showCustomSnackBarHelper('Split error: $e', isError: true);
-    }
-  }
-
-  /// Decline card overlay for a failed split-by-item group charge.
-  void _showSplitByItemDeclineCard(double amount, int groupSeq) {
-    showGeneralDialog(
-      context: context,
-      // Frame 07's treatment: the card on the page background.
-      barrierColor: PosHomeSpec.pageBg,
-      pageBuilder: (context, anim, secAnim) => PosPayTextScope(
-        child: Material(
-          type: MaterialType.transparency,
-          child: PosDeclinedCard(
-            amountDue: amount,
-            retrying: _splitByItemLoading,
-            onCancel:
-                _splitByItemLoading ? null : () => Navigator.pop(context),
-            onTryAgain: _splitByItemLoading
-                ? null
-                : () {
-                    Navigator.pop(context);
-                    // Retry: _splitByItemCardKey is stable across retries.
-                    final List<PosSplitByItemLineItem> items =
-                        _buildLineItemsFromCart(
-                            context.read<CartProvider>().cartList);
-                    _startSplitByItemPayment(items);
-                  },
-          ),
-        ),
-      ),
+  /// What the guest paying now is charged for the ticked items: their own
+  /// items plus their share of any order discount / tip; the guest who takes
+  /// the last items pays exactly what is left.
+  PosSplitByItemQuote _sbiQuote(List<PosSplitByItemLineItem> items) {
+    final PosSplitByItemState? state = _sbiView;
+    if (state == null) return PosSplitByItemQuote.none;
+    return posQuoteSplitByItem(
+      items: items,
+      picked: _splitByItemGroups.value.selectedItemIds,
+      paid: state.paidItemIds,
+      orderTotal: state.grandTotal,
+      remaining: state.remaining,
+      decimals: _cash.decimals,
     );
   }
 
-  /// Success overlay after each group payment: "Start next payment", or the
-  /// settled-order card (frame 18).
+  double _sbiQuoteAmount(List<PosSplitByItemLineItem> items) =>
+      posCentsToMoney(_sbiQuote(items).cents, decimals: _cash.decimals);
+
+  /// "Start Payment N" (card) or, on cash, "Confirm Payment" after the tender
+  /// step (frame 15): takes the guest's share, then saves it for their items
+  /// ([_saveTaken]). With a payment already taken this only saves it again.
+  Future<void> _takeSbiPayment() async {
+    if (_splitBusy) return;
+    if (_taken != null) return _saveTaken();
+    final PosSplitByItemState? state = _sbiView;
+    if (state == null) return;
+    final List<PosSplitByItemLineItem> items =
+        _buildLineItemsFromCart(context.read<CartProvider>().cartList);
+    final PosSplitByItemQuote quote = _sbiQuote(items);
+    if (!quote.payable) {
+      showCustomSnackBarHelper('Select at least one item', isError: true);
+      return;
+    }
+    final Set<int> picked = _splitByItemGroups.value.selectedItemIds;
+    final List<int> itemIds = [
+      for (final PosSplitByItemLineItem i in items)
+        if (picked.contains(i.id) && !state.paidItemIds.contains(i.id)) i.id,
+    ];
+
+    final int seq = state.nextPaymentNumber;
+    final bool card = _splitByItemMethod == PosPaymentMethod.card;
+    String? reference;
+    if (card) {
+      setState(() => _splitBusy = true);
+      final charge = await _chargeSplitCard(
+          seq: seq, cents: quote.cents, retry: _takeSbiPayment);
+      if (!mounted) return;
+      setState(() => _splitBusy = false);
+      if (!charge.paid) return;
+      reference = charge.reference;
+    }
+    _taken = _TakenPayment(
+      seq: seq,
+      method: card ? 'card' : 'cash',
+      amount: posCentsToMoney(quote.cents, decimals: _cash.decimals),
+      transactionReference: reference,
+      itemIds: itemIds,
+    );
+    await _saveTaken();
+  }
+
+  /// Success overlay after each guest's payment: "Start next payment" with
+  /// the items still unpaid already ticked (frame 16), or the settled-order
+  /// card (frame 18).
   void _showSplitByItemSuccessCard(PosSplitByItemState state) {
     _showSuccessCard((dialogContext) {
       if (!state.fullyPaid) {
@@ -1287,314 +1218,187 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
           buttonLabel: 'Start next payment',
           onContinue: () {
             Navigator.pop(dialogContext);
-            setState(() {
-              _splitByItemGroups.nextGroup(state.nextPaymentNumber);
-              // The next payment settles the remaining group: its items
-              // come ticked (frame 16).
-              for (final int id in state.pendingGroup?.itemIds ?? const []) {
-                _splitByItemGroups.toggleItem(id);
-              }
-              _splitByItemMethod = PosPaymentMethod.card;
-            });
+            final List<PosSplitByItemLineItem> items =
+                _buildLineItemsFromCart(context.read<CartProvider>().cartList);
+            _splitByItemGroups.nextGroup(
+              state.nextPaymentNumber,
+              preselected: {
+                for (final PosSplitByItemLineItem i in items)
+                  if (!state.paidItemIds.contains(i.id)) i.id,
+              },
+            );
+            setState(() => _splitByItemMethod = PosPaymentMethod.card);
           },
         );
       }
-      return PosPaymentSuccessCard(
-        title: 'Order Paid',
-        amount: state.grandTotal,
-        amountLabel: 'TOTAL PAID',
-        secondaryLabel: 'Receipt',
-        onSecondary: () => _showReceiptDialog(
-          orderId: state.orderId,
-          total: state.grandTotal,
-          onAfterSend: () {
-            Navigator.pop(dialogContext);
-            _completeSplitByItem();
-          },
-        ),
-        buttonLabel: 'Next order',
-        onContinue: () {
-          Navigator.pop(dialogContext);
-          _completeSplitByItem();
-        },
-      );
+      return _orderPaidCard(dialogContext, state.orderId, state.grandTotal);
     });
   }
-
-  /// Final cleanup: clear cart + session, navigate home.
-  void _completeSplitByItem() {
-    final CartProvider cart = context.read<CartProvider>();
-    final CouponProvider coupon = context.read<CouponProvider>();
-    endKioskCustomerSession(
-      context.mounted ? context : null,
-      cart: cart,
-      coupon: coupon,
-    );
-    _sale.reset();
-    _splitByItem.clear();
-    if (context.mounted) context.go(PosRoutes.home);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
 
   // ── Invoice (Family 4) ───────────────────────────────────────────────────
 
-  /// Operator taps "Invoice" in the OTHER row.
-  ///
-  /// Places the order upfront (same as split families), then switches the
-  /// right pane to the invoice form.
-  Future<void> _startInvoice(double grandTotal) async {
-    if (_invoiceActive || _confirming) return;
-
-    final kioskSession = kiosk.KioskSession.instance;
-    kioskSession.customerName = _sale.customerName.text.trim();
-    if (!context.mounted) return;
-
-    setState(() {
-      _confirming = true;
-      _startingOther = true;
-      _phase = null;
-      _cancelling = false;
-      _declined = false;
-    });
-
-    try {
-      final KioskPlaceResult placed = await posPlaceOrder(
-        context,
-        amount: grandTotal,
-        tipAmountOverride: _tip.value > 0 ? _tip.value : null,
-      );
-      if (!mounted) return;
-      setState(() { _confirming = false; _startingOther = false; });
-
-      if (!placed.success) {
-        showCustomSnackBarHelper(
-          placed.message ?? 'Order placement failed',
-          isError: true,
-        );
-        return;
-      }
-
-      setState(() {
-        _invoiceOrderId     = int.tryParse((placed.orderId ?? '').trim()) ?? 0;
-        _invoiceGrandTotal  = grandTotal;
-        _invoiceActive      = true;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() { _confirming = false; _startingOther = false; });
-      showCustomSnackBarHelper('Order placement error: $e', isError: true);
-    }
+  /// Operator taps "Invoice" in the OTHER row: the form opens at once.
+  /// Nothing is placed until Confirm Payment ([_submitInvoice]).
+  void _startInvoice() {
+    if (_invoiceActive) return;
+    setState(() => _invoiceActive = true);
   }
 
-  /// Called by the "Create Invoice" button in [PosInvoicePanel].
+  /// Confirm Payment on the invoice form (frame 03): places the order — once
+  /// — then creates its invoice. A failure leaves the form up; confirming
+  /// again reuses the placed order and the same reference, so nothing is
+  /// created twice.
   Future<void> _submitInvoice() async {
     if (_invoiceLoading || !_invoiceForm.isValid) return;
-
-    final int deviceId = context.read<KioskAuthProvider>().deviceId ?? 0;
-    final String reference =
-        'pos-inv-$_invoiceOrderId-${DateTime.now().millisecondsSinceEpoch}';
-
-    final Map<String, dynamic> payload = _invoiceForm.toPayload(
-      orderId: _invoiceOrderId,
-      deviceId: deviceId,
-      reference: reference,
-    );
-
     setState(() {
       _invoiceLoading = true;
       _phase = PosCheckoutPhase.placingOrder;
     });
 
+    String? error;
     try {
-      final PosInvoiceRepo repo = di.sl<PosInvoiceRepo>();
-      final ApiResponseModel response = await repo.create(payload);
-
+      final int? orderId = await _ensureSaleOrder((m) => error = m);
       if (!mounted) return;
-      setState(() {
-        _invoiceLoading = false;
-        _phase = null;
-      });
-
-      if (!response.isSuccess) {
-        showCustomSnackBarHelper(
-          'Invoice failed: ${response.error}',
-          isError: true,
-        );
-        return;
+      if (orderId != null) {
+        final ApiResponseModel response =
+            await di.sl<PosInvoiceRepo>().create(_invoiceForm.toPayload(
+                  orderId: orderId,
+                  deviceId: _deviceId,
+                  // One invoice per order: a retry replays it.
+                  reference: 'pos-inv-$orderId',
+                ));
+        if (!mounted) return;
+        if (response.isSuccess) {
+          setState(() {
+            _invoiceLoading = false;
+            _phase = null;
+          });
+          _showInvoiceSuccessCard(orderId);
+          return;
+        }
+        error = response.error;
       }
-
-      // Show success overlay then go home.
-      _showInvoiceSuccessCard();
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _invoiceLoading = false;
-        _phase = null;
-      });
-      showCustomSnackBarHelper('Invoice error: $e', isError: true);
+      error = '$e';
     }
+    if (!mounted) return;
+    setState(() {
+      _invoiceLoading = false;
+      _phase = null;
+    });
+    showCustomSnackBarHelper(
+      'The invoice could not be created'
+      '${(error == null || error!.isEmpty) ? '' : ': ${error!}'}. '
+      'Tap Confirm Payment to try again.',
+      isError: true,
+    );
   }
 
   /// No frame draws the invoice outcome; it uses frame 18's card.
-  void _showInvoiceSuccessCard() {
+  void _showInvoiceSuccessCard(int orderId) {
     _showSuccessCard((dialogContext) => PosPaymentSuccessCard(
           title: 'Invoice created',
-          amount: _invoiceGrandTotal,
+          amount: _saleTotal,
           amountLabel: 'AMOUNT INVOICED',
           secondaryLabel: 'Receipt',
           onSecondary: () => _showReceiptDialog(
-            orderId: _invoiceOrderId,
-            total: _invoiceGrandTotal,
+            orderId: orderId,
+            total: _saleTotal,
             onAfterSend: () {
               Navigator.pop(dialogContext);
-              _completeInvoice();
+              _endSale();
             },
           ),
           buttonLabel: 'Next order',
           onContinue: () {
             Navigator.pop(dialogContext);
-            _completeInvoice();
+            _endSale();
           },
         ));
-  }
-
-  void _completeInvoice() {
-    final CartProvider cart = context.read<CartProvider>();
-    final CouponProvider coupon = context.read<CouponProvider>();
-    endKioskCustomerSession(
-      context.mounted ? context : null,
-      cart: cart,
-      coupon: coupon,
-    );
-    _sale.reset();
-    setState(() {
-      _invoiceActive = false;
-      _invoiceOrderId = 0;
-    });
-    if (context.mounted) context.go(PosRoutes.home);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Stand-alone terminal (Family 5) ──────────────────────────────────────
 
-  /// Operator taps "Stand-alone" in the OTHER row.
-  ///
-  /// Places the order upfront then shows the instruction pane.
-  Future<void> _startStandalone(double grandTotal) async {
-    if (_standaloneActive || _confirming) return;
-
-    final kioskSession = kiosk.KioskSession.instance;
-    kioskSession.customerName = _sale.customerName.text.trim();
-    if (!context.mounted) return;
-
-    setState(() {
-      _confirming = true;
-      _startingOther = true;
-      _phase = null;
-      _cancelling = false;
-      _declined = false;
-    });
-
-    try {
-      final KioskPlaceResult placed = await posPlaceOrder(
-        context,
-        amount: grandTotal,
-        tipAmountOverride: _tip.value > 0 ? _tip.value : null,
-      );
-      if (!mounted) return;
-      setState(() { _confirming = false; _startingOther = false; });
-
-      if (!placed.success) {
-        showCustomSnackBarHelper(
-          placed.message ?? 'Order placement failed',
-          isError: true,
-        );
-        return;
-      }
-
-      setState(() {
-        _standaloneOrderId    = int.tryParse((placed.orderId ?? '').trim()) ?? 0;
-        _standaloneGrandTotal = grandTotal;
-        _standaloneActive     = true;
-        _standaloneApprovalCode.value = '';
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() { _confirming = false; _startingOther = false; });
-      showCustomSnackBarHelper('Order placement error: $e', isError: true);
-    }
+  /// Operator taps "Stand-alone" in the OTHER row: the instructions open at
+  /// once. Nothing is placed until Confirm Payment ([_submitStandalone]).
+  void _startStandalone() {
+    if (_standaloneActive) return;
+    _standaloneApprovalCode.value = '';
+    setState(() => _standaloneActive = true);
   }
 
-  /// Called by "Confirm Payment" in [PosStandalonePanel].
+  /// Confirm Payment on the stand-alone pane (frame 04): places the order —
+  /// once — then records the terminal payment against it. A failure leaves
+  /// the pane up; confirming again reuses the order and the reference.
   Future<void> _submitStandalone() async {
     if (_standaloneLoading) return;
-
-    final int deviceId = context.read<KioskAuthProvider>().deviceId ?? 0;
-    final String reference =
-        'pos-sa-$_standaloneOrderId-${DateTime.now().millisecondsSinceEpoch}';
-
     setState(() {
       _standaloneLoading = true;
       _phase = PosCheckoutPhase.placingOrder;
     });
 
+    String? error;
     try {
-      final PosStandaloneRepo repo = di.sl<PosStandaloneRepo>();
-      final ApiResponseModel response = await repo.record(
-        orderId: _standaloneOrderId,
-        deviceId: deviceId,
-        reference: reference,
-        approvalCode: _standaloneApprovalCode.value.trim().isEmpty
-            ? null
-            : _standaloneApprovalCode.value.trim(),
-      );
-
+      final int? orderId = await _ensureSaleOrder((m) => error = m);
       if (!mounted) return;
-      setState(() {
-        _standaloneLoading = false;
-        _phase = null;
-      });
-
-      if (!response.isSuccess) {
-        showCustomSnackBarHelper(
-          'Standalone payment failed: ${response.error}',
-          isError: true,
+      if (orderId != null) {
+        final String code = _standaloneApprovalCode.value.trim();
+        final ApiResponseModel response =
+            await di.sl<PosStandaloneRepo>().record(
+          orderId: orderId,
+          deviceId: _deviceId,
+          // One stand-alone payment per order: a retry replays it.
+          reference: 'pos-sa-$orderId',
+          approvalCode: code.isEmpty ? null : code,
         );
-        return;
+        if (!mounted) return;
+        if (response.isSuccess) {
+          setState(() {
+            _standaloneLoading = false;
+            _phase = null;
+          });
+          _showStandaloneSuccessCard(orderId);
+          return;
+        }
+        error = response.error;
       }
-
-      _showStandaloneSuccessCard();
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _standaloneLoading = false;
-        _phase = null;
-      });
-      showCustomSnackBarHelper('Standalone payment error: $e', isError: true);
+      error = '$e';
     }
+    if (!mounted) return;
+    setState(() {
+      _standaloneLoading = false;
+      _phase = null;
+    });
+    showCustomSnackBarHelper(
+      'The stand-alone payment could not be saved'
+      '${(error == null || error!.isEmpty) ? '' : ': ${error!}'}. '
+      'Tap Confirm Payment to try again.',
+      isError: true,
+    );
   }
 
   /// No frame draws the stand-alone outcome; it uses frame 18's card.
-  void _showStandaloneSuccessCard() {
+  void _showStandaloneSuccessCard(int orderId) {
     _showSuccessCard((dialogContext) => PosPaymentSuccessCard(
           title: 'Payment confirmed',
-          amount: _standaloneGrandTotal,
+          amount: _saleTotal,
           amountLabel: 'TOTAL PAID',
           secondaryLabel: 'Receipt',
           onSecondary: () => _showReceiptDialog(
-            orderId: _standaloneOrderId,
-            total: _standaloneGrandTotal,
+            orderId: orderId,
+            total: _saleTotal,
             onAfterSend: () {
               Navigator.pop(dialogContext);
-              _completeStandalone();
+              _endSale();
             },
           ),
           buttonLabel: 'Next order',
           onContinue: () {
             Navigator.pop(dialogContext);
-            _completeStandalone();
+            _endSale();
           },
         ));
   }
@@ -1619,15 +1423,17 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       barrierLabel: 'receipt',
       // `dim-overlay` (1915:13039): ink at 40%.
       barrierColor: PosPaymentSpec.v2DialogScrim,
-      pageBuilder: (dialogContext, anim, secAnim) => PosReceiptDialog(
-        orderId:    orderId,
-        total:      total,
-        deviceId:   deviceId,
-        onComplete: () {
-          Navigator.pop(dialogContext);
-          onAfterSend();
-        },
-        onSkip: () => Navigator.pop(dialogContext),
+      pageBuilder: (dialogContext, anim, secAnim) => PosPayCanvas(
+        child: PosReceiptDialog(
+          orderId:    orderId,
+          total:      total,
+          deviceId:   deviceId,
+          onComplete: () {
+            Navigator.pop(dialogContext);
+            onAfterSend();
+          },
+          onSkip: () => Navigator.pop(dialogContext),
+        ),
       ),
     );
   }
@@ -1661,9 +1467,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   /// Deselects / cancels whichever OTHER mode is currently active.
   ///
-  /// For split flows the placed order stays in the system (it would need a
-  /// void/refund flow to cancel properly — that is out of scope here). The UI
-  /// returns to the normal Card/Cash selector.
+  /// A split leaves nothing behind: its order is placed only with the first
+  /// payment, and once that has happened the split can't be cancelled from
+  /// here at all ([_saleGuard]). The UI returns to the Card/Cash selector.
   ///
   /// In receipt change-method mode this also clears [_changeOther] so re-tapping
   /// Invoice / Stand-alone actually deselects back to PRIMARY.
@@ -1678,11 +1484,16 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     }
     if (_split.value != null) {
       _split.clear();
-      setState(() => _splitCustom = false);
+      setState(() {
+        _splitCustom = false;
+        _splitEntry = _splitEntry.clear();
+        _splitDenomination = null;
+      });
       return;
     }
     if (_splitByItem.value != null) {
       _splitByItem.clear();
+      _splitByItemGroups.clearSelection();
       setState(() {
         _sbiTender = null;
         _sbiDenomination = null;
@@ -1690,39 +1501,26 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       return;
     }
     if (_invoiceActive) {
-      setState(() {
-        _invoiceActive = false;
-        _invoiceOrderId = 0;
-      });
+      setState(() => _invoiceActive = false);
       return;
     }
     if (_standaloneActive) {
-      setState(() {
-        _standaloneActive = false;
-        _standaloneOrderId = 0;
-      });
+      setState(() => _standaloneActive = false);
     }
-  }
-
-  void _completeStandalone() {
-    final CartProvider cart = context.read<CartProvider>();
-    final CouponProvider coupon = context.read<CouponProvider>();
-    endKioskCustomerSession(
-      context.mounted ? context : null,
-      cart: cart,
-      coupon: coupon,
-    );
-    _sale.reset();
-    setState(() {
-      _standaloneActive = false;
-      _standaloneOrderId = 0;
-    });
-    if (context.mounted) context.go(PosRoutes.home);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// The OTHER row tapped again: deselect it — unless a split is committed.
+  void _onCancelActiveOther() {
+    if (_saleGuard()) return;
+    _cancelActiveOther();
+  }
+
+  /// The ticket's steppers. Once a split has placed the order the ticket is
+  /// what was ordered, so it can't change underneath the remaining payments.
   void _incrementLine(int index) {
+    if (_saleGuard()) return;
     final CartProvider cart = context.read<CartProvider>();
     final CartModel? line = cart.cartList[index];
     if (line == null) return;
@@ -1730,11 +1528,14 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   }
 
   void _decrementLine(int index) {
+    if (_saleGuard()) return;
     final CartProvider cart = context.read<CartProvider>();
     final CartModel? line = cart.cartList[index];
     if (line == null) return;
     if ((line.quantity ?? 1) <= 1) {
       cart.removeFromCart(index);
+      // Split-by-item ticks are line positions; removing a line moves them.
+      _splitByItemGroups.clearSelection();
     } else {
       cart.setQuantity(isIncrement: false, cart: line, fromProductView: false);
     }
@@ -1781,7 +1582,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// should treat a cancel on a finished transaction as a no-op, so the call is
   /// guarded rather than trusted.
   Future<void> _dismissDeclined() async {
-    setState(() => _declined = false);
+    setState(() {
+      _declined = false;
+      _declinedRetry = null;
+    });
     try {
       await posCancelTerminalPayment();
     } catch (_) {
@@ -1816,7 +1620,6 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
     setState(() {
       _confirming = true;
-      _startingOther = true;
       _phase = null;
       _cancelling = false;
       _declined = false;
@@ -1956,6 +1759,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         backgroundColor: PosHomeSpec.pageBg,
         body: PosPayTextScope(
         child: SafeArea(
+          child: PosPayCanvas(
           child: Column(
             children: [
               PosPayBackRow(
@@ -1973,15 +1777,18 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
               ),
             ],
           ),
+          ),
         ),
       ),
       );
     }
 
-    return Scaffold(
+    final Widget screen = Scaffold(
       backgroundColor: PosHomeSpec.pageBg,
       body: PosPayTextScope(
         child: SafeArea(
+        // Laid out at Figma's 1366×1024 and scaled to the window.
+        child: PosPayCanvas(
         child: Column(
           children: [
             // No top nav bar: no frame in the "POS payment" layer (1915:9314)
@@ -2005,6 +1812,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                   // default); off, the row explains instead of opening.
                   final VoidCallback? onTip =
                       hasItems ? () => _openTip(total) : null;
+                  // On a split the tip is part of the order placed with the
+                  // first payment, so it can change only until then.
+                  final VoidCallback? onSplitTip = _saleLocked ? null : onTip;
 
                   return Column(
                     children: [
@@ -2025,19 +1835,24 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                         Expanded(
                           child: PosDeclinedCard(
                             // The figure the declined attempt was for — the
-                            // grand total that was charged, not a fresh read.
+                            // split payment's amount, or the grand total that
+                            // was charged; not a fresh read.
                             amountDue: _declinedAmount,
-                            retrying: _confirming,
-                            onCancel: _confirming ? null : _dismissDeclined,
-                            onTryAgain: _confirming
+                            retrying: _confirming || _splitBusy,
+                            onCancel: _confirming || _splitBusy
                                 ? null
-                                : () => _tryAgain(grandTotal, tip),
+                                : _dismissDeclined,
+                            onTryAgain: _confirming || _splitBusy
+                                ? null
+                                : _declinedRetry ??
+                                    () => _tryAgain(grandTotal, tip),
                           ),
                         )
                       else if (_isWaitingForTerminal)
                         Expanded(
                           child: PosWaitingCard(
-                            amountDue: grandTotal,
+                            // A split payment quotes its own amount.
+                            amountDue: _waitingAmount ?? grandTotal,
                             cancelling: _cancelling,
                             onCancel:
                                 _cancelling ? null : _cancelTransaction,
@@ -2073,6 +1888,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     total: grandTotal,
                                     tip: tip,
                                     onTip: onTip,
+                                    onSplitTip: onSplitTip,
                                     onSelectMethod: (method) =>
                                         _selectMethod(method, grandTotal),
                                     cash: _cash,
@@ -2088,20 +1904,22 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     onDecrement: _decrementLine,
                                     onOptions: _openReceiptOptions,
                                     inSplit: inSplit,
-                                    splitState: splitState,
+                                    splitState:
+                                        splitState?.withLiveTotal(grandTotal),
                                     splitMethod: _splitMethod,
                                     splitEntry: _splitEntry,
                                     onSplitMethod: _onSplitMethod,
                                     onSplitKey: _onSplitKey,
                                     onSplitBackspace: _onSplitBackspace,
-                                    onSplitClear: _onSplitClear,
                                     onSplitDenomination: _onSplitDenomination,
                                     splitDenomination: _splitDenomination,
+                                    splitInputLocked: _taken != null,
                                     onSplitByPayment: _change != null
                                         ? null
                                         : () {
+                                            if (_saleGuard()) return;
                                             _cancelActiveOther();
-                                            _startSplit(grandTotal);
+                                            _startSplit();
                                           },
                                     splitCustom: _splitCustom,
                                     onRefundPayment: _change != null
@@ -2116,42 +1934,43 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     splitChoice: _splitChoice,
                                     onSplitChoice: (c) =>
                                         setState(() => _splitChoice = c),
-                                    onSplitConfirm: _splittingPayment
-                                        ? null
-                                        : _recordSplit,
-                                    splitLoading: _splittingPayment,
                                     inSplitByItem: inSplitByItem,
-                                    splitByItemState: sbiState,
+                                    splitByItemState:
+                                        sbiState?.withLiveTotal(grandTotal),
                                     splitByItemGroups: _splitByItemGroups,
                                     splitByItemMethod: _splitByItemMethod,
                                     splitByItemLineItems: sbiItems,
                                     onSplitByItem: _change != null || inSplitByItem
                                         ? null
                                         : _openSplitChooser,
-                                    onSplitByItemMethod: (m) =>
-                                        setState(() => _splitByItemMethod = m),
+                                    onToggleSplitItem: (id) {
+                                      if (_taken != null) return;
+                                      _splitByItemGroups.toggleItem(id);
+                                    },
+                                    onSplitByItemMethod: (m) {
+                                      if (_taken != null) return;
+                                      setState(() => _splitByItemMethod = m);
+                                    },
                                     sbiAmountOf: (_) =>
-                                        _sbiCharge(sbiItems) ??
-                                        _splitByItemGroups.value
-                                            .calculateAmount(sbiItems),
+                                        _sbiQuoteAmount(sbiItems),
                                     sbiTender: _sbiTender,
                                     sbiDenomination: _sbiDenomination,
-                                    sbiCharge: _sbiCharge(sbiItems),
+                                    sbiCharge: _sbiQuote(sbiItems).payable
+                                        ? _sbiQuoteAmount(sbiItems)
+                                        : null,
                                     sbiPickedNames: [
                                       for (final i in sbiItems)
                                         if (_splitByItemGroups.value
-                                            .isSelected(i.id))
-                                          i.name,
+                                                .isSelected(i.id) &&
+                                            !(sbiState?.paidItemIds
+                                                    .contains(i.id) ??
+                                                false))
+                                          i.title,
                                     ],
                                     onSbiKey: _onSbiKey,
                                     onSbiBackspace: _onSbiBackspace,
                                     onSbiDenomination: _onSbiDenomination,
                                     onSbiMethod: _onSbiMethod,
-                                    onSplitByItemStartPayment:
-                                        _splitByItemLoading
-                                            ? null
-                                            : () => _startSplitByItemPayment(
-                                                sbiItems),
                                     invoiceActive: _invoiceActive,
                                     invoiceForm: _invoiceForm,
                                     invoiceLoading: _invoiceLoading,
@@ -2164,8 +1983,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                         : _invoiceActive
                                             ? null
                                             : () {
+                                                if (_saleGuard()) return;
                                                 _cancelActiveOther();
-                                                _startInvoice(grandTotal);
+                                                _startInvoice();
                                               },
                                     onSubmitInvoice: _submitInvoice,
                                     standaloneActive: _standaloneActive,
@@ -2179,12 +1999,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                         : _standaloneActive
                                             ? null
                                             : () {
+                                                if (_saleGuard()) return;
                                                 _cancelActiveOther();
-                                                _startStandalone(grandTotal);
+                                                _startStandalone();
                                               },
                                     onSubmitStandalone: _submitStandalone,
-                                    onCancelActiveOther: _cancelActiveOther,
-                                    pendingOther: _startingOther,
+                                    onCancelActiveOther: _onCancelActiveOther,
                                     showSplitOptions: _change == null,
                                   );
                                 },
@@ -2192,8 +2012,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                             },
                           ),
                         ),
-                        // Pill CTA hidden while in split-by-item, split-by-payment,
-                        // invoice, or stand-alone mode (those panes own their CTAs).
+                        // The sticky bar: one CTA for whichever pane is up.
                         ValueListenableBuilder<PosSplitByItemState?>(
                           valueListenable: _splitByItem,
                           builder: (context, sbiState, _) {
@@ -2229,11 +2048,19 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                 if (_splitChooser) {
                                   return PosPayPillBar(
                                     label: 'Continue',
-                                    loading: _confirming,
-                                    onConfirm: _confirming
-                                        ? null
-                                        : () =>
-                                            _continueSplitChooser(grandTotal),
+                                    onConfirm: _continueSplitChooser,
+                                  );
+                                }
+                                // A split payment that is taken but not saved:
+                                // the bar saves it again, never re-charges.
+                                final _TakenPayment? taken = _taken;
+                                if (taken != null &&
+                                    (splitState != null || sbiState != null)) {
+                                  return PosPayPillBar(
+                                    label: 'Save Payment ${taken.seq} · '
+                                        '${PosHomeSpec.formatPrice(taken.amount, padZero: false)}',
+                                    loading: _splitBusy,
+                                    onConfirm: _splitBusy ? null : _saveTaken,
                                   );
                                 }
                                 // Frames 05 / 09–12 ("Start Payment N") and
@@ -2241,19 +2068,23 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                 // pane is confirmed from this bar, live only
                                 // for an amount the backend will take.
                                 if (splitState != null) {
+                                  final PosSplitState view =
+                                      splitState.withLiveTotal(grandTotal);
                                   final int? applied = _splitAppliedCents();
                                   final String amount = applied == null
                                       ? ''
                                       : ' · ${PosHomeSpec.formatPrice(posCentsToMoney(applied, decimals: _splitEntry.decimals), padZero: false)}';
                                   return PosPayPillBar(
-                                    label:
-                                        'Start Payment ${splitState.nextSequence}'
-                                        '${_splitCustom ? amount : ''}',
-                                    loading: _splittingPayment,
-                                    onConfirm: _splittingPayment ||
-                                            applied == null
+                                    label: applied == null &&
+                                            _splitCardOver(view)
+                                        ? 'Enter at most '
+                                            '${PosHomeSpec.formatPrice(view.remaining, padZero: false)}'
+                                        : 'Start Payment ${view.nextSequence}'
+                                            '${_splitCustom ? amount : ''}',
+                                    loading: _splitBusy,
+                                    onConfirm: _splitBusy || applied == null
                                         ? null
-                                        : _recordSplit,
+                                        : _takeSplitPayment,
                                   );
                                 }
                                 // Frames 14 / 16 / 20 / 21: "Start Payment N
@@ -2267,25 +2098,21 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                       PosSplitByItemGroupBuilder>(
                                     valueListenable: _splitByItemGroups,
                                     builder: (context, builder, _) {
-                                      final double? charge = _sbiCharge(items);
-                                      final String due = PosHomeSpec.formatPrice(
-                                          charge ??
-                                              builder.calculateAmount(items),
-                                          padZero: false);
+                                      final PosSplitByItemQuote quote =
+                                          _sbiQuote(items);
+                                      final String due =
+                                          PosHomeSpec.formatPrice(
+                                              _sbiQuoteAmount(items),
+                                              padZero: false);
                                       final PosCashEntry? tender = _sbiTender;
                                       if (tender != null) {
-                                        final bool covers = charge != null &&
-                                            tender.cents >=
-                                                posMoneyToCents(charge,
-                                                    decimals: tender.decimals);
+                                        final bool covers = quote.payable &&
+                                            tender.cents >= quote.cents;
                                         return PosPayPillBar(
                                           label: 'Confirm Payment · $due',
-                                          loading: _splitByItemLoading,
-                                          onConfirm: covers &&
-                                                  !_splitByItemLoading
-                                              ? () =>
-                                                  _startSplitByItemPayment(
-                                                      items)
+                                          loading: _splitBusy,
+                                          onConfirm: covers && !_splitBusy
+                                              ? _takeSbiPayment
                                               : null,
                                         );
                                       }
@@ -2295,13 +2122,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                         label:
                                             'Start Payment ${sbiState.nextPaymentNumber}'
                                             ' · $due',
-                                        loading: _splitByItemLoading,
-                                        onConfirm: charge != null &&
-                                                !_splitByItemLoading
+                                        loading: _splitBusy,
+                                        onConfirm: quote.payable && !_splitBusy
                                             ? () => cash
                                                 ? _startSbiCash(items)
-                                                : _startSplitByItemPayment(
-                                                    items)
+                                                : _takeSbiPayment()
                                             : null,
                                       );
                                     },
@@ -2337,8 +2162,26 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
             ),
           ],
         ),
+        ),
       ),
       ),
+    );
+
+    // A system / browser back can't leave while a payment is in flight (the
+    // terminal could charge a card for an order nobody placed), and during a
+    // committed split it goes through the same check as the back button.
+    final bool inFlight = _isWaitingForTerminal ||
+        _splitBusy ||
+        _confirming ||
+        _invoiceLoading ||
+        _standaloneLoading;
+    return PopScope(
+      canPop: !_saleLocked && !inFlight,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || inFlight) return;
+        _back();
+      },
+      child: screen,
     );
   }
 }
@@ -2374,6 +2217,10 @@ class _Content extends StatelessWidget {
 
   /// Opens the tip modal. Null when tipping is disabled → row inert.
   final VoidCallback? onTip;
+
+  /// The split panes' tip row: [onTip] until the first split payment places
+  /// the order, null after.
+  final VoidCallback? onSplitTip;
   final ValueChanged<PosPaymentMethod> onSelectMethod;
 
   /// The OTHER method picked while changing a receipt's method. Lights its
@@ -2399,12 +2246,12 @@ class _Content extends StatelessWidget {
   final ValueChanged<PosPaymentMethod> onSplitMethod;
   final ValueChanged<String> onSplitKey;
   final VoidCallback onSplitBackspace;
-  final VoidCallback onSplitClear;
   final ValueChanged<PosCashDenomination> onSplitDenomination;
   final PosCashDenomination? splitDenomination;
   final VoidCallback? onSplitByPayment;
-  final VoidCallback? onSplitConfirm;
-  final bool splitLoading;
+
+  /// A split payment is taken but not saved: the split panes' input is inert.
+  final bool splitInputLocked;
 
   /// The split was started from the chooser's Custom amount (frame 19).
   final bool splitCustom;
@@ -2425,8 +2272,8 @@ class _Content extends StatelessWidget {
   final PosPaymentMethod splitByItemMethod;
   final List<PosSplitByItemLineItem> splitByItemLineItems;
   final VoidCallback? onSplitByItem;
+  final ValueChanged<int> onToggleSplitItem;
   final ValueChanged<PosPaymentMethod> onSplitByItemMethod;
-  final VoidCallback? onSplitByItemStartPayment;
   final double Function(PosSplitByItemGroupBuilder pick) sbiAmountOf;
 
   /// Frame 15: the cash tender for the picked items; null = item picker.
@@ -2459,10 +2306,6 @@ class _Content extends StatelessWidget {
   /// Cancels whichever OTHER mode is currently active (deselects on re-tap).
   final VoidCallback? onCancelActiveOther;
 
-  /// True while an OTHER-mode order is being placed (API in flight). Prevents
-  /// the PRIMARY radio from blinking selected between cancel and activation.
-  final bool pendingOther;
-
   /// False in receipt change-method mode (splits are not a display override).
   final bool showSplitOptions;
 
@@ -2482,6 +2325,7 @@ class _Content extends StatelessWidget {
     required this.total,
     required this.tip,
     required this.onTip,
+    this.onSplitTip,
     required this.onSelectMethod,
     required this.cash,
     required this.denomination,
@@ -2501,12 +2345,10 @@ class _Content extends StatelessWidget {
     required this.onSplitMethod,
     required this.onSplitKey,
     required this.onSplitBackspace,
-    required this.onSplitClear,
     required this.onSplitDenomination,
     required this.splitDenomination,
     required this.onSplitByPayment,
-    required this.onSplitConfirm,
-    required this.splitLoading,
+    this.splitInputLocked = false,
     required this.splitCustom,
     this.onRefundPayment,
     this.onRefundGroup,
@@ -2519,8 +2361,8 @@ class _Content extends StatelessWidget {
     required this.splitByItemMethod,
     required this.splitByItemLineItems,
     required this.onSplitByItem,
+    required this.onToggleSplitItem,
     required this.onSplitByItemMethod,
-    required this.onSplitByItemStartPayment,
     required this.sbiAmountOf,
     required this.sbiTender,
     required this.sbiDenomination,
@@ -2543,7 +2385,6 @@ class _Content extends StatelessWidget {
     required this.onStandalone,
     required this.onSubmitStandalone,
     this.onCancelActiveOther,
-    this.pendingOther = false,
     this.showSplitOptions = true,
   });
 
@@ -2562,8 +2403,9 @@ class _Content extends StatelessWidget {
         onOptions: onOptions,
       );
 
-  /// Payment-method column — node 1915:9420. Scrolls internally when it owns a
-  /// bounded height (a pane-internal scroll, never a full-screen one).
+  /// Payment-method column — node 1915:9420. In a window shorter than the
+  /// frame it scales down to fit its pane rather than scrolling — every
+  /// method stays in view.
   Widget _methodPane({required bool fill}) {
     final Widget selector = PosPaymentMethodSelector(
       method: method,
@@ -2582,12 +2424,11 @@ class _Content extends StatelessWidget {
       onStandalone: onStandalone,
       standaloneActive: standaloneActive || changeOther == 'standalone',
       onCancelActiveOther: onCancelActiveOther,
-      pendingOther: pendingOther,
       showSplitOptions: showSplitOptions,
     );
     return PosPayCard(
       padding: const EdgeInsets.all(PosPaymentSpec.v2MethodCardPadding),
-      child: fill ? SingleChildScrollView(child: selector) : selector,
+      child: fill ? PosFitColumn(children: [selector]) : selector,
     );
   }
 
@@ -2699,6 +2540,8 @@ class _Content extends StatelessWidget {
             onDenomination: (d) => onSbiDenomination(d, due),
             selectedDenomination: sbiDenomination,
             tip: tip,
+            onTipTap: onSplitTip,
+            locked: splitInputLocked,
             fill: fill,
           ),
         );
@@ -2714,13 +2557,14 @@ class _Content extends StatelessWidget {
           lineItems: splitByItemLineItems,
           groupBuilder: splitByItemGroups,
           paymentMethod: splitByItemMethod,
-          onToggleItem: (id) => splitByItemGroups.toggleItem(id),
+          onToggleItem: onToggleSplitItem,
           onPaymentMethodChanged: onSplitByItemMethod,
-          onStartPayment: onSplitByItemStartPayment ?? () {},
-          // The order (tip included) is already placed: informational.
           tip: tip,
+          onAddTip: onSplitTip,
           amountOf: sbiAmountOf,
           onRefund: onRefundGroup,
+          locked: splitInputLocked,
+          fill: fill,
         ),
       );
     }
@@ -2740,6 +2584,8 @@ class _Content extends StatelessWidget {
           onDenomination: onSplitDenomination,
           selectedDenomination: splitDenomination,
           tip: tip,
+          onTipTap: onSplitTip,
+          locked: splitInputLocked,
           fill: fill,
           customAmount: splitCustom,
           onRefund: onRefundPayment,
@@ -2779,4 +2625,31 @@ class _Content extends StatelessWidget {
       summary: (fill) => _summaryPane(fill: fill),
     );
   }
+}
+
+/// A split payment whose money is in — the card approved, or the cash in the
+/// drawer — but which the backend has not recorded yet. The screen holds it
+/// until it is saved, so a retry only re-sends it.
+@immutable
+class _TakenPayment {
+  /// The payment number it is saved as ("Payment 2").
+  final int seq;
+
+  /// `card` | `cash`.
+  final String method;
+  final double amount;
+
+  /// The terminal's reference for a card payment.
+  final String? transactionReference;
+
+  /// Split by item: the lines this guest paid for.
+  final List<int> itemIds;
+
+  const _TakenPayment({
+    required this.seq,
+    required this.method,
+    required this.amount,
+    this.transactionReference,
+    this.itemIds = const [],
+  });
 }

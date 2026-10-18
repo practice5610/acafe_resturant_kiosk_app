@@ -172,6 +172,9 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
                         onDone: () {
                           _editLines.value = const [];
                           _sidebarMode.value = _ReceiptSidebarMode.view;
+                          // Pull the saved receipt now rather than waiting on
+                          // the socket echo, so the totals and lines are fresh.
+                          widget.onRefresh?.call();
                         },
                       );
                     } else {

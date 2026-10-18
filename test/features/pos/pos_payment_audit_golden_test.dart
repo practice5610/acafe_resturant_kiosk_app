@@ -26,6 +26,7 @@ import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dar
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_fit_column.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/di_container.dart' show sl;
@@ -301,6 +302,7 @@ Future<void> pumpComposedFrame(
       backgroundColor: PosHomeSpec.pageBg,
       body: PosPayTextScope(
         child: SafeArea(
+          child: PosPayCanvas(
           child: Column(
             children: [
               PosPayBackRow(onBack: () {}, label: backLabel),
@@ -339,7 +341,7 @@ Future<void> pumpComposedFrame(
                       padding: const EdgeInsets.all(
                           PosPaymentSpec.v2MethodCardPadding),
                       child: fill
-                          ? SingleChildScrollView(child: selector)
+                          ? PosFitColumn(children: [selector])
                           : selector,
                     );
                   },
@@ -348,6 +350,7 @@ Future<void> pumpComposedFrame(
               ),
               if (bar != null) bar,
             ],
+          ),
           ),
         ),
       ),
@@ -488,12 +491,12 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
           reference: 'r1')),
   '20_sbi_six': (t) => _sbiFrame(t,
       items: const [
-        PosSplitByItemLineItem(id: 0, name: 'Oat Milk Matcha', variant: '', price: 6),
-        PosSplitByItemLineItem(id: 1, name: 'Vanilla Matcha Latte', variant: '', price: 6),
-        PosSplitByItemLineItem(id: 2, name: 'Mango Matcha', variant: '', price: 7),
-        PosSplitByItemLineItem(id: 3, name: 'Iced Americano', variant: '', price: 3.5),
-        PosSplitByItemLineItem(id: 4, name: 'Butter Croissant', variant: '', price: 3.2),
-        PosSplitByItemLineItem(id: 5, name: 'Banana Bread', variant: '', price: 4.2),
+        PosSplitByItemLineItem(id: 0, name: 'Oat Milk Matcha', detail: '', price: 6),
+        PosSplitByItemLineItem(id: 1, name: 'Vanilla Matcha Latte', detail: '', price: 6),
+        PosSplitByItemLineItem(id: 2, name: 'Mango Matcha', detail: '', price: 7),
+        PosSplitByItemLineItem(id: 3, name: 'Iced Americano', detail: '', price: 3.5),
+        PosSplitByItemLineItem(id: 4, name: 'Butter Croissant', detail: '', price: 3.2),
+        PosSplitByItemLineItem(id: 5, name: 'Banana Bread', detail: '', price: 4.2),
       ],
       selected: {0, 1},
       total: 29.9,
@@ -547,10 +550,10 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
 };
 
 const List<PosSplitByItemLineItem> _sbiTicket = [
-  PosSplitByItemLineItem(id: 0, name: 'Oat Milk Matcha', variant: 'Cup', price: 6),
+  PosSplitByItemLineItem(id: 0, name: 'Oat Milk Matcha', detail: 'Cup', price: 6),
   PosSplitByItemLineItem(
-      id: 1, name: 'Vanilla Matcha Latte', variant: 'Can', price: 6),
-  PosSplitByItemLineItem(id: 2, name: 'Mango Matcha', variant: 'Cup', price: 7),
+      id: 1, name: 'Vanilla Matcha Latte', detail: 'Can', price: 6),
+  PosSplitByItemLineItem(id: 2, name: 'Mango Matcha', detail: 'Cup', price: 7),
 ];
 
 /// Split-by-item frames: [items] with [selected] ticked, after [paid].
@@ -573,7 +576,7 @@ Future<void> _sbiFrame(
     tester,
     splitByItemActive: true,
     backLabel: backLabel,
-    summary: (_) => PosPayCard(
+    summary: (fill) => PosPayCard(
       borderColor: PosSplitSummaryPanel.borderColor,
       borderWidth: PosSplitSummaryPanel.borderWidth,
       child: PosSplitByItemPanel(
@@ -585,9 +588,9 @@ Future<void> _sbiFrame(
         paymentMethod: method,
         onToggleItem: (_) {},
         onPaymentMethodChanged: (_) {},
-        onStartPayment: () {},
         groups: [if (paid != null) paid],
         onRefund: (_) {},
+        fill: fill,
       ),
     ),
     bar: PosPayPillBar(
@@ -831,8 +834,10 @@ Future<void> pumpOverlayFrame(WidgetTester tester, Widget card) =>
       tester,
       (_) => Scaffold(
         backgroundColor: PosHomeSpec.pageBg,
-        body: PosPayTextScope(
-          child: Material(type: MaterialType.transparency, child: card),
+        body: PosPayCanvas(
+          child: PosPayTextScope(
+            child: Material(type: MaterialType.transparency, child: card),
+          ),
         ),
       ),
     );

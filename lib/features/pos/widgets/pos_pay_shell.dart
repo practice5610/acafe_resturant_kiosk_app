@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
@@ -90,6 +92,84 @@ class PosPayTextScope extends StatelessWidget {
   }
 }
 
+/// The design canvas of the "POS payment" layer (Figma **1915:9314**): every
+/// frame is drawn at 1366×1024, and this lays the screen out at exactly that
+/// and scales it uniformly to the window — so the panes, the keypad, the type
+/// and every gap keep Figma's proportions at any window size instead of
+/// being squeezed (short keys) or cut off (a keypad below the fold).
+///
+/// The scale is `min(width / 1366, height / 1024)`. The spare dimension
+/// becomes extra canvas: spare width is handed to the chrome as
+/// [PosPayInset] — the back row, the panes and the pill keep their frame
+/// widths, centred, while the backgrounds and the bar's rule run edge to
+/// edge; spare height lets the panes grow taller.
+///
+/// Below [PosResponsive.desktopFloor] the layout stacks into a scroll and is
+/// not scaled (a 1366-wide frame shrunk onto a phone would be unreadable).
+class PosPayCanvas extends StatelessWidget {
+  static const Size frame = Size(1366, 1024);
+
+  final Widget child;
+
+  const PosPayCanvas({super.key, required this.child});
+
+  /// The canvas scale for a window of [size]; null where the layout stacks.
+  static double? scaleFor(Size size) {
+    if (!size.isFinite || size.width < PosResponsive.desktopFloor) return null;
+    return math.min(size.width / frame.width, size.height / frame.height);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final Size window = constraints.biggest;
+        final double? scale = scaleFor(window);
+        if (scale == null || scale <= 0) return child;
+        final Size canvas = Size(window.width / scale, window.height / scale);
+        final double inset =
+            math.max(0, (canvas.width - frame.width) / 2);
+        // Pinned to the window: on loose constraints a FittedBox would
+        // otherwise size to a smaller canvas and never scale up.
+        return SizedBox.fromSize(
+          size: window,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.topLeft,
+            child: SizedBox.fromSize(
+              size: canvas,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(size: canvas),
+                child: PosPayInset(horizontal: inset, child: child),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The spare width either side of the 1366 frame on a wider canvas; the
+/// payment chrome adds it to its horizontal padding. 0 outside a canvas.
+class PosPayInset extends InheritedWidget {
+  final double horizontal;
+
+  const PosPayInset({
+    super.key,
+    required this.horizontal,
+    required super.child,
+  });
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<PosPayInset>()?.horizontal ??
+      0;
+
+  @override
+  bool updateShouldNotify(PosPayInset oldWidget) =>
+      horizontal != oldWidget.horizontal;
+}
+
 /// The redesigned payment screen's content shell — `content-area`
 /// (Figma **1915:9352**, "POS payment" layer 1915:9314).
 ///
@@ -120,9 +200,12 @@ class PosPayThreePane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // On a canvas wider than the frame the panes keep the frame's widths,
+    // centred ([PosPayCanvas]).
+    final double inset = PosPayInset.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double w = constraints.maxWidth;
+        final double w = constraints.maxWidth - 2 * inset;
 
         double receiptW = w * PosPaymentSpec.v2ReceiptPaneRatio;
         double methodW = w * PosPaymentSpec.v2MethodPaneRatio;
@@ -145,10 +228,10 @@ class PosPayThreePane extends StatelessWidget {
 
         if (sideBySide) {
           return Padding(
-            padding: const EdgeInsets.fromLTRB(
-              PosPaymentSpec.v2ContentPaddingH,
+            padding: EdgeInsets.fromLTRB(
+              PosPaymentSpec.v2ContentPaddingH + inset,
               0,
-              PosPaymentSpec.v2ContentPaddingH,
+              PosPaymentSpec.v2ContentPaddingH + inset,
               PosPaymentSpec.v2ContentPaddingBottom,
             ),
             child: Row(
@@ -265,6 +348,8 @@ class PosPayPillBar extends StatelessWidget {
     final bool enabled = onConfirm != null && !loading;
     final BorderRadius radius =
         BorderRadius.circular(PosPaymentSpec.v2PillRadius);
+    // The rule and shadow run edge to edge; the pill keeps the frame width.
+    final double inset = PosPayInset.of(context);
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -284,10 +369,10 @@ class PosPayPillBar extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          PosPaymentSpec.v2BarPaddingH,
+        padding: EdgeInsets.fromLTRB(
+          PosPaymentSpec.v2BarPaddingH + inset,
           PosPaymentSpec.v2BarPaddingTop,
-          PosPaymentSpec.v2BarPaddingH,
+          PosPaymentSpec.v2BarPaddingH + inset,
           PosPaymentSpec.v2BarPaddingBottom,
         ),
         child: Opacity(
@@ -343,6 +428,8 @@ class PosPayBackRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The button lines up with the receipt pane on a wider canvas.
+    final double inset = PosPayInset.of(context);
     return SizedBox(
       height: PosPaymentSpec.backRowHeight,
       child: Stack(
@@ -351,7 +438,7 @@ class PosPayBackRow extends StatelessWidget {
             child: Center(
               child: Padding(
                 // Keep the caption clear of the back button at either edge.
-                padding: const EdgeInsets.symmetric(horizontal: 88),
+                padding: EdgeInsets.symmetric(horizontal: 88 + inset),
                 child: Text(
                   label,
                   maxLines: 1,
@@ -368,8 +455,8 @@ class PosPayBackRow extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: PosPaymentSpec.backRowPaddingH),
+              padding: EdgeInsets.symmetric(
+                  horizontal: PosPaymentSpec.backRowPaddingH + inset),
               child: Opacity(
                 opacity: onBack == null ? 0.4 : 1,
                 child: Material(

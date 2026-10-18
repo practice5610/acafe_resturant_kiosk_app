@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// Outcome of Close Day Step 2 (Figma **1641:6707**).
+/// Outcome of Close Day Step 2 (Figma **1915:19286**).
 enum PosCloseDayStep2Action {
   /// Confirm & Close Day — proceed with the counted cash.
   confirm,
@@ -39,7 +39,8 @@ class PosCloseDayStep2Result {
   });
 }
 
-/// Step 2 body — Review & Confirm. Figma **1641:6707**.
+/// Step 2 body — Review & Confirm. Figma **1915:19286** (open issues) and
+/// **1915:19604** (resolved).
 class PosCloseDayStep2Panel extends StatefulWidget {
   final DateTime date;
   final PosReportData data;
@@ -205,7 +206,7 @@ class _PosCloseDayStep2PanelState extends State<PosCloseDayStep2Panel> {
         const SizedBox(height: PosCloseDaySpec.step2Gap),
         Container(
           height: 1,
-          color: PosCloseDaySpec.cardBorderColor,
+          color: PosCloseDaySpec.dividerColor,
         ),
         const SizedBox(height: PosCloseDaySpec.step2Gap),
         _Step2Footer(
@@ -233,24 +234,11 @@ class _Step2Header extends StatelessWidget {
         Row(
           children: <Widget>[
             Expanded(
-              child: Text.rich(
-                TextSpan(
-                  children: <InlineSpan>[
-                    TextSpan(
-                      text: 'Close Day  ',
-                      style: loewExtraBold.copyWith(
-                        fontSize: PosCloseDaySpec.titleSize,
-                        color: PosCloseDaySpec.ink,
-                      ),
-                    ),
-                    TextSpan(
-                      text: dateLabel,
-                      style: loewRegular.copyWith(
-                        fontSize: PosCloseDaySpec.titleSize,
-                        color: PosCloseDaySpec.ink,
-                      ),
-                    ),
-                  ],
+              child: Text(
+                'Close Day  $dateLabel',
+                style: loewExtraBold.copyWith(
+                  fontSize: PosCloseDaySpec.titleSize,
+                  color: PosCloseDaySpec.ink,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -293,11 +281,17 @@ class _DaySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosCloseDaySpec.summaryRadius);
+
     return Container(
       padding: const EdgeInsets.all(PosCloseDaySpec.summaryPadding),
       decoration: BoxDecoration(
         color: PosCloseDaySpec.pageBg,
-        borderRadius: BorderRadius.circular(PosCloseDaySpec.summaryRadius),
+        borderRadius: radius,
+      ),
+      foregroundDecoration: BoxDecoration(
+        borderRadius: radius,
         border: Border.all(color: PosCloseDaySpec.cardBorderColor),
       ),
       child: Row(
@@ -419,11 +413,12 @@ class _DiscrepancySection extends StatelessWidget {
             const SizedBox(width: PosCloseDaySpec.discrepancyActionGap),
             Expanded(
               child: _SecondaryButton(
-                label: accepted ? 'Difference accepted ✓' : 'Accept difference',
+                label: 'Accept difference',
                 filled: true,
-                // Stays fully opaque once accepted so it reads as a
-                // confirmed choice rather than a disabled button.
-                onTap: accepted ? () {} : onAccept,
+                // Figma 1915:19604 keeps it as drawn once accepted; the
+                // reason field opening under it is the confirmation.
+                selected: accepted,
+                onTap: onAccept,
               ),
             ),
           ],
@@ -437,6 +432,9 @@ class _DiscrepancySection extends StatelessWidget {
               color: PosCloseDaySpec.ink,
             ),
             decoration: InputDecoration(
+              // Dense drops Material's 48px floor so the 10/14 padding sets
+              // the 37 Figma draws.
+              isDense: true,
               hintText: 'Reason for difference (optional)',
               hintStyle: loewRegular.copyWith(
                 fontSize: PosCloseDaySpec.inputTextSize,
@@ -508,6 +506,10 @@ class _PendingOrdersSection extends StatelessWidget {
             color: PosCloseDaySpec.warningBannerBg,
             borderRadius:
                 BorderRadius.circular(PosCloseDaySpec.warningBannerRadius),
+          ),
+          foregroundDecoration: BoxDecoration(
+            borderRadius:
+                BorderRadius.circular(PosCloseDaySpec.warningBannerRadius),
             border: Border.all(color: PosCloseDaySpec.cardBorderColor),
           ),
           child: Row(
@@ -550,7 +552,8 @@ class _PendingOrdersSection extends StatelessWidget {
               child: _SecondaryButton(
                 label: 'Close anyway',
                 filled: true,
-                onTap: closeAnyway ? null : onCloseAnyway,
+                selected: closeAnyway,
+                onTap: onCloseAnyway,
               ),
             ),
           ],
@@ -617,6 +620,7 @@ class _ActionsList extends StatelessWidget {
             color: PosCloseDaySpec.ink,
           ),
           decoration: InputDecoration(
+            isDense: true,
             hintText: 'Enter PIN',
             hintStyle: loewRegular.copyWith(
               fontSize: PosCloseDaySpec.inputTextSize,
@@ -696,10 +700,15 @@ class _CheckboxRow extends StatelessWidget {
               ),
             ),
             child: value
-                ? const Icon(
-                    Icons.check,
-                    size: 14,
-                    color: PosCloseDaySpec.pageBg,
+                ? SvgPicture.asset(
+                    Images.posCloseDayCheckSvg,
+                    width: PosCloseDaySpec.checkIconWidth,
+                    height: PosCloseDaySpec.checkIconHeight,
+                    placeholderBuilder: (_) => const Icon(
+                      Icons.check,
+                      size: PosCloseDaySpec.checkIconWidth,
+                      color: Colors.white,
+                    ),
                   )
                 : null,
           ),
@@ -749,7 +758,7 @@ class _Step2Footer extends StatelessWidget {
                 opacity:
                     canConfirm ? 1 : PosCloseDaySpec.continueDisabledOpacity,
                 child: _FooterButton(
-                  label: 'Confirm & Close Day',
+                  label: 'CONFIRM & CLOSE DAY',
                   filled: true,
                   onTap: canConfirm ? onConfirm : null,
                 ),
@@ -778,17 +787,22 @@ class _SecondaryButton extends StatelessWidget {
   final bool filled;
   final VoidCallback? onTap;
 
+  /// Already chosen: drawn exactly as before (not dimmed like a disabled
+  /// button) but no longer tappable.
+  final bool selected;
+
   const _SecondaryButton({
     required this.label,
     required this.filled,
     required this.onTap,
+    this.selected = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final BorderRadius radius =
         BorderRadius.circular(PosCloseDaySpec.secondaryButtonRadius);
-    final bool enabled = onTap != null;
+    final bool enabled = onTap != null || selected;
 
     return Opacity(
       opacity: enabled ? 1 : 0.45,
@@ -796,20 +810,21 @@ class _SecondaryButton extends StatelessWidget {
         color: filled ? PosCloseDaySpec.ink : Colors.transparent,
         borderRadius: radius,
         child: InkWell(
-          onTap: onTap,
+          onTap: selected ? null : onTap,
           borderRadius: radius,
           child: Container(
             padding: PosCloseDaySpec.secondaryButtonPadding,
             alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              border: filled
-                  ? null
-                  : Border.all(
+            // Inside stroke: Recount stays the 36 Accept difference is.
+            foregroundDecoration: filled
+                ? null
+                : BoxDecoration(
+                    borderRadius: radius,
+                    border: Border.all(
                       color: PosCloseDaySpec.cardBorderColor,
-                      width: 1.5,
+                      width: PosCloseDaySpec.buttonBorder,
                     ),
-            ),
+                  ),
             child: Text(
               label,
               style: loewBold.copyWith(
@@ -849,15 +864,15 @@ class _FooterButton extends StatelessWidget {
         child: Container(
           padding: PosCloseDaySpec.buttonPadding,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            border: filled
-                ? null
-                : Border.all(
+          foregroundDecoration: filled
+              ? null
+              : BoxDecoration(
+                  borderRadius: radius,
+                  border: Border.all(
                     color: PosCloseDaySpec.cardBorderColor,
                     width: PosCloseDaySpec.buttonBorder,
                   ),
-          ),
+                ),
           child: Text(
             label,
             textAlign: TextAlign.center,

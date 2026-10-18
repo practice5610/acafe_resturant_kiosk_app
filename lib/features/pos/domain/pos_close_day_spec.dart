@@ -1,9 +1,12 @@
+import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:flutter/material.dart';
 
-/// Figma **1641:6042** — Close Day Step 1 / Count Cash Drawer modal.
+/// Close Day modal — Figma **1915:18618** (Step 1), **1915:18940** (Step 1 with
+/// the denomination table open), **1915:19286** / **1915:19604** (Step 2).
 ///
 /// Authored against the 560×719 modal card on the 1366 frame. Values are
-/// literal design px from that node.
+/// literal design px from those nodes. Strokes are drawn inside, as Figma
+/// does, so outlined boxes and buttons keep the heights drawn.
 class PosCloseDaySpec {
   PosCloseDaySpec._();
 
@@ -15,6 +18,12 @@ class PosCloseDaySpec {
   static const Color cardBorderColor = Color(0xFFE1DBC4);
   static const double cardPadding = 32;
   static const double sectionGap = 24;
+
+  /// Step 1 tightens to 20 while the denomination table is open.
+  static const double denomSectionGap = 20;
+
+  /// The rules under the header and above the footer (Figma `Line`).
+  static const Color dividerColor = PosHomeSpec.hairline;
   static const List<BoxShadow> cardShadow = <BoxShadow>[
     BoxShadow(
       color: Color(0x26000000), // 15% black
@@ -45,6 +54,12 @@ class PosCloseDaySpec {
   static const Color expectedHintColor = Color(0x66241F20); // 40% ink
   static const Color expectedBorder = Color(0xFFE1DBC4);
 
+  /// With the denomination table open the box drops its formula line and
+  /// shrinks to one row.
+  static const double expectedCompactPadding = 12;
+  static const double expectedCompactLabelSize = 13;
+  static const double expectedCompactAmountSize = 16;
+
   // ── Actual counted input ─────────────────────────────────────────────
   static const double inputGroupGap = 6;
   static const double inputLabelSize = 11;
@@ -56,6 +71,11 @@ class PosCloseDaySpec {
   static const Color inputPlaceholder = Color(0x66241F20); // 40% ink
   static const Color inputBorderColor = Color(0xFFE1DBC4);
 
+  /// The amount field while the table drives it: page-coloured, 10 top and
+  /// bottom, the figure in ExtraBold.
+  static const EdgeInsets inputFilledPadding =
+      EdgeInsets.symmetric(horizontal: 16, vertical: 10);
+
   // ── Keypad (matches posPaymentKeypadStyle / Figma numeric-keypad) ────────
   static const double keypadGapAbove = 6; // group gap already covers label→field
   static const Color keypadBorder = Color(0xFFF0EBD8);
@@ -66,9 +86,18 @@ class PosCloseDaySpec {
   static const double denomGap = 8;
   static const double denomLabelSize = 14;
 
-  // ── Denomination table (expanded — sibling frame 1641:6101) ──────────
-  static const double denomHeaderSize = 11;
+  // ── Denomination table (expanded — Figma 1915:18961) ─────────────────
+  static const double denomHeaderSize = 10;
+  static const Color denomHeaderColor = Color(0x66241F20); // 40% ink
+
+  /// Header row's own bottom padding, before the table's row gap.
+  static const double denomHeaderGap = 4;
   static const double denomRowHeight = 34;
+  static const double denomRowPadding = 6;
+  static const double denomRowRadius = 8;
+
+  /// Quantity and subtotal of a denomination nobody counted.
+  static const Color denomZeroColor = Color(0x66241F20); // 40% ink
   static const double denomRowGap = 6;
   static const double denomQtyWidth = 80;
   static const double denomQtyHeight = 22;
@@ -91,7 +120,7 @@ class PosCloseDaySpec {
   static const double buttonTextSize = 14;
   static const double continueDisabledOpacity = 0.30;
 
-  // ── Step 2 Review & Confirm (Figma 1641:6707) ────────────────────────
+  // ── Step 2 Review & Confirm (Figma 1915:19286) ───────────────────────
   static const double step2Gap = 20;
   static const double summaryRadius = 12;
   static const double summaryPadding = 16;
@@ -127,6 +156,8 @@ class PosCloseDaySpec {
   static const double checkboxBorder = 2;
   static const double checkboxGap = 12;
   static const double checkboxLabelSize = 14;
+  static const double checkIconWidth = 10;
+  static const double checkIconHeight = 8;
   static const double actionsListGap = 12;
 
   static const double pinLabelSize = 12;

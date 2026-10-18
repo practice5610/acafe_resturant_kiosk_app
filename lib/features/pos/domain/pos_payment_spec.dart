@@ -475,28 +475,35 @@ class PosPaymentSpec {
   /// `change-due-banner` (1915:10252) is p-16.
   static const double v2ChangeBannerPaddingH = 16;
 
-  /// Numeric keypad (node 1915:10266): 3-col, 78px keys, r12, 12px gaps, Loew
-  /// Bold 24. Keys are white with a `#D8D1BE` border; the backspace key takes a
-  /// `#F0EBD8` fill.
-  static const double v2KeypadKeyHeight = 78;
+  /// The payment keypad. Figma draws it (node 1915:10266) with 78px keys,
+  /// 12px gaps and Loew Bold 24 behind a 1.5px `#D8D1BE` stroke; on screen
+  /// that pad dwarfed the rest of the pane, so it was refined (2026-10-19, on
+  /// the operator's request) to the size the tip modal already uses — 56px
+  /// keys, 10px gaps — and dressed like the other tiles of the layer: white,
+  /// a 1px `#E8E3D5` stroke (the OTHER rows' / method tiles'), a soft drop
+  /// shadow and Loew Bold 22. The backspace key keeps its `#F0EBD8` fill.
   static const double v2KeypadKeyRadius = 12;
-  static const double v2KeypadGap = 12;
-  static const double v2KeypadLabelSize = 24;
-  static const double v2KeypadKeyBorderWidth = 1.5;
-  static const double v2KeypadBackspaceIconSize = 23;
-  static const Color v2KeypadKeyBorder = Color(0xFFD8D1BE);
+  static const double v2KeypadLabelSize = 22;
+  static const double v2KeypadKeyBorderWidth = 1;
+  static const double v2KeypadBackspaceIconSize = 22;
+  static const Color v2KeypadKeyBorder = Color(0xFFE8E3D5);
   /// Backspace key fill — `#F0EBD8`, the same hairline the cards use
   /// ([PosHomeSpec.hairline]); inlined here because this spec does not import
   /// that file.
   static const Color v2KeypadBackspaceFill = Color(0xFFF0EBD8);
+  /// ink at 5%, 0 1 3 — lifts the keys off the pane without a heavy stroke.
+  static const BoxShadow v2KeypadKeyShadow = BoxShadow(
+    color: Color(0x0D241F20),
+    offset: Offset(0, 1),
+    blurRadius: 3,
+  );
 
-  // ── Figma payment layout tokens (frame 1915:11795, 1366x1024) ─────────
-  // Right pane keypad.
+  // ── Payment layout tokens (frame 1915:11795, 1366x1024) ───────────────
+  // Right pane keypad: 4 rows of [keyHeight], [keyGap] apart.
   static const double keypadWidth = 412;
-  static const double keypadHeight = 348;
-  static const double keyHeight = 78;
-  static const double keyGap = 12; // horizontal and vertical
-  static const double keyFontHeight = 29;
+  static const double keyHeight = 56;
+  static const double keyGap = 10; // horizontal and vertical
+  static const double keypadHeight = 4 * keyHeight + 3 * keyGap; // 254
 
   // Quick denomination buttons.
   static const double denomBtnWidth = 76;

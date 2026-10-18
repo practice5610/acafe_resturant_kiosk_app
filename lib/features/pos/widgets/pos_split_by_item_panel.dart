@@ -3,6 +3,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_model.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_fit_column.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_option_row.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
@@ -25,7 +26,12 @@ const _paidPillFill = Color(0xFFE0F2E5);
 /// taken, "SELECT ITEMS FOR PAYMENT N", the item rows, PAY WITH, the selected
 /// total, the remaining note and the tip row. Up to three items sit directly
 /// in the pane (py-14 rows); a longer order scrolls them in a 276px list of
-/// compact rows (py-10, gap-8) and the label gains its "· n OF m" count.
+/// compact rows (py-10, gap-8) and the label gains its "· n OF m" count. Each
+/// row carries the line's add-ons, else its unit, under the name (frame 21).
+///
+/// In a window shorter than the frame the item list gets shorter first, so
+/// PAY WITH, the totals and the tip row stay on screen; below that the pane
+/// scales down as a whole ([PosFitColumn]).
 ///
 /// The pane has no button of its own — "Start Payment N · € X" is the screen's
 /// sticky bar. Draw it on a [PosPayCard] with the split pane stroke
@@ -40,18 +46,14 @@ class PosSplitByItemPanel extends StatelessWidget {
   final ValueChanged<int> onToggleItem;
   final ValueChanged<PosPaymentMethod> onPaymentMethodChanged;
 
-  /// Kept for callers; the screen's sticky bar owns the start action.
-  final VoidCallback onStartPayment;
-
-  /// The order is placed before the first item is picked, tip included, so
-  /// the tip row is informational here (as on the split-by-payment pane):
-  /// null leaves it inert.
+  /// Opens the tip modal while no guest has paid yet; null leaves the row
+  /// inert (the tip is part of the order total once the order is placed).
   final VoidCallback? onAddTip;
   final double tip;
 
-  /// What this payment charges for a pick — the screen's rule (the remaining
-  /// group is settled as a whole and carries any tip / discount). Defaults to
-  /// the picked items' sum.
+  /// What this payment charges for a pick — the guest's items plus their
+  /// share of any order discount / tip; the last guest pays what is left.
+  /// Defaults to the picked items' sum.
   final double Function(PosSplitByItemGroupBuilder pick)? amountOf;
 
   /// Groups recorded so far. Paid ones are listed as payment rows, and their
@@ -61,6 +63,13 @@ class PosSplitByItemPanel extends StatelessWidget {
   /// Opens the refund of one paid group; only groups that can be refunded
   /// ([PosSplitByItemGroup.refundable]) get the Refund pill.
   final ValueChanged<PosSplitByItemGroup>? onRefund;
+
+  /// A payment has been taken but not saved yet: the pick and method are
+  /// what was charged, so rows and PAY WITH are inert.
+  final bool locked;
+
+  /// True when the pane owns a bounded height (see the class comment).
+  final bool fill;
 
   const PosSplitByItemPanel({
     super.key,
@@ -72,18 +81,23 @@ class PosSplitByItemPanel extends StatelessWidget {
     required this.paymentMethod,
     required this.onToggleItem,
     required this.onPaymentMethodChanged,
-    required this.onStartPayment,
     this.onAddTip,
     this.tip = 0,
     this.amountOf,
     this.groups = const [],
     this.onRefund,
+    this.locked = false,
+    this.fill = false,
   });
 
   /// Frames 14 / 16 lay three rows straight into the pane; frames 20 / 21 put
   /// six and ten into a 276px scroller. Four or more py-14 rows (≥ 288px)
   /// would no longer fit that space.
   static const int _maxInlineRows = 3;
+
+  /// The scroller at its shortest: two compact rows and a bit of the third,
+  /// so it still reads as a list.
+  static const double _listMinHeight = 140;
 
   @override
   Widget build(BuildContext context) {
@@ -99,93 +113,127 @@ class PosSplitByItemPanel extends StatelessWidget {
         final double selectedAmount =
             amountOf?.call(builder) ?? builder.calculateAmount(lineItems);
         final double after = remaining - selectedAmount;
+        final int ticked = [
+          for (final i in lineItems)
+            if (builder.isSelected(i.id) && !paidItemIds.contains(i.id)) i,
+        ].length;
 
         Widget row(PosSplitByItemLineItem item) => _ItemRow(
               item: item,
               selected: builder.isSelected(item.id),
               paid: paidItemIds.contains(item.id),
               compact: scrolling,
-              onTap: () => onToggleItem(item.id),
+              onTap: locked ? null : () => onToggleItem(item.id),
             );
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        final List<Widget> above = [
+          PosSplitSummaryHeader(
+            title: 'SPLIT PAYMENT',
+            subtitle: 'Select items for this payment',
+            total: grandTotal,
+            remaining: remaining,
+            showRemaining: false,
+          ),
+          for (final PosSplitByItemGroup g in paid) ...[
+            const SizedBox(height: gap),
+            PosSplitPaidRow(
+              label: 'Payment ${g.seq}',
+              subtitle: g.paidWith == 'card'
+                  ? 'Card payment successful'
+                  : 'Cash payment successful',
+              amount: g.paidAmount,
+              onRefund: onRefund != null && g.refundable
+                  ? () => onRefund!(g)
+                  : null,
+            ),
+          ],
+          const SizedBox(height: gap),
+          PosPaySectionLabel(
+            scrolling
+                ? 'SELECT ITEMS FOR PAYMENT $groupSeq'
+                    ' · $ticked OF ${lineItems.length}'
+                : 'SELECT ITEMS FOR PAYMENT $groupSeq',
+          ),
+          if (scrolling)
+            const SizedBox(height: gap)
+          else
+            for (final item in lineItems) ...[
+              const SizedBox(height: gap),
+              row(item),
+            ],
+        ];
+        // items-scroll (1915:12647): gap-8, with a 4px #B9B5A6 thumb 6.5px
+        // outside the rows' right edge.
+        final Widget list = ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: _ItemScroller(
             children: [
-              PosSplitSummaryHeader(
-                title: 'SPLIT PAYMENT',
-                subtitle: 'Select items for this payment',
-                total: grandTotal,
-                remaining: remaining,
-                showRemaining: false,
-              ),
-              for (final PosSplitByItemGroup g in paid) ...[
-                const SizedBox(height: gap),
-                PosSplitPaidRow(
-                  label: 'Payment ${g.seq}',
-                  subtitle: g.paidWith == 'card'
-                      ? 'Card payment successful'
-                      : 'Cash payment successful',
-                  amount: g.paidAmount,
-                  onRefund: onRefund != null && g.refundable
-                      ? () => onRefund!(g)
-                      : null,
-                ),
+              for (int i = 0; i < lineItems.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                row(lineItems[i]),
               ],
-              const SizedBox(height: gap),
-              PosPaySectionLabel(
-                scrolling
-                    ? 'SELECT ITEMS FOR PAYMENT $groupSeq'
-                        ' · ${builder.selectedItemIds.length} OF ${lineItems.length}'
-                    : 'SELECT ITEMS FOR PAYMENT $groupSeq',
-              ),
-              if (scrolling) ...[
-                const SizedBox(height: gap),
-                // items-scroll (1915:12647): 276 tall, gap-8, with a 4px
-                // #B9B5A6 thumb 6.5px outside the rows' right edge.
-                SizedBox(
-                  height: PosPaymentSpec.v2SplitItemListHeight,
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context)
-                        .copyWith(scrollbars: false),
-                    child: _ItemScroller(
-                      children: [
-                        for (int i = 0; i < lineItems.length; i++) ...[
-                          if (i > 0) const SizedBox(height: 8),
-                          row(lineItems[i]),
-                        ],
-                      ],
-                    ),
+            ],
+          ),
+        );
+        final List<Widget> below = [
+          const SizedBox(height: gap),
+          const PosPaySectionLabel('PAY WITH'),
+          const SizedBox(height: gap),
+          PosPayWithRow(
+            method: paymentMethod,
+            onChanged: locked ? null : onPaymentMethodChanged,
+          ),
+          const SizedBox(height: gap),
+          _SelectedTotal(amount: selectedAmount),
+          const SizedBox(height: gap),
+          Text(
+            after <= 0.004
+                ? 'Nothing remaining after this payment'
+                : '${PosHomeSpec.formatPrice(after, padZero: false)} remaining after this payment',
+            style: swiss721Light.copyWith(
+              fontSize: 11,
+              height: PosPaymentSpec.figmaLeading(11),
+              color: _labelInk,
+            ),
+          ),
+          const SizedBox(height: gap),
+          PosPayTipRow(amount: tip, onTap: onAddTip),
+        ];
+
+        const EdgeInsets padding = EdgeInsets.fromLTRB(
+          PosPaymentSpec.v2SplitPanePaddingH,
+          PosPaymentSpec.v2SplitPanePaddingTop,
+          PosPaymentSpec.v2SplitPanePaddingH,
+          PosPaymentSpec.v2SplitPanePaddingBottom,
+        );
+        if (!fill) {
+          return Padding(
+            padding: padding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ...above,
+                if (scrolling)
+                  SizedBox(
+                    height: PosPaymentSpec.v2SplitItemListHeight,
+                    child: list,
                   ),
-                ),
-              ] else
-                for (final item in lineItems) ...[
-                  const SizedBox(height: gap),
-                  row(item),
-                ],
-              const SizedBox(height: gap),
-              const PosPaySectionLabel('PAY WITH'),
-              const SizedBox(height: gap),
-              PosPayWithRow(
-                method: paymentMethod,
-                onChanged: onPaymentMethodChanged,
-              ),
-              const SizedBox(height: gap),
-              _SelectedTotal(amount: selectedAmount),
-              const SizedBox(height: gap),
-              Text(
-                after <= 0.004
-                    ? 'Nothing remaining after this payment'
-                    : '${PosHomeSpec.formatPrice(after, padZero: false)} remaining after this payment',
-                style: swiss721Light.copyWith(
-                  fontSize: 11,
-                  height: PosPaymentSpec.figmaLeading(11),
-                  color: _labelInk,
-                ),
-              ),
-              const SizedBox(height: gap),
-              PosPayTipRow(amount: tip, onTap: onAddTip),
+                ...below,
+              ],
+            ),
+          );
+        }
+        return Padding(
+          padding: padding,
+          child: PosFitColumn(
+            flexIndex: scrolling ? above.length : null,
+            flexMin: _listMinHeight,
+            flexMax: PosPaymentSpec.v2SplitItemListHeight,
+            children: [
+              ...above,
+              if (scrolling) list,
+              ...below,
             ],
           ),
         );
@@ -252,7 +300,9 @@ class _ItemRow extends StatelessWidget {
   final bool selected;
   final bool paid;
   final bool compact;
-  final VoidCallback onTap;
+
+  /// Null makes the row inert (a payment is waiting to be saved).
+  final VoidCallback? onTap;
 
   const _ItemRow({
     required this.item,
@@ -287,15 +337,15 @@ class _ItemRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  item.name,
+                  item.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: loewBold.copyWith(fontSize: 14, color: PosHomeSpec.ink),
                 ),
-                if (item.variant.isNotEmpty) ...[
+                if (item.detail.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Text(
-                    item.variant,
+                    item.detail,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: swiss721Light.copyWith(
@@ -354,7 +404,9 @@ class _PaidPill extends StatelessWidget {
 
 class PosPayWithRow extends StatelessWidget {
   final PosPaymentMethod method;
-  final ValueChanged<PosPaymentMethod> onChanged;
+
+  /// Null makes both buttons inert.
+  final ValueChanged<PosPaymentMethod>? onChanged;
 
   const PosPayWithRow({super.key, required this.method, required this.onChanged});
 
@@ -366,14 +418,18 @@ class PosPayWithRow extends StatelessWidget {
           label: 'Card',
           asset: Images.posCreditCardSvg,
           active: method == PosPaymentMethod.card,
-          onTap: () => onChanged(PosPaymentMethod.card),
+          onTap: onChanged == null
+              ? null
+              : () => onChanged!(PosPaymentMethod.card),
         ),
         const SizedBox(width: PosPaymentSpec.payWithBtnGap),
         _MethodButton(
           label: 'Cash',
           asset: Images.posBanknoteSvg,
           active: method == PosPaymentMethod.cash,
-          onTap: () => onChanged(PosPaymentMethod.cash),
+          onTap: onChanged == null
+              ? null
+              : () => onChanged!(PosPaymentMethod.cash),
         ),
       ],
     );
@@ -387,7 +443,7 @@ class _MethodButton extends StatelessWidget {
   final String label;
   final String asset;
   final bool active;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _MethodButton({
     required this.label,

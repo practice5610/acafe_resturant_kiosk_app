@@ -1,10 +1,11 @@
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:acafe_customer/utill/images.dart';
+import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// Day selector + Close Day, the `top-controls` row of Figma **1641:5518**.
+/// Day selector + Close Day, the `top-controls` row of Figma **1915:18094**.
 ///
 /// A single-day control, deliberately not the Receipts filter: that one is a
 /// preset *range* (Today / Last 7 days / …) and answers a different question.
@@ -114,12 +115,14 @@ class PosReportDateHeader extends StatelessWidget {
                 onTap: () => _pick(context),
               ),
               _StepButton(
-                icon: Icons.chevron_left_rounded,
+                asset: Images.posReportChevronLeftSvg,
+                fallback: Icons.chevron_left_rounded,
                 tooltip: 'Previous day',
                 onTap: () => _step(-1),
               ),
               _StepButton(
-                icon: Icons.chevron_right_rounded,
+                asset: Images.posReportChevronRightSvg,
+                fallback: Icons.chevron_right_rounded,
                 tooltip: 'Next day',
                 onTap: _isToday ? null : () => _step(1),
               ),
@@ -154,25 +157,28 @@ class _DatePickerButton extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(
-            Icons.calendar_today_outlined,
-            size: posPx(context, PosReportSpec.dateIconSize),
-            color: PosReportSpec.ink,
+          SvgPicture.asset(
+            Images.posReportCalendarSvg,
+            width: posPx(context, PosReportSpec.dateIconSize),
+            height: posPx(context, PosReportSpec.dateIconSize),
+            placeholderBuilder: (_) => Icon(
+              Icons.calendar_today_outlined,
+              size: posPx(context, PosReportSpec.dateIconSize),
+              color: PosReportSpec.ink,
+            ),
           ),
           SizedBox(width: posPx(context, PosReportSpec.datePickerGap)),
           Text(
             label,
-            style: PosUI.text(
-              context,
-              size: PosReportSpec.dateTextSize,
-              weight: FontWeight.w700,
+            style: loewBold.copyWith(
+              fontSize: posPx(context, PosReportSpec.dateTextSize),
               color: PosReportSpec.ink,
             ),
             maxLines: 1,
           ),
           SizedBox(width: posPx(context, PosReportSpec.datePickerGap)),
           SvgPicture.asset(
-            Images.posChevronDownSvg,
+            Images.posReportChevronDownSvg,
             width: posPx(context, PosReportSpec.chevronSize),
             height: posPx(context, PosReportSpec.chevronSize),
             colorFilter:
@@ -192,27 +198,37 @@ class _DatePickerButton extends StatelessWidget {
 }
 
 class _StepButton extends StatelessWidget {
-  final IconData icon;
+  final String asset;
+  final IconData fallback;
   final String tooltip;
   final VoidCallback? onTap;
 
-  const _StepButton({required this.icon, required this.tooltip, this.onTap});
+  const _StepButton({
+    required this.asset,
+    required this.fallback,
+    required this.tooltip,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final bool enabled = onTap != null;
+    final Color color = onTap != null
+        ? PosReportSpec.ink
+        : PosReportSpec.ink.withValues(alpha: 0.25);
+    final double size = posPx(context, PosReportSpec.navIconSize);
+
     return Tooltip(
       message: tooltip,
       child: _Control(
         onTap: onTap,
         width: posPx(context, PosReportSpec.controlHeight),
         height: posPx(context, PosReportSpec.controlHeight),
-        child: Icon(
-          icon,
-          size: posPx(context, PosReportSpec.navIconSize),
-          color: enabled
-              ? PosReportSpec.ink
-              : PosReportSpec.ink.withValues(alpha: 0.25),
+        child: SvgPicture.asset(
+          asset,
+          width: size,
+          height: size,
+          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+          placeholderBuilder: (_) => Icon(fallback, size: size, color: color),
         ),
       ),
     );
@@ -257,7 +273,9 @@ class _Control extends StatelessWidget {
           // buttons onto a second line.
           alignment:
               (width != null || height != null) ? Alignment.center : null,
-          decoration: BoxDecoration(
+          // Inside stroke, as Figma draws it: a decoration border would inset
+          // the content and grow the date field from 37 to 39.
+          foregroundDecoration: BoxDecoration(
             borderRadius: radius,
             border: Border.all(color: PosReportSpec.cardBorder, width: 1),
           ),
@@ -315,7 +333,7 @@ class _CloseDayButton extends StatelessWidget {
                 )
               else
                 SvgPicture.asset(
-                  Images.lockSvg,
+                  Images.posReportLockSvg,
                   width: icon,
                   height: icon,
                   colorFilter:
@@ -329,10 +347,8 @@ class _CloseDayButton extends StatelessWidget {
               SizedBox(width: posPx(context, PosReportSpec.ctaGap)),
               Text(
                 closed ? 'Day Closed' : 'Close Day',
-                style: PosUI.text(
-                  context,
-                  size: PosReportSpec.ctaTextSize,
-                  weight: FontWeight.w800,
+                style: loewExtraBold.copyWith(
+                  fontSize: posPx(context, PosReportSpec.ctaTextSize),
                   color: PosUI.pageBg,
                 ),
                 maxLines: 1,

@@ -891,7 +891,8 @@ void main() {
     // 1180 medium-band seam are retired.)
     Future<double> methodCardWidth(WidgetTester tester, Size size) async {
       await _pump(tester, size: size, lines: [_line('Oat Milk Matcha', 6)]);
-      return tester.getSize(find.byType(PosPaymentMethodCard).first).width;
+      // On screen, after the canvas scale.
+      return tester.getRect(find.byType(PosPaymentMethodCard).first).width;
     }
 
     testWidgets('a wide window lays the three panes side by side',
@@ -905,18 +906,24 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the panes grow with the window above the min-clamp',
+    testWidgets('the panes keep the frame proportions: scaled, never stretched',
         (tester) async {
-      final double w1200 = await methodCardWidth(tester, const Size(1200, 900));
-      final double w1366 = await methodCardWidth(tester, const Size(1366, 900));
-      final double w1600 = await methodCardWidth(tester, const Size(1600, 900));
-
-      // Monotonic, continuous growth — no column-swap "pop".
-      expect(w1366, greaterThan(w1200));
-      expect(w1600, greaterThan(w1366));
-      // Still a fraction of the window at every width (ratio layout, not full
-      // width).
-      expect(w1600, lessThan(1600 * 0.45));
+      // Figma 1915:9420: the method pane is 370 with p-24, so its tiles are
+      // 322 wide on the 1366×1024 frame. Every window shows that frame scaled
+      // by min(w / 1366, h / 1024) (PosPayCanvas) — a wider window adds side
+      // margin, not wider keys or tiles.
+      for (final Size size in const [
+        Size(1200, 900),
+        Size(1366, 900),
+        Size(1600, 900),
+        Size(1479, 756),
+        Size(1920, 1080),
+      ]) {
+        final double scale = PosPayCanvas.scaleFor(size)!;
+        final double w = await methodCardWidth(tester, size);
+        expect(w, closeTo(322 * scale, 0.5),
+            reason: '$size');
+      }
     });
 
     testWidgets('a narrow window stacks the panes into one scroll',

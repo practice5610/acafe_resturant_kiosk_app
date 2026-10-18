@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_export.dart';
@@ -14,6 +15,8 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_email_dialog.dar
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_print_confirmation.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipts_table.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
+import 'package:acafe_customer/features/realtime/order_changed_event.dart';
+import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +46,13 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
   static const Duration _debounce = Duration(milliseconds: 350);
   Timer? _debounceTimer;
 
+  /// Live-update state: the realtime controller is app-wide, this screen only
+  /// registers while it is open. See [_subscribeRealtime].
+  ProductRealtimeController? _realtime;
+  Timer? _realtimeDebounce;
+  bool _detailStale = false;
+  static const Duration _realtimeDebounceDelay = Duration(milliseconds: 400);
+
   String? _status;
   String? _channel;
   PosReceiptAmountBand? _amount;
@@ -67,16 +77,57 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
     });
     _searchController.addListener(_onQueryChanged);
     _scrollController.addListener(_onScroll);
+    _subscribeRealtime();
   }
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _realtimeDebounce?.cancel();
+    _realtime?.removeOrderListener(_onOrderEvent);
+    _realtime?.removeReconnectListener(_onRealtimeReconnect);
     _searchController.removeListener(_onQueryChanged);
     _searchController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Live refresh. Another terminal (or this one, after a save) changing an
+  /// order must show up here without a reload. Guarded for widget tests that
+  /// build the tree without a populated service locator.
+  void _subscribeRealtime() {
+    if (!di.sl.isRegistered<ProductRealtimeController>()) return;
+    _realtime = di.sl<ProductRealtimeController>();
+    _realtime?.addOrderListener(_onOrderEvent);
+    _realtime?.addReconnectListener(_onRealtimeReconnect);
+  }
+
+  /// Coalesces a burst of `order.changed` frames into one list refetch. The
+  /// open receipt is refetched only if one of those frames was for it, so a
+  /// busy branch does not re-pull the detail on every sale.
+  void _onOrderEvent(OrderChangedEvent event) {
+    if (!mounted) return;
+    if (event.orderId == _selectedId) _detailStale = true;
+    _realtimeDebounce?.cancel();
+    _realtimeDebounce = Timer(_realtimeDebounceDelay, _refreshFromRealtime);
+  }
+
+  void _onRealtimeReconnect() {
+    if (!mounted) return;
+    _detailStale = true;
+    _realtimeDebounce?.cancel();
+    _refreshFromRealtime();
+  }
+
+  void _refreshFromRealtime() {
+    if (!mounted) return;
+    _reload();
+    final int? selected = _selectedId;
+    if (_detailStale && selected != null) {
+      context.read<KioskManagerProvider>().loadReceiptDetail(selected);
+    }
+    _detailStale = false;
   }
 
   void _onQueryChanged() {
@@ -196,8 +247,7 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
   }
 
   void _email(PosReceiptDetail receipt) {
-    final int deviceId =
-        context.read<KioskAuthProvider>().deviceId ?? 0;
+    final int deviceId = context.read<KioskAuthProvider>().deviceId ?? 0;
     showPosReceiptEmailDialog(
       context: context,
       receipt: receipt,
@@ -311,8 +361,7 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
         return FractionallySizedBox(
           heightFactor: 0.92,
           child: ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Consumer2<KioskManagerProvider, SplashProvider>(
               builder: (context, manager, splash, _) {
                 final Map<String, dynamic>? json = manager.receiptDetail;
@@ -504,8 +553,8 @@ class _FilterHeader extends StatelessWidget {
       builder: (context, constraints) {
         // 520 is roughly what the five controls need; below it they go under
         // the search field instead of being crushed against it.
-        final bool inline = constraints.maxWidth >=
-            PosReceiptsSpec.searchWidth + 520;
+        final bool inline =
+            constraints.maxWidth >= PosReceiptsSpec.searchWidth + 520;
 
         if (inline) {
           return Row(

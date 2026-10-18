@@ -94,6 +94,32 @@ const scotchDisplayCondLight = TextStyle(
   fontWeight: FontWeight.w300,
 );
 
+// Inter — POS Report Overview card text (Figma 1915:18091). Bundled at
+// 400/600/700/800 in pubspec.yaml; any other weight would be synthesised.
+const interRegular = TextStyle(
+  fontFamily: 'Inter',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w400,
+);
+
+const interSemiBold = TextStyle(
+  fontFamily: 'Inter',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w600,
+);
+
+const interBold = TextStyle(
+  fontFamily: 'Inter',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w700,
+);
+
+const interExtraBold = TextStyle(
+  fontFamily: 'Inter',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w800,
+);
+
 /// Monospace — receipt/ticket rendering only (POS Settings → Hardware preview).
 /// Bundled rather than borrowed from the host: CanvasKit does not resolve a
 /// generic `monospace` family on the web.

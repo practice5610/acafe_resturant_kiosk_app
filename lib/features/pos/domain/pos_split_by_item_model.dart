@@ -38,8 +38,7 @@ class PosSplitByItemGroup {
 
   /// The backend's group snapshot (`SplitByItemController::snapshot`) carries
   /// `seq, amount, item_ids, paid_with, status, reference` — no `paid_amount`
-  /// (a recorded group is paid in full), and `create-groups` omits
-  /// `paid_with` / `reference`. Both shapes parse.
+  /// (a recorded group is paid in full).
   factory PosSplitByItemGroup.fromJson(Map<String, dynamic> json) {
     final double amount = _num(json['amount']);
     final String status = (json['status'] as String?) ?? 'succeeded';
@@ -105,24 +104,35 @@ class PosSplitByItemState {
         fullyPaid: false,
       );
 
-  /// The first group still waiting for its payment, if any.
-  PosSplitByItemGroup? get pendingGroup {
-    for (final PosSplitByItemGroup g in groups) {
-      if (!g.isPaid) return g;
-    }
-    return null;
-  }
-
   /// The groups already paid.
   List<PosSplitByItemGroup> get paidGroups =>
       [for (final g in groups) if (g.isPaid) g];
 
+  /// Items earlier guests already paid for.
+  Set<int> get paidItemIds => {for (final g in paidGroups) ...g.itemIds};
+
+  /// False until the first guest pays: the order is placed only then.
+  bool get placed => orderId > 0;
+
+  /// This snapshot quoting [total] — the live cart total (plus tip) while
+  /// nothing is placed yet. A placed order keeps the server's figures.
+  PosSplitByItemState withLiveTotal(double total) => placed
+      ? this
+      : PosSplitByItemState(
+          orderId: orderId,
+          deviceId: deviceId,
+          grandTotal: total,
+          groups: groups,
+          paid: 0,
+          remaining: total,
+          fullyPaid: false,
+        );
+
   /// The next 1-based payment number shown to the operator.
   int get nextPaymentNumber => paidGroups.length + 1;
 
-  /// Parse a record / balance / create-groups response body. `create-groups`
-  /// carries no `paid` / `remaining` / `fully_paid`; they are derived from its
-  /// groups then.
+  /// Parse a pay-items / balance response body. Should `paid` / `remaining` /
+  /// `fully_paid` be missing they are derived from the groups.
   factory PosSplitByItemState.fromJson(
     Map<String, dynamic> json, {
     required int deviceId,
@@ -153,7 +163,8 @@ class PosSplitByItemState {
 /// ValueNotifier that drives the split-by-item UI.
 ///
 ///  * null  = not in split-by-item mode (normal single-tender sale)
-///  * non-null = order placed up front; collecting item groups
+///  * non-null = collecting guest payments; [PosSplitByItemState.placed] once
+///    the first payment has placed the order
 ///
 /// Held in [_PosPaymentSelectionScreenState] and disposed with the screen.
 class PosSplitByItemSession extends ValueNotifier<PosSplitByItemState?> {
@@ -175,6 +186,21 @@ class PosSplitByItemSession extends ValueNotifier<PosSplitByItemState?> {
 
   /// Replace the snapshot after a group payment is recorded.
   void update(PosSplitByItemState state) => value = state;
+
+  /// The order behind the payments now exists (placed with the first one).
+  void attachOrder(int orderId, double grandTotal) {
+    final PosSplitByItemState? s = value;
+    if (s == null) return;
+    value = PosSplitByItemState(
+      orderId: orderId,
+      deviceId: s.deviceId,
+      grandTotal: grandTotal,
+      groups: s.groups,
+      paid: s.paid,
+      remaining: grandTotal - s.paid,
+      fullyPaid: false,
+    );
+  }
 
   /// Leave split-by-item mode (after full payment or on error before any groups).
   void clear() => value = null;

@@ -141,15 +141,17 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
       barrierLabel: 'receipt',
       // `dim-overlay` (1915:13039): ink at 40%.
       barrierColor: PosPaymentSpec.v2DialogScrim,
-      pageBuilder: (dialogContext, anim, secAnim) => PosReceiptDialog(
-        orderId: order.id,
-        total: order.total,
-        deviceId: deviceId,
-        onComplete: () {
-          Navigator.pop(dialogContext);
-          _nextOrder();
-        },
-        onSkip: () => Navigator.pop(dialogContext),
+      pageBuilder: (dialogContext, anim, secAnim) => PosPayCanvas(
+        child: PosReceiptDialog(
+          orderId: order.id,
+          total: order.total,
+          deviceId: deviceId,
+          onComplete: () {
+            Navigator.pop(dialogContext);
+            _nextOrder();
+          },
+          onSkip: () => Navigator.pop(dialogContext),
+        ),
       ),
     );
   }
@@ -177,16 +179,19 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
       backgroundColor: PosHomeSpec.pageBg,
       body: PosPayTextScope(
         child: SafeArea(
-          child: Column(
-            children: [
-              if (selecting)
-                PosPayBackRow(
-                  onBack: _back,
-                  // `Refund / Order #27362` (node 1915:11349).
-                  label: id == null ? 'Refund' : 'Refund / Order #$id',
-                ),
-              Expanded(child: _body),
-            ],
+          // Laid out at Figma's 1366×1024 and scaled to the window.
+          child: PosPayCanvas(
+            child: Column(
+              children: [
+                if (selecting)
+                  PosPayBackRow(
+                    onBack: _back,
+                    // `Refund / Order #27362` (node 1915:11349).
+                    label: id == null ? 'Refund' : 'Refund / Order #$id',
+                  ),
+                Expanded(child: _body),
+              ],
+            ),
           ),
         ),
       ),

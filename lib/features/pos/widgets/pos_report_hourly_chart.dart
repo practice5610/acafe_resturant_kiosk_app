@@ -5,7 +5,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_report_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:flutter/material.dart';
 
-/// Hourly Sales — the `bar-chart-visual` of Figma **1641:5518**.
+/// Hourly Sales — the `bar-chart-visual` of Figma **1915:18214**.
 ///
 /// Hand-built rather than pulled from a charting package, and deliberately so:
 /// the app has no charting dependency, and this is one static bar band with a
@@ -63,7 +63,7 @@ class _Bars extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double band = posPx(context, PosReportSpec.chartBandHeight);
-    final double labelHeight = posPx(context, PosReportSpec.chartLabelSize) * 1.4;
+    final double labelHeight = posPx(context, PosReportSpec.chartLabelHeight);
     final double gap = posPx(context, PosReportSpec.chartLabelGap);
     // The band includes the hour label underneath, so the tallest bar is what
     // is left after the label and its gap — otherwise a peak bar overflows the
@@ -154,7 +154,7 @@ class _Bar extends StatelessWidget {
               fit: BoxFit.scaleDown,
               child: Text(
                 row.label,
-                style: PosUI.text(
+                style: posReportText(
                   context,
                   size: PosReportSpec.chartLabelSize,
                   weight: FontWeight.w700,

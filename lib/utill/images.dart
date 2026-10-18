@@ -299,6 +299,17 @@ class Images {
   static const String posCloseDayChevronSvg =
       'assets/svg/pos_close_day_chevron.svg';
   static const String posAlertTriangleSvg = 'assets/svg/pos_alert_triangle.svg';
+  /// Ticked checkbox in Close Day Step 2 (Figma 1915:19643), 10×8.
+  static const String posCloseDayCheckSvg = 'assets/svg/pos_close_day_check.svg';
+  // POS Report Overview top controls (Figma 1915:18094)
+  static const String posReportCalendarSvg = 'assets/svg/pos_report_calendar.svg';
+  static const String posReportChevronDownSvg =
+      'assets/svg/pos_report_chevron_down.svg';
+  static const String posReportChevronLeftSvg =
+      'assets/svg/pos_report_chevron_left.svg';
+  static const String posReportChevronRightSvg =
+      'assets/svg/pos_report_chevron_right.svg';
+  static const String posReportLockSvg = 'assets/svg/pos_report_lock.svg';
   // POS payment declined (Figma 1641:4218)
   static const String posErrorCircleSvg = 'assets/svg/pos_error_circle.svg';
 

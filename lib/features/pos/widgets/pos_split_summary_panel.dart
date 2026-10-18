@@ -4,6 +4,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_fit_column.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_cash_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_option_row.dart';
@@ -46,6 +47,10 @@ class PosSplitPaidRowData {
 ///  • Cash only: Change Due (against [changeBaseCents]) and €5…Exact
 ///  • the 78px keypad and the tip row
 ///
+/// In a window shorter than the frame the keypad's keys get shorter (down to
+/// 44px) so the tip row stays on screen; below even that the pane scales down
+/// as a whole — see [PosFitColumn]. Nothing is ever cut off.
+///
 /// The pane has no button of its own — the screen's sticky bar confirms. Draw
 /// it on a [PosPayCard] with [borderColor] / [borderWidth].
 class PosSplitSummaryPanel extends StatelessWidget {
@@ -84,12 +89,20 @@ class PosSplitSummaryPanel extends StatelessWidget {
   final ValueChanged<PosCashDenomination>? onDenomination;
   final PosCashDenomination? selectedDenomination;
 
-  /// The tip baked into this order when it was placed upfront. Shown as
-  /// informational only — tipping is closed once the order is placed.
+  /// The tip on this order.
   final double tip;
 
-  /// True when the pane owns a bounded height; the stack then scrolls inside
-  /// it if the window is shorter than the frame.
+  /// Opens the tip modal. Live until the first payment places the order —
+  /// the tip is part of the order total, so it is fixed from then on — and
+  /// null (the row inert) after.
+  final VoidCallback? onTipTap;
+
+  /// A payment has been taken but not saved yet: the amount and method are
+  /// what was charged, so the keypad and the Card / Cash toggle are inert.
+  final bool locked;
+
+  /// True when the pane owns a bounded height; the keypad then gives way to
+  /// fit it (see the class comment).
   final bool fill;
 
   const PosSplitSummaryPanel({
@@ -109,6 +122,8 @@ class PosSplitSummaryPanel extends StatelessWidget {
     this.onDenomination,
     this.selectedDenomination,
     this.tip = 0,
+    this.onTipTap,
+    this.locked = false,
     this.fill = false,
   });
 
@@ -124,6 +139,8 @@ class PosSplitSummaryPanel extends StatelessWidget {
     ValueChanged<PosCashDenomination>? onDenomination,
     PosCashDenomination? selectedDenomination,
     double tip = 0,
+    VoidCallback? onTipTap,
+    bool locked = false,
     bool fill = false,
     bool customAmount = false,
     ValueChanged<PosSplitPayment>? onRefund,
@@ -165,6 +182,8 @@ class PosSplitSummaryPanel extends StatelessWidget {
       onDenomination: onDenomination,
       selectedDenomination: selectedDenomination,
       tip: tip,
+      onTipTap: onTipTap,
+      locked: locked,
       fill: fill,
     );
   }
@@ -173,74 +192,109 @@ class PosSplitSummaryPanel extends StatelessWidget {
   static const Color borderColor = PosPaymentSpec.v2OtherRowBorder;
   static const double borderWidth = 1.5;
 
+  /// The keypad at its shortest: 44px keys keep a comfortable target.
+  static const double _keypadMinHeight =
+      4 * 44 + 3 * PosPaymentSpec.keyGap;
+
   @override
   Widget build(BuildContext context) {
     final bool cash = splitMethod == PosPaymentMethod.cash;
     const double gap = PosPaymentSpec.v2SplitGap;
 
-    final Widget body = Padding(
-      padding: const EdgeInsets.fromLTRB(
-        PosPaymentSpec.v2SplitPanePaddingH,
-        PosPaymentSpec.v2SplitPanePaddingTop,
-        PosPaymentSpec.v2SplitPanePaddingH,
-        PosPaymentSpec.v2SplitPanePaddingBottom,
+    final List<Widget> above = [
+      PosSplitSummaryHeader(
+        title: 'SPLIT PAYMENT',
+        subtitle: subtitle,
+        total: grandTotal,
+        remaining: remaining,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+      for (final PosSplitPaidRowData p in paid) ...[
+        const SizedBox(height: gap),
+        PosSplitPaidRow(
+          label: p.label,
+          subtitle: p.subtitle,
+          amount: p.amount,
+          onRefund: p.onRefund,
+        ),
+      ],
+      const SizedBox(height: gap),
+      _EntryCard(
+        label: entryLabel,
+        entry: entry,
+        fromChip: selectedDenomination != null,
+        method: splitMethod,
+        onMethod: locked ? null : onSplitMethod,
+      ),
+      if (cash && onDenomination != null) ...[
+        const SizedBox(height: gap),
+        PosPayChangeDueBanner(
+          cents: entry.cents - changeBaseCents,
+          covered: !entry.isEmpty && entry.cents >= changeBaseCents,
+        ),
+        const SizedBox(height: gap),
+        PosPayDenominationRow(
+          denominations: PosCashDenomination.defaults,
+          selected: selectedDenomination,
+          onSelect: locked ? (_) {} : onDenomination!,
+        ),
+      ],
+      const SizedBox(height: gap),
+    ];
+    final List<Widget> below = [
+      const SizedBox(height: gap),
+      PosPayTipRow(amount: tip, onTap: onTipTap, height: tipRowHeight),
+    ];
+
+    Widget keypad(double height) => PosKeypad(
+          rows: PosKeypad.digitRows(decimal: ','),
+          style: posPaymentKeypadStyle(
+            backspaceAsset: Images.posKeyBackspaceSvg,
+            keyHeight: (height - 3 * PosPaymentSpec.keyGap) / 4,
+          ),
+          enabled: !locked,
+          onKey: onKey,
+          onBackspace: onBackspace,
+        );
+
+    const EdgeInsets padding = EdgeInsets.fromLTRB(
+      PosPaymentSpec.v2SplitPanePaddingH,
+      PosPaymentSpec.v2SplitPanePaddingTop,
+      PosPaymentSpec.v2SplitPanePaddingH,
+      PosPaymentSpec.v2SplitPanePaddingBottom,
+    );
+
+    if (!fill) {
+      return Padding(
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...above,
+            SizedBox(
+              height: PosPaymentSpec.keypadHeight,
+              child: keypad(PosPaymentSpec.keypadHeight),
+            ),
+            ...below,
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: padding,
+      child: PosFitColumn(
+        flexIndex: above.length,
+        flexMin: _keypadMinHeight,
+        flexMax: PosPaymentSpec.keypadHeight,
         children: [
-          PosSplitSummaryHeader(
-            title: 'SPLIT PAYMENT',
-            subtitle: subtitle,
-            total: grandTotal,
-            remaining: remaining,
+          ...above,
+          LayoutBuilder(
+            builder: (context, box) => keypad(box.maxHeight),
           ),
-          for (final PosSplitPaidRowData p in paid) ...[
-            const SizedBox(height: gap),
-            PosSplitPaidRow(
-              label: p.label,
-              subtitle: p.subtitle,
-              amount: p.amount,
-              onRefund: p.onRefund,
-            ),
-          ],
-          const SizedBox(height: gap),
-          _EntryCard(
-            label: entryLabel,
-            entry: entry,
-            method: splitMethod,
-            onMethod: onSplitMethod,
-          ),
-          if (cash && onDenomination != null) ...[
-            const SizedBox(height: gap),
-            PosPayChangeDueBanner(
-              cents: entry.cents - changeBaseCents,
-              covered: !entry.isEmpty && entry.cents >= changeBaseCents,
-            ),
-            const SizedBox(height: gap),
-            PosPayDenominationRow(
-              denominations: PosCashDenomination.defaults,
-              selected: selectedDenomination,
-              onSelect: onDenomination!,
-            ),
-          ],
-          const SizedBox(height: gap),
-          SizedBox(
-            height: PosPaymentSpec.keypadHeight,
-            child: PosKeypad(
-              rows: PosKeypad.digitRows(decimal: ','),
-              style: posPaymentKeypadStyle(
-                  backspaceAsset: Images.posKeyBackspaceSvg),
-              onKey: onKey,
-              onBackspace: onBackspace,
-            ),
-          ),
-          const SizedBox(height: gap),
-          PosPayTipRow(amount: tip, onTap: null, height: tipRowHeight),
+          ...below,
         ],
       ),
     );
-    return fill ? SingleChildScrollView(child: body) : body;
   }
 }
 
@@ -566,12 +620,19 @@ class _RefundPill extends StatelessWidget {
 class _EntryCard extends StatelessWidget {
   final String label;
   final PosCashEntry entry;
+
+  /// The amount came from a note chip: "€ 20" as frame 10 writes it, not the
+  /// buffer's "20.00".
+  final bool fromChip;
   final PosPaymentMethod method;
-  final ValueChanged<PosPaymentMethod> onMethod;
+
+  /// Null while a taken payment waits to be saved (the toggle is inert).
+  final ValueChanged<PosPaymentMethod>? onMethod;
 
   const _EntryCard({
     required this.label,
     required this.entry,
+    this.fromChip = false,
     required this.method,
     required this.onMethod,
   });
@@ -610,7 +671,7 @@ class _EntryCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 // `€  20` as typed; a caret while nothing is keyed in (`€  |`).
                 Text(
-                  '€  ${entry.isEmpty ? '|' : entry.raw}',
+                  '€  ${entry.isEmpty ? '|' : fromChip ? entry.raw.replaceFirst(RegExp(r'\.0+$'), '') : entry.raw}',
                   maxLines: 1,
                   style: loewExtraBold.copyWith(
                     fontSize: PosPaymentSpec.v2SplitPaymentAmountSize,
@@ -637,7 +698,9 @@ class _EntryCard extends StatelessWidget {
 /// the idle one is clear with `#A7A19A` content.
 class PosSplitMethodToggle extends StatelessWidget {
   final PosPaymentMethod method;
-  final ValueChanged<PosPaymentMethod> onMethod;
+
+  /// Null makes the toggle inert.
+  final ValueChanged<PosPaymentMethod>? onMethod;
 
   const PosSplitMethodToggle({
     super.key,
@@ -660,14 +723,18 @@ class PosSplitMethodToggle extends StatelessWidget {
             label: 'Card',
             cash: false,
             active: method == PosPaymentMethod.card,
-            onTap: () => onMethod(PosPaymentMethod.card),
+            onTap: onMethod == null
+                ? null
+                : () => onMethod!(PosPaymentMethod.card),
           ),
           const SizedBox(width: 2),
           _Segment(
             label: 'Cash',
             cash: true,
             active: method == PosPaymentMethod.cash,
-            onTap: () => onMethod(PosPaymentMethod.cash),
+            onTap: onMethod == null
+                ? null
+                : () => onMethod!(PosPaymentMethod.cash),
           ),
         ],
       ),
@@ -679,7 +746,7 @@ class _Segment extends StatelessWidget {
   final String label;
   final bool cash;
   final bool active;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _Segment({
     required this.label,

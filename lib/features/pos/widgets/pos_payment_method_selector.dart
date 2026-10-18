@@ -60,11 +60,6 @@ class PosPaymentMethodSelector extends StatelessWidget {
   /// (cancel) it. Null = no cancellation available.
   final VoidCallback? onCancelActiveOther;
 
-  /// True while an OTHER-mode order is being placed (API in flight). Causes
-  /// the PRIMARY radio to appear deselected so there is no blink between
-  /// cancel of the old OTHER and activation of the new one.
-  final bool pendingOther;
-
   /// When false, Split by item / Split by payment are omitted. Use in
   /// change-method flows where splits cannot be a display override.
   final bool showSplitOptions;
@@ -84,7 +79,6 @@ class PosPaymentMethodSelector extends StatelessWidget {
     this.onStandalone,
     this.standaloneActive = false,
     this.onCancelActiveOther,
-    this.pendingOther = false,
     this.showSplitOptions = true,
   });
 
@@ -93,7 +87,7 @@ class PosPaymentMethodSelector extends StatelessWidget {
     // When any OTHER mode is active, neither PRIMARY method shows as selected.
     // This enforces a single-select across the combined PRIMARY + OTHER group.
     final bool anyOtherActive =
-        splitActive || splitByItemActive || invoiceActive || standaloneActive || pendingOther;
+        splitActive || splitByItemActive || invoiceActive || standaloneActive;
     final List<Widget> primary = [
       if (cardEnabled)
         PosPaymentMethodCard(

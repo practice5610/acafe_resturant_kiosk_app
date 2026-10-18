@@ -68,6 +68,24 @@ class PosSplitState {
   /// The next 1-based split number.
   int get nextSequence => payments.length + 1;
 
+  /// False until the first payment is taken: the order is placed only then,
+  /// so switching away before it leaves nothing behind in the kitchen.
+  bool get placed => orderId > 0;
+
+  /// This snapshot quoting [total] — the live cart total (plus tip) while
+  /// nothing is placed yet. A placed order keeps the server's figures.
+  PosSplitState withLiveTotal(double total) => placed
+      ? this
+      : PosSplitState(
+          orderId: orderId,
+          deviceId: deviceId,
+          grandTotal: total,
+          payments: payments,
+          paid: 0,
+          remaining: total,
+          fullyPaid: false,
+        );
+
   /// An empty starting snapshot: order placed, no splits collected yet.
   factory PosSplitState.initial({
     required int orderId,
@@ -108,7 +126,8 @@ class PosSplitState {
 /// ValueNotifier that drives the split-by-payment UI.
 ///
 ///  * null  = not in split mode (normal single-tender sale)
-///  * non-null = order placed up front; collecting splits
+///  * non-null = collecting splits; [PosSplitState.placed] once the first
+///    payment has placed the order
 ///
 /// Held in [_PosPaymentSelectionScreenState] and disposed with the screen.
 /// ValueListenableBuilder wraps the subtree that cares about it so the rebuild
@@ -133,6 +152,21 @@ class PosSplitSession extends ValueNotifier<PosSplitState?> {
   /// Replace the snapshot after a split is recorded.
   void update(PosSplitState state) => value = state;
 
-  /// Leave split mode (after full payment or on error before any splits).
+  /// The order behind the splits now exists (placed with the first payment).
+  void attachOrder(int orderId, double grandTotal) {
+    final PosSplitState? s = value;
+    if (s == null) return;
+    value = PosSplitState(
+      orderId: orderId,
+      deviceId: s.deviceId,
+      grandTotal: grandTotal,
+      payments: s.payments,
+      paid: s.paid,
+      remaining: grandTotal - s.paid,
+      fullyPaid: false,
+    );
+  }
+
+  /// Leave split mode (after full payment, or before any payment was taken).
   void clear() => value = null;
 }

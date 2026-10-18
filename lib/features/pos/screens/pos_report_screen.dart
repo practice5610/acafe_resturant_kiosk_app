@@ -10,17 +10,19 @@ import 'package:acafe_customer/features/pos/domain/pos_staff_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_z_report_print.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_step2.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_date_header.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_hourly_chart.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_panels.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_summary_cards.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_report_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Report — Overview, Figma **1641:5518**.
+/// Report — Overview, Figma **1915:18091** (redesign of 1641:5518).
 ///
 /// A display layer over the Z Report, not a second one. Every figure comes from
 /// `kiosk-manager/sales-overview`, which resolves to `ZReportService::preview()`
@@ -225,71 +227,109 @@ class _PosReportScreenState extends State<PosReportScreen> {
     // dashboard -- nine panels and a chart -- every time the Receipts list
     // paged or a stock toggle flipped. Selecting the four fields this screen
     // actually reads narrows that to changes it cares about.
-    return Builder(
-      builder: (BuildContext context) {
-        final _ReportView view = context.select<KioskManagerProvider, _ReportView>(
-          (KioskManagerProvider m) => _ReportView(
-            salesData: m.salesData,
-            salesDataDate: m.salesDataDate,
-            loading: m.salesLoading,
-            closing: m.closingRegister,
-          ),
-        );
-
-        // Only render figures that belong to the day on screen. The provider's
-        // request-id guard already drops superseded responses, but it cannot
-        // stop the PREVIOUS day's payload from sitting under the new date while
-        // its replacement is still in flight -- which is exactly what rapid
-        // date-stepping produces, and it is worse than a spinner because it
-        // looks like real data.
-        final PosReportData? data = view.salesDataDate == _reportDate
-            ? PosReportData.from(view.salesData)
-            : null;
-
-        return Container(
-          color: PosUI.pageBg,
-          child: SafeArea(
-            top: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    posPx(context, PosReportSpec.bodyPaddingH),
-                    posPx(context, PosReportSpec.bodyPaddingTop),
-                    posPx(context, PosReportSpec.bodyPaddingH),
-                    posPx(context, PosReportSpec.sectionGap),
-                  ),
-                  child: PosReportDateHeader(
-                    date: _date,
-                    onDateChanged: _onDateChanged,
-                    today: _today,
-                    onCloseDay: _confirmCloseDay,
-                    closed: data?.closed ?? false,
-                    closing: view.closing,
-                  ),
-                ),
-                Expanded(
-                  child: _Body(
-                    data: data,
-                    staffRoster: _staffRoster,
-                    // Strictly the provider's in-flight flag. It must NOT also
-                    // treat "no data for this date" as loading: a request that
-                    // failed leaves the date unmatched forever, and the screen
-                    // would spin indefinitely instead of offering a retry.
-                    //
-                    // The three states stay distinct: data for this date =>
-                    // render it; a request in flight => spinner; neither =>
-                    // the failure state.
-                    loading: view.loading,
-                    onRetry: _load,
-                  ),
-                ),
-              ],
+    //
+    // [_FigmaScale] sits above the Builder so every `posPx` below it —
+    // including the header padding read from the Builder's own context —
+    // resolves against the same scale.
+    return _FigmaScale(
+      child: Builder(
+        builder: (BuildContext context) {
+          final _ReportView view =
+              context.select<KioskManagerProvider, _ReportView>(
+            (KioskManagerProvider m) => _ReportView(
+              salesData: m.salesData,
+              salesDataDate: m.salesDataDate,
+              loading: m.salesLoading,
+              closing: m.closingRegister,
             ),
-          ),
-        );
-      },
+          );
+
+          // Only render figures that belong to the day on screen. The provider's
+          // request-id guard already drops superseded responses, but it cannot
+          // stop the PREVIOUS day's payload from sitting under the new date while
+          // its replacement is still in flight -- which is exactly what rapid
+          // date-stepping produces, and it is worse than a spinner because it
+          // looks like real data.
+          final PosReportData? data = view.salesDataDate == _reportDate
+              ? PosReportData.from(view.salesData)
+              : null;
+
+          // Strips the Material 3 line heights (1.43) every un-heighted style
+          // would otherwise inherit, so text lays out at Figma's
+          // `leading-normal` — the same fix the payment and Orders screens use.
+          return PosPayTextScope(
+            child: Container(
+              color: PosUI.pageBg,
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        posPx(context, PosReportSpec.bodyPaddingH),
+                        posPx(context, PosReportSpec.bodyPaddingTop),
+                        posPx(context, PosReportSpec.bodyPaddingH),
+                        posPx(context, PosReportSpec.sectionGap),
+                      ),
+                      child: PosReportDateHeader(
+                        date: _date,
+                        onDateChanged: _onDateChanged,
+                        today: _today,
+                        onCloseDay: _confirmCloseDay,
+                        closed: data?.closed ?? false,
+                        closing: view.closing,
+                      ),
+                    ),
+                    Expanded(
+                      child: _Body(
+                        data: data,
+                        staffRoster: _staffRoster,
+                        // Strictly the provider's in-flight flag. It must NOT
+                        // also treat "no data for this date" as loading: a
+                        // request that failed leaves the date unmatched
+                        // forever, and the screen would spin indefinitely
+                        // instead of offering a retry.
+                        //
+                        // The three states stay distinct: data for this date
+                        // => render it; a request in flight => spinner;
+                        // neither => the failure state.
+                        loading: view.loading,
+                        onRetry: _load,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Holds the report at no less than Figma's own size: its tokens are
+/// 1366-frame values, so at a 1366 window they must render 1:1 rather than at
+/// the shell's 1920-relative ~0.71. See [PosReportSpec.minScale].
+class _FigmaScale extends StatelessWidget {
+  final Widget child;
+
+  const _FigmaScale({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final PosMetrics? shell = PosMetrics.maybeOf(context);
+    if (shell == null || shell.scale >= PosReportSpec.minScale) return child;
+
+    return PosMetricsScope(
+      metrics: PosMetrics(
+        scale: PosReportSpec.minScale,
+        orientation: shell.orientation,
+        band: shell.band,
+        window: shell.window,
+      ),
+      child: child,
     );
   }
 }
@@ -386,14 +426,22 @@ class _Unavailable extends StatelessWidget {
           children: <Widget>[
             Text(
               "Couldn't load the day's report",
-              style: PosUI.text(context, size: 16, weight: FontWeight.w800),
+              style: posReportText(
+                context,
+                size: PosReportSpec.panelTitleSize,
+                weight: FontWeight.w800,
+              ),
             ),
-            SizedBox(height: posPx(context, 12)),
+            SizedBox(height: posPx(context, PosReportSpec.cardInnerGap)),
             TextButton(
               onPressed: onRetry,
               child: Text(
                 'Try again',
-                style: PosUI.text(context, size: 14, weight: FontWeight.w700),
+                style: posReportText(
+                  context,
+                  size: PosReportSpec.ctaTextSize,
+                  weight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -431,6 +479,7 @@ class _Dashboard extends StatelessWidget {
         final double width = constraints.maxWidth -
             posPx(context, PosReportSpec.bodyPaddingH) * 2;
         final double gap = posPx(context, PosReportSpec.cardGap);
+        final double rowGap = posPx(context, PosReportSpec.rowGap);
 
         // Both rows share one floor now instead of their own separate seams
         // (formerly 1040 for the KPI row, 1180 for the bottom row) — see the
@@ -468,9 +517,9 @@ class _Dashboard extends StatelessWidget {
                   PosReportSummaryCards.tips(data),
                 ],
               ),
-              SizedBox(height: gap),
+              SizedBox(height: rowGap),
               PosReportDeviceBreakdownPanel(data: data),
-              SizedBox(height: gap),
+              SizedBox(height: rowGap),
               _Grid(
                 columns: midColumns,
                 gap: gap,
@@ -479,9 +528,9 @@ class _Dashboard extends StatelessWidget {
                   PosReportTopProductsPanel(data: data),
                 ],
               ),
-              SizedBox(height: gap),
+              SizedBox(height: rowGap),
               PosReportHourlyChart(data: data),
-              SizedBox(height: gap),
+              SizedBox(height: rowGap),
               _Grid(
                 columns: bottomColumns,
                 gap: gap,

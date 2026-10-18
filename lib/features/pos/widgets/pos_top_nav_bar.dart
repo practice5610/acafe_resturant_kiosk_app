@@ -56,9 +56,23 @@ class PosNavBarSpec {
   static const double pillGap = 12;
   static const double groupGap = 16;
 
-  static const double scanSize = 36;
   static const double avatarSize = 40;
-  static const double lockSize = 36;
+
+  /// Every bare icon in the right cluster (allergen, scan, lock) shares one
+  /// circular target, sized to the avatar so the cluster's tap surfaces and
+  /// hover rings line up with it and with the ~41px pills.
+  static const double iconButtonSize = 40;
+
+  /// Material glyph size: its 24 grid puts the shield / lock on a ~20px live
+  /// area, which is the optical size every icon in the cluster is matched to.
+  static const double iconSize = 24;
+
+  /// pos_scan.svg is a 36 canvas whose brackets (stroke included) span ~29,
+  /// so drawn at [iconSize] it would read smaller than the Material glyphs and
+  /// drawn at its native 36 it reads twice the shield's size. 26 puts the
+  /// brackets on the same ~20px live area as the shield and lock; the asset's
+  /// 2.75 stroke lands on 2px at this size, the Material glyphs' weight.
+  static const double scanArtworkSize = 26;
   static const Key scanButtonKey = Key('pos-scan-button');
   static const Key allergenButtonKey = Key('pos-allergen-button');
   static const Key lockButtonKey = Key('pos-lock-button');
@@ -738,22 +752,59 @@ class _PosLockButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return _PosNavIconButton(
       key: PosNavBarSpec.lockButtonKey,
-      width: PosNavBarSpec.lockSize,
-      height: PosNavBarSpec.lockSize,
+      onTap: onTap,
+      child: Icon(
+        unlocked ? Icons.lock_open : Icons.lock_outline,
+        size: PosNavBarSpec.iconSize,
+        color: PosUI.ink,
+      ),
+    );
+  }
+}
+
+/// The shared shell for the right cluster's bare icons, so they cannot drift
+/// apart in size again: one [PosNavBarSpec.iconButtonSize] circular target,
+/// glyph centred, hover/press ring clipped to the circle. A null [onTap]
+/// renders it inert (no ripple, no hand cursor) — that is the scan icon.
+class _PosNavIconButton extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final String? tooltip;
+
+  /// Painted over the target's top-right, e.g. the allergen count badge.
+  final Widget? badge;
+
+  const _PosNavIconButton({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.tooltip,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content = Stack(
+      alignment: Alignment.center,
+      children: [
+        child,
+        if (badge != null) Positioned(top: 2, right: 2, child: badge!),
+      ],
+    );
+    if (tooltip != null) {
+      content = Tooltip(message: tooltip!, child: content);
+    }
+
+    return SizedBox(
+      width: PosNavBarSpec.iconButtonSize,
+      height: PosNavBarSpec.iconButtonSize,
       child: Material(
         color: Colors.transparent,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Icon(
-            unlocked ? Icons.lock_open : Icons.lock_outline,
-            size: PosNavBarSpec.lockSize * 0.6,
-            color: PosUI.ink,
-          ),
-        ),
+        child: InkWell(onTap: onTap, child: content),
       ),
     );
   }
@@ -785,52 +836,36 @@ class _AllergenNavButton extends StatelessWidget {
         final bool active = KioskAllergenPreferences.instance.hasSelection;
         final int count = KioskAllergenPreferences.instance.avoided.length;
 
-        return SizedBox(
+        return _PosNavIconButton(
           key: PosNavBarSpec.allergenButtonKey,
-          width: PosNavBarSpec.lockSize,
-          height: PosNavBarSpec.lockSize,
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => showPosAllergenFilter(context),
-              child: Tooltip(
-                message: 'Allergens',
-                child: Stack(
+          onTap: () => showPosAllergenFilter(context),
+          tooltip: 'Allergens',
+          badge: active
+              ? Container(
+                  width: 16,
+                  height: 16,
                   alignment: Alignment.center,
-                  children: [
-                    Icon(
-                      Icons.health_and_safety_outlined,
-                      size: PosNavBarSpec.lockSize * 0.6,
-                      color: active ? PosUI.accent : PosUI.ink,
+                  decoration: BoxDecoration(
+                    color: PosUI.accent,
+                    shape: BoxShape.circle,
+                    // Page-colour ring so the badge reads as sitting on top
+                    // of the shield's shoulder rather than merging into it.
+                    border: Border.all(color: PosUI.pageBg, width: 1.5),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: loewBold.copyWith(
+                      fontSize: 9,
+                      color: Colors.white,
+                      height: 1.0,
                     ),
-                    if (active)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: PosUI.accent,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            '$count',
-                            style: loewBold.copyWith(
-                              fontSize: 9,
-                              color: Colors.white,
-                              height: 1.0,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
+                )
+              : null,
+          child: Icon(
+            Icons.health_and_safety_outlined,
+            size: PosNavBarSpec.iconSize,
+            color: active ? PosUI.accent : PosUI.ink,
           ),
         );
       },
@@ -843,20 +878,18 @@ class _ScanButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    // Visual only — there is no scanner package in this app (qr_flutter
+    // generates codes, it does not read them), hence no onTap.
+    return _PosNavIconButton(
       key: PosNavBarSpec.scanButtonKey,
-      width: PosNavBarSpec.scanSize,
-      height: PosNavBarSpec.scanSize,
-      // Visual only — there is no scanner package in this app (qr_flutter
-      // generates codes, it does not read them).
       child: SvgPicture.asset(
         Images.posScanSvg,
-        width: PosNavBarSpec.scanSize,
-        height: PosNavBarSpec.scanSize,
+        width: PosNavBarSpec.scanArtworkSize,
+        height: PosNavBarSpec.scanArtworkSize,
         fit: BoxFit.contain,
         placeholderBuilder: (_) => const Icon(
           Icons.crop_free,
-          size: PosNavBarSpec.scanSize,
+          size: PosNavBarSpec.iconSize,
           color: PosUI.ink,
         ),
       ),

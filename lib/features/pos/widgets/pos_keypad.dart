@@ -276,18 +276,23 @@ PosKeypadStyle posCompactKeypadStyle({required String backspaceAsset}) =>
       backspaceAsset: backspaceAsset,
     );
 
-/// The single payment keypad — Figma `numeric-keypad` (node **1915:10266**).
-/// 78px keys, r12, 12px gaps (412x348 in a 412 column), Loew Bold 24,
-/// `#D8D1BE` borders; the backspace cell takes a `#F0EBD8` fill.
-PosKeypadStyle posPaymentKeypadStyle({required String backspaceAsset}) =>
+/// The single payment keypad (Figma `numeric-keypad`, node **1915:10266**,
+/// refined — see [PosPaymentSpec.keyHeight]): 56px keys, r12, 10px gaps
+/// (412x254 in a 412 column), Loew Bold 22, white with a 1px `#E8E3D5` stroke
+/// and a soft shadow; the backspace cell takes a `#F0EBD8` fill.
+PosKeypadStyle posPaymentKeypadStyle({
+  required String backspaceAsset,
+  // The split panes pass less when even a scaled frame runs short.
+  double keyHeight = PosPaymentSpec.keyHeight,
+}) =>
     PosKeypadStyle(
-      keyHeight: PosPaymentSpec.keyHeight,
+      keyHeight: keyHeight,
       keyRadius: PosPaymentSpec.v2KeypadKeyRadius,
       columnGap: PosPaymentSpec.keyGap,
       rowGap: PosPaymentSpec.keyGap,
       labelSize: PosPaymentSpec.v2KeypadLabelSize,
-      // Figma's 24px Bold line box is 29 (`leading-normal`).
-      labelHeight: 29 / 24,
+      // Loew's 22px Bold line box is 26 (`leading-normal`).
+      labelHeight: 26 / 22,
       labelStyle: loewBold,
       fill: PosHomeSpec.tileBg,
       borderColor: PosPaymentSpec.v2KeypadKeyBorder,
@@ -297,4 +302,5 @@ PosKeypadStyle posPaymentKeypadStyle({required String backspaceAsset}) =>
       iconColor: PosHomeSpec.ink,
       backspaceAsset: backspaceAsset,
       backspaceFill: PosPaymentSpec.v2KeypadBackspaceFill,
+      shadow: const [PosPaymentSpec.v2KeypadKeyShadow],
     );

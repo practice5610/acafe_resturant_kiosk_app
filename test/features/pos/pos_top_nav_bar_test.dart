@@ -16,6 +16,7 @@ import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -264,11 +265,36 @@ void main() {
       expect(avatar.left - lock.right, closeTo(16, 0.01));
     });
 
-    testWidgets('scan is 36 and avatar is 40', (tester) async {
-      await pumpBar(tester);
-      expect(tester.getSize(find.byKey(PosNavBarSpec.scanButtonKey)),
-          const Size(36, 36));
+    testWidgets('allergen, scan, lock and avatar share one 40 target',
+        (tester) async {
+      await pumpBar(tester, elevated: false);
+      for (final key in [
+        PosNavBarSpec.allergenButtonKey,
+        PosNavBarSpec.scanButtonKey,
+        PosNavBarSpec.lockButtonKey,
+      ]) {
+        expect(tester.getSize(find.byKey(key)), const Size(40, 40),
+            reason: '$key target');
+      }
       expect(tester.getSize(find.byType(PosAvatar)), const Size(40, 40));
+    });
+
+    testWidgets('icon glyphs are optically matched, not box-matched',
+        (tester) async {
+      // Regression: the scan artwork was drawn at its full 36 canvas while
+      // the shield was a Material glyph at 60% of that, so the scan read
+      // about twice the shield's size.
+      await pumpBar(tester, elevated: false);
+      final Size shield = tester
+          .getSize(find.byIcon(Icons.health_and_safety_outlined));
+      final Size lock = tester.getSize(find.byIcon(Icons.lock_outline));
+      final Size scan = tester.getSize(find.descendant(
+        of: find.byKey(PosNavBarSpec.scanButtonKey),
+        matching: find.byType(SvgPicture),
+      ));
+      expect(shield, const Size.square(PosNavBarSpec.iconSize));
+      expect(lock, const Size.square(PosNavBarSpec.iconSize));
+      expect(scan, const Size.square(PosNavBarSpec.scanArtworkSize));
     });
 
     testWidgets('pill heights come from padding, not hardcoded widths',

@@ -107,6 +107,19 @@ flutter:
         - asset: assets/fonts/RobotoMono-Bold.ttf
           weight: 700
 
+    # POS Report Overview card text (Figma 1915:18091). Inter 4.1 static faces
+    # from github.com/rsms/inter, SIL OFL 1.1 -- see assets/fonts/Inter-OFL.txt.
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800
+
     - family: Loew
       fonts:
         - asset: assets/fonts/Loew-Regular.ttf
