@@ -68,6 +68,28 @@ rows, CTA, back-row caption) lands on the Figma frame coordinate (±0), except #
 Verified on render: Amount due 179, Amount Tendered 216, field text 256, Change Due 319.5, denoms 371, key
 "1" 436.5, Add tip 785 — all equal to the Figma frame coordinates.
 
+## 03 Payment – Invoice (1915:10311)
+
+| # | Element | Figma value | Code value | File:line | Sev | Status |
+|---|---|---|---|---|---|---|
+| 1 | Confirm action | Sticky-bar pill **"Confirm Payment"** (node 1915:10473) | Bar hidden; in-pane 56px "Create Invoice" button | `screens/pos_payment_selection_screen.dart` (bar builder) · `widgets/pos_invoice_panel.dart` | High | Fixed — bar shown in invoice mode, wired to the existing `_submitInvoice` with the same `isValid && !loading` rule; in-pane button removed |
+| 2 | Field labels | Label **above** each input (Loew Regular 12, ink @0.53, gap 4) | Hint text inside the field (Swiss 14 @0.35), no labels | `pos_invoice_panel.dart` `_InvoiceTextField` | High | Fixed |
+| 3 | Input text | Loew **Medium** 14 | Loew Bold 14 | same | Med | Fixed |
+| 4 | Input height | 37 (px-14 py-10, 1.5px inside stroke) | ~48 (non-dense M3 decorator) | same | Med | Fixed (dense, 37) |
+| 5 | Input text x | 14 from the field edge | 18 (outline `gapPadding` 4) | same | Low | Fixed (`gapPadding: 0`) |
+| 6 | Toggle | 36×20 r10 ink track, white r8 thumb | Material `Switch` (52×32) | same | Med | Fixed — `PosPayToggle`; "off" not drawn in Figma → POS inactive fill (see D6) |
+| 7 | Toggle subtitle copy | "Send automatically after completing" | "Send a copy to the company email" | same | Med | Fixed |
+| 8 | "SEND BY EMAIL" tracking | 0.5 | 0 | same | Low | Fixed |
+| 9 | Extra divider | Only one divider (under the amount) | Second divider + 12px above the toggle | same | Med | Fixed (removed) |
+| 10 | Pane padding / rhythm | p-24, gap-16; header gap 4 + pb 12; total pb 12; form py-12 gap-10 | px/py 20; ad-hoc 2 / 12 / 16 / 10 gaps | same | Med | Fixed |
+| 11 | Amount line box | 58 (`leading-normal`) | 48 (`height: 1.0`) | same | Med | Fixed |
+| 12 | Swiss captions | 14 / 16 line boxes | 16 / 18 | same | Low | Fixed (`figmaLeading`) |
+| 13 | Pane border | `#F0EBD8` 1.5px (this frame) | `#E8E0CC` 1px (summary style) | screen `_summaryPane` | Low | Fixed |
+| 14 | Selected OTHER row | `#241F20` **1.5px** border; 24px filled radio flush right | black 1px; radio centred on the 18 slot (3px overhang) | `widgets/pos_payment_method_selector.dart` | Low | Fixed |
+
+Verified on render: every text anchor in the pane (INVOICE 91, amount 154, labels 311/376/441, inputs 339/404/469 at
+x 920, toggle row 524/540) equals the Figma coordinate.
+
 ---
 
 ## Decisions for you
@@ -84,5 +106,7 @@ Verified on render: Amount due 179, Amount Tendered 216, field text 256, Change 
   → ink by the same rule. Say if you now want the literal hexes.
 - **D4 — Same banknote icon on "Split by item" and "Split by payment".** That is what Figma draws, so the
   code now matches; it looks like a placeholder — confirm or send distinct icons.
+- **D6 — Unspecified states.** Figma draws only the "on" toggle and only a focused (ink) company field.
+  Off toggle = POS inactive fill `#DED9C8`, thumb left; unfocused fields = `#E0D9C8` (as drawn for VAT/email).
 - **D5 — Amount header is 12px shorter on Cash than on Card** (47 vs 58 line box). Implemented per frame,
   so switching Card ↔ Cash moves "Amount due" by 11px. Say if one of the two should win.

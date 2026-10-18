@@ -44,8 +44,6 @@ import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_tip_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
@@ -54,7 +52,6 @@ import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1928,7 +1925,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              _BackRow(
+              PosPayBackRow(
                 onBack: _back,
                 label: _backRowLabel(_changedTotal),
               ),
@@ -1982,7 +1979,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                       // Back is withheld while the terminal has the payment:
                       // leaving mid-transaction charges a card against an
                       // order nobody placed. Cancel Transaction is the way out.
-                      _BackRow(
+                      PosPayBackRow(
                         onBack:
                             _isWaitingForTerminal || _declined ? null : _back,
                         // `Dylan / € 19.00` (node 1915:9351): customer name and
@@ -2139,9 +2136,23 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                             return ValueListenableBuilder<PosSplitState?>(
                               valueListenable: _split,
                               builder: (context, splitState, _) {
+                                // Frame 03 confirms an invoice through this
+                                // bar, not a button inside the pane.
+                                if (_invoiceActive) {
+                                  return ValueListenableBuilder<String>(
+                                    valueListenable: _invoiceForm.companyName,
+                                    builder: (context, _, __) => PosPayPillBar(
+                                      label: 'Confirm Payment',
+                                      loading: _invoiceLoading,
+                                      onConfirm: _invoiceForm.isValid &&
+                                              !_invoiceLoading
+                                          ? _submitInvoice
+                                          : null,
+                                    ),
+                                  );
+                                }
                                 if (sbiState != null ||
                                     splitState != null ||
-                                    _invoiceActive ||
                                     _standaloneActive) {
                                   return const SizedBox.shrink();
                                 }
@@ -2176,93 +2187,6 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
           ],
         ),
       ),
-      ),
-    );
-  }
-}
-
-/// `back-btn-row` (node 1915:9347): the back button at the left, with the
-/// ticket's `customer / total` caption centred across the row.
-class _BackRow extends StatelessWidget {
-  /// Null renders the row and the button, greyed and inert — the chrome has to
-  /// hold its 67px or the content below jumps when the waiting card appears.
-  final VoidCallback? onBack;
-
-  /// `Dylan / € 19.00` (node 1915:9351) — centred, Loew ExtraBold 14.
-  final String label;
-
-  const _BackRow({required this.onBack, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: PosPaymentSpec.backRowHeight,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Center(
-              child: Padding(
-                // Keep the caption clear of the back button at either edge.
-                padding: const EdgeInsets.symmetric(horizontal: 88),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: loewExtraBold.copyWith(
-                    fontSize: 14,
-                    color: PosHomeSpec.ink,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: PosPaymentSpec.backRowPaddingH),
-              child: Opacity(
-                opacity: onBack == null ? 0.4 : 1,
-                child: Material(
-                  color: PosHomeSpec.tileBg,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: onBack,
-                    child: Container(
-                      width: PosPaymentSpec.backButtonSize,
-                      height: PosPaymentSpec.backButtonSize,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(
-                            PosPaymentSpec.backButtonRadius),
-                        border: Border.all(
-                          color: PosHomeSpec.ink,
-                          width: PosPaymentSpec.backButtonBorder,
-                        ),
-                      ),
-                      child: SvgPicture.asset(
-                        Images.posArrowLeftSvg,
-                        width: PosPaymentSpec.backIconSize,
-                        height: PosPaymentSpec.backIconSize,
-                        colorFilter: const ColorFilter.mode(
-                          PosHomeSpec.ink,
-                          BlendMode.srcIn,
-                        ),
-                        placeholderBuilder: (_) => const Icon(
-                          Icons.arrow_back,
-                          size: PosPaymentSpec.backIconSize,
-                          color: PosHomeSpec.ink,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -2428,50 +2352,20 @@ class _Content extends StatelessWidget {
     this.showSplitOptions = true,
   });
 
-  Widget _orderList({required bool shrinkWrap}) => PosReceiptOrderList(
-        // `order-items` (1915:9368): inset px-24, no thumbnails.
-        inset: true,
+  /// Receipt sidebar pane — node 1915:9353.
+  Widget _receiptCard({required bool fill}) => PosPayReceiptCard(
+        fill: fill,
         lines: lines,
+        hasItems: hasItems,
         imageBaseUrl: imageBaseUrl,
         dealImageBaseUrl: dealImageBaseUrl,
+        orderNumber: orderNumber,
+        customerNameController: customerNameController,
+        tableController: tableController,
         onIncrement: onIncrement,
         onDecrement: onDecrement,
-        shrinkWrap: shrinkWrap,
-        // No EDIT here: customising a line belongs to the counter screen.
-        // Quantity and delete stay, so an operator can still fix a mistake
-        // without walking the sale back.
+        onOptions: onOptions,
       );
-
-  /// Receipt sidebar pane — node 1915:9353. The header, customer field and
-  /// order rows are the Browse-POS redesign widgets, already matching this
-  /// frame; only the surrounding card changes to the v2 shell.
-  Widget _receiptCard({required bool fill}) {
-    final Widget list = hasItems
-        ? _orderList(shrinkWrap: !fill)
-        : const Padding(
-            padding: EdgeInsets.symmetric(vertical: 48),
-            child: PosReceiptEmptyState(),
-          );
-
-    return PosPayCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
-        children: [
-          PosReceiptHeader(orderNumber: orderNumber, onOptions: onOptions),
-          PosReceiptCustomerInfo(
-            nameController: customerNameController,
-            tableController: tableController,
-            showBottomHairline: false,
-            // `customer-info` (1915:9361) is py-16.
-            paddingTop: PosPaymentSpec.v2CustomerInfoPaddingTop,
-          ),
-          const PosReceiptOrderListLabel(),
-          if (fill) Expanded(child: list) else list,
-        ],
-      ),
-    );
-  }
 
   /// Payment-method column — node 1915:9420. Scrolls internally when it owns a
   /// bounded height (a pane-internal scroll, never a full-screen one).
@@ -2518,8 +2412,8 @@ class _Content extends StatelessWidget {
       );
     }
     if (changeOther == 'invoice') {
+      // Frame 03 draws the invoice pane on the #F0EBD8 1.5px card.
       return PosPayCard(
-        summaryBorder: true,
         child: PosInvoicePanel(
           grandTotal: total,
           form: invoiceForm,
@@ -2545,7 +2439,6 @@ class _Content extends StatelessWidget {
     // Invoice mode (Family 4): company name / VAT / email form.
     if (invoiceActive) {
       return PosPayCard(
-        summaryBorder: true,
         child: PosInvoicePanel(
           grandTotal: total,
           form: invoiceForm,

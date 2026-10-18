@@ -1,8 +1,13 @@
+import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
+import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// Gives the "POS payment" layer Figma's `leading-normal` line boxes.
 ///
@@ -310,6 +315,168 @@ class PosPayPillBar extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// `back-btn-row` (node 1915:9347): the back button at the left, with the
+/// ticket's `customer / total` caption centred across the row.
+class PosPayBackRow extends StatelessWidget {
+  /// Null renders the row and the button, greyed and inert — the chrome has to
+  /// hold its 67px or the content below jumps when the waiting card appears.
+  final VoidCallback? onBack;
+
+  /// `Dylan / € 19.00` (node 1915:9351) — centred, Loew ExtraBold 14.
+  final String label;
+
+  const PosPayBackRow({super.key, required this.onBack, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: PosPaymentSpec.backRowHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Center(
+              child: Padding(
+                // Keep the caption clear of the back button at either edge.
+                padding: const EdgeInsets.symmetric(horizontal: 88),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: loewExtraBold.copyWith(
+                    fontSize: 14,
+                    color: PosHomeSpec.ink,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: PosPaymentSpec.backRowPaddingH),
+              child: Opacity(
+                opacity: onBack == null ? 0.4 : 1,
+                child: Material(
+                  color: PosHomeSpec.tileBg,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onBack,
+                    child: Container(
+                      width: PosPaymentSpec.backButtonSize,
+                      height: PosPaymentSpec.backButtonSize,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(
+                            PosPaymentSpec.backButtonRadius),
+                        border: Border.all(
+                          color: PosHomeSpec.ink,
+                          width: PosPaymentSpec.backButtonBorder,
+                        ),
+                      ),
+                      child: SvgPicture.asset(
+                        Images.posArrowLeftSvg,
+                        width: PosPaymentSpec.backIconSize,
+                        height: PosPaymentSpec.backIconSize,
+                        colorFilter: const ColorFilter.mode(
+                          PosHomeSpec.ink,
+                          BlendMode.srcIn,
+                        ),
+                        placeholderBuilder: (_) => const Icon(
+                          Icons.arrow_back,
+                          size: PosPaymentSpec.backIconSize,
+                          color: PosHomeSpec.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// `purchase-receipt-sidebar` (node 1915:9353): header, customer name, the
+/// "Order list" label and the inset rows. The header, field and rows are the
+/// counter screen's own widgets, so the ticket reads the same either side of
+/// PAY; only the card and the inset differ.
+class PosPayReceiptCard extends StatelessWidget {
+  /// True when the pane owns a bounded height and the rows scroll inside it.
+  final bool fill;
+  final List<CartModel?> lines;
+  final bool hasItems;
+  final String? imageBaseUrl;
+  final String? dealImageBaseUrl;
+  final String? orderNumber;
+  final TextEditingController customerNameController;
+  final TextEditingController tableController;
+  final ValueChanged<int> onIncrement;
+  final ValueChanged<int> onDecrement;
+  final ValueChanged<BuildContext> onOptions;
+
+  const PosPayReceiptCard({
+    super.key,
+    required this.fill,
+    required this.lines,
+    required this.hasItems,
+    required this.imageBaseUrl,
+    required this.dealImageBaseUrl,
+    required this.orderNumber,
+    required this.customerNameController,
+    required this.tableController,
+    required this.onIncrement,
+    required this.onDecrement,
+    required this.onOptions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget list = hasItems
+        ? PosReceiptOrderList(
+            // `order-items` (1915:9368): inset px-24, no thumbnails.
+            inset: true,
+            lines: lines,
+            imageBaseUrl: imageBaseUrl,
+            dealImageBaseUrl: dealImageBaseUrl,
+            onIncrement: onIncrement,
+            onDecrement: onDecrement,
+            shrinkWrap: !fill,
+            // No EDIT here: customising a line belongs to the counter screen.
+            // Quantity and delete stay, so an operator can still fix a mistake
+            // without walking the sale back.
+          )
+        : const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: PosReceiptEmptyState(),
+          );
+
+    return PosPayCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          PosReceiptHeader(orderNumber: orderNumber, onOptions: onOptions),
+          PosReceiptCustomerInfo(
+            nameController: customerNameController,
+            tableController: tableController,
+            showBottomHairline: false,
+            // `customer-info` (1915:9361) is py-16.
+            paddingTop: PosPaymentSpec.v2CustomerInfoPaddingTop,
+          ),
+          const PosReceiptOrderListLabel(),
+          if (fill) Expanded(child: list) else list,
+        ],
       ),
     );
   }

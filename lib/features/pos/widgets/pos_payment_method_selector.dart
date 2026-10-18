@@ -222,11 +222,11 @@ class _OtherMethodRow extends StatelessWidget {
         : active
             ? 1.0
             : PosPaymentSpec.v2OtherLabelOpacity;
-    final Color borderColor = active
-        ? PosPaymentSpec.methodSelectedBorder
-        : PosPaymentSpec.v2OtherRowBorder;
+    final Color borderColor =
+        active ? PosHomeSpec.ink : PosPaymentSpec.v2OtherRowBorder;
+    // Selected row (node 1915:10424): #241F20 at 1.5px.
     final double borderWidth = active
-        ? PosPaymentSpec.methodBorder
+        ? PosPaymentSpec.v2OtherRowActiveBorderWidth
         : PosPaymentSpec.v2OtherRowBorderWidth;
 
     final Widget content = Column(
@@ -267,31 +267,40 @@ class _OtherMethodRow extends StatelessWidget {
               ),
               Opacity(
                 opacity: enabled ? 1.0 : 0.40,
-                // An 18px slot drawing the 24px ring — the frame's radio is an
-                // 18 box with its vector at `inset -16.67%` (node 1915:9452),
-                // so the ring overhangs the slot by 3px each side.
-                child: SizedBox(
-                  width: PosPaymentSpec.v2OtherRadioSize,
-                  height: PosPaymentSpec.v2OtherRadioSize,
-                  child: OverflowBox(
-                    minWidth: PosPaymentSpec.v2OtherRadioDrawn,
-                    maxWidth: PosPaymentSpec.v2OtherRadioDrawn,
-                    minHeight: PosPaymentSpec.v2OtherRadioDrawn,
-                    maxHeight: PosPaymentSpec.v2OtherRadioDrawn,
-                    child: SvgPicture.asset(
-                      active ? Images.posRadioOnSvg : Images.posRadioOffSvg,
-                      width: PosPaymentSpec.v2OtherRadioDrawn,
-                      height: PosPaymentSpec.v2OtherRadioDrawn,
-                      placeholderBuilder: (_) => Icon(
-                        active
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
-                        size: PosPaymentSpec.v2OtherRadioDrawn,
-                        color: active ? PosHomeSpec.ink : PosHomeSpec.itemDivider,
+                // Idle: an 18px slot drawing the 24px ring (`inset -16.67%`,
+                // node 1915:9452), overhanging 3px each side. Selected: the
+                // 24px filled radio, flush right (node 1915:10429).
+                child: active
+                    ? SvgPicture.asset(
+                        Images.posRadioOnSvg,
+                        width: PosPaymentSpec.v2OtherRadioDrawn,
+                        height: PosPaymentSpec.v2OtherRadioDrawn,
+                        placeholderBuilder: (_) => const Icon(
+                          Icons.radio_button_checked,
+                          size: PosPaymentSpec.v2OtherRadioDrawn,
+                          color: PosHomeSpec.ink,
+                        ),
+                      )
+                    : SizedBox(
+                        width: PosPaymentSpec.v2OtherRadioSize,
+                        height: PosPaymentSpec.v2OtherRadioSize,
+                        child: OverflowBox(
+                          minWidth: PosPaymentSpec.v2OtherRadioDrawn,
+                          maxWidth: PosPaymentSpec.v2OtherRadioDrawn,
+                          minHeight: PosPaymentSpec.v2OtherRadioDrawn,
+                          maxHeight: PosPaymentSpec.v2OtherRadioDrawn,
+                          child: SvgPicture.asset(
+                            Images.posRadioOffSvg,
+                            width: PosPaymentSpec.v2OtherRadioDrawn,
+                            height: PosPaymentSpec.v2OtherRadioDrawn,
+                            placeholderBuilder: (_) => const Icon(
+                              Icons.radio_button_unchecked,
+                              size: PosPaymentSpec.v2OtherRadioDrawn,
+                              color: PosHomeSpec.itemDivider,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
               ),
             ],
           ),

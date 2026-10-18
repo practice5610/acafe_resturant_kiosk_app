@@ -13,7 +13,13 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_invoice_model.dart';
+import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/main.dart' show navigatorKey;
@@ -110,11 +116,13 @@ List<CartModel> figmaTicket() => [
           id: 3),
     ];
 
-Future<void> pumpPaymentScreen(
-  WidgetTester tester, {
+/// Mounts [home] under the providers and the production theme the payment
+/// screen runs with.
+Future<CartProvider> pumpPaymentApp(
+  WidgetTester tester,
+  Widget Function(SharedPreferences prefs) home, {
   Size size = const Size(1366, 1024),
   List<CartModel>? lines,
-  PosPaymentMethod method = PosPaymentMethod.card,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -134,9 +142,6 @@ Future<void> pumpPaymentScreen(
   );
   final cart = CartProvider(cartRepo: CartRepo(sharedPreferences: prefs));
   cart.replaceCartList(lines ?? figmaTicket());
-
-  PosSaleSession.instance.customerName.text = 'Dylan';
-  PosSaleSession.instance.paymentMethod = method;
 
   await tester.pumpWidget(
     MultiProvider(
@@ -171,7 +176,7 @@ Future<void> pumpPaymentScreen(
             // The production theme, so inherited text styles match the app.
             theme: light,
             navigatorKey: navigatorKey,
-            home: PosPaymentSelectionScreen(sharedPreferences: prefs),
+            home: home(prefs),
           ),
         ),
       ),
@@ -179,7 +184,134 @@ Future<void> pumpPaymentScreen(
   );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
+  return cart;
 }
+
+Future<void> pumpPaymentScreen(
+  WidgetTester tester, {
+  Size size = const Size(1366, 1024),
+  List<CartModel>? lines,
+  PosPaymentMethod method = PosPaymentMethod.card,
+}) async {
+  PosSaleSession.instance.customerName.text = 'Dylan';
+  PosSaleSession.instance.paymentMethod = method;
+  await pumpPaymentApp(
+    tester,
+    (prefs) => PosPaymentSelectionScreen(sharedPreferences: prefs),
+    size: size,
+    lines: lines,
+  );
+}
+
+/// The payment screen's chrome composed from the same public pieces the
+/// screen builds it from — for the OTHER-mode frames, whose state is only
+/// reachable after a live order placement.
+Future<void> pumpComposedFrame(
+  WidgetTester tester, {
+  required Widget Function(bool fill) summary,
+  bool invoiceActive = false,
+  bool standaloneActive = false,
+  bool splitActive = false,
+  bool splitByItemActive = false,
+  Widget? bar,
+  String backLabel = 'Dylan / € 19.00',
+  List<CartModel>? lines,
+}) async {
+  final List<CartModel> ticket = lines ?? figmaTicket();
+  final name = TextEditingController(text: 'Dylan');
+  final table = TextEditingController();
+  addTearDown(name.dispose);
+  addTearDown(table.dispose);
+  await pumpPaymentApp(
+    tester,
+    lines: ticket,
+    (_) => Scaffold(
+      backgroundColor: PosHomeSpec.pageBg,
+      body: PosPayTextScope(
+        child: SafeArea(
+          child: Column(
+            children: [
+              PosPayBackRow(onBack: () {}, label: backLabel),
+              Expanded(
+                child: PosPayThreePane(
+                  receipt: (fill) => PosPayReceiptCard(
+                    fill: fill,
+                    lines: ticket,
+                    hasItems: ticket.isNotEmpty,
+                    imageBaseUrl: null,
+                    dealImageBaseUrl: null,
+                    orderNumber: null,
+                    customerNameController: name,
+                    tableController: table,
+                    onIncrement: (_) {},
+                    onDecrement: (_) {},
+                    onOptions: (_) {},
+                  ),
+                  method: (fill) {
+                    final Widget selector = PosPaymentMethodSelector(
+                      method: PosPaymentMethod.card,
+                      cashEnabled: true,
+                      cardEnabled: true,
+                      onSelectMethod: (_) {},
+                      onSplitByPayment: () {},
+                      splitActive: splitActive,
+                      onSplitByItem: () {},
+                      splitByItemActive: splitByItemActive,
+                      onInvoice: () {},
+                      invoiceActive: invoiceActive,
+                      onStandalone: () {},
+                      standaloneActive: standaloneActive,
+                      onCancelActiveOther: () {},
+                    );
+                    return PosPayCard(
+                      padding: const EdgeInsets.all(
+                          PosPaymentSpec.v2MethodCardPadding),
+                      child: fill
+                          ? SingleChildScrollView(child: selector)
+                          : selector,
+                    );
+                  },
+                  summary: summary,
+                ),
+              ),
+              if (bar != null) bar,
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> expectFrame(WidgetTester tester, String name) async {
+  await expectLater(
+      find.byType(MaterialApp), matchesGoldenFile('goldens/payment_audit/$name.png'));
+}
+
+/// Composed frames, keyed by golden name. Also driven by the measuring probe.
+final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
+  '03_invoice': (tester) async {
+    final form = PosInvoiceFormState();
+    addTearDown(form.dispose);
+    form.companyName.value = 'Matcha Studio BV';
+    form.vatNumber.value = 'NL123456789B01';
+    form.email.value = 'finance@matchastudio.nl';
+    form.sendByEmail.value = true;
+    await pumpComposedFrame(
+      tester,
+      invoiceActive: true,
+      summary: (_) => PosPayCard(
+        child: PosInvoicePanel(
+          grandTotal: 19,
+          form: form,
+          loading: false,
+          onSubmit: () {},
+        ),
+      ),
+      bar: PosPayPillBar(label: 'Confirm Payment', onConfirm: () {}),
+    );
+  },
+};
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -198,4 +330,11 @@ void main() {
     await expectLater(find.byType(PosPaymentSelectionScreen),
         matchesGoldenFile('goldens/payment_audit/02_cash.png'));
   });
+
+  for (final entry in auditFrames.entries) {
+    testWidgets('frame ${entry.key}', (tester) async {
+      await entry.value(tester);
+      await expectFrame(tester, entry.key);
+    });
+  }
 }

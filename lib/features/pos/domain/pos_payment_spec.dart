@@ -346,6 +346,7 @@ class PosPaymentSpec {
   // ── OTHER method rows (node 1915:9447), rendered inert ───────────────
   static const double v2OtherRowRadius = 10;
   static const double v2OtherRowBorderWidth = 1;
+  static const double v2OtherRowActiveBorderWidth = 1.5; // node 1915:10424
   static const double v2OtherRowPaddingH = 12;
   static const double v2OtherRowPaddingV = 10;
   static const double v2OtherRowInnerGap = 6; // top row -> label
