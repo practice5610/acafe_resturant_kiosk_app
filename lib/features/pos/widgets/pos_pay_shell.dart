@@ -568,3 +568,71 @@ class PosPayCheckbox extends StatelessWidget {
     );
   }
 }
+
+/// A selectable tile of the payment layer — the PRIMARY Card / Cash tiles,
+/// the OTHER rows and the receipt options all draw through this, so the three
+/// share one set of states:
+///  * idle / selected — [PosPayTileStyle] inside strokes (Figma strokes do not
+///    move content),
+///  * pressed — an ink ripple clipped to the tile's radius,
+///  * disabled ([onTap] null) — the whole tile at
+///    [PosPaymentSpec.v2TileDisabledOpacity], inert.
+class PosPaySelectableTile extends StatelessWidget {
+  final PosPayTileStyle style;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  /// Fixed height (the PRIMARY tiles are 95); null sizes to the content.
+  final double? height;
+
+  /// Overrides [PosPayTileStyle.padding].
+  final EdgeInsetsGeometry? padding;
+  final String? semanticLabel;
+  final Widget child;
+
+  const PosPaySelectableTile({
+    super.key,
+    required this.style,
+    required this.selected,
+    required this.onTap,
+    required this.child,
+    this.height,
+    this.padding,
+    this.semanticLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final BorderRadius radius = BorderRadius.circular(style.radius);
+    Widget tile = Material(
+      color: style.fill,
+      borderRadius: radius,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Container(
+          height: height,
+          padding: padding ?? style.padding,
+          foregroundDecoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(
+              color: selected ? style.selectedBorder : style.idleBorder,
+              width: selected ? style.selectedBorderWidth : style.idleBorderWidth,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+    if (onTap == null) {
+      tile = Opacity(opacity: PosPaymentSpec.v2TileDisabledOpacity, child: tile);
+    }
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      selected: selected,
+      label: semanticLabel,
+      child: tile,
+    );
+  }
+}

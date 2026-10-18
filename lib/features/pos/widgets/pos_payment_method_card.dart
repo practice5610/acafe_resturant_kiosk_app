@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +19,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 class PosPaymentMethodCard extends StatelessWidget {
   final PosPaymentMethod method;
   final bool selected;
-  final VoidCallback onTap;
+
+  /// Null draws the disabled state (dimmed, inert).
+  final VoidCallback? onTap;
 
   /// Fitted density for the medium/laptop band. Defaults to full size, which
   /// is the only size this card ever drew before [PosPaymentDensity] existed.
@@ -47,9 +50,6 @@ class PosPaymentMethodCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final BorderRadius radius =
-        BorderRadius.circular(PosPaymentSpec.methodRadius);
-
     // The design's 95px is padding + a fixed icon row + a label line, with a
     // few px of slack at full size. Text shrinks slower than spacing (see
     // [PosPaymentDensity]), so below full density that slack can invert into
@@ -64,64 +64,46 @@ class PosPaymentMethodCard extends StatelessWidget {
     final double height =
         math.max(density.px(PosPaymentSpec.methodHeight), contentHeight);
 
-    return Semantics(
-      button: true,
+    // Border, fill, press and disabled states come from the shared tile with
+    // the PRIMARY token set (decision DD1).
+    return PosPaySelectableTile(
+      style: PosPaymentSpec.v2PrimaryTile,
       selected: selected,
-      label: _label,
-      child: Material(
-        color: PosHomeSpec.tileBg,
-        borderRadius: radius,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radius,
-          child: Container(
-            height: height,
-            padding: EdgeInsets.fromLTRB(
-              density.px(PosPaymentSpec.methodPadding),
-              density.px(PosPaymentSpec.methodPadding),
-              density.px(PosPaymentSpec.methodPadding),
-              0,
-            ),
-            // Inside stroke, as in the file: the border does not move content.
-            foregroundDecoration: BoxDecoration(
-              borderRadius: radius,
-              border: Border.all(
-                color: selected
-                    ? PosPaymentSpec.methodSelectedBorder
-                    : PosHomeSpec.hairline,
-                width: PosPaymentSpec.methodBorder,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+      onTap: onTap,
+      height: height,
+      padding: EdgeInsets.fromLTRB(
+        density.px(PosPaymentSpec.methodPadding),
+        density.px(PosPaymentSpec.methodPadding),
+        density.px(PosPaymentSpec.methodPadding),
+        0,
+      ),
+      semanticLabel: _label,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: density.px(_topRowHeight),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                SizedBox(
-                  height: density.px(_topRowHeight),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _IconWell(
-                          asset: _icon, selected: selected, density: density),
-                      _Radio(selected: selected, density: density),
-                    ],
-                  ),
-                ),
-                SizedBox(height: density.px(PosPaymentSpec.methodInnerGap)),
-                Text(
-                  _label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: loewBold.copyWith(
-                    fontSize: density.text(PosPaymentSpec.methodLabelSize),
-                    color: PosHomeSpec.ink,
-                    height: PosPaymentSpec.methodLabelHeight,
-                  ),
-                ),
+                _IconWell(asset: _icon, selected: selected, density: density),
+                _Radio(selected: selected, density: density),
               ],
             ),
           ),
-        ),
+          SizedBox(height: density.px(PosPaymentSpec.methodInnerGap)),
+          Text(
+            _label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: loewBold.copyWith(
+              fontSize: density.text(PosPaymentSpec.methodLabelSize),
+              color: PosHomeSpec.ink,
+              height: PosPaymentSpec.methodLabelHeight,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:flutter/material.dart';
@@ -90,6 +92,98 @@ void main() {
     testWidgets('default (Receipts / counter): unchanged, +1.5 border',
         (tester) async {
       expect(await textInset(tester, inside: false), 39.5);
+    });
+  });
+
+  group('R5: the three payment-screen sections', () {
+    Border tileBorder(WidgetTester tester, Finder tile) {
+      final Container box = tester.widget<Container>(find
+          .descendant(of: tile, matching: find.byType(Container))
+          .first);
+      return (box.foregroundDecoration! as BoxDecoration).border! as Border;
+    }
+
+    for (final method in PosPaymentMethod.values) {
+      testWidgets('DD1: one PRIMARY border set (frame 01) with ${method.name} selected',
+          (tester) async {
+        await pumpPaymentScreen(tester, method: method);
+        const style = PosPaymentSpec.v2PrimaryTile;
+        final Finder tiles = find.byType(PosPaymentMethodCard);
+        expect(tiles, findsNWidgets(2));
+        for (int i = 0; i < 2; i++) {
+          final bool selected =
+              tester.widget<PosPaymentMethodCard>(tiles.at(i)).selected;
+          final Border b = tileBorder(tester, tiles.at(i));
+          expect(b.top.color, selected ? style.selectedBorder : style.idleBorder);
+          expect(b.top.width,
+              selected ? style.selectedBorderWidth : style.idleBorderWidth);
+          // Inside stroke: the tile stays 95 whatever its state.
+          expect(tester.getSize(tiles.at(i)).height, PosPaymentSpec.methodHeight);
+        }
+      });
+    }
+
+    testWidgets('disabled tile: dimmed and inert, distinct from idle / selected',
+        (tester) async {
+      int taps = 0;
+      await pumpPaymentApp(
+        tester,
+        (_) => Scaffold(
+          body: Column(
+            children: [
+              SizedBox(
+                width: 322,
+                child: PosPaymentMethodCard(
+                  method: PosPaymentMethod.cash,
+                  selected: false,
+                  onTap: null,
+                ),
+              ),
+              SizedBox(
+                width: 322,
+                child: PosPaymentMethodCard(
+                  method: PosPaymentMethod.card,
+                  selected: false,
+                  onTap: () => taps++,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      final Finder dim = find.ancestor(
+          of: find.text('Cash'), matching: find.byType(Opacity));
+      expect(tester.widget<Opacity>(dim.first).opacity,
+          PosPaymentSpec.v2TileDisabledOpacity);
+      await tester.tap(find.text('Cash'));
+      await tester.tap(find.text('Card'));
+      expect(taps, 1);
+    });
+
+    testWidgets('pressed state ripples inside the rounded tile', (tester) async {
+      await pumpPaymentScreen(tester);
+      for (final label in ['Card', 'Split by item']) {
+        final InkWell ink = tester.widget<InkWell>(
+            find.ancestor(of: find.text(label), matching: find.byType(InkWell)).first);
+        expect(ink.borderRadius, isNotNull, reason: label);
+      }
+    });
+
+    testWidgets('panes: 440 / 370 / 452, 20 apart, 19 above the bar', (tester) async {
+      await pumpPaymentScreen(tester);
+      final Finder cards = find.byType(PosPayCard);
+      final List<Rect> panes = [
+        for (int i = 0; i < 3; i++) tester.getRect(cards.at(i)),
+      ]..sort((a, b) => a.left.compareTo(b.left));
+      expect(panes.map((r) => r.left).toList(), [32, 492, 882]);
+      expect(panes.map((r) => r.width).toList(), [440, 370, 452]);
+      for (final r in panes) {
+        expect(r.top, 67);
+        expect(r.height, 834);
+      }
+      final Rect bar = tester.getRect(find.byType(PosPayPillBar));
+      expect(bar.top - panes.first.bottom, PosPaymentSpec.v2ContentPaddingBottom);
+      expect(bar.top, 920);
     });
   });
 }

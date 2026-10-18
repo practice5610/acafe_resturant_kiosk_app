@@ -299,10 +299,10 @@ class PosSplitPaidRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
       child: Row(
         children: [
-          const PosPaySectionIcon(
+          PosPaySectionIcon(
             svg: _iconDialPad,
-            glyphWidth: 15,
-            glyphHeight: 15,
+            glyphWidth: PosPaymentSpec.v2GlyphDialPad.width,
+            glyphHeight: PosPaymentSpec.v2GlyphDialPad.height,
           ),
           const SizedBox(width: 10),
           Expanded(

@@ -265,6 +265,46 @@ class PosPaymentSpec {
   /// quick-amount row.
   static const double v2ReceivedGap = 10;
 
+  // ── Summary pane (`payment-summary-card`, nodes 1915:9475 / 10234) ─────
+  static const double v2SummaryPaddingH = 20;
+  static const double v2SummaryHeaderPaddingTop = 16; // summary-header pt-16
+  static const double v2SummaryHeaderPaddingBottom = 12; // pb-12
+  /// PAYMENT AMOUNT → subtitle, and amount → "Amount due" (gap-4).
+  static const double v2SummaryCaptionGap = 4;
+  /// Caption block → total display (gap-10).
+  static const double v2SummaryAmountGap = 10;
+  static const double v2SummaryCaptionSize = 14; // Loew Bold, tracking 1
+  static const double v2SummaryCaptionTracking = 1;
+  static const double v2SummaryCaptionOpacity = 0.4;
+  static const double v2SummarySubtitleSize = 12; // Swiss, ink @0.33
+  static const double v2SummarySubtitleOpacity = 0.33;
+  static const double v2SummaryAmountSize = 48; // Loew ExtraBold
+  static const double v2SummaryDueLabelSize = 13; // Swiss, ink @0.4
+  // `ontvangen-section` (1915:9484): px-20 py-14.
+  static const double v2ReceivedPaddingV = 14;
+  static const double v2ReceivedTitleGap = 8; // icon → "Amount received"
+  static const double v2ReceivedTitleSize = 12; // Loew Bold
+  static const double v2ReceivedAmountSize = 16; // Loew Bold
+  // Quick-amount chips (1915:9492): h34, r6, gap-6, Loew Bold 13.
+  static const double v2QuickChipHeight = 34;
+  static const double v2QuickChipRadius = 6;
+  static const double v2QuickChipGap = 6;
+  static const double v2QuickChipLabelSize = 13;
+  // `tip-section` (1915:9506): px-20, gap-10; texts 12 / 10, figure 14.
+  static const double v2TipRowPaddingH = 20;
+  static const double v2TipRowGap = 10;
+  static const double v2TipTextGap = 3;
+  static const double v2TipTitleSize = 12;
+  static const double v2TipSubtitleSize = 10;
+  static const double v2TipAmountSize = 14;
+  static const double v2ChevronSize = 16;
+  // 24px section-icon well (1915:9486), r5; glyphs per node.
+  static const double v2SectionIconSize = 24;
+  static const double v2SectionIconRadius = 5;
+  static const Size v2GlyphCash = Size(16, 10); // bi:cash 1915:9487
+  static const Size v2GlyphPlusCircle = Size(12, 12); // 1915:9508
+  static const Size v2GlyphDialPad = Size(15, 15); // 1915:9777
+
   // NB: the file also carries `#1A1A2E` (near-black, on "Amount received" and
   // the tip labels) and `#8A94A6` (slate, on the tip subtitle). Both are
   // off-palette template leftovers — per sign-off `#1A1A2E` maps to
@@ -349,6 +389,39 @@ class PosPaymentSpec {
   static const double v2OtherRowRadius = 10;
   static const double v2OtherRowBorderWidth = 1;
   static const double v2OtherRowActiveBorderWidth = 1.5; // node 1915:10424
+
+  // ── Selectable tiles (PRIMARY Card / Cash, OTHER rows, receipt options) ─
+  /// PRIMARY Card / Cash tiles — decision DD1: one border set for every
+  /// method tile, from frame 01 (`method-card` 1915:9426 selected, black 1px;
+  /// `method-cash` 1915:9436 idle, `#F0EBD8` 1px). 95 tall, r12, p-12 (the
+  /// label hangs from the top, so no bottom padding — see the card).
+  static const PosPayTileStyle v2PrimaryTile = PosPayTileStyle(
+    radius: methodRadius,
+    padding: EdgeInsets.fromLTRB(methodPadding, methodPadding, methodPadding, 0),
+    idleBorder: Color(0xFFF0EBD8), // = PosHomeSpec.hairline
+    idleBorderWidth: methodBorder,
+    selectedBorder: methodSelectedBorder,
+    selectedBorderWidth: methodBorder,
+  );
+
+  /// OTHER rows (`method-split-guest` 1915:9447 idle, `method-invoice`
+  /// 1915:10424 selected) and the receipt-option tiles (1915:13050): r10,
+  /// px-12 py-10, idle `#E8E3D5` 1px, selected `#241F20` 1.5px.
+  static const PosPayTileStyle v2OtherTile = PosPayTileStyle(
+    radius: v2OtherRowRadius,
+    padding: EdgeInsets.symmetric(
+      horizontal: v2OtherRowPaddingH,
+      vertical: v2OtherRowPaddingV,
+    ),
+    idleBorder: v2OtherRowBorder,
+    idleBorderWidth: v2OtherRowBorderWidth,
+    selectedBorder: Color(0xFF241F20), // = PosHomeSpec.ink
+    selectedBorderWidth: v2OtherRowActiveBorderWidth,
+  );
+
+  /// A tile with nothing to do (no handler) is drawn at this opacity — distinct
+  /// from both idle and selected. The frames draw no disabled tile.
+  static const double v2TileDisabledOpacity = 0.4;
   static const double v2OtherRowPaddingH = 12;
   static const double v2OtherRowPaddingV = 10;
   static const double v2OtherRowInnerGap = 6; // top row -> label
@@ -625,4 +698,28 @@ class PosPaymentDensity {
 
   @override
   int get hashCode => scale.hashCode;
+}
+
+/// One selectable tile's look — radius, padding, fill and the idle / selected
+/// inside strokes. Instances live on [PosPaymentSpec] (`v2PrimaryTile`,
+/// `v2OtherTile`); `PosPaySelectableTile` draws them.
+@immutable
+class PosPayTileStyle {
+  final double radius;
+  final EdgeInsets padding;
+  final Color fill;
+  final Color idleBorder;
+  final double idleBorderWidth;
+  final Color selectedBorder;
+  final double selectedBorderWidth;
+
+  const PosPayTileStyle({
+    required this.radius,
+    required this.padding,
+    this.fill = Colors.white,
+    required this.idleBorder,
+    required this.idleBorderWidth,
+    required this.selectedBorder,
+    required this.selectedBorderWidth,
+  });
 }

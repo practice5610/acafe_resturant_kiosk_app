@@ -216,31 +216,23 @@ class _OtherMethodRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool enabled = onTap != null;
-    final double labelOpacity = !enabled
-        ? 0.28
-        : active
-            ? 1.0
-            : PosPaymentSpec.v2OtherLabelOpacity;
-    final Color borderColor =
-        active ? PosHomeSpec.ink : PosPaymentSpec.v2OtherRowBorder;
-    // Selected row (node 1915:10424): #241F20 at 1.5px.
-    final double borderWidth = active
-        ? PosPaymentSpec.v2OtherRowActiveBorderWidth
-        : PosPaymentSpec.v2OtherRowBorderWidth;
-
-    final Widget content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          height: PosPaymentSpec.v2OtherRowTopHeight,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Opacity(
-                opacity: enabled ? 1.0 : 0.40,
-                child: Container(
+    // Idle / selected / pressed / disabled come from the shared tile with the
+    // OTHER token set; only the content reacts to [active] here.
+    return PosPaySelectableTile(
+      style: PosPaymentSpec.v2OtherTile,
+      selected: active,
+      onTap: onTap,
+      semanticLabel: data.label,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: PosPaymentSpec.v2OtherRowTopHeight,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
                   width: PosPaymentSpec.v2OtherIconWell,
                   height: PosPaymentSpec.v2OtherIconWell,
                   alignment: Alignment.center,
@@ -264,49 +256,23 @@ class _OtherMethodRow extends StatelessWidget {
                         : null,
                   ),
                 ),
-              ),
-              Opacity(
-                opacity: enabled ? 1.0 : 0.40,
-                child: PosPayRadio(selected: active),
-              ),
-            ],
+                PosPayRadio(selected: active),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: PosPaymentSpec.v2OtherRowInnerGap),
-        Text(
-          data.label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: loewMedium.copyWith(
-            fontSize: PosPaymentSpec.v2OtherLabelSize,
-            color: PosHomeSpec.inkAlpha(labelOpacity),
+          const SizedBox(height: PosPaymentSpec.v2OtherRowInnerGap),
+          Text(
+            data.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: loewMedium.copyWith(
+              fontSize: PosPaymentSpec.v2OtherLabelSize,
+              color: PosHomeSpec.inkAlpha(
+                  active ? 1.0 : PosPaymentSpec.v2OtherLabelOpacity),
+            ),
           ),
-        ),
-      ],
-    );
-
-    final container = Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: PosPaymentSpec.v2OtherRowPaddingH,
-        vertical: PosPaymentSpec.v2OtherRowPaddingV,
+        ],
       ),
-      decoration: BoxDecoration(
-        color: PosHomeSpec.tileBg,
-        borderRadius: BorderRadius.circular(PosPaymentSpec.v2OtherRowRadius),
-      ),
-      // Inside stroke: the row is 64 tall (10 + 24 + 6 + 14 + 10), border
-      // included, as in node 1915:9447.
-      foregroundDecoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(PosPaymentSpec.v2OtherRowRadius),
-        border: Border.all(color: borderColor, width: borderWidth),
-      ),
-      child: content,
-    );
-
-    if (!enabled) return container;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(onTap: onTap, child: container),
     );
   }
 }

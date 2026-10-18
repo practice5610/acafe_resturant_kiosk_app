@@ -372,7 +372,7 @@ refunded" message (tested).
 
 | # | Conflict | Decision | Where | Verified |
 |---|---|---|---|---|
-| DD1 | Card vs Cash tile borders differ between frames 01 and 02 | One border set for every method tile, taken from frame 01 (the screen's normal state): idle `#F0EBD8` 1px, selected black 1px; disabled = dimmed, inert. Defined once as `PosPaymentSpec.v2PrimaryTile` and drawn by the shared `PosPaySelectableTile` | see R5 | `pos_payment_design_decisions_test.dart` (DD1) |
+| DD1 | Card vs Cash tile borders differ between frames 01 and 02 | One border set for every method tile, taken from frame 01 (the screen's normal state): idle `#F0EBD8` 1px, selected black 1px; disabled = dimmed, inert. Defined once as `PosPaymentSpec.v2PrimaryTile` and drawn by the shared `PosPaySelectableTile` | `domain/pos_payment_spec.dart`, `widgets/pos_payment_method_card.dart` | test DD1 (both methods) |
 | DD2 | Cash amount header 11px shorter than Card (47 vs 58 line box) | Card frame's header (58 line, pb-12) on every method; the Cash-only override and its two parameters removed | `widgets/pos_pay_cash_panel.dart`, `pos_pay_summary_panel.dart` | test DD2: "Amount due" rect identical on Card and Cash |
 | DD3 | Frame 12 paid rows 44 / gap 4 vs 09–11 48 / gap 8 | 48 / 8 everywhere (split by payment and split by item) — already the case | `PosSplitPaidRow` | test DD3 |
 | DD4 | 18a/18b list Next order above Receipt; 18 / 28 the reverse | Receipt (outline) above Next order (filled) on every success screen, incl. the cards behind 18a / 18b and the refund success card | `PosPaymentSuccessCard(secondaryLabel:)` | test DD4 on 18, 18a, 18b; refund card in R8 |
@@ -387,3 +387,18 @@ These supersede decisions D2, D5 and the 18a/18b note in round 1.
 (`pos_receipt_detail_panel.dart`, untouched) and the counter screen use the default and render exactly as before.
 Verified by `pos_payment_design_decisions_test.dart` (R4: 38 vs 39.5 inside a 440 pane) and the audit render. Round 1
 item 01-#5 → **Fixed**.
+
+## R5 — The three payment-screen sections (method tiles · summary · OTHER list)
+
+| # | Element | Figma | Code before | Fix | Verified |
+|---|---|---|---|---|---|
+| 1 | Shared component | One tile language across PRIMARY tiles, OTHER rows and receipt options | Three hand-built containers, each with its own border / radius / press logic | `PosPaySelectableTile` + `PosPayTileStyle` (`v2PrimaryTile`, `v2OtherTile` in the spec): fill, inside stroke, rounded ripple, semantics, disabled | anchors unchanged (Card 212, Cash 307, Split by item 412, Stand-alone 628 = Figma); goldens 03, 05–21, 18a/b pixel-identical |
+| 2 | PRIMARY borders | DD1: idle `#F0EBD8` 1px, selected black 1px | same values, hard-coded | one token set | test DD1 on both methods; tiles stay 95 tall in every state |
+| 3 | Pressed state (OTHER rows) | rounded r10 tile | rectangular ripple over a rounded tile | ripple clipped to the tile radius | test "pressed state ripples inside the rounded tile" |
+| 4 | Disabled state | not drawn | PRIMARY: none; OTHER: label 0.28 / icon 0.4 | whole tile at 0.4, inert, for every tile | test "disabled tile: dimmed and inert" |
+| 5 | Summary pane literals | — | ~25 literal paddings / sizes | moved to `v2Summary* / v2Received* / v2QuickChip* / v2Tip* / v2SectionIcon* / v2Glyph*` tokens; chip stroke inside | text anchors unchanged (Custom 276, 25.00 320, amount 128, Amount due 190, Add tip 376) |
+| 6 | Five-figure total | — | — | 48px amount scales down in a pane too narrow for it (`FittedBox`) | stress goldens, 6 window sizes |
+| 7 | Pane geometry | 440 / 370 / 452, gap 20, top 67, 834 tall, 19 above the bar at 920 | already correct | pinned | test "panes: 440 / 370 / 452 …" |
+
+States covered: default, selected, pressed, disabled (all tiles); loading = the sticky bar's spinner and the dimmed
+PRIMARY while an OTHER order is being placed; error = snackbar / status cards (unchanged).

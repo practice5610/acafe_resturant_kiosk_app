@@ -41,23 +41,26 @@ class PosPaySummaryPanel extends StatelessWidget {
         const PosPaySummaryDivider(),
         // ontvangen-section / Amount received (1915:9484) — INERT
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(
+            horizontal: PosPaymentSpec.v2SummaryPaddingH,
+            vertical: PosPaymentSpec.v2ReceivedPaddingV,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
-                  const PosPaySectionIcon(
+                  PosPaySectionIcon(
                     svg: posPayIconCash,
-                    glyphWidth: 16,
-                    glyphHeight: 10,
+                    glyphWidth: PosPaymentSpec.v2GlyphCash.width,
+                    glyphHeight: PosPaymentSpec.v2GlyphCash.height,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: PosPaymentSpec.v2ReceivedTitleGap),
                   Text(
                     'Amount received',
                     style: loewBold.copyWith(
-                      fontSize: 12,
+                      fontSize: PosPaymentSpec.v2ReceivedTitleSize,
                       color: PosHomeSpec.ink, // #1A1A2E -> ink
                     ),
                   ),
@@ -65,7 +68,7 @@ class PosPaySummaryPanel extends StatelessWidget {
                   Text(
                     PosHomeSpec.formatPrice(total, padZero: false),
                     style: loewBold.copyWith(
-                      fontSize: 16,
+                      fontSize: PosPaymentSpec.v2ReceivedAmountSize,
                       color: PosHomeSpec.ink,
                     ),
                   ),
@@ -84,30 +87,29 @@ class PosPaySummaryPanel extends StatelessWidget {
 }
 
 /// `summary-header` (nodes 1915:9476 / 10235): the PAYMENT AMOUNT caption and
-/// the 48px amount-due display. [subtitle] differs between frames ("Payment
-/// overview" on Card, "Overview for partial payments" on Cash).
+/// the 48px amount-due display — pt-16 px-20 pb-12, gap-10 between the
+/// caption block and the total. [subtitle] differs between frames ("Payment
+/// overview" on Card, "Overview for partial payments" on Cash); the box is the
+/// same on every method (decision DD2).
 class PosPaySummaryHeader extends StatelessWidget {
   final double total;
   final String subtitle;
-
-  /// Compact amount font size for fill mode. Defaults to 48 (Figma spec).
-  final double amountFontSize;
 
   const PosPaySummaryHeader({
     super.key,
     required this.total,
     required this.subtitle,
-    this.amountFontSize = 48,
   });
 
   @override
   Widget build(BuildContext context) {
-    final double amtFont = amountFontSize;
-    // `summary-header` (1915:9476): pt-16 px-20 pb-12, gap-10 between the
-    // caption block and the total display.
-    const double gapBeforeAmt = 10;
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, amtFont < 42 ? 12 : 16, 20, amtFont < 42 ? 8 : 12),
+      padding: const EdgeInsets.fromLTRB(
+        PosPaymentSpec.v2SummaryPaddingH,
+        PosPaymentSpec.v2SummaryHeaderPaddingTop,
+        PosPaymentSpec.v2SummaryPaddingH,
+        PosPaymentSpec.v2SummaryHeaderPaddingBottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -115,33 +117,46 @@ class PosPaySummaryHeader extends StatelessWidget {
           Text(
             'PAYMENT AMOUNT',
             style: loewBold.copyWith(
-              fontSize: 14,
-              letterSpacing: 1,
-              color: PosHomeSpec.inkAlpha(0.4),
+              fontSize: PosPaymentSpec.v2SummaryCaptionSize,
+              letterSpacing: PosPaymentSpec.v2SummaryCaptionTracking,
+              color: PosHomeSpec.inkAlpha(PosPaymentSpec.v2SummaryCaptionOpacity),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: PosPaymentSpec.v2SummaryCaptionGap),
           Text(
             subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: swiss721Light.copyWith(
-              fontSize: 12,
-              height: PosPaymentSpec.figmaLeading(12),
-color: PosHomeSpec.inkAlpha(0.33),
+              fontSize: PosPaymentSpec.v2SummarySubtitleSize,
+              height: PosPaymentSpec.figmaLeading(
+                  PosPaymentSpec.v2SummarySubtitleSize),
+              color:
+                  PosHomeSpec.inkAlpha(PosPaymentSpec.v2SummarySubtitleOpacity),
             ),
           ),
-          const SizedBox(height: gapBeforeAmt),
-          Text(
-            PosHomeSpec.formatPrice(total, padZero: false),
-            maxLines: 1,
-            style: loewExtraBold.copyWith(fontSize: amtFont, color: PosHomeSpec.ink),
+          const SizedBox(height: PosPaymentSpec.v2SummaryAmountGap),
+          // A five-figure total still fits the narrowest side-by-side pane.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              PosHomeSpec.formatPrice(total, padZero: false),
+              maxLines: 1,
+              style: loewExtraBold.copyWith(
+                fontSize: PosPaymentSpec.v2SummaryAmountSize,
+                color: PosHomeSpec.ink,
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: PosPaymentSpec.v2SummaryCaptionGap),
           Text(
             'Amount due',
             style: swiss721Light.copyWith(
-              fontSize: 13,
-              height: PosPaymentSpec.figmaLeading(13),
-color: PosHomeSpec.inkAlpha(0.4),
+              fontSize: PosPaymentSpec.v2SummaryDueLabelSize,
+              height: PosPaymentSpec.figmaLeading(
+                  PosPaymentSpec.v2SummaryDueLabelSize),
+              color: PosHomeSpec.inkAlpha(PosPaymentSpec.v2MutedInkOpacity),
             ),
           ),
         ],
@@ -192,15 +207,16 @@ class PosPayTipRow extends StatelessWidget {
     final Widget row = Container(
       height: height,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding:
+          const EdgeInsets.symmetric(horizontal: PosPaymentSpec.v2TipRowPaddingH),
       child: Row(
         children: [
-          const PosPaySectionIcon(
+          PosPaySectionIcon(
             svg: posPayIconPlusCircle,
-            glyphWidth: 12,
-            glyphHeight: 12,
+            glyphWidth: PosPaymentSpec.v2GlyphPlusCircle.width,
+            glyphHeight: PosPaymentSpec.v2GlyphPlusCircle.height,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: PosPaymentSpec.v2TipRowGap),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,34 +224,43 @@ class PosPayTipRow extends StatelessWidget {
               children: [
                 Text(
                   'Add tip',
-                  style: loewBold.copyWith(fontSize: 12, color: PosHomeSpec.ink),
+                  style: loewBold.copyWith(
+                    fontSize: PosPaymentSpec.v2TipTitleSize,
+                    color: PosHomeSpec.ink,
+                  ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: PosPaymentSpec.v2TipTextGap),
                 Text(
                   'Add the tip you received here',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: swiss721Light.copyWith(
-                    fontSize: 10,
-                    height: PosPaymentSpec.figmaLeading(10),
-color: PosHomeSpec.inkAlpha(
+                    fontSize: PosPaymentSpec.v2TipSubtitleSize,
+                    height: PosPaymentSpec.figmaLeading(
+                        PosPaymentSpec.v2TipSubtitleSize),
+                    color: PosHomeSpec.inkAlpha(
                         PosPaymentSpec.v2MutedInkOpacity), // #8A94A6
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: PosPaymentSpec.v2TipRowGap),
           Text(
             // The receipt frame draws the figure without a currency symbol
             // ("0.00").
             hasTip ? PosHomeSpec.formatPrice(amount, padZero: false) : '0.00',
             // Node 1915:9513: Loew Bold 14, #1A1A2E (→ ink) — not muted.
-            style: loewBold.copyWith(fontSize: 14, color: PosHomeSpec.ink),
+            style: loewBold.copyWith(
+              fontSize: PosPaymentSpec.v2TipAmountSize,
+              color: PosHomeSpec.ink,
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: PosPaymentSpec.v2TipRowGap),
           SvgPicture.string(
             posPayIconChevronRight,
-            width: 16,
-            height: 16,
+            width: PosPaymentSpec.v2ChevronSize,
+            height: PosPaymentSpec.v2ChevronSize,
             fit: BoxFit.contain,
           ),
         ],
@@ -262,19 +287,19 @@ class PosPaySectionIcon extends StatelessWidget {
   const PosPaySectionIcon({
     super.key,
     required this.svg,
-    this.glyphWidth = 14,
-    this.glyphHeight = 14,
+    required this.glyphWidth,
+    required this.glyphHeight,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 24,
-      height: 24,
+      width: PosPaymentSpec.v2SectionIconSize,
+      height: PosPaymentSpec.v2SectionIconSize,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: PosPaymentSpec.v2SectionIconBg,
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(PosPaymentSpec.v2SectionIconRadius),
       ),
       child: SvgPicture.string(
         svg,
@@ -332,15 +357,16 @@ class _QuickAmountGrid extends StatelessWidget {
   List<Widget> _spread(List<Widget> items) {
     final List<Widget> out = [];
     for (int i = 0; i < items.length; i++) {
-      if (i > 0) out.add(const SizedBox(width: 6));
+      if (i > 0) out.add(const SizedBox(width: PosPaymentSpec.v2QuickChipGap));
       out.add(Expanded(child: items[i]));
     }
     return out;
   }
 }
 
-/// One quick-amount chip — h34, r6, py8 (node 1915:9492). Selected: ink fill,
-/// white label. Idle: white fill, `#D6CCBA` border, ink label. Non-interactive.
+/// One quick-amount chip — h34, r6 (node 1915:9492), label centred. Selected:
+/// ink fill, white label. Idle: white fill, `#D6CCBA` 1px inside stroke, ink
+/// label. Non-interactive.
 class _Chip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -349,13 +375,17 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosPaymentSpec.v2QuickChipRadius);
     return Container(
-      height: 34,
+      height: PosPaymentSpec.v2QuickChipHeight,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: selected ? PosHomeSpec.ink : PosHomeSpec.tileBg,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: radius,
+      ),
+      foregroundDecoration: BoxDecoration(
+        borderRadius: radius,
         border: Border.all(
           color: selected ? PosHomeSpec.ink : PosPaymentSpec.v2QuickAmountBorder,
         ),
@@ -365,7 +395,7 @@ class _Chip extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: loewBold.copyWith(
-          fontSize: 13,
+          fontSize: PosPaymentSpec.v2QuickChipLabelSize,
           color: selected ? Colors.white : PosHomeSpec.ink,
         ),
       ),

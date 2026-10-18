@@ -1,5 +1,6 @@
 import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_send_repo.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -12,7 +13,6 @@ const _modalBg     = Color(0xFFFBF8EF);
 const _modalBorder = Color(0xFFF0EBD8);
 const _divider     = Color(0xFFF0EBD8);
 const _tileActive  = Color(0xFF241F20);
-const _tileIdle    = Color(0xFFE8E3D5);
 const _iconBgIdle  = Color(0x1A241F20); // ink @ 10 %
 const _hintColor   = Color(0xFF78706E);
 const _ctaBg       = Color(0xFF241F20);
@@ -292,61 +292,51 @@ class _MethodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    // The receipt options are the OTHER rows' tile (node 1915:13050).
+    return PosPaySelectableTile(
+      style: PosPaymentSpec.v2OtherTile,
+      selected: selected,
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        // Inside stroke: the tile is 64 tall (10 + 24 + 6 + 14 + 10).
-        foregroundDecoration: BoxDecoration(
-          border: Border.all(
-            color: selected ? _tileActive : _tileIdle,
-            width: selected ? 1.5 : 1.0,
-          ),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 24,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected ? _tileActive : _iconBgIdle,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: SvgPicture.string(
-                      selected ? iconSvgWh : iconSvg,
-                      width: 14,
-                      height: 14,
-                    ),
+      semanticLabel: label,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: PosPaymentSpec.v2OtherRowTopHeight,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: PosPaymentSpec.v2OtherIconWell,
+                  height: PosPaymentSpec.v2OtherIconWell,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected ? _tileActive : _iconBgIdle,
+                    borderRadius: BorderRadius.circular(
+                        PosPaymentSpec.v2OtherIconWellRadius),
                   ),
-                  PosPayRadio(selected: selected),
-                ],
-              ),
+                  child: SvgPicture.string(
+                    selected ? iconSvgWh : iconSvg,
+                    width: 14,
+                    height: 14,
+                  ),
+                ),
+                PosPayRadio(selected: selected),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: loewMedium.copyWith(
-                fontSize: 12,
-                color: selected
-                    ? PosHomeSpec.ink
-                    : PosHomeSpec.inkAlpha(0.47),
-              ),
+          ),
+          const SizedBox(height: PosPaymentSpec.v2OtherRowInnerGap),
+          Text(
+            label,
+            style: loewMedium.copyWith(
+              fontSize: PosPaymentSpec.v2OtherLabelSize,
+              color: selected
+                  ? PosHomeSpec.ink
+                  : PosHomeSpec.inkAlpha(PosPaymentSpec.v2OtherLabelOpacity),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
