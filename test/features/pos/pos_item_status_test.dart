@@ -645,11 +645,10 @@ void main() {
       expect(find.text('1/2 ready'), findsOneWidget);
       expect(find.text('2/2 ready'), findsOneWidget);
 
-      // And the CTA names the item move it performs.
-      expect(find.text('Start all items'), findsNothing,
-          reason: 'a NEW card keeps the bare checkmark');
-      expect(find.text('Mark all ready'), findsOneWidget);
-      expect(find.text('Mark as complete'), findsOneWidget);
+      // The card face carries no CTA (Figma 1915:15767); the bulk move it
+      // names now sits behind the ⋮, covered in pos_orders_layout_test.
+      expect(find.text('Mark all ready'), findsNothing);
+      expect(find.byTooltip('Order actions'), findsNWidgets(3));
 
       await expectLater(
         find.byType(Row).first,

@@ -101,12 +101,14 @@ class PosOrdersSpec {
   static const Color sectionBadgeInProgress = Color(0xFF2D9CDB);
   static const Color sectionBadgeFinished = Color(0xFF59B86B);
 
-  // ── Cards ────────────────────────────────────────────────────────────
+  // ── Cards (1915:15837 and variants) ─────────────────────────────────
   /// `card-*` is 288 wide with a 300 pitch → a 12px gap on both axes.
   static const double cardWidth = 288;
   static const double cardGap = 12;
   static const double cardRadius = 10;
   static const double cardPadding = 12;
+
+  /// Every card, in every section, is white with a 1.5px ink outline.
   static const double cardBorder = 1.5;
 
   /// `urgent-border`: the 4px bar down the left edge of a late card.
@@ -116,53 +118,47 @@ class PosOrdersSpec {
   static const double clockTextSize = 13;
   static const double clockGap = 6;
 
-  /// The order number on the card's top row (`#1000189`).
-  ///
-  /// Not a Figma element — Figma only ever showed it inside the detail modal,
-  /// which meant the number staff read out to a customer was the one thing the
-  /// board could not tell them. Sized a notch under the clock and tinted back,
-  /// so it reads as an identifier rather than competing with the time.
-  static const double orderNumberTextSize = 12;
-  static const double orderNumberGap = 8;
-
-  /// The per-card status chip ("NEW" / "IN PROGRESS" / "FINISHED"). Not a
-  /// Figma element — the section dot alone wasn't legible enough as a status
-  /// indicator on the card itself, so this spells it out in words too,
-  /// coloured to match that same dot.
-  static const double statusChipHeight = 18;
-  static const double statusChipRadius = 9;
-  static const double statusChipPaddingH = 8;
-  static const double statusChipTextSize = 9;
-  static const double statusChipGap = 8;
-
+  /// `source-badge`: a 24px cream disc with a 1.5px ink ring (FINISHED cards
+  /// drop the ring) holding a 14px glyph.
   static const double sourceBadgeSize = 24;
+  static const double sourceBadgeBorder = 1.5;
   static const double sourceIconSize = 14;
+
+  /// `card-actions` ⋮. Figma parks it under the source badge, where it cannot
+  /// be seen or tapped, so it sits just left of the badge instead, in a hit
+  /// box the badge's size.
+  static const double menuIconSize = 14;
+  static const double menuHitSize = 24;
+  static const double menuGap = 6;
+  static const double menuDisabledOpacity = 0.35;
+  static const double pendingSpinnerSize = 14;
 
   static const double nameTextSize = 14;
   static const double subtitleTextSize = 11;
   static const double subtitleLineGap = 2;
+  static const double subtitleAlpha = 0.6;
   static const double timerTextSize = 11;
   static const double priceTextSize = 14;
-  static const double menuIconSize = 14;
 
   /// `card-top` → `customer-info`, `customer-info` → `timer-section`,
   /// `timer-section` → `card-footer`.
   static const double cardBlockGap = 8;
 
-  static const double completeButtonHeight = 21;
-  static const double completeButtonRadius = 10.5;
-  static const double completeButtonPaddingH = 12;
-  static const double completeLabelSize = 11;
-  static const double checkIconSize = 14;
-
-  // ── Section colours (Figma `status-dot-*`) ───────────────────────────
+  // ── Card colours ─────────────────────────────────────────────────────
+  /// The `time-row` dot is coloured by **section**. Figma's layer names say so
+  /// (`status-dot-yellow` / `-blue` / `-green`); its NEW and IN PROGRESS fills
+  /// do not, and were ruled a Figma slip. FINISHED's green is Figma's own.
   static const Color dotNew = Color(0xFFE0A11B);
   static const Color dotInProgress = Color(0xFF2F6FB5);
-  static const Color dotFinished = Color(0xFF3F8A4F);
+  static const Color dotFinished = Color(0xFF59B86B);
 
-  /// FINISHED cards are the outlined, muted variant — `card-inner` is inset
-  /// 1.5px inside the frame, i.e. a border rather than a fill.
-  static const Color finishedCardBg = Color(0xFFFDFBF4);
+  /// The late card's bar, dot and clock (`urgent-border` / `urgent-dot`).
+  static const Color urgentAccent = Color(0xFFEB5757);
+
+  /// `timer-row` text: on time, getting late, late. "Done" is [timerNormal].
+  static const Color timerNormal = Color(0xFF2EBD6B);
+  static const Color timerWarning = Color(0xFFF29E26);
+  static const Color timerUrgent = Color(0xFFE33836);
 
   // ── Responsive ───────────────────────────────────────────────────────
   /// Below this the fixed 288px card is wider than the content area, so cards

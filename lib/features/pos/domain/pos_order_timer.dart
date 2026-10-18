@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:flutter/material.dart';
 
 /// Urgency of an order's age.
@@ -28,16 +29,17 @@ class PosOrderTimer {
   /// Kitchen: `isOrderUrgent()` — 15 minutes.
   static const int urgentMinutes = 15;
 
-  /// Kitchen `kdsAgeWarningColor`.
-  static const Color warningColor = Color(0xFFEF6C00);
+  // The thresholds are the kitchen's; the colours are Figma 1915:15855's
+  // timer-row fills, so the board reads in its own palette.
+  static const Color warningColor = PosOrdersSpec.timerWarning;
 
-  /// Kitchen's urgent chip colour.
-  static const Color urgentColor = Color(0xFFB71C1C);
+  static const Color urgentColor = PosOrdersSpec.timerUrgent;
 
-  /// A finished order's timer has stopped; it reads as settled, not as fast.
-  static const Color doneColor = Color(0xFF3F8A4F);
+  /// A finished order's timer has stopped. Figma's "Done" is the same green
+  /// as an on-time timer.
+  static const Color doneColor = PosOrdersSpec.timerNormal;
 
-  static const Color normalColor = Color(0xFF3F8A4F);
+  static const Color normalColor = PosOrdersSpec.timerNormal;
 
   /// Urgency only escalates while the order is still unfinished. A completed
   /// order that happened to take 40 minutes is not an alarm — it is history.

@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
+import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/pos/providers/pos_orders_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
@@ -17,6 +18,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_order_card_tile.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_date_range_bar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
@@ -151,7 +153,7 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
 
   /// The one place an order is advanced from, for every POS surface.
   ///
-  /// The board card calls it directly and the detail overlay is handed it (see
+  /// The card's ⋮ menu calls it directly and the detail overlay is handed it (see
   /// [_openDetail]) rather than the provider method underneath, so the
   /// confirmation below cannot be present on one surface and missing on the
   /// other — there is nowhere else for an advance to go.
@@ -229,6 +231,71 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
   Future<String?> _setOrderStatus(PosOrderCard order, String status) =>
       _provider.setOrderStatus(order, status);
 
+  // ── Card ⋮ menu ───────────────────────────────────────────────────────
+
+  /// The card's forward rung, by the overlay's own rule: none while held —
+  /// Resume is the menu's side exit there, as it is in the overlay.
+  String? _advanceLabelFor(PosOrderCard order) {
+    if (order.orderStatus == 'on_hold') return null;
+    return order.bulkAction?.label ??
+        PosOrderGrouping.actionLabelFor(order.orderStatus);
+  }
+
+  /// Hold / Resume / Cancel, until there is nothing left to pause or cancel —
+  /// the overlay's `_canUseMoreMenu`, and the kitchen's.
+  bool _hasSideExits(PosOrderCard order) =>
+      order.orderStatus != 'completed' && order.orderStatus != 'canceled';
+
+  bool _cardHasActions(PosOrderCard order) =>
+      _advanceLabelFor(order) != null || _hasSideExits(order);
+
+  /// The card's ⋮: the forward rung that used to be its face button, then the
+  /// overlay's own More-menu actions. Nothing new happens behind any row —
+  /// advancing is [_advance] exactly as the face button ran it, and the side
+  /// exits carry the overlay's permission checks and cancel confirmation.
+  Future<void> _openCardMenu(PosOrderCard order, BuildContext anchor) async {
+    final RenderBox? box = anchor.findRenderObject() as RenderBox?;
+    if (box == null) return;
+
+    final PosOrderMenuAction? action = await showPosOrderMoreMenu(
+      context,
+      anchor: box.localToGlobal(Offset.zero),
+      buttonSize: box.size,
+      isHeld: order.orderStatus == 'on_hold',
+      advanceLabel: _advanceLabelFor(order),
+      sideExits: _hasSideExits(order),
+      openBelow: true,
+    );
+    if (action == null || !mounted) return;
+
+    switch (action) {
+      case PosOrderMenuAction.advance:
+        final PosAdvanceResult result = await _advance(order);
+        if (result.isFailed) _showAdvanceError(order, result.message!);
+        return;
+      case PosOrderMenuAction.hold:
+        if (!PosAccessScope.guard(context, PosPermission.manageOrders)) return;
+        await _cardOrderStatus(order, 'on_hold');
+        return;
+      case PosOrderMenuAction.resume:
+        if (!PosAccessScope.guard(context, PosPermission.manageOrders)) return;
+        await _cardOrderStatus(order, 'preparing');
+        return;
+      case PosOrderMenuAction.cancel:
+        if (!PosAccessScope.guard(context, PosPermission.voidOrders)) return;
+        final bool confirmed =
+            await showPosCancelOrderConfirm(context, orderId: order.id);
+        if (!confirmed || !mounted) return;
+        await _cardOrderStatus(order, 'canceled');
+        return;
+    }
+  }
+
+  Future<void> _cardOrderStatus(PosOrderCard order, String status) async {
+    final String? error = await _provider.setOrderStatus(order, status);
+    if (error != null) _showAdvanceError(order, error);
+  }
+
   /// The board's own way of reporting a rejected transition.
   void _showAdvanceError(PosOrderCard order, String message) {
     if (!mounted) return;
@@ -244,10 +311,8 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
       );
   }
 
-  /// Open the detail overlay for one card.
-  ///
-  /// Figma has no ⋮ menu on this card — the whole card tile is the
-  /// affordance, wired through [PosOrderCardTile.onTap].
+  /// Open the detail overlay for one card — a tap anywhere on it outside
+  /// its ⋮, wired through [PosOrderCardTile.onTap].
   ///
   /// The overlay is handed [PosOrdersProvider.advance] rather than its own
   /// transition call, so the modal's action and the card's own button run the
@@ -582,14 +647,9 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
                     order: order,
                     now: _now,
                     pending: provider.isPending(order.id),
-                    onAdvance: () async {
-                      final PosAdvanceResult result = await _advance(order);
-                      if (result.isFailed) {
-                        _showAdvanceError(order, result.message!);
-                      }
-                    },
-                    // The whole card opens the detail overlay — Figma has no
-                    // ⋮ menu on this tile.
+                    onMenu: _cardHasActions(order)
+                        ? (anchor) => _openCardMenu(order, anchor)
+                        : null,
                     onTap: () => _openDetail(order),
                   ),
                 ),

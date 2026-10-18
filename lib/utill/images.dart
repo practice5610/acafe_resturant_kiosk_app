@@ -334,6 +334,17 @@ class Images {
   static const String posOrdersFilterSvg = 'assets/svg/pos_orders_filter.svg';
   static const String posOrdersChevronDownSvg =
       'assets/svg/pos_orders_chevron_down.svg';
+  static const String posOrdersSmartphoneSvg =
+      'assets/svg/pos_orders_smartphone.svg';
+  static const String posOrdersStoreSvg = 'assets/svg/pos_orders_store.svg';
+  static const String posOrdersMoreVertSvg = 'assets/svg/pos_orders_more_vert.svg';
+  // FINISHED cards carry a thinner (1.17) export of the same glyphs.
+  static const String posOrdersSmartphoneFinishedSvg =
+      'assets/svg/pos_orders_smartphone_finished.svg';
+  static const String posOrdersStoreFinishedSvg =
+      'assets/svg/pos_orders_store_finished.svg';
+  static const String posOrdersMoreVertFinishedSvg =
+      'assets/svg/pos_orders_more_vert_finished.svg';
 
   static String getImageUrl(imageName) => 'assets/image/$imageName.png';
   static String getPaymentImage(String name) => 'assets/payment/$name.png';

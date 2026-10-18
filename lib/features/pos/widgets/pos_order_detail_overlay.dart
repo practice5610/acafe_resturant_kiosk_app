@@ -954,6 +954,9 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
     if (!PosAccessScope.guard(context, needed)) return;
 
     switch (action) {
+      case PosOrderMenuAction.advance:
+        // Never offered here: the overlay's forward rung is its primary CTA.
+        break;
       case PosOrderMenuAction.hold:
         await _setOrderStatus('on_hold');
         break;

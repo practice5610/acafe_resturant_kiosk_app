@@ -271,11 +271,25 @@ void main() {
     expect(find.byType(ErrorWidget), findsNothing);
   });
 
-  group('the card itself opens the detail overlay', () {
-    /// Figma draws no ⋮ menu on this card — the whole tile is the affordance.
-    testWidgets('there is no ⋮ menu on any card', (tester) async {
-      await pumpBoard(tester, _StubOrdersRepo());
-      expect(find.byIcon(Icons.more_vert_rounded), findsNothing);
+  /// Opens order [id]'s ⋮ menu and lets it settle.
+  Future<void> openMenu(WidgetTester tester, int id) async {
+    await tester.tap(find.byKey(PosOrderCardTile.menuKeyFor(id)));
+    await tester.pumpAndSettle();
+  }
+
+  group('the card opens the detail; its ⋮ carries the actions', () {
+    testWidgets('every card carries a ⋮, the finished one dimmed',
+        (tester) async {
+      await pumpBoard(tester, _StubOrdersRepo(), size: const Size(1366, 1500));
+      for (final int id in [27364, 27365, 27363, 27359, 27358]) {
+        expect(find.byKey(PosOrderCardTile.menuKeyFor(id)), findsOneWidget,
+            reason: 'order $id');
+      }
+
+      // completed: nothing left to advance, pause or cancel.
+      await openMenu(tester, 27358);
+      expect(find.text('Cancel order'), findsNothing);
+      expect(find.byType(PosOrderDetailOverlay), findsNothing);
     });
 
     testWidgets('tapping a card opens its detail overlay', (tester) async {
@@ -291,43 +305,45 @@ void main() {
       expect(find.byType(PosOrderDetailOverlay), findsOneWidget);
     });
 
-    testWidgets(
-        'tapping the action button confirms and advances instead of opening '
-        'the overlay', (tester) async {
+    testWidgets('the ⋮ opens its menu under the button, not the overlay',
+        (tester) async {
       final repo = _StubOrdersRepo();
       await pumpBoard(tester, repo, size: const Size(1366, 1500));
 
-      // The button's own tap wins over the card's — its confirmation opens,
-      // not the detail overlay.
-      await tester.tap(find.text('Mark as ready'));
-      await tester.pumpAndSettle();
+      final Rect button =
+          tester.getRect(find.byKey(PosOrderCardTile.menuKeyFor(27363)));
+      await openMenu(tester, 27363);
 
       expect(find.byType(PosOrderDetailOverlay), findsNothing);
-      expect(find.text('Mark order as ready?'), findsOneWidget);
-      expect(repo.statusCalls, 0, reason: 'nothing before confirming');
-
-      await tester.tap(find.text('Ready'));
-      await tester.pumpAndSettle();
-
-      expect(repo.statusCalls, 1);
+      final Rect row = tester.getRect(find.text('Mark as ready'));
+      expect(row.top - button.bottom, inInclusiveRange(0, 60));
+      expect(find.text('Mark on hold'), findsOneWidget);
+      expect(find.text('Cancel order'), findsOneWidget);
     });
 
-    testWidgets(
-        'tapping the NEW checkmark confirms and advances instead of opening '
-        'it', (tester) async {
+    testWidgets('cancelling from the ⋮ is confirmed before it is sent',
+        (tester) async {
       final repo = _StubOrdersRepo();
       await pumpBoard(tester, repo, size: const Size(1366, 1500));
 
-      await tester.tap(find.byIcon(Icons.check_rounded).first);
+      await openMenu(tester, 27363);
+      await tester.tap(find.text('Cancel order'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(PosOrderDetailOverlay), findsNothing);
-      expect(find.text('Accept this order?'), findsOneWidget);
+      expect(find.text('Cancel order #27363?'), findsOneWidget);
       expect(repo.statusCalls, 0, reason: 'nothing before confirming');
 
-      await tester.tap(find.text('Accept'));
+      await tester.tap(find.text('Keep order'));
       await tester.pumpAndSettle();
+      expect(repo.statusCalls, 0);
 
+      await openMenu(tester, 27363);
+      await tester.tap(find.text('Cancel order'));
+      await tester.pumpAndSettle();
+      // The menu has closed, so the only "Cancel order" left is the dialog's
+      // confirm button.
+      await tester.tap(find.text('Cancel order'));
+      await tester.pumpAndSettle();
       expect(repo.statusCalls, 1);
     });
   });
@@ -377,18 +393,18 @@ void main() {
     expect(secondLeft - firstRight, closeTo(PosOrdersSpec.cardGap, 0.5));
   });
 
-  testWidgets('every card shows its order number, not just the modal',
+  testWidgets('the card face carries no order number or status chip',
       (tester) async {
     await pumpBoard(tester, _StubOrdersRepo());
 
-    // The number staff read back to the customer has to be legible without
-    // opening the order — the board is the screen they work from.
+    // Figma 1915:15837: clock, ⋮ and source badge only. The number lives in
+    // the modal header.
     for (final int id in [27364, 27365, 27363, 27359, 27358]) {
-      expect(find.text('#$id'), findsOneWidget, reason: 'order $id');
+      expect(find.text('#$id'), findsNothing, reason: 'order $id');
     }
   });
 
-  testWidgets('the card and the modal spell the order number the same way',
+  testWidgets('the modal header still spells the order number',
       (tester) async {
     await pumpBoard(tester, _StubOrdersRepo());
 
@@ -396,10 +412,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(PosOrderDetailOverlay), findsOneWidget);
-    // Card: `#27364`. Modal title: `Order #27364`. One formatter, so the two
-    // can never drift apart.
     expect(find.text('Order #27364'), findsOneWidget);
-    expect(find.text('#27364'), findsOneWidget);
   });
 
   testWidgets('section badges show the server counts', (tester) async {
@@ -448,19 +461,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('each card carries the action for its own rung of the ladder',
+  testWidgets('each card\'s ⋮ leads with its own rung of the ladder',
       (tester) async {
-    await pumpBoard(tester, _StubOrdersRepo());
+    await pumpBoard(tester, _StubOrdersRepo(), size: const Size(1366, 1500));
 
-    // preparing -> item_to_collect. Not "Mark as complete": that rung makes the
-    // order ready, it does not finish it.
+    // Nothing on the card faces any more.
+    expect(find.text('Mark as ready'), findsNothing);
+    expect(find.byIcon(Icons.check_rounded), findsNothing);
+
+    // new -> preparing.
+    await openMenu(tester, 27364);
+    expect(find.text('Accept order'), findsOneWidget);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    // preparing -> item_to_collect. Not "Mark as complete": that rung makes
+    // the order ready, it does not finish it.
+    await openMenu(tester, 27363);
     expect(find.text('Mark as ready'), findsOneWidget);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
     // item_to_collect -> completed, on a card drawn under FINISHED.
+    await openMenu(tester, 27359);
     expect(find.text('Mark as complete'), findsOneWidget);
-    // Only the genuinely terminal card reads Done, and it has no button.
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    // Only the genuinely terminal card reads Done.
     expect(find.text('Done'), findsOneWidget);
-    // Checkmarks on the two NEW cards.
-    expect(find.byIcon(Icons.check_rounded), findsNWidgets(2));
   });
 
   group('every forward action is confirmed before it fires', () {
@@ -468,17 +497,19 @@ void main() {
 
     /// One row per rung: the trigger the operator taps, the dialog heading it
     /// must raise, and the confirm button that actually sends it.
-    const List<(String trigger, String heading, String confirm)> rungs = [
-      ('Mark as complete', 'Mark order as complete?', 'Complete'),
-      ('Mark as ready', 'Mark order as ready?', 'Ready'),
+    const List<(int id, String trigger, String heading, String confirm)>
+        rungs = [
+      (27359, 'Mark as complete', 'Mark order as complete?', 'Complete'),
+      (27363, 'Mark as ready', 'Mark order as ready?', 'Ready'),
     ];
 
-    for (final (trigger, heading, confirm) in rungs) {
+    for (final (id, trigger, heading, confirm) in rungs) {
       testWidgets('Cancel on "$trigger" sends nothing and leaves it alone',
           (tester) async {
         final repo = _StubOrdersRepo();
         await pumpBoard(tester, repo, size: tall);
 
+        await openMenu(tester, id);
         await tester.tap(find.text(trigger));
         await tester.pumpAndSettle();
         expect(find.text(heading), findsOneWidget);
@@ -490,13 +521,15 @@ void main() {
             reason: 'Cancel must not call the endpoint');
         expect(find.text(heading), findsNothing);
         // The card is still there, still offering the same action.
-        expect(find.text(trigger), findsWidgets);
+        await openMenu(tester, id);
+        expect(find.text(trigger), findsOneWidget);
       });
 
       testWidgets('confirming "$trigger" sends the transition', (tester) async {
         final repo = _StubOrdersRepo();
         await pumpBoard(tester, repo, size: tall);
 
+        await openMenu(tester, id);
         await tester.tap(find.text(trigger));
         await tester.pumpAndSettle();
         expect(repo.statusCalls, 0,
@@ -509,12 +542,13 @@ void main() {
       });
     }
 
-    testWidgets('accepting a NEW order via its checkmark is confirmed too',
+    testWidgets('accepting a NEW order from its ⋮ is confirmed too',
         (tester) async {
       final repo = _StubOrdersRepo();
       await pumpBoard(tester, repo, size: tall);
 
-      await tester.tap(find.byIcon(Icons.check_rounded).first);
+      await openMenu(tester, 27364);
+      await tester.tap(find.text('Accept order'));
       await tester.pumpAndSettle();
       expect(find.text('Accept this order?'), findsOneWidget);
       expect(repo.statusCalls, 0, reason: 'nothing before confirming');
@@ -523,7 +557,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.statusCalls, 0, reason: 'Cancel must not call the endpoint');
 
-      await tester.tap(find.byIcon(Icons.check_rounded).first);
+      await openMenu(tester, 27364);
+      await tester.tap(find.text('Accept order'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Accept'));
       await tester.pumpAndSettle();
@@ -536,6 +571,7 @@ void main() {
       final repo = _StubOrdersRepo();
       await pumpBoard(tester, repo, size: tall);
 
+      await openMenu(tester, 27359);
       await tester.tap(find.text('Mark as complete'));
       await tester.pumpAndSettle();
 
@@ -553,7 +589,10 @@ void main() {
       final repo = _StubOrdersRepo()..addOnHoldOrder();
       await pumpBoard(tester, repo, size: tall);
 
-      await tester.tap(find.text('Resume'));
+      // Held: no forward rung, only the side exit — the overlay's own rule.
+      await openMenu(tester, 27357);
+      expect(find.text('Resume'), findsNothing);
+      await tester.tap(find.text('Resume order'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 

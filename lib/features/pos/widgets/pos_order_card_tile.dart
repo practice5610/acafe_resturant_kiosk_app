@@ -6,11 +6,13 @@ import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_timer.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
+import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 
-/// One order on the board (Figma `card-27364` and its variants).
+/// One order on the board (Figma 1915:15837 `card-27364` and its variants).
 ///
 /// Two independent indicators, which is easy to conflate from the screenshot:
 ///
@@ -19,6 +21,9 @@ import 'package:intl/intl.dart';
 ///  * `timer-section` — the elapsed clock, coloured by urgency. This is the one
 ///    that goes orange and then red, and it is what puts the 4px `urgent-border`
 ///    down the card's left edge.
+///
+/// The card face carries no action button — Figma draws none. The forward
+/// rung, Hold / Resume and Cancel all live behind its ⋮ ([onMenu]).
 class PosOrderCardTile extends StatelessWidget {
   final PosOrderCard order;
 
@@ -26,12 +31,16 @@ class PosOrderCardTile extends StatelessWidget {
   /// each card owning a timer.
   final DateTime now;
 
+  /// A write for this order is in flight: the ⋮ shows a spinner and is inert.
   final bool pending;
-  final VoidCallback? onAdvance;
 
-  /// Opens the order detail overlay. Figma has no ⋮ menu on this card — the
-  /// whole card is the affordance, so a tap anywhere on it (outside the
-  /// action button, which claims its own tap first) opens the detail.
+  /// Opens the card's ⋮ menu, handed the ⋮ button's own context so the menu
+  /// anchors on the button, not the whole card. Null when the order has
+  /// nothing left to do; the ⋮ is then drawn dimmed.
+  final ValueChanged<BuildContext>? onMenu;
+
+  /// Opens the order detail overlay. A tap anywhere on the card outside the ⋮
+  /// (which claims its own tap first) opens the detail.
   final VoidCallback? onTap;
 
   const PosOrderCardTile({
@@ -39,9 +48,13 @@ class PosOrderCardTile extends StatelessWidget {
     required this.order,
     required this.now,
     this.pending = false,
-    this.onAdvance,
+    this.onMenu,
     this.onTap,
   });
+
+  /// The ⋮ of order [orderId], for tests and for anchoring.
+  static Key menuKeyFor(int orderId) =>
+      ValueKey<String>('pos-order-menu-$orderId');
 
   static final DateFormat _clock = DateFormat('HH:mm');
 
@@ -65,19 +78,19 @@ class PosOrderCardTile extends StatelessWidget {
       now: now,
     );
     final bool urgent = urgency == PosOrderUrgency.urgent;
-    // Card *chrome* follows the section (Figma's muted FINISHED variant);
-    // the timer and the action follow the real status.
+    // FINISHED cards use Figma's ring-less badge and thinner glyphs; the
+    // timer and the menu still follow the real status.
     final bool finished = order.section == PosOrderSection.finished;
 
     return Container(
       decoration: BoxDecoration(
-        color: finished ? PosOrdersSpec.finishedCardBg : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(PosOrdersSpec.cardRadius),
+        // Figma keeps the ink outline on a late card too — lateness is the
+        // red bar, dot and clock, not the frame.
         border: Border.all(
-          color: urgent ? PosOrderTimer.urgentColor : PosHomeSpec.hairline,
-          // FINISHED is the outlined variant: Figma insets its `card-inner` by
-          // 1.5px rather than filling it.
-          width: finished ? PosOrdersSpec.cardBorder : 1,
+          color: PosHomeSpec.ink,
+          width: PosOrdersSpec.cardBorder,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -95,9 +108,9 @@ class PosOrderCardTile extends StatelessWidget {
                 if (urgent)
                   Container(
                     width: PosOrdersSpec.urgentBarWidth,
-                    color: PosOrderTimer.urgentColor,
+                    color: PosOrdersSpec.urgentAccent,
                   ),
-                Expanded(child: _body(urgency, finished)),
+                Expanded(child: _body(urgency, urgent, finished)),
               ],
             ),
           ),
@@ -106,18 +119,18 @@ class PosOrderCardTile extends StatelessWidget {
     );
   }
 
-  Widget _body(PosOrderUrgency urgency, bool finished) {
+  Widget _body(PosOrderUrgency urgency, bool urgent, bool finished) {
     return Padding(
       padding: const EdgeInsets.all(PosOrdersSpec.cardPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _topRow(),
+          _topRow(urgent, finished),
           const SizedBox(height: PosOrdersSpec.cardBlockGap),
           _customerBlock(),
           const SizedBox(height: PosOrdersSpec.cardBlockGap),
-          _timerRow(urgency, finished),
+          _timerRow(urgency),
           // Item progress sits between the timer and the price, under the
           // existing subtitle block -- an extra line inside the card, not a
           // change to how the card is sized or laid out.
@@ -132,70 +145,41 @@ class PosOrderCardTile extends StatelessWidget {
     );
   }
 
-  Widget _topRow() {
-    final String statusLabel = PosOrderGrouping.labelFor(order.section);
+  Widget _topRow(bool urgent, bool finished) {
+    final Color accent = urgent ? PosOrdersSpec.urgentAccent : PosHomeSpec.ink;
 
-    // The leading cluster is one Expanded row rather than a Spacer before the
-    // source badge: a Spacer would compete for the same free space the number
-    // and the chip shrink into, so at narrow card widths the chip would be
-    // clipped instead of ellipsised.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: PosOrdersSpec.statusDotSize,
-                height: PosOrdersSpec.statusDotSize,
-                decoration: BoxDecoration(
-                  color: _sectionColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: PosOrdersSpec.clockGap),
-              // The order's clock time — `10:36` in Figma. Blank rather than
-              // "--:--" when created_at is unparseable; a fake time on an order
-              // card is worse than none.
-              Text(
-                order.createdAt == null ? '' : _clock.format(order.createdAt!),
-                style: loewBold.copyWith(
-                  fontSize: PosOrdersSpec.clockTextSize,
-                  color: PosHomeSpec.ink,
-                ),
-              ),
-              // The number staff read back to the customer. Same formatting as
-              // the detail modal's title, from [PosOrderCard.numberLabelFor],
-              // so the board and the modal can never disagree about it.
-              const SizedBox(width: PosOrdersSpec.orderNumberGap),
-              Text(
-                order.numberLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: loewBold.copyWith(
-                  fontSize: PosOrdersSpec.orderNumberTextSize,
-                  color: PosHomeSpec.inkAlpha(0.55),
-                ),
-              ),
-              // The section dot alone reads as decoration, not status — this
-              // spells it out. `excluded` orders never reach the board, so an
-              // empty label here is only a defensive no-op, not a real case.
-              if (statusLabel.isNotEmpty) ...[
-                const SizedBox(width: PosOrdersSpec.statusChipGap),
-                // Flexible so a long status word gives way before the order
-                // number does; the number is the one thing on this row that
-                // must stay readable in full.
-                Flexible(
-                  child: _StatusChip(label: statusLabel, color: _sectionColor),
-                ),
-              ],
-            ],
+        Container(
+          width: PosOrdersSpec.statusDotSize,
+          height: PosOrdersSpec.statusDotSize,
+          decoration: BoxDecoration(
+            // A late card swaps in Figma's `urgent-dot`.
+            color: urgent ? PosOrdersSpec.urgentAccent : _sectionColor,
+            shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: PosOrdersSpec.statusChipGap),
-        // Figma draws only the source badge here — no ⋮ menu on this card.
-        PosOrderSourceIcon(channelKey: order.channelKey),
+        const SizedBox(width: PosOrdersSpec.clockGap),
+        // The order's clock time — `10:36` in Figma. Blank rather than
+        // "--:--" when created_at is unparseable; a fake time on an order
+        // card is worse than none.
+        Text(
+          order.createdAt == null ? '' : _clock.format(order.createdAt!),
+          style: loewBold.copyWith(
+            fontSize: PosOrdersSpec.clockTextSize,
+            color: accent,
+          ),
+        ),
+        const Spacer(),
+        _MenuButton(
+          key: menuKeyFor(order.id),
+          pending: pending,
+          finished: finished,
+          onMenu: onMenu,
+        ),
+        const SizedBox(width: PosOrdersSpec.menuGap),
+        PosOrderSourceIcon(channelKey: order.channelKey, finished: finished),
       ],
     );
   }
@@ -225,9 +209,9 @@ class PosOrderCardTile extends StatelessWidget {
             line,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: loewRegular.copyWith(
+            style: swiss721Light.copyWith(
               fontSize: PosOrdersSpec.subtitleTextSize,
-              color: PosHomeSpec.inkAlpha(0.55),
+              color: PosHomeSpec.inkAlpha(PosOrdersSpec.subtitleAlpha),
             ),
           ),
         ],
@@ -235,7 +219,7 @@ class PosOrderCardTile extends StatelessWidget {
     );
   }
 
-  Widget _timerRow(PosOrderUrgency urgency, bool finished) {
+  Widget _timerRow(PosOrderUrgency urgency) {
     // "Done" is the end of the ladder, not the FINISHED section: an
     // `item_to_collect` order lives in FINISHED but is still running, and
     // labelling it Done beside a live "Mark as complete" button would
@@ -319,147 +303,78 @@ class PosOrderCardTile extends StatelessWidget {
             PosHomeSpec.formatPrice(order.orderAmount),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: loewBold.copyWith(
+            style: loewExtraBold.copyWith(
               fontSize: PosOrdersSpec.priceTextSize,
               color: PosHomeSpec.ink,
             ),
           ),
         ),
-        _action(),
       ],
     );
   }
+}
 
-  /// Keyed on the order's real status, never on the section it is drawn in.
-  ///
-  /// That distinction matters for `item_to_collect`: it is grouped under
-  /// FINISHED, but it is not a terminal status, so its card still carries the
-  /// action that finishes it. Gating on the section instead would have left
-  /// those orders permanently un-completable from the counter.
-  Widget _action() {
+/// `card-actions` — the card's ⋮.
+///
+/// Its own [Builder], so the tap hands [PosOrderCardTile.onMenu] the button's
+/// context: the menu then opens snug under the ⋮ rather than under the card.
+class _MenuButton extends StatelessWidget {
+  final bool pending;
+  final bool finished;
+  final ValueChanged<BuildContext>? onMenu;
+
+  const _MenuButton({
+    super.key,
+    required this.pending,
+    required this.finished,
+    required this.onMenu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     if (pending) {
       return const SizedBox(
-        width: PosOrdersSpec.checkIconSize,
-        height: PosOrdersSpec.checkIconSize,
-        child: CircularProgressIndicator(
-          strokeWidth: 1.6,
-          valueColor: AlwaysStoppedAnimation<Color>(PosHomeSpec.ink),
+        width: PosOrdersSpec.menuHitSize,
+        height: PosOrdersSpec.menuHitSize,
+        child: Center(
+          child: SizedBox(
+            width: PosOrdersSpec.pendingSpinnerSize,
+            height: PosOrdersSpec.pendingSpinnerSize,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.6,
+              valueColor: AlwaysStoppedAnimation<Color>(PosHomeSpec.ink),
+            ),
+          ),
         ),
       );
     }
 
-    // The card's CTA names the bulk item move it now performs (see
-    // PosOrdersListScreen._advance); only the final handover rung still comes
-    // from the order-status ladder.
-    final String? label = order.bulkAction?.label ??
-        PosOrderGrouping.actionLabelFor(order.orderStatus);
-    if (label == null) {
-      // completed / delivered — the end of the ladder. Figma draws price only.
-      return const SizedBox.shrink();
-    }
+    final ValueChanged<BuildContext>? open = onMenu;
 
-    // NEW keeps Figma's bare checkmark; every later rung needs its label,
-    // because "ready" and "complete" are different promises to the customer.
-    if (order.section == PosOrderSection.newOrders) {
-      return _CheckButton(onTap: onAdvance, tooltip: label);
-    }
-
-    return _ActionButton(label: label, onTap: onAdvance);
-  }
-}
-
-/// Spells out the card's section in words, coloured to match its dot —
-/// "NEW" / "IN PROGRESS" / "FINISHED". Not in Figma; the dot alone was not
-/// legible enough as a status indicator on the card itself.
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _StatusChip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: PosOrdersSpec.statusChipHeight,
-      padding: const EdgeInsets.symmetric(
-        horizontal: PosOrdersSpec.statusChipPaddingH,
-      ),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(PosOrdersSpec.statusChipRadius),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: loewBold.copyWith(
-          fontSize: PosOrdersSpec.statusChipTextSize,
-          color: Colors.white,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-}
-
-/// NEW's checkmark — advances the order to `preparing`.
-class _CheckButton extends StatelessWidget {
-  final VoidCallback? onTap;
-  final String tooltip;
-
-  const _CheckButton({this.onTap, required this.tooltip});
-
-  @override
-  Widget build(BuildContext context) {
     return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: const Padding(
-          padding: EdgeInsets.all(2),
-          child: Icon(
-            Icons.check_rounded,
-            size: PosOrdersSpec.checkIconSize,
-            color: PosHomeSpec.ink,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Figma's `btn-complete`, carrying whatever rung of the ladder this order is
-/// actually on — "Mark as ready" for a preparing order, "Mark as complete" for
-/// one already waiting to be collected, "Resume" for one on hold.
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onTap;
-
-  const _ActionButton({required this.label, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: PosHomeSpec.ink,
-      borderRadius: BorderRadius.circular(PosOrdersSpec.completeButtonRadius),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(PosOrdersSpec.completeButtonRadius),
-        child: Container(
-          height: PosOrdersSpec.completeButtonHeight,
-          padding: const EdgeInsets.symmetric(
-            horizontal: PosOrdersSpec.completeButtonPaddingH,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: loewBold.copyWith(
-              fontSize: PosOrdersSpec.completeLabelSize,
-              color: Colors.white,
+      message: 'Order actions',
+      child: Opacity(
+        opacity: open == null ? PosOrdersSpec.menuDisabledOpacity : 1,
+        child: Builder(
+          // A dimmed ⋮ still claims its tap, with no ripple: tapping a dead
+          // control must not fall through and open the order underneath.
+          builder: (buttonContext) => InkWell(
+            onTap: open == null ? () {} : () => open(buttonContext),
+            splashFactory: open == null ? NoSplash.splashFactory : null,
+            highlightColor: open == null ? Colors.transparent : null,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: PosOrdersSpec.menuHitSize,
+              height: PosOrdersSpec.menuHitSize,
+              child: Center(
+                child: SvgPicture.asset(
+                  finished
+                      ? Images.posOrdersMoreVertFinishedSvg
+                      : Images.posOrdersMoreVertSvg,
+                  width: PosOrdersSpec.menuIconSize,
+                  height: PosOrdersSpec.menuIconSize,
+                ),
+              ),
             ),
           ),
         ),

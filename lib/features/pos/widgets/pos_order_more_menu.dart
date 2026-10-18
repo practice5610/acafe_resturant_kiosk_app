@@ -8,10 +8,13 @@ import 'package:flutter/material.dart';
 /// forward".
 ///
 /// These are the kitchen's own whole-order menu (`status_action_sheet.dart:
-/// 70-89`) brought to the POS: Pause / Resume and Cancel, and deliberately
-/// nothing else. Completing an order is not here — it is the primary CTA, the
+/// 70-89`) brought to the POS: Pause / Resume and Cancel. In the detail
+/// overlay that is all it holds — completing an order is the primary CTA, the
 /// same split the kitchen makes.
-enum PosOrderMenuAction { hold, resume, cancel }
+///
+/// The board card has no CTA of its own (Figma 1915:15767 draws none), so its
+/// ⋮ menu also leads with the card's forward rung: [advance].
+enum PosOrderMenuAction { advance, hold, resume, cancel }
 
 /// The ⋯ button that opens the menu, sized to sit beside the primary CTA
 /// without unbalancing it.
@@ -79,25 +82,41 @@ class PosOrderMoreButton extends StatelessWidget {
 /// Positioned rather than centred: the button lives in the sticky bar at the
 /// bottom of the modal, so the menu opens upward and stays clear of the screen
 /// edge on a narrow terminal.
+///
+/// [advanceLabel] adds the forward rung as the first row (the board card's
+/// menu); [sideExits] false leaves Pause / Resume / Cancel out (an order that
+/// can only be advanced). [openBelow] is for a button at the top of its
+/// surface — the card's ⋮ — so the menu drops under it, right-aligned to it.
 Future<PosOrderMenuAction?> showPosOrderMoreMenu(
   BuildContext context, {
   required Offset anchor,
   required Size buttonSize,
   required bool isHeld,
+  String? advanceLabel,
+  bool sideExits = true,
+  bool openBelow = false,
 }) {
   final Size screen = MediaQuery.sizeOf(context);
 
   const double width = PosOrderDetailSpec.moreMenuWidth;
-  final int rows = isHeld ? 2 : 2;
+  final int rows = (advanceLabel == null ? 0 : 1) + (sideExits ? 2 : 0);
   final double height = rows * PosOrderDetailSpec.moreMenuRowHeight +
       PosOrderDetailSpec.moreMenuPadV * 2;
 
-  double left = anchor.dx;
+  double left = openBelow ? anchor.dx + buttonSize.width - width : anchor.dx;
   left = left.clamp(12.0, (screen.width - width - 12).clamp(12.0, screen.width));
 
-  // Above the button by preference; below it if there is no room up there.
-  double top = anchor.dy - height - PosOrderDetailSpec.moreMenuGap;
-  if (top < 12) top = anchor.dy + buttonSize.height + PosOrderDetailSpec.moreMenuGap;
+  final double above = anchor.dy - height - PosOrderDetailSpec.moreMenuGap;
+  final double below =
+      anchor.dy + buttonSize.height + PosOrderDetailSpec.moreMenuGap;
+
+  // The preferred side first; the other one if there is no room there.
+  double top;
+  if (openBelow) {
+    top = below + height > screen.height - 12 && above >= 12 ? above : below;
+  } else {
+    top = above < 12 ? below : above;
+  }
 
   return showGeneralDialog<PosOrderMenuAction>(
     context: context,
@@ -111,7 +130,11 @@ Future<PosOrderMenuAction?> showPosOrderMoreMenu(
           left: left,
           top: top,
           width: width,
-          child: _MoreMenuPanel(isHeld: isHeld),
+          child: _MoreMenuPanel(
+            isHeld: isHeld,
+            advanceLabel: advanceLabel,
+            sideExits: sideExits,
+          ),
         ),
       ],
     ),
@@ -120,8 +143,14 @@ Future<PosOrderMenuAction?> showPosOrderMoreMenu(
 
 class _MoreMenuPanel extends StatelessWidget {
   final bool isHeld;
+  final String? advanceLabel;
+  final bool sideExits;
 
-  const _MoreMenuPanel({required this.isHeld});
+  const _MoreMenuPanel({
+    required this.isHeld,
+    required this.advanceLabel,
+    required this.sideExits,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -141,26 +170,35 @@ class _MoreMenuPanel extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Resume rather than Pause while held — the same swap the kitchen
-            // menu makes, so the one row always offers the move that applies.
-            if (isHeld)
-              const _MoreMenuRow(
-                action: PosOrderMenuAction.resume,
-                label: 'Resume order',
-                icon: Icons.play_arrow_rounded,
-              )
-            else
-              const _MoreMenuRow(
-                action: PosOrderMenuAction.hold,
-                label: 'Mark on hold',
-                icon: Icons.pause_circle_outlined,
+            if (advanceLabel != null)
+              _MoreMenuRow(
+                action: PosOrderMenuAction.advance,
+                label: advanceLabel!,
+                icon: Icons.check_circle_outline_rounded,
               ),
-            const _MoreMenuRow(
-              action: PosOrderMenuAction.cancel,
-              label: 'Cancel order',
-              icon: Icons.cancel_outlined,
-              danger: true,
-            ),
+            if (sideExits) ...[
+              // Resume rather than Pause while held — the same swap the
+              // kitchen menu makes, so the one row always offers the move that
+              // applies.
+              if (isHeld)
+                const _MoreMenuRow(
+                  action: PosOrderMenuAction.resume,
+                  label: 'Resume order',
+                  icon: Icons.play_arrow_rounded,
+                )
+              else
+                const _MoreMenuRow(
+                  action: PosOrderMenuAction.hold,
+                  label: 'Mark on hold',
+                  icon: Icons.pause_circle_outlined,
+                ),
+              const _MoreMenuRow(
+                action: PosOrderMenuAction.cancel,
+                label: 'Cancel order',
+                icon: Icons.cancel_outlined,
+                danger: true,
+              ),
+            ],
           ],
         ),
       ),

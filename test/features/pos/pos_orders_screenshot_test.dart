@@ -400,11 +400,11 @@ void main() {
     expect(sectionHeader('NEW'), findsOneWidget);
     expect(sectionHeader('IN PROGRESS'), findsOneWidget);
     expect(sectionHeader('FINISHED'), findsOneWidget);
-    // preparing x2 and on_hold in IN PROGRESS; item_to_collect in FINISHED
-    // still carries the action that finishes it.
-    expect(find.text('Mark as ready'), findsNWidgets(2));
-    expect(find.text('Resume'), findsOneWidget);
-    expect(find.text('Mark as complete'), findsOneWidget);
+    // Figma 1915:15767 draws no action on the card face — the rungs live
+    // behind each card's ⋮.
+    expect(find.text('Mark as ready'), findsNothing);
+    expect(find.text('Mark as complete'), findsNothing);
+    expect(find.byTooltip('Order actions'), findsWidgets);
     // Only the two genuinely terminal orders read Done.
     expect(find.text('Done'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
