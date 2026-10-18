@@ -669,10 +669,10 @@ void main() {
         tester.widget<PosWaitingCard>(find.byType(PosWaitingCard)).amountDue,
         13,
       );
-      // The figure renders on the waiting card and in the back-row caption
-      // ("… / € 13.00"), both reading the same total.
+      // The waiting card is full-screen (Figma 1915:9328: no back row), so
+      // the figure renders once, on the card.
       expect(find.text(PosHomeSpec.formatPrice(13, padZero: false)),
-          findsNWidgets(2));
+          findsOneWidget);
     });
 
     testWidgets('the dots animate without disturbing the rest of the screen',
@@ -846,17 +846,10 @@ void main() {
         (tester) async {
       await reachDeclined(tester);
 
-      // The back arrow greys out: leaving by the chrome would strand the
-      // operator on the counter screen mid-decision. The nav tabs stay live —
-      // no payment is in flight, and the sale survives in CartProvider either
-      // way.
-      expect(
-        tester
-            .widgetList<Opacity>(find.byType(Opacity))
-            .where((o) => o.opacity == 0.4),
-        isNotEmpty,
-        reason: 'back button is greyed while the decline is on screen',
-      );
+      // The declined card is full-screen (Figma 1915:10475): no back row, so
+      // leaving by the chrome cannot strand the operator mid-decision.
+      expect(find.byType(PosPayBackRow), findsNothing,
+          reason: 'no back row while the decline is on screen');
 
       final PosDeclinedCard card =
           tester.widget<PosDeclinedCard>(find.byType(PosDeclinedCard));

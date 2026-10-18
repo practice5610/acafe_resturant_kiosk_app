@@ -49,8 +49,6 @@ import 'package:acafe_customer/features/pos/widgets/pos_tip_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
-import 'package:acafe_customer/utill/images.dart';
-import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -671,9 +669,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void _showSplitDeclineCard(double amount, int splitNum) {
     showGeneralDialog(
       context: context,
-      barrierColor: Colors.black54,
-      pageBuilder: (context, anim, secAnim) => Center(
-        child: PosDeclinedCard(
+      // Frame 07: the card on the page background, nothing behind it.
+      barrierColor: PosHomeSpec.pageBg,
+      pageBuilder: (context, anim, secAnim) => PosPayTextScope(
+        child: Material(
+          type: MaterialType.transparency,
+          child: PosDeclinedCard(
           amountDue: amount,
           retrying: _splittingPayment,
           onCancel:
@@ -682,122 +683,61 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
             Navigator.pop(context);
             _recordSplit();
           },
+          ),
         ),
       ),
     );
   }
 
-  /// Show success card after a split is recorded.
-  void _showSplitSuccessCard(PosSplitState state) {
+  /// Shows a success state — Figma `success-card` (1915:9317 / 12227) on the
+  /// page background, as the frames draw it (nothing behind the card).
+  void _showSuccessCard(Widget Function(BuildContext dialogContext) card) {
     showGeneralDialog(
       context: context,
-      barrierColor: Colors.black54,
-      pageBuilder: (context, anim, secAnim) {
-        final bool isFinal = state.fullyPaid;
-        return Center(
-          child: Material(
-            type: MaterialType.transparency,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Container(
-                width: PosPaymentSpec.v2SuccessCardWidth,
-                padding: const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
-                decoration: BoxDecoration(
-                  color: PosHomeSpec.tileBg,
-                  borderRadius: BorderRadius.circular(
-                      PosPaymentSpec.v2SuccessCardRadius),
-                  border: Border.all(
-                    color: PosHomeSpec.hairline,
-                    width: PosPaymentSpec.v2SuccessCardBorder,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Icon
-                    Image.asset(
-                      Images.checkCircle,
-                      width: PosPaymentSpec.v2SuccessIconSize,
-                      height: PosPaymentSpec.v2SuccessIconSize,
-                    ),
-                    const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
-                    Text(
-                      isFinal ? 'All payments received' : 'Payment ${state.payments.length} received',
-                      style: loewExtraBold.copyWith(
-                        fontSize: PosPaymentSpec.v2SuccessHeadingSize,
-                        color: PosHomeSpec.ink,
-                      ),
-                    ),
-                    const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
-                    // Remaining info.
-                    if (!isFinal) ...[
-                      Container(
-                        padding: const EdgeInsets.all(
-                            PosPaymentSpec.v2SuccessAmountBoxPadding),
-                        decoration: BoxDecoration(
-                          color: PosHomeSpec.tileBg,
-                          borderRadius: BorderRadius.circular(
-                              PosPaymentSpec.v2SuccessAmountBoxRadius),
-                          border: Border.all(
-                            color: PosHomeSpec.tableFieldBorder,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Remaining',
-                              style: swiss721Light.copyWith(
-                                fontSize: 11,
-                                color: PosHomeSpec.inkAlpha(0.4),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              PosHomeSpec.formatPrice(state.remaining,
-                                  padZero: false),
-                              style: loewExtraBold.copyWith(
-                                fontSize: 20,
-                                color: PosHomeSpec.ink,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
-                    ],
-                    // Button.
-                    PosPayPillBar(
-                      label: isFinal ? 'Next order' : 'Next payment',
-                      onConfirm: () {
-                        Navigator.pop(context);
-                        if (isFinal) {
-                          _completeSplit();
-                        }
-                        // Else: loop back to entry screen (UI will show it)
-                      },
-                    ),
-                    if (isFinal) ...[
-                      const SizedBox(height: 10),
-                      _ReceiptOutlineButton(
-                        onTap: () => _showReceiptDialog(
-                          orderId: state.orderId,
-                          total:   state.grandTotal,
-                          onAfterSend: () {
-                            Navigator.pop(context);
-                            _completeSplit();
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      barrierDismissible: false,
+      barrierColor: PosHomeSpec.pageBg,
+      pageBuilder: (dialogContext, anim, secAnim) => PosPayTextScope(
+        child: Material(
+          type: MaterialType.transparency,
+          child: card(dialogContext),
+        ),
+      ),
     );
+  }
+
+  /// Show success card after a split is recorded: frame 08 for an
+  /// intermediate payment, frame 18's "Order Paid" once the order is settled.
+  void _showSplitSuccessCard(PosSplitState state) {
+    _showSuccessCard((dialogContext) {
+      if (!state.fullyPaid) {
+        return PosPaymentSuccessCard(
+          title: 'Split Payment ${state.payments.length} Successful',
+          amount: state.payments.isEmpty ? 0 : state.payments.last.paidAmount,
+          buttonLabel: 'Start next payment',
+          // Back to the entry pane for the next split.
+          onContinue: () => Navigator.pop(dialogContext),
+        );
+      }
+      return PosPaymentSuccessCard(
+        title: 'Order Paid',
+        amount: state.grandTotal,
+        amountLabel: 'TOTAL PAID',
+        secondaryLabel: 'Receipt',
+        onSecondary: () => _showReceiptDialog(
+          orderId: state.orderId,
+          total: state.grandTotal,
+          onAfterSend: () {
+            Navigator.pop(dialogContext);
+            _completeSplit();
+          },
+        ),
+        buttonLabel: 'Next order',
+        onContinue: () {
+          Navigator.pop(dialogContext);
+          _completeSplit();
+        },
+      );
+    });
   }
 
   /// Final split complete: clear cart + session, navigate home.
@@ -1020,8 +960,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void _showSplitByItemDeclineCard(double amount, int groupSeq) {
     showGeneralDialog(
       context: context,
-      barrierColor: Colors.black54,
-      pageBuilder: (context, anim, secAnim) => Center(
+      // Frame 07's treatment: the card on the page background.
+      barrierColor: PosHomeSpec.pageBg,
+      pageBuilder: (context, anim, secAnim) => PosPayTextScope(
         child: Material(
           type: MaterialType.transparency,
           child: PosDeclinedCard(
@@ -1045,94 +986,45 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     );
   }
 
-  /// Success overlay after each group payment. "Start next payment" or "Finish".
+  /// Success overlay after each group payment: "Start next payment", or the
+  /// settled-order card (frame 18).
   void _showSplitByItemSuccessCard(PosSplitByItemState state) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black54,
-      pageBuilder: (dialogContext, anim, secAnim) {
-        final bool isFinal = state.fullyPaid;
-        return Center(
-          child: Material(
-            type: MaterialType.transparency,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Container(
-                width: PosPaymentSpec.v2SuccessCardWidth,
-                padding:
-                    const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
-                decoration: BoxDecoration(
-                  color: PosHomeSpec.tileBg,
-                  borderRadius: BorderRadius.circular(
-                      PosPaymentSpec.v2SuccessCardRadius),
-                  border: Border.all(
-                    color: PosHomeSpec.hairline,
-                    width: PosPaymentSpec.v2SuccessCardBorder,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Image.asset(
-                      Images.checkCircle,
-                      width: PosPaymentSpec.v2SuccessIconSize,
-                      height: PosPaymentSpec.v2SuccessIconSize,
-                    ),
-                    const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
-                    Text(
-                      isFinal ? 'Order fully paid' : 'Payment recorded',
-                      style: loewExtraBold.copyWith(
-                        fontSize: PosPaymentSpec.v2SuccessHeadingSize,
-                        color: PosHomeSpec.ink,
-                      ),
-                    ),
-                    if (!isFinal) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        '${PosHomeSpec.formatPrice(state.remaining, padZero: false)} remaining',
-                        style: swiss721Light.copyWith(
-                          fontSize: PosPaymentSpec.v2ErrorSubtitleSize,
-                          color: PosPaymentSpec.v2ErrorSubtitle,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
-                    PosPayPillBar(
-                      label: isFinal ? 'Next order' : 'Start next payment',
-                      onConfirm: () {
-                        Navigator.pop(dialogContext);
-                        if (isFinal) {
-                          _completeSplitByItem();
-                        } else {
-                          setState(() {
-                            _splitByItemGroups.nextGroup(state.nextSequence);
-                            _splitByItemMethod = PosPaymentMethod.card;
-                          });
-                        }
-                      },
-                    ),
-                    if (isFinal) ...[
-                      const SizedBox(height: 10),
-                      _ReceiptOutlineButton(
-                        onTap: () => _showReceiptDialog(
-                          orderId: state.orderId,
-                          total:   state.grandTotal,
-                          onAfterSend: () {
-                            Navigator.pop(dialogContext);
-                            _completeSplitByItem();
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
+    _showSuccessCard((dialogContext) {
+      if (!state.fullyPaid) {
+        // No frame draws this intermediate state; it uses frame 08's card.
+        return PosPaymentSuccessCard(
+          title: 'Split Payment ${state.groups.length} Successful',
+          amount: state.groups.isEmpty ? 0 : state.groups.last.paidAmount,
+          buttonLabel: 'Start next payment',
+          onContinue: () {
+            Navigator.pop(dialogContext);
+            setState(() {
+              _splitByItemGroups.nextGroup(state.nextSequence);
+              _splitByItemMethod = PosPaymentMethod.card;
+            });
+          },
         );
-      },
-    );
+      }
+      return PosPaymentSuccessCard(
+        title: 'Order Paid',
+        amount: state.grandTotal,
+        amountLabel: 'TOTAL PAID',
+        secondaryLabel: 'Receipt',
+        onSecondary: () => _showReceiptDialog(
+          orderId: state.orderId,
+          total: state.grandTotal,
+          onAfterSend: () {
+            Navigator.pop(dialogContext);
+            _completeSplitByItem();
+          },
+        ),
+        buttonLabel: 'Next order',
+        onContinue: () {
+          Navigator.pop(dialogContext);
+          _completeSplitByItem();
+        },
+      );
+    });
   }
 
   /// Final cleanup: clear cart + session, navigate home.
@@ -1250,79 +1142,27 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     }
   }
 
+  /// No frame draws the invoice outcome; it uses frame 18's card.
   void _showInvoiceSuccessCard() {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black54,
-      pageBuilder: (dialogContext, anim, secAnim) => Center(
-        child: Material(
-          type: MaterialType.transparency,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Container(
-              width: PosPaymentSpec.v2SuccessCardWidth,
-              padding:
-                  const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
-              decoration: BoxDecoration(
-                color: PosHomeSpec.tileBg,
-                borderRadius:
-                    BorderRadius.circular(PosPaymentSpec.v2SuccessCardRadius),
-                border: Border.all(
-                  color: PosHomeSpec.hairline,
-                  width: PosPaymentSpec.v2SuccessCardBorder,
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    Images.checkCircle,
-                    width: PosPaymentSpec.v2SuccessIconSize,
-                    height: PosPaymentSpec.v2SuccessIconSize,
-                  ),
-                  const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
-                  Text(
-                    'Invoice created',
-                    style: loewExtraBold.copyWith(
-                      fontSize: PosPaymentSpec.v2SuccessHeadingSize,
-                      color: PosHomeSpec.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Order marked as invoiced',
-                    style: swiss721Light.copyWith(
-                      fontSize: PosPaymentSpec.v2ErrorSubtitleSize,
-                      color: PosPaymentSpec.v2ErrorSubtitle,
-                    ),
-                  ),
-                  const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
-                  PosPayPillBar(
-                    label: 'Next order',
-                    onConfirm: () {
-                      Navigator.pop(dialogContext);
-                      _completeInvoice();
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _ReceiptOutlineButton(
-                    onTap: () => _showReceiptDialog(
-                      orderId: _invoiceOrderId,
-                      total:   _invoiceGrandTotal,
-                      onAfterSend: () {
-                        Navigator.pop(dialogContext);
-                        _completeInvoice();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    _showSuccessCard((dialogContext) => PosPaymentSuccessCard(
+          title: 'Invoice created',
+          amount: _invoiceGrandTotal,
+          amountLabel: 'AMOUNT INVOICED',
+          secondaryLabel: 'Receipt',
+          onSecondary: () => _showReceiptDialog(
+            orderId: _invoiceOrderId,
+            total: _invoiceGrandTotal,
+            onAfterSend: () {
+              Navigator.pop(dialogContext);
+              _completeInvoice();
+            },
           ),
-        ),
-      ),
-    );
+          buttonLabel: 'Next order',
+          onContinue: () {
+            Navigator.pop(dialogContext);
+            _completeInvoice();
+          },
+        ));
   }
 
   void _completeInvoice() {
@@ -1442,79 +1282,27 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     }
   }
 
+  /// No frame draws the stand-alone outcome; it uses frame 18's card.
   void _showStandaloneSuccessCard() {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black54,
-      pageBuilder: (dialogContext, anim, secAnim) => Center(
-        child: Material(
-          type: MaterialType.transparency,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Container(
-              width: PosPaymentSpec.v2SuccessCardWidth,
-              padding:
-                  const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
-              decoration: BoxDecoration(
-                color: PosHomeSpec.tileBg,
-                borderRadius:
-                    BorderRadius.circular(PosPaymentSpec.v2SuccessCardRadius),
-                border: Border.all(
-                  color: PosHomeSpec.hairline,
-                  width: PosPaymentSpec.v2SuccessCardBorder,
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    Images.checkCircle,
-                    width: PosPaymentSpec.v2SuccessIconSize,
-                    height: PosPaymentSpec.v2SuccessIconSize,
-                  ),
-                  const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
-                  Text(
-                    'Payment confirmed',
-                    style: loewExtraBold.copyWith(
-                      fontSize: PosPaymentSpec.v2SuccessHeadingSize,
-                      color: PosHomeSpec.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Order marked as paid',
-                    style: swiss721Light.copyWith(
-                      fontSize: PosPaymentSpec.v2ErrorSubtitleSize,
-                      color: PosPaymentSpec.v2ErrorSubtitle,
-                    ),
-                  ),
-                  const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
-                  PosPayPillBar(
-                    label: 'Next order',
-                    onConfirm: () {
-                      Navigator.pop(dialogContext);
-                      _completeStandalone();
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _ReceiptOutlineButton(
-                    onTap: () => _showReceiptDialog(
-                      orderId: _standaloneOrderId,
-                      total:   _standaloneGrandTotal,
-                      onAfterSend: () {
-                        Navigator.pop(dialogContext);
-                        _completeStandalone();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    _showSuccessCard((dialogContext) => PosPaymentSuccessCard(
+          title: 'Payment confirmed',
+          amount: _standaloneGrandTotal,
+          amountLabel: 'TOTAL PAID',
+          secondaryLabel: 'Receipt',
+          onSecondary: () => _showReceiptDialog(
+            orderId: _standaloneOrderId,
+            total: _standaloneGrandTotal,
+            onAfterSend: () {
+              Navigator.pop(dialogContext);
+              _completeStandalone();
+            },
           ),
-        ),
-      ),
-    );
+          buttonLabel: 'Next order',
+          onContinue: () {
+            Navigator.pop(dialogContext);
+            _completeStandalone();
+          },
+        ));
   }
 
   // ── Family 6 — Receipt Email / Print ─────────────────────────────────────
@@ -1549,109 +1337,29 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     );
   }
 
-  /// Shows the success card for a single card / cash payment (Figma 1915:13024
-  /// pattern). Two buttons: "Next order" (dark → home) and "Receipt" (outline →
-  /// receipt dialog → home).
+  /// Shows the success card for a single card / cash payment — frame 18
+  /// ("Order Paid", 1915:12227): "Receipt" (outline → receipt dialog → home)
+  /// above "Next order" (ink → home).
   void _showSinglePaymentSuccessCard(double total, int orderId) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black54,
-      pageBuilder: (dialogContext, anim, secAnim) => Center(
-        child: Material(
-          type: MaterialType.transparency,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Container(
-              width: PosPaymentSpec.v2SuccessCardWidth,
-              padding:
-                  const EdgeInsets.all(PosPaymentSpec.v2SuccessCardPadding),
-              decoration: BoxDecoration(
-                color: PosHomeSpec.tileBg,
-                borderRadius:
-                    BorderRadius.circular(PosPaymentSpec.v2SuccessCardRadius),
-                border: Border.all(
-                  color: PosHomeSpec.hairline,
-                  width: PosPaymentSpec.v2SuccessCardBorder,
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    Images.checkCircle,
-                    width: PosPaymentSpec.v2SuccessIconSize,
-                    height: PosPaymentSpec.v2SuccessIconSize,
-                  ),
-                  const SizedBox(height: PosPaymentSpec.v2SuccessHeaderGap),
-                  Text(
-                    'Order Paid',
-                    style: loewExtraBold.copyWith(
-                      fontSize: PosPaymentSpec.v2SuccessHeadingSize,
-                      color: PosHomeSpec.ink,
-                    ),
-                  ),
-                  const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
-                  // Total box.
-                  Container(
-                    padding: const EdgeInsets.all(
-                        PosPaymentSpec.v2SuccessAmountBoxPadding),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(
-                          PosPaymentSpec.v2SuccessAmountBoxRadius),
-                      border: Border.all(color: PosHomeSpec.tableFieldBorder),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'TOTAL PAID',
-                          style: loewBold.copyWith(
-                            fontSize: 13,
-                            letterSpacing: 1,
-                            color: PosHomeSpec.inkAlpha(0.53),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          PosHomeSpec.formatPrice(total, padZero: false),
-                          style: loewExtraBold.copyWith(
-                            fontSize: 36,
-                            color: PosHomeSpec.ink,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: PosPaymentSpec.v2SuccessCardGap),
-                  // "Next order" — dark pill → go home.
-                  PosPayPillBar(
-                    label: 'Next order',
-                    onConfirm: () {
-                      Navigator.pop(dialogContext);
-                      if (context.mounted) context.go(PosRoutes.home);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  // "Receipt" — outline pill → receipt dialog.
-                  _ReceiptOutlineButton(
-                    onTap: () => _showReceiptDialog(
-                      orderId: orderId,
-                      total:   total,
-                      onAfterSend: () {
-                        Navigator.pop(dialogContext);
-                        if (context.mounted) context.go(PosRoutes.home);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    _showSuccessCard((dialogContext) => PosPaymentSuccessCard(
+          title: 'Order Paid',
+          amount: total,
+          amountLabel: 'TOTAL PAID',
+          secondaryLabel: 'Receipt',
+          onSecondary: () => _showReceiptDialog(
+            orderId: orderId,
+            total: total,
+            onAfterSend: () {
+              Navigator.pop(dialogContext);
+              if (context.mounted) context.go(PosRoutes.home);
+            },
           ),
-        ),
-      ),
-    );
+          buttonLabel: 'Next order',
+          onContinue: () {
+            Navigator.pop(dialogContext);
+            if (context.mounted) context.go(PosRoutes.home);
+          },
+        ));
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -2000,9 +1708,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                       // Back is withheld while the terminal has the payment:
                       // leaving mid-transaction charges a card against an
                       // order nobody placed. Cancel Transaction is the way out.
+                      // Frames 06 / 07 draw the waiting and declined cards
+                      // full-screen: no back row (the card's own buttons are
+                      // the only way on).
+                      if (!_isWaitingForTerminal && !_declined)
                       PosPayBackRow(
-                        onBack:
-                            _isWaitingForTerminal || _declined ? null : _back,
+                        onBack: _back,
                         // `Dylan / € 19.00` (node 1915:9351): customer name and
                         // the live grand total, centred.
                         label: _backRowLabel(grandTotal),
@@ -2569,39 +2280,3 @@ class _Content extends StatelessWidget {
     );
   }
 }
-
-/// Outline "Receipt" pill button — white bg, ink border 1.5px, Loew Bold 16px ink.
-///
-/// Shown below the "Next order" dark pill on every final success card (Figma
-/// 1915:13024 / 1915:13077).
-class _ReceiptOutlineButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _ReceiptOutlineButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: PosHomeSpec.ink, width: 1.5),
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: Center(
-          child: Text(
-            'Receipt',
-            style: loewBold.copyWith(
-              fontSize: 16,
-              color: PosHomeSpec.ink,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-

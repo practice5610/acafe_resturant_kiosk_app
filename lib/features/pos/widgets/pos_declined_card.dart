@@ -50,12 +50,14 @@ class PosDeclinedCard extends StatelessWidget {
       actions: [
         Expanded(
           child: PosPaymentCardButton(
+            insideStroke: true,
             label: 'Cancel',
             onTap: onCancel,
           ),
         ),
         Expanded(
           child: PosPaymentCardButton(
+            insideStroke: true,
             label: retrying ? 'Starting...' : 'Try Again',
             onTap: onTryAgain,
             filled: true,

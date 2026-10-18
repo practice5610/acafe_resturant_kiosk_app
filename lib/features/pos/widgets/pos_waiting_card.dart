@@ -42,6 +42,7 @@ class PosWaitingCard extends StatelessWidget {
           child: PosPaymentCardButton(
             label: cancelling ? 'Cancelling...' : 'Cancel Transaction',
             onTap: onCancel,
+            insideStroke: true,
           ),
         ),
       ],
@@ -109,14 +110,20 @@ class PosPaymentStatusCard extends StatelessWidget {
                 PosPaymentSpec.waitCardPaddingH,
                 PosPaymentSpec.waitCardPaddingBottom,
               ),
-              decoration: BoxDecoration(
-                color: PosHomeSpec.panelBg,
+              // Inside stroke (Figma): the 1.5px border does not add to the
+              // card's 48/40/40 padding.
+              foregroundDecoration: BoxDecoration(
                 borderRadius:
                     BorderRadius.circular(PosPaymentSpec.waitCardRadius),
                 border: Border.all(
                   color: PosPaymentSpec.waitCardBorderColor,
                   width: PosPaymentSpec.waitCardBorder,
                 ),
+              ),
+              decoration: BoxDecoration(
+                color: PosHomeSpec.panelBg,
+                borderRadius:
+                    BorderRadius.circular(PosPaymentSpec.waitCardRadius),
                 boxShadow: const [
                   BoxShadow(
                     color: PosPaymentSpec.waitCardShadow,
@@ -154,9 +161,19 @@ class PosPaymentStatusCard extends StatelessWidget {
                   const SizedBox(height: PosPaymentSpec.waitCardGap),
                   _AmountDue(amount: amountDue, label: amountLabel),
                   const SizedBox(height: PosPaymentSpec.waitCardGap),
-                  const ColoredBox(
-                    color: PosPaymentSpec.waitCardBorderColor,
-                    child: SizedBox(height: 1, width: double.infinity),
+                  // `Line` (node 1915:9341) is 0 tall; its 1px stroke sits just
+                  // above it, inside the gap.
+                  const SizedBox(
+                    height: 0,
+                    child: OverflowBox(
+                      minHeight: 1,
+                      maxHeight: 1,
+                      alignment: Alignment.bottomCenter,
+                      child: ColoredBox(
+                        color: PosPaymentSpec.waitCardBorderColor,
+                        child: SizedBox(height: 1, width: double.infinity),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: PosPaymentSpec.waitCardGap),
                   Row(
@@ -191,15 +208,22 @@ class PosPaymentErrorMark extends StatelessWidget {
     return SizedBox(
       width: PosPaymentSpec.declinedIconSize,
       height: PosPaymentSpec.declinedIconSize,
-      child: SvgPicture.asset(
-        Images.posErrorCircleSvg,
-        width: PosPaymentSpec.declinedIconSize,
-        height: PosPaymentSpec.declinedIconSize,
-        fit: BoxFit.contain,
-        placeholderBuilder: (_) => const Icon(
-          Icons.highlight_off,
-          size: PosPaymentSpec.declinedIconSize,
-          color: PosHomeSpec.contextMenuDanger,
+      // The 83.84 vector overhangs its 80.84 slot (`inset -1.86%`, node
+      // 1915:10478) rather than being scaled into it.
+      child: OverflowBox(
+        minWidth: PosPaymentSpec.declinedIconDrawn,
+        maxWidth: PosPaymentSpec.declinedIconDrawn,
+        minHeight: PosPaymentSpec.declinedIconDrawn,
+        maxHeight: PosPaymentSpec.declinedIconDrawn,
+        child: SvgPicture.asset(
+          Images.posErrorCircleSvg,
+          width: PosPaymentSpec.declinedIconDrawn,
+          height: PosPaymentSpec.declinedIconDrawn,
+          placeholderBuilder: (_) => const Icon(
+            Icons.highlight_off,
+            size: PosPaymentSpec.declinedIconSize,
+            color: PosHomeSpec.contextMenuDanger,
+          ),
         ),
       ),
     );
@@ -298,6 +322,11 @@ class _AmountDue extends StatelessWidget {
         color: PosHomeSpec.tileBg,
         borderRadius:
             BorderRadius.circular(PosPaymentSpec.waitAmountBoxRadius),
+      ),
+      // Inside stroke: the box is 103 tall (20 + 16 + 4 + 43 + 20).
+      foregroundDecoration: BoxDecoration(
+        borderRadius:
+            BorderRadius.circular(PosPaymentSpec.waitAmountBoxRadius),
         border: Border.all(
           color: PosPaymentSpec.waitCardBorderColor,
           width: PosPaymentSpec.waitAmountBoxBorder,
@@ -377,6 +406,11 @@ class PosPaymentCardButton extends StatelessWidget {
   /// Orders dialog weights its primary action.
   final bool emphasiseFilledLabel;
 
+  /// Paint the border inside the box, as Figma's payment layer does (the
+  /// button is then 51 tall at the defaults). Off for callers outside that
+  /// layer, which keep the original outside-of-padding border.
+  final bool insideStroke;
+
   const PosPaymentCardButton({
     super.key,
     required this.label,
@@ -388,6 +422,7 @@ class PosPaymentCardButton extends StatelessWidget {
     this.fontSize,
     this.filledLabelColor,
     this.emphasiseFilledLabel = false,
+    this.insideStroke = false,
   });
 
   @override
@@ -399,6 +434,13 @@ class PosPaymentCardButton extends StatelessWidget {
     final double labelSize = fontSize ?? PosPaymentSpec.waitCancelLabelSize;
     final TextStyle base =
         (filled && emphasiseFilledLabel) ? loewExtraBold : loewBold;
+    final BoxDecoration border = BoxDecoration(
+      borderRadius: shape,
+      border: Border.all(
+        color: PosHomeSpec.ink,
+        width: borderWidth ?? PosPaymentSpec.waitCancelBorder,
+      ),
+    );
 
     return Opacity(
       opacity: enabled ? 1 : 0.5,
@@ -413,13 +455,8 @@ class PosPaymentCardButton extends StatelessWidget {
                 const EdgeInsets.symmetric(
                     vertical: PosPaymentSpec.waitCancelPaddingV),
             alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: shape,
-              border: Border.all(
-                color: PosHomeSpec.ink,
-                width: borderWidth ?? PosPaymentSpec.waitCancelBorder,
-              ),
-            ),
+            decoration: insideStroke ? null : border,
+            foregroundDecoration: insideStroke ? border : null,
             child: Text(
               label,
               maxLines: 1,

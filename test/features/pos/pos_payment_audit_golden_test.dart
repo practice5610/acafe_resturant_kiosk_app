@@ -20,7 +20,10 @@ import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen
 import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
@@ -345,7 +348,44 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
   '12_split_p4': (t) => _splitFrame(t,
       paid: const [(9.0, 'card'), (5.0, 'card'), (2.0, 'card')],
       typed: '3.00'),
+  '06_waiting': (t) => pumpOverlayFrame(
+      t, PosWaitingCard(amountDue: 9, onCancel: () {})),
+  '07_declined': (t) => pumpOverlayFrame(t,
+      PosDeclinedCard(amountDue: 9, onCancel: () {}, onTryAgain: () {})),
+  '08_split_success': (t) => pumpOverlayFrame(
+      t,
+      PosPaymentSuccessCard(
+        title: 'Split Payment 1 Successful',
+        amount: 9,
+        buttonLabel: 'Start next payment',
+        onContinue: () {},
+      )),
+  '18_order_paid': (t) => pumpOverlayFrame(
+      t,
+      PosPaymentSuccessCard(
+        title: 'Order Paid',
+        amount: 19,
+        amountLabel: 'TOTAL PAID',
+        secondaryLabel: 'Receipt',
+        onSecondary: () {},
+        buttonLabel: 'Next order',
+        onContinue: () {},
+      )),
 };
+
+/// A full-screen state: [card] alone on the page background, as the screen
+/// shows the waiting / declined cards (no back row) and the success dialogs
+/// (opaque page-coloured barrier).
+Future<void> pumpOverlayFrame(WidgetTester tester, Widget card) =>
+    pumpPaymentApp(
+      tester,
+      (_) => Scaffold(
+        backgroundColor: PosHomeSpec.pageBg,
+        body: PosPayTextScope(
+          child: Material(type: MaterialType.transparency, child: card),
+        ),
+      ),
+    );
 
 /// Split-by-payment frames: the Dylan € 19.00 order with [paid] already taken.
 Future<void> _splitFrame(

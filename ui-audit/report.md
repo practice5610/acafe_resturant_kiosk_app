@@ -137,6 +137,35 @@ Figma inconsistencies noted (not "fixed"): frame 12 compresses the paid rows to 
 the pane fits either way) → code follows 09–11. Paid amounts are written "€9.00" (no space) while every other amount
 in the layer is "€ 9.00" → code keeps the app-wide format.
 
+## 06 / 17 Waiting for card · 07 Card declined (1915:9328 · 12207 · 10475)
+
+| # | Element | Figma value | Code value | File:line | Sev | Status |
+|---|---|---|---|---|---|---|
+| 1 | Placement | Card alone, centred on the full page — no back row | Back row kept on screen (dimmed, inert) above the card | `screens/pos_payment_selection_screen.dart` | High | Fixed — back row hidden while waiting / declined |
+| 2 | Split-flow decline | Same full-screen card (frame 07 is the *split* decline) | `showGeneralDialog` over the screen with a black 54% scrim | `_showSplitDeclineCard`, `_showSplitByItemDeclineCard` | High | Fixed — barrier = page background |
+| 3 | Split decline text (extra bug) | — | Dialog had no `Material` ancestor → Text drawn with debug yellow underlines | `_showSplitDeclineCard` | High | Fixed (`Material` + `PosPayTextScope`) |
+| 4 | Card / amount box / button strokes | Inside (card 430 / 500.84 tall, box 103, button 51) | Outside (+3 / +2 / +3px each) | `widgets/pos_waiting_card.dart` | Med | Fixed (`foregroundDecoration`; `PosPaymentCardButton.insideStroke` opt-in so the order-complete dialog outside this layer is unchanged) |
+| 5 | Divider | `Line` is 0 tall, 1px stroke drawn just above it | 1px box (+1px) | same | Low | Fixed |
+| 6 | Error mark | 83.84 vector overhanging its 80.84 slot (`inset -1.86%`) | Vector scaled down into the slot (thinner stroke) | `PosPaymentErrorMark` | Low | Fixed |
+
+Verified: 06 heading 391 / box 481 / amount 501 / button 652; 07 heading 426.4 — equal to Figma once the card is
+centred on 1024 (Figma's 06 sits 9px higher only because of a stray 18px `calendar` node under the content area).
+
+## 08 Split payment success · 18 Order paid (1915:9315 · 12225)
+
+| # | Element | Figma value | Code value | File:line | Sev | Status |
+|---|---|---|---|---|---|---|
+| 1 | Component | Shared `success-card` (640, p-32, r20) | Five hand-built inline cards in the screen (PNG check, `PosPayPillBar` with its bar border + shadow as the button) | screen `_show*SuccessCard` | High | Fixed — all five use `PosPaymentSuccessCard` via one `_showSuccessCard` helper; callbacks unchanged |
+| 2 | Backdrop | Card on the plain page background | Black 54% scrim over the payment screen | same | High | Fixed (barrier = `#F7F1DE`) |
+| 3 | 08 copy | "Split Payment 1 Successful" · AMOUNT PAID € 9.00 · "Start next payment" | "Payment 1 received" · Remaining box · "Next payment" | `_showSplitSuccessCard` | High | Fixed |
+| 4 | 18 button order | **Receipt** (outline) above **Next order** (filled), gap-16 | Next order above Receipt, gap 24 / 10 | `_showSinglePaymentSuccessCard` etc. | Med | Fixed (`secondaryLabel`; gap 16 with two buttons) |
+| 5 | Check icon | `mingcute:check-fill` (filled vector) | lucide check (stroked) / `check_circle.png` | `pos_payment_success_card.dart` | Med | Fixed — Figma vector inlined |
+| 6 | Strokes | Inside (card, amount box 95, pills 47) | Outside | same | Low | Fixed |
+
+Verified: 08 heading 433 / AMOUNT PAID 502 / pill 619; 18 heading 409.5 / TOTAL PAID 470.5 / Receipt 579.5 / Next
+order 642.5 — equal to Figma. Invoice / Stand-alone / split-by-item intermediate outcomes have no frame; they now use
+the same card (noted, D8).
+
 ---
 
 ## Decisions for you
@@ -157,5 +186,9 @@ in the layer is "€ 9.00" → code keeps the app-wide format.
   Off toggle = POS inactive fill `#DED9C8`, thumb left; unfocused fields = `#E0D9C8` (as drawn for VAT/email).
 - **D7 — Per-split "Refund" pill** (frames 09–12). Not built: it needs a refund-one-split path inside the
   sale. Say if you want it wired (the refund flow for receipts already exists, frames 25–30).
+- **D8 — States without a frame**: invoice created, stand-alone confirmed, and a split-by-item intermediate
+  payment now use the frame 08 / 18 success card (copy: "Invoice created" · AMOUNT INVOICED, "Payment
+  confirmed" · TOTAL PAID, "Split Payment N Successful"). Frames 18a / 18b list Next order *above* Receipt,
+  frames 18 and 28 list Receipt above — code follows 18 / 28.
 - **D5 — Amount header is 12px shorter on Cash than on Card** (47 vs 58 line box). Implemented per frame,
   so switching Card ↔ Cash moves "Amount due" by 11px. Say if one of the two should win.

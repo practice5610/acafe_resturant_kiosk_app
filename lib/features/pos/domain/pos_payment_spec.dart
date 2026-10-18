@@ -217,6 +217,8 @@ class PosPaymentSpec {
   /// second button: same 560/r24/1.5 shell, same gaps, same amount box. Only
   /// the values below are new.
   static const double declinedIconSize = 80.84;
+  /// The vector the slot draws (node 1915:10478, `inset -1.86%`).
+  static const double declinedIconDrawn = 83.84;
   static const double declinedActionsGap = 12;
 
   // ── sticky-bottom-bar (1641:2871), compact ───────────────────────────
@@ -442,6 +444,8 @@ class PosPaymentSpec {
   static const double v2SuccessCardBorder = 1.5; // #F0EBD8
   static const double v2SuccessCardPadding = 32;
   static const double v2SuccessCardGap = 24;
+  /// With an outline + filled pill pair (frames 18 / 28) the gap is 16.
+  static const double v2SuccessCardGapTwoButtons = 16;
   static const double v2SuccessShadowBlur = 12;
   static const Offset v2SuccessShadowOffset = Offset(0, 8);
   static const Color v2SuccessShadow = Color(0x0A241F20); // 4% ink

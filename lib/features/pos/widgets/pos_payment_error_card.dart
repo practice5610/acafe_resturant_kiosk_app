@@ -107,10 +107,15 @@ class PosPaymentErrorCard extends StatelessWidget {
       amountLabel: amountLabel,
       actions: [
         Expanded(
-          child: PosPaymentCardButton(label: cancelLabel, onTap: onCancel),
+          child: PosPaymentCardButton(
+            insideStroke: true,
+            label: cancelLabel,
+            onTap: onCancel,
+          ),
         ),
         Expanded(
           child: PosPaymentCardButton(
+            insideStroke: true,
             label: primaryBusy ? 'Starting...' : primaryLabel,
             onTap: onPrimary,
             filled: true,
