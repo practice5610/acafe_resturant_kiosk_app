@@ -6,28 +6,70 @@ import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_cash_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_option_row.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// The right pane in split-by-payment mode — `Column/Right` (Figma
-/// **1915:10034**, frames 05 / 09 / 10 / 11 / 12).
+/// The split chooser's options (frame 13).
+enum PosSplitChoice { byItem, customAmount }
+
+/// One payment already taken, as listed in a split pane.
+@immutable
+class PosSplitPaidRowData {
+  final String label;
+  final String subtitle;
+  final double amount;
+
+  /// Opens the refund of this one payment; null hides the Refund pill (the
+  /// payment cannot be refunded — see [PosSplitPaidRow.onRefund]).
+  final VoidCallback? onRefund;
+
+  const PosSplitPaidRowData({
+    required this.label,
+    required this.subtitle,
+    required this.amount,
+    this.onRefund,
+  });
+}
+
+/// The split entry pane — `Column/Right` (Figma **1915:10034**): frames 05 / 09
+/// / 10 / 11 / 12 (split by payment), 19 (split by item → custom amount) and 15
+/// (split by item → cash entry).
 ///
 /// pt-24 px-20 pb-14, gap-8, top to bottom:
 ///  • SPLIT PAYMENT summary: header, 36px total, the Remaining bar
 ///  • one row per payment already taken (48 tall)
-///  • the PAYMENT N entry card with its Card / Cash segmented control
-///  • Cash only: Change Due banner and the €5…Exact denominations
+///  • the entry card ([entryLabel]) with its Card / Cash segmented control
+///  • Cash only: Change Due (against [changeBaseCents]) and €5…Exact
 ///  • the 78px keypad and the tip row
 ///
-/// The pane has no button of its own — "Start Payment N" is the screen's
-/// sticky bar. Draw it on a [PosPayCard] with [PosSplitSummaryPanel.border].
+/// The pane has no button of its own — the screen's sticky bar confirms. Draw
+/// it on a [PosPayCard] with [borderColor] / [borderWidth].
 class PosSplitSummaryPanel extends StatelessWidget {
-  final PosSplitState state;
+  final double grandTotal;
+  final double remaining;
 
-  /// The amount currently keyed in for the next split.
+  /// Payments already taken.
+  final List<PosSplitPaidRowData> paid;
+
+  /// "One amount at a time, …" (split by payment), "Enter the amount this
+  /// guest pays" (custom amount, frame 19), "By item · …" (frame 15).
+  final String subtitle;
+
+  /// "PAYMENT 2", "GUEST 1 · CUSTOM AMOUNT", "PAYMENT 1 · AMOUNT DUE € 12.00".
+  final String entryLabel;
+
+  /// What the cash tender is measured against for Change Due: what is still
+  /// owed (split by payment / custom amount) or the group's amount (frame 15).
+  final int changeBaseCents;
+
+  /// 61 / py-16 (frames 05, 19) or 48 / py-8 (frames 09–12, 15).
+  final double tipRowHeight;
+
+  /// The amount currently keyed in (cash: the tender).
   final PosCashEntry entry;
 
   /// Card or Cash for the current split.
@@ -36,10 +78,9 @@ class PosSplitSummaryPanel extends StatelessWidget {
 
   final ValueChanged<String> onKey;
   final VoidCallback onBackspace;
-  final VoidCallback onClear;
 
-  /// Cash split only: a denomination chip sets the amount (Exact = what is
-  /// still owed). Null hides the row.
+  /// Cash only: a denomination chip sets the amount (Exact = [changeBaseCents]).
+  /// Null hides the row.
   final ValueChanged<PosCashDenomination>? onDenomination;
   final PosCashDenomination? selectedDenomination;
 
@@ -47,32 +88,86 @@ class PosSplitSummaryPanel extends StatelessWidget {
   /// informational only — tipping is closed once the order is placed.
   final double tip;
 
-  /// Kept for callers; the screen's sticky bar owns the confirm action.
-  final VoidCallback? onConfirm;
-
-  /// Loading state (charge in flight).
-  final bool loading;
-
   /// True when the pane owns a bounded height; the stack then scrolls inside
   /// it if the window is shorter than the frame.
   final bool fill;
 
   const PosSplitSummaryPanel({
     super.key,
-    required this.state,
+    required this.grandTotal,
+    required this.remaining,
+    required this.paid,
+    required this.subtitle,
+    required this.entryLabel,
+    required this.changeBaseCents,
+    required this.tipRowHeight,
     required this.entry,
     required this.splitMethod,
     required this.onSplitMethod,
     required this.onKey,
     required this.onBackspace,
-    required this.onClear,
     this.onDenomination,
     this.selectedDenomination,
     this.tip = 0,
-    this.onConfirm,
-    this.loading = false,
     this.fill = false,
   });
+
+  /// Split by payment (frames 05, 09–12), from the backend's split state.
+  factory PosSplitSummaryPanel.forPayments({
+    Key? key,
+    required PosSplitState state,
+    required PosCashEntry entry,
+    required PosPaymentMethod splitMethod,
+    required ValueChanged<PosPaymentMethod> onSplitMethod,
+    required ValueChanged<String> onKey,
+    required VoidCallback onBackspace,
+    ValueChanged<PosCashDenomination>? onDenomination,
+    PosCashDenomination? selectedDenomination,
+    double tip = 0,
+    bool fill = false,
+    bool customAmount = false,
+    ValueChanged<PosSplitPayment>? onRefund,
+  }) {
+    return PosSplitSummaryPanel(
+      key: key,
+      grandTotal: state.grandTotal,
+      remaining: state.fullyPaid ? 0 : state.remaining,
+      paid: [
+        for (final PosSplitPayment p in state.payments)
+          PosSplitPaidRowData(
+            label: customAmount ? 'Guest ${p.seq}' : 'Payment ${p.seq}',
+            subtitle: p.paidWith == 'card'
+                ? 'Card payment successful'
+                : 'Cash payment successful',
+            amount: p.paidAmount,
+            onRefund: onRefund != null && p.refundable
+                ? () => onRefund(p)
+                : null,
+          ),
+      ],
+      subtitle: customAmount
+          ? 'Enter the amount this guest pays'
+          : 'One amount at a time, the remainder follows automatically',
+      entryLabel: customAmount
+          ? 'GUEST ${state.nextSequence} · CUSTOM AMOUNT'
+          : 'PAYMENT ${state.nextSequence}',
+      changeBaseCents:
+          posMoneyToCents(state.remaining, decimals: entry.decimals),
+      // 61 before any payment is taken (frames 05, 19), 48 after (09–12).
+      tipRowHeight: state.payments.isEmpty
+          ? PosPaymentSpec.tipSectionHeight
+          : PosPaymentSpec.v2SplitTipRowHeight,
+      entry: entry,
+      splitMethod: splitMethod,
+      onSplitMethod: onSplitMethod,
+      onKey: onKey,
+      onBackspace: onBackspace,
+      onDenomination: onDenomination,
+      selectedDenomination: selectedDenomination,
+      tip: tip,
+      fill: fill,
+    );
+  }
 
   /// `Column/Right` stroke: `#E8E3D5` at 1.5px.
   static const Color borderColor = PosPaymentSpec.v2OtherRowBorder;
@@ -81,36 +176,37 @@ class PosSplitSummaryPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool cash = splitMethod == PosPaymentMethod.cash;
-    final int remainingCents =
-        posMoneyToCents(state.remaining, decimals: entry.decimals);
     const double gap = PosPaymentSpec.v2SplitGap;
 
     final Widget body = Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
+      padding: const EdgeInsets.fromLTRB(
+        PosPaymentSpec.v2SplitPanePaddingH,
+        PosPaymentSpec.v2SplitPanePaddingTop,
+        PosPaymentSpec.v2SplitPanePaddingH,
+        PosPaymentSpec.v2SplitPanePaddingBottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           PosSplitSummaryHeader(
             title: 'SPLIT PAYMENT',
-            subtitle:
-                'One amount at a time, the remainder follows automatically',
-            total: state.grandTotal,
-            remaining: state.fullyPaid ? 0 : state.remaining,
+            subtitle: subtitle,
+            total: grandTotal,
+            remaining: remaining,
           ),
-          for (final PosSplitPayment p in state.payments) ...[
+          for (final PosSplitPaidRowData p in paid) ...[
             const SizedBox(height: gap),
             PosSplitPaidRow(
-              label: 'Payment ${p.seq}',
-              subtitle: p.paidWith == 'card'
-                  ? 'Card payment successful'
-                  : 'Cash payment successful',
-              amount: p.paidAmount,
+              label: p.label,
+              subtitle: p.subtitle,
+              amount: p.amount,
+              onRefund: p.onRefund,
             ),
           ],
           const SizedBox(height: gap),
           _EntryCard(
-            seq: state.nextSequence,
+            label: entryLabel,
             entry: entry,
             method: splitMethod,
             onMethod: onSplitMethod,
@@ -118,8 +214,8 @@ class PosSplitSummaryPanel extends StatelessWidget {
           if (cash && onDenomination != null) ...[
             const SizedBox(height: gap),
             PosPayChangeDueBanner(
-              cents: entry.cents - remainingCents,
-              covered: !entry.isEmpty && entry.cents >= remainingCents,
+              cents: entry.cents - changeBaseCents,
+              covered: !entry.isEmpty && entry.cents >= changeBaseCents,
             ),
             const SizedBox(height: gap),
             PosPayDenominationRow(
@@ -140,14 +236,75 @@ class PosSplitSummaryPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: gap),
-          // 61 / py-16 before any payment is taken (frame 05), 48 / py-8 once
-          // the list has rows (frames 09–12).
-          PosPayTipRow(
-            amount: tip,
-            onTap: null,
-            height: state.payments.isEmpty
-                ? PosPaymentSpec.tipSectionHeight
-                : PosPaymentSpec.v2SplitTipRowHeight,
+          PosPayTipRow(amount: tip, onTap: null, height: tipRowHeight),
+        ],
+      ),
+    );
+    return fill ? SingleChildScrollView(child: body) : body;
+  }
+}
+
+/// "Split by item" opens on this chooser — `Column/Right` of frame 13 (node
+/// **1915:11077**): By item or Custom amount, before any order is placed.
+///
+/// pt-24 px-20 pb-14, gap-12: the SPLIT PAYMENT summary (nothing paid yet, so
+/// Remaining is the whole total), "DIVIDE BETWEEN GUESTS" and the two p-16
+/// option rows. The screen's sticky bar ("Continue") commits the choice.
+class PosSplitChooserPanel extends StatelessWidget {
+  final double grandTotal;
+  final PosSplitChoice choice;
+  final ValueChanged<PosSplitChoice> onChoice;
+
+  /// True when the pane owns a bounded height (scrolls inside it).
+  final bool fill;
+
+  const PosSplitChooserPanel({
+    super.key,
+    required this.grandTotal,
+    required this.choice,
+    required this.onChoice,
+    this.fill = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const double gap = PosPaymentSpec.v2SplitItemGap;
+    const EdgeInsets optionPadding =
+        EdgeInsets.all(PosPaymentSpec.v2ChooserOptionPadding);
+    final Widget body = Padding(
+      padding: const EdgeInsets.fromLTRB(
+        PosPaymentSpec.v2SplitPanePaddingH,
+        PosPaymentSpec.v2SplitPanePaddingTop,
+        PosPaymentSpec.v2SplitPanePaddingH,
+        PosPaymentSpec.v2SplitPanePaddingBottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PosSplitSummaryHeader(
+            title: 'SPLIT PAYMENT',
+            subtitle: 'Choose how to divide between guests',
+            total: grandTotal,
+            remaining: grandTotal,
+          ),
+          const SizedBox(height: gap),
+          const PosPaySectionLabel('DIVIDE BETWEEN GUESTS'),
+          const SizedBox(height: gap),
+          PosPayOptionRow(
+            label: 'By item',
+            subtitle: 'Assign order items to each guest',
+            selected: choice == PosSplitChoice.byItem,
+            onTap: () => onChoice(PosSplitChoice.byItem),
+            padding: optionPadding,
+          ),
+          const SizedBox(height: gap),
+          PosPayOptionRow(
+            label: 'Custom amount',
+            subtitle: 'Enter any amount per guest',
+            selected: choice == PosSplitChoice.customAmount,
+            onTap: () => onChoice(PosSplitChoice.customAmount),
+            padding: optionPadding,
           ),
         ],
       ),
@@ -278,25 +435,36 @@ class PosSplitSummaryHeader extends StatelessWidget {
 
 // ── Paid payment row (node 1915:9775) ─────────────────────────────────────
 
-/// One payment already taken: dial-pad well, "Payment N" over its status, and
-/// the amount. 48 tall, pl-20 pr-8 py-8, gap-10.
+/// One payment already taken: dial-pad well, "Payment N" over its status, the
+/// amount and, for a refundable payment, the Refund pill. 48 tall, pl-20 pr-8
+/// py-8, gap-10.
 class PosSplitPaidRow extends StatelessWidget {
   final String label;
   final String subtitle;
   final double amount;
+
+  /// Starts the refund of this one payment. Null hides the pill — the row then
+  /// ends on the amount, as when a payment cannot be refunded.
+  final VoidCallback? onRefund;
 
   const PosSplitPaidRow({
     super.key,
     required this.label,
     required this.subtitle,
     required this.amount,
+    this.onRefund,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: PosPaymentSpec.v2SplitPaidRowHeight,
-      padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
+      padding: const EdgeInsets.fromLTRB(
+        PosPaymentSpec.v2PaidRowPaddingLeft,
+        PosPaymentSpec.v2PaidRowPaddingV,
+        PosPaymentSpec.v2PaidRowPaddingRight,
+        PosPaymentSpec.v2PaidRowPaddingV,
+      ),
       child: Row(
         children: [
           PosPaySectionIcon(
@@ -334,7 +502,50 @@ class PosSplitPaidRow extends StatelessWidget {
             PosHomeSpec.formatPrice(amount, padZero: false),
             style: loewBold.copyWith(fontSize: 14, color: PosHomeSpec.ink),
           ),
+          if (onRefund != null) ...[
+            const SizedBox(width: 10),
+            _RefundPill(onTap: onRefund!),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// `Actief` (node 1915:9783): black 85×24, r12, "Refund" Loew Bold 10
+/// `#F7F1DE`, centred.
+class _RefundPill extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _RefundPill({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosPaymentSpec.v2RefundPillRadius);
+    return Semantics(
+      button: true,
+      label: 'Refund',
+      child: Material(
+        color: Colors.black,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: SizedBox(
+            width: PosPaymentSpec.v2RefundPillWidth,
+            height: PosPaymentSpec.v2RefundPillHeight,
+            child: Center(
+              child: Text(
+                'Refund',
+                style: loewBold.copyWith(
+                  fontSize: PosPaymentSpec.v2RefundPillLabelSize,
+                  color: PosHomeSpec.pageBg, // #F7F1DE
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -343,13 +554,13 @@ class PosSplitPaidRow extends StatelessWidget {
 // ── Entry card ("Payment Card/Open", node 1915:10048) ─────────────────────
 
 class _EntryCard extends StatelessWidget {
-  final int seq;
+  final String label;
   final PosCashEntry entry;
   final PosPaymentMethod method;
   final ValueChanged<PosPaymentMethod> onMethod;
 
   const _EntryCard({
-    required this.seq,
+    required this.label,
     required this.entry,
     required this.method,
     required this.onMethod,
@@ -377,7 +588,9 @@ class _EntryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'PAYMENT $seq',
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: loewBold.copyWith(
                     fontSize: 10,
                     letterSpacing: PosPaymentSpec.v2SplitPaymentLabelTracking,

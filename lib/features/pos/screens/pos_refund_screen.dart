@@ -8,6 +8,7 @@ import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_option_row.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
@@ -477,7 +478,7 @@ class _ReasonPane extends StatelessWidget {
         title: 'REFUND REASON',
         options: [
           for (final PosRefundReason r in _shown)
-            _Option(
+            PosPayOptionRow(
               label: r.label,
               selected: current == r,
               onTap: () => s.reason.value = r,
@@ -501,14 +502,14 @@ class _MethodPane extends StatelessWidget {
       builder: (context, method, _) => _OptionColumn(
         title: 'REFUND METHOD',
         options: [
-          _Option(
+          PosPayOptionRow(
             label: 'Original payment',
             subtitle: original == 'card' ? 'Card' : 'Cash',
             selected: method == original,
             onTap: () => s.refundMethod.value = original,
           ),
           if (original != 'cash')
-            _Option(
+            PosPayOptionRow(
               label: 'Cash',
               subtitle: 'Pay out from the cash drawer',
               selected: method == 'cash',
@@ -533,7 +534,7 @@ class _SplitPane extends StatelessWidget {
         title: 'PAYMENT TO REFUND',
         options: [
           for (final PosRefundSplit split in s.splits)
-            _Option(
+            PosPayOptionRow(
               label: 'Payment ${split.seq}',
               subtitle:
                   '${split.method == 'card' ? 'Card' : 'Cash'} · ${PosHomeSpec.formatPrice(split.amount, padZero: false)}',
@@ -581,114 +582,9 @@ class _OptionColumn extends StatelessWidget {
   }
 }
 
-/// `option-*` (nodes 1915:11411 / 11515): px-16 py-14, r12; selected white with
-/// a 1.5px ink stroke, idle white with a 1px `#E8E3D6` stroke (strokes are in
-/// layout here — 55 / 54 tall). Loew Bold 15 over an optional Swiss 11 line,
-/// and a 24px radio.
-class _Option extends StatelessWidget {
-  final String label;
-  final String? subtitle;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _Option({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: PosHomeSpec.tileBg,
-          border: Border.all(
-            color: selected ? PosHomeSpec.ink : _rowBorder,
-            width: selected ? 1.5 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: loewBold.copyWith(fontSize: 15, color: PosHomeSpec.ink),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: swiss721Light.copyWith(
-                        fontSize: 11,
-                        height: PosPaymentSpec.figmaLeading(11),
-                        color: _labelInk,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            _OptionRadio(selected: selected),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 24px: an ink disc with a `#F0EBD9` r5 dot (node 1915:11414), or a 1.5px
-/// `#B9B5A6` ring (node 1915:11419).
-class _OptionRadio extends StatelessWidget {
-  final bool selected;
-
-  const _OptionRadio({required this.selected});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 24,
-      height: 24,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected ? PosHomeSpec.ink : null,
-        border: selected
-            ? null
-            : Border.all(color: PosHomeSpec.itemDivider, width: 1.5),
-      ),
-      child: selected
-          ? Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: _rowSelectedDot,
-              ),
-            )
-          : null,
-    );
-  }
-}
-
 const _labelInk = Color(0xFF78706E);
 const _noteInk = Color(0xFFA6A199);
 const _rowBorder = Color(0xFFE8E3D6);
-const _rowSelectedDot = Color(0xFFF0EBD9);
 const _summaryRowFill = Color(0xFFF0EBD9);
 
 // ── Right pane — the refund summary ──────────────────────────────────────────
@@ -753,10 +649,7 @@ class _RefundSummaryPane extends StatelessWidget {
               barLabel: 'Order total',
             ),
             const SizedBox(height: gap),
-            Text(
-              'ITEMS TO REFUND',
-              style: loewBold.copyWith(fontSize: 11, color: _labelInk),
-            ),
+            const PosPaySectionLabel('ITEMS TO REFUND'),
             for (final Widget item in items) ...[
               const SizedBox(height: gap),
               item,

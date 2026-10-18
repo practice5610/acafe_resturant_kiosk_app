@@ -13,6 +13,13 @@ class PosSplitByItemGroup {
   final double paidAmount;
   final String reference;
 
+  /// `order_split_groups.id` — what `refund/create` takes as `split_group_id`.
+  /// Null until the backend includes it in its snapshot (backend-needs B3).
+  final int? id;
+
+  /// `pending` until its payment is recorded, then `succeeded`.
+  final String status;
+
   const PosSplitByItemGroup({
     required this.seq,
     required this.itemIds,
@@ -20,19 +27,41 @@ class PosSplitByItemGroup {
     required this.paidWith,
     required this.paidAmount,
     required this.reference,
+    this.id,
+    this.status = 'succeeded',
   });
 
-  factory PosSplitByItemGroup.fromJson(Map<String, dynamic> json) =>
-      PosSplitByItemGroup(
-        seq: (json['seq'] as num).toInt(),
-        itemIds: List<int>.from((json['item_ids'] as List<dynamic>? ?? [])
-            .map((e) => (e as num).toInt())),
-        amount: (json['amount'] as num).toDouble(),
-        paidWith: (json['paid_with'] as String?) ?? '',
-        paidAmount: (json['paid_amount'] as num).toDouble(),
-        reference: (json['reference'] as String?) ?? '',
-      );
+  bool get isPaid => status == 'succeeded';
+
+  /// Can this group's payment be refunded from the payment screen?
+  bool get refundable => id != null && isPaid && paidAmount > 0;
+
+  /// The backend's group snapshot (`SplitByItemController::snapshot`) carries
+  /// `seq, amount, item_ids, paid_with, status, reference` — no `paid_amount`
+  /// (a recorded group is paid in full), and `create-groups` omits
+  /// `paid_with` / `reference`. Both shapes parse.
+  factory PosSplitByItemGroup.fromJson(Map<String, dynamic> json) {
+    final double amount = _num(json['amount']);
+    final String status = (json['status'] as String?) ?? 'succeeded';
+    return PosSplitByItemGroup(
+      seq: _num(json['seq']).toInt(),
+      itemIds: [
+        for (final dynamic e in (json['item_ids'] as List<dynamic>? ?? const []))
+          _num(e).toInt(),
+      ],
+      amount: amount,
+      paidWith: (json['paid_with'] as String?) ?? '',
+      paidAmount: json['paid_amount'] != null
+          ? _num(json['paid_amount'])
+          : (status == 'succeeded' ? amount : 0),
+      reference: (json['reference'] as String?) ?? '',
+      id: json['id'] == null ? null : _num(json['id']).toInt(),
+      status: status,
+    );
+  }
 }
+
+double _num(dynamic v) => v is num ? v.toDouble() : (double.tryParse('$v') ?? 0);
 
 /// Snapshot of a split-by-item order, updated after each recorded payment.
 ///
@@ -76,23 +105,47 @@ class PosSplitByItemState {
         fullyPaid: false,
       );
 
-  /// Parse the record/balance response body.
+  /// The first group still waiting for its payment, if any.
+  PosSplitByItemGroup? get pendingGroup {
+    for (final PosSplitByItemGroup g in groups) {
+      if (!g.isPaid) return g;
+    }
+    return null;
+  }
+
+  /// The groups already paid.
+  List<PosSplitByItemGroup> get paidGroups =>
+      [for (final g in groups) if (g.isPaid) g];
+
+  /// The next 1-based payment number shown to the operator.
+  int get nextPaymentNumber => paidGroups.length + 1;
+
+  /// Parse a record / balance / create-groups response body. `create-groups`
+  /// carries no `paid` / `remaining` / `fully_paid`; they are derived from its
+  /// groups then.
   factory PosSplitByItemState.fromJson(
     Map<String, dynamic> json, {
     required int deviceId,
   }) {
-    final List<PosSplitByItemGroup> groups =
-        (json['groups'] as List<dynamic>? ?? [])
-            .map((e) => PosSplitByItemGroup.fromJson(e as Map<String, dynamic>))
-            .toList();
+    final List<PosSplitByItemGroup> groups = [
+      for (final dynamic e in (json['groups'] as List<dynamic>? ?? const []))
+        if (e is Map) PosSplitByItemGroup.fromJson(Map<String, dynamic>.from(e)),
+    ];
+    final double grand = _num(json['grand_total']);
+    final double paid = json['paid'] != null
+        ? _num(json['paid'])
+        : groups.where((g) => g.isPaid).fold(0.0, (a, g) => a + g.amount);
+    final double remaining = json['remaining'] != null
+        ? _num(json['remaining'])
+        : (grand - paid < 0 ? 0 : grand - paid);
     return PosSplitByItemState(
-      orderId: (json['order_id'] as num).toInt(),
+      orderId: _num(json['order_id']).toInt(),
       deviceId: deviceId,
-      grandTotal: (json['grand_total'] as num).toDouble(),
+      grandTotal: grand,
       groups: groups,
-      paid: (json['paid'] as num).toDouble(),
-      remaining: (json['remaining'] as num).toDouble(),
-      fullyPaid: json['fully_paid'] as bool? ?? false,
+      paid: paid,
+      remaining: remaining,
+      fullyPaid: json['fully_paid'] as bool? ?? (remaining <= 0 && grand > 0),
     );
   }
 }

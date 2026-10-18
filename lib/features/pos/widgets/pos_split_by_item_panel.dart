@@ -3,6 +3,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_model.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_option_row.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
@@ -41,11 +42,25 @@ class PosSplitByItemPanel extends StatelessWidget {
 
   /// Kept for callers; the screen's sticky bar owns the start action.
   final VoidCallback onStartPayment;
-  final VoidCallback onAddTip;
+
+  /// The order is placed before the first item is picked, tip included, so
+  /// the tip row is informational here (as on the split-by-payment pane):
+  /// null leaves it inert.
+  final VoidCallback? onAddTip;
+  final double tip;
+
+  /// What this payment charges for a pick — the screen's rule (the remaining
+  /// group is settled as a whole and carries any tip / discount). Defaults to
+  /// the picked items' sum.
+  final double Function(PosSplitByItemGroupBuilder pick)? amountOf;
 
   /// Groups recorded so far. Paid ones are listed as payment rows, and their
   /// items show as inert "Paid" rows (frame 16).
   final List<PosSplitByItemGroup> groups;
+
+  /// Opens the refund of one paid group; only groups that can be refunded
+  /// ([PosSplitByItemGroup.refundable]) get the Refund pill.
+  final ValueChanged<PosSplitByItemGroup>? onRefund;
 
   const PosSplitByItemPanel({
     super.key,
@@ -58,8 +73,11 @@ class PosSplitByItemPanel extends StatelessWidget {
     required this.onToggleItem,
     required this.onPaymentMethodChanged,
     required this.onStartPayment,
-    required this.onAddTip,
+    this.onAddTip,
+    this.tip = 0,
+    this.amountOf,
     this.groups = const [],
+    this.onRefund,
   });
 
   /// Frames 14 / 16 lay three rows straight into the pane; frames 20 / 21 put
@@ -78,7 +96,8 @@ class PosSplitByItemPanel extends StatelessWidget {
     return ValueListenableBuilder<PosSplitByItemGroupBuilder>(
       valueListenable: groupBuilder,
       builder: (context, builder, _) {
-        final double selectedAmount = builder.calculateAmount(lineItems);
+        final double selectedAmount =
+            amountOf?.call(builder) ?? builder.calculateAmount(lineItems);
         final double after = remaining - selectedAmount;
 
         Widget row(PosSplitByItemLineItem item) => _ItemRow(
@@ -109,10 +128,13 @@ class PosSplitByItemPanel extends StatelessWidget {
                       ? 'Card payment successful'
                       : 'Cash payment successful',
                   amount: g.paidAmount,
+                  onRefund: onRefund != null && g.refundable
+                      ? () => onRefund!(g)
+                      : null,
                 ),
               ],
               const SizedBox(height: gap),
-              _SectionLabel(
+              PosPaySectionLabel(
                 scrolling
                     ? 'SELECT ITEMS FOR PAYMENT $groupSeq'
                         ' · ${builder.selectedItemIds.length} OF ${lineItems.length}'
@@ -143,7 +165,7 @@ class PosSplitByItemPanel extends StatelessWidget {
                   row(item),
                 ],
               const SizedBox(height: gap),
-              const _SectionLabel('PAY WITH'),
+              const PosPaySectionLabel('PAY WITH'),
               const SizedBox(height: gap),
               PosPayWithRow(
                 method: paymentMethod,
@@ -163,30 +185,11 @@ class PosSplitByItemPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: gap),
-              PosPayTipRow(onTap: onAddTip),
+              PosPayTipRow(amount: tip, onTap: onAddTip),
             ],
           ),
         );
       },
-    );
-  }
-}
-
-// ── Section label ─────────────────────────────────────────────────────────────
-
-/// "SELECT ITEMS FOR PAYMENT N" / "PAY WITH" — Loew Bold 11, `#78706E`.
-class _SectionLabel extends StatelessWidget {
-  final String text;
-
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: loewBold.copyWith(fontSize: 11, color: _labelInk),
     );
   }
 }

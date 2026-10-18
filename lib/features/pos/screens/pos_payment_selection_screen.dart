@@ -19,6 +19,7 @@ import 'package:acafe_customer/features/pos/domain/pos_payment_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_settings_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_line_copy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_menu_actions.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_print.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
@@ -157,6 +158,24 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   /// Card idempotency key for the current group. Stable across retries.
   String? _splitByItemCardKey;
+
+  /// Frame 13: "Split by item" opens a chooser — By item or Custom amount —
+  /// before any order is placed. True while it is on screen.
+  bool _splitChooser = false;
+
+  /// The chooser's pick; By item is the frame's default.
+  PosSplitChoice _splitChoice = PosSplitChoice.byItem;
+
+  /// The split-by-payment session was started from the chooser's "Custom
+  /// amount" (frame 19): same saving path, guest wording, and the OTHER
+  /// group shows "Split by item" as the active row.
+  bool _splitCustom = false;
+
+  /// Frame 15: the cash step of a split-by-item payment. Non-null while the
+  /// operator keys the tender for the picked items; the payment itself is
+  /// still recorded at the group's amount.
+  PosCashEntry? _sbiTender;
+  PosCashDenomination? _sbiDenomination;
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Invoice (Family 4) ───────────────────────────────────────────────────
@@ -346,7 +365,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// Enters split-by-payment mode: places the order upfront at [grandTotal],
   /// then initializes split session and enters split entry UI. Async because
   /// order placement is async.
-  Future<void> _startSplit(double grandTotal) async {
+  ///
+  /// [custom] = started from the split chooser's "Custom amount" (frame 19):
+  /// the same split-payment saving path, worded per guest.
+  Future<void> _startSplit(double grandTotal, {bool custom = false}) async {
     if (_split.active) return;
 
     // Place the order upfront via the normal flow (grand total, cash_on_delivery,
@@ -372,7 +394,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
 
     try {
-      final KioskPlaceResult placed = await placeKioskOrder(
+      final KioskPlaceResult placed = await posPlaceOrder(
         context,
         amount: amount,
         tipAmountOverride: tip > 0 ? tip : null,
@@ -394,6 +416,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       setState(() {
         _splitMethod = PosPaymentMethod.card;
         _splitEntry = _splitEntry.withCents(0);
+        _splitDenomination = null;
+        _splitCustom = custom;
+        _splitChooser = false;
       });
       _split.start(
         orderId: int.tryParse((placed.orderId ?? '').trim()) ?? 0,
@@ -563,6 +588,23 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
   }
 
+  /// What the current split will pay, in cents, or null when it cannot be
+  /// taken. Card: the keyed amount, which must not exceed what is still owed
+  /// (the backend rejects an over-payment). Cash: the tender, capped at what
+  /// is still owed — the excess is the change the banner shows, not part of
+  /// the payment. Zero / nothing keyed is never valid.
+  int? _splitAppliedCents() {
+    final PosSplitState? state = _split.value;
+    if (state == null || _splitEntry.cents <= 0) return null;
+    final int remaining =
+        posMoneyToCents(state.remaining, decimals: _splitEntry.decimals);
+    if (remaining <= 0) return null;
+    if (_splitMethod == PosPaymentMethod.cash) {
+      return _splitEntry.cents < remaining ? _splitEntry.cents : remaining;
+    }
+    return _splitEntry.cents > remaining ? null : _splitEntry.cents;
+  }
+
   /// Process a split: charge the amount (card or cash), then POST record.
   /// If success: update PosSplitSession, loop back to entry with decremented
   /// remaining. If decline: show retry option. If fully_paid: show final success.
@@ -571,8 +613,8 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     if (_split.value == null) return;
 
     final PosSplitState state = _split.value!;
-    final int amountCents = _splitEntry.cents;
-    if (amountCents <= 0) return;
+    final int? amountCents = _splitAppliedCents();
+    if (amountCents == null) return;
 
     final double amountEur = posCentsToMoney(amountCents, decimals: _splitEntry.decimals);
     final String reference = 'pos-split-${state.orderId}-${state.nextSequence}';
@@ -758,6 +800,83 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     }
   }
 
+  // ── Split chooser (frame 13) ─────────────────────────────────────────────
+
+  /// "Split by item" in the OTHER group: show the chooser. Nothing is placed
+  /// until Continue.
+  void _openSplitChooser() {
+    _cancelActiveOther();
+    setState(() {
+      _splitChooser = true;
+      _splitChoice = PosSplitChoice.byItem;
+    });
+  }
+
+  /// Continue on the chooser: By item → the item picker (frame 14), Custom
+  /// amount → the per-guest amount entry (frame 19). Both place the order
+  /// first, exactly as before; the chooser stays up if that fails.
+  Future<void> _continueSplitChooser(double grandTotal) async {
+    if (_confirming) return;
+    if (_splitChoice == PosSplitChoice.byItem) {
+      await _startSplitByItem(grandTotal);
+    } else {
+      await _startSplit(grandTotal, custom: true);
+    }
+  }
+
+  // ── Split by item → cash (frame 15) ──────────────────────────────────────
+
+  /// "Start Payment N" on Cash: open the tender step for the picked items.
+  /// Nothing is sent until the tender covers the amount due.
+  void _startSbiCash(List<PosSplitByItemLineItem> items) {
+    final double? charge = _sbiCharge(items);
+    if (charge == null) return;
+    final int due = posMoneyToCents(charge, decimals: _cash.decimals);
+    setState(() {
+      // Exact, like a plain cash sale (see _selectMethod).
+      _sbiTender = PosCashEntry(decimals: _cash.decimals).withCents(due);
+      _sbiDenomination = const PosCashDenomination.exact();
+    });
+  }
+
+  void _onSbiKey(String token) {
+    final PosCashEntry? tender = _sbiTender;
+    if (tender == null) return;
+    setState(() {
+      _sbiTender = tender.key(token);
+      _sbiDenomination = null;
+    });
+  }
+
+  void _onSbiBackspace() {
+    final PosCashEntry? tender = _sbiTender;
+    if (tender == null) return;
+    setState(() {
+      _sbiTender = tender.backspace();
+      _sbiDenomination = null;
+    });
+  }
+
+  void _onSbiDenomination(PosCashDenomination d, int dueCents) {
+    final PosCashEntry? tender = _sbiTender;
+    if (tender == null) return;
+    setState(() {
+      _sbiTender = tender.withCents(d.exact ? dueCents : d.cents!);
+      _sbiDenomination = d;
+    });
+  }
+
+  /// The segmented control on frame 15: Card leaves the tender step for the
+  /// item picker, on Card.
+  void _onSbiMethod(PosPaymentMethod method) {
+    if (method == PosPaymentMethod.cash) return;
+    setState(() {
+      _sbiTender = null;
+      _sbiDenomination = null;
+      _splitByItemMethod = PosPaymentMethod.card;
+    });
+  }
+
   // ── Split-by-item (Family 3) ─────────────────────────────────────────────
 
   /// Entry point: operator taps "Split by item" in the OTHER row.
@@ -778,7 +897,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
 
     try {
-      final KioskPlaceResult placed = await placeKioskOrder(
+      final KioskPlaceResult placed = await posPlaceOrder(
         context,
         amount: amount,
         tipAmountOverride: _tip.value > 0 ? _tip.value : null,
@@ -794,6 +913,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         return;
       }
 
+      setState(() {
+        _splitChooser = false;
+        _splitByItemMethod = PosPaymentMethod.card;
+        _sbiTender = null;
+        _sbiDenomination = null;
+      });
       _splitByItemGroups.nextGroup(1);
       _splitByItem.start(
         orderId: int.tryParse((placed.orderId ?? '').trim()) ?? 0,
@@ -813,36 +938,69 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     for (int i = 0; i < lines.length; i++) {
       final CartModel? line = lines[i];
       if (line == null) continue;
-      final double unitPrice = line.discountedPrice ?? 0;
       final int qty = line.quantity ?? 1;
       result.add(PosSplitByItemLineItem(
         id: i,
         name: line.product?.name ?? 'Item ${i + 1}',
-        variant: line.variation?.isNotEmpty == true
-            ? (line.variation!.first.name ?? '')
-            : '',
-        price: unitPrice * qty,
+        // The chosen Cup / Can, as frame 14 writes it ("Cup").
+        variant: posReceiptUnit(line) ?? '',
+        // What the receipt charges for the line: unit price incl. paid
+        // add-ons, times quantity.
+        price: double.parse((kioskLineUnitPrice(line) * qty).toStringAsFixed(2)),
       ));
     }
     return result;
   }
 
-  /// Called by the panel's "Start Payment N" button.
+  /// What a split-by-item payment charges for the current pick, or null when
+  /// the pick cannot be paid.
+  ///
+  /// The backend (`SplitByItemController::createGroups`) takes the whole split
+  /// in one call — groups that sum to the order total — and a second call
+  /// would delete the groups already paid. So the first payment defines two
+  /// groups, the picked items and the rest; the next payment settles the rest
+  /// as a whole. A pick of every remaining item charges what is still owed
+  /// (which also carries any tip or discount on the order).
+  double? _sbiCharge(List<PosSplitByItemLineItem> items) {
+    final PosSplitByItemState? state = _splitByItem.value;
+    if (state == null) return null;
+    final Set<int> picked = _splitByItemGroups.value.selectedItemIds;
+    if (picked.isEmpty) return null;
+    final PosSplitByItemGroup? pending = state.pendingGroup;
+    if (pending != null) {
+      return picked.length == pending.itemIds.length &&
+              pending.itemIds.every(picked.contains)
+          ? pending.amount
+          : null;
+    }
+    final Set<int> paidIds = {for (final g in state.paidGroups) ...g.itemIds};
+    final bool everything = items
+        .where((i) => !paidIds.contains(i.id))
+        .every((i) => picked.contains(i.id));
+    if (everything) return state.remaining;
+    final double amount = _splitByItemGroups.value.calculateAmount(items);
+    return amount > 0 && amount < state.remaining ? amount : null;
+  }
+
+  /// Called by the sticky bar's "Start Payment N" (card) or, on cash, by
+  /// "Confirm Payment" after the tender step (frame 15).
   Future<void> _startSplitByItemPayment(
       List<PosSplitByItemLineItem> items) async {
     if (_splitByItemLoading) return;
     final PosSplitByItemState? state = _splitByItem.value;
     if (state == null) return;
 
-    final double amount =
-        _splitByItemGroups.value.calculateAmount(items);
-    if (amount <= 0) {
-      showCustomSnackBarHelper('Select at least one item', isError: true);
+    final double? charge = _sbiCharge(items);
+    if (charge == null) {
+      showCustomSnackBarHelper(
+        state.pendingGroup == null
+            ? 'Select at least one item'
+            : 'Pay the remaining items together',
+        isError: true,
+      );
       return;
     }
-
-    final int groupSeq = state.nextSequence;
-    final String reference = 'pos-sbi-${state.orderId}-$groupSeq';
+    final Set<int> picked = _splitByItemGroups.value.selectedItemIds;
 
     setState(() {
       _splitByItemLoading = true;
@@ -850,38 +1008,61 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
 
     try {
-      // 1. Create the group on the backend.
       final PosSplitByItemRepo repo = di.sl<PosSplitByItemRepo>();
-      final ApiResponseModel createResp = await repo.createGroups(
-        orderId: state.orderId,
-        deviceId: state.deviceId,
-        groups: [
-          {
-            'item_ids': _splitByItemGroups.value.selectedItemIds.toList(),
-            'amount': amount,
-          }
-        ],
-      );
-      if (!mounted) return;
+      PosSplitByItemGroup? group = state.pendingGroup;
 
-      if (!createResp.isSuccess) {
-        showCustomSnackBarHelper(
-          'Group creation failed: ${createResp.error}',
-          isError: true,
+      // 1. First payment: define the split on the backend (the pick, and the
+      //    rest as one group) — once per order.
+      if (group == null) {
+        final List<int> rest = [
+          for (final i in items)
+            if (!picked.contains(i.id)) i.id,
+        ];
+        final double restAmount =
+            double.parse((state.grandTotal - charge).toStringAsFixed(2));
+        final ApiResponseModel createResp = await repo.createGroups(
+          orderId: state.orderId,
+          deviceId: state.deviceId,
+          groups: [
+            {'item_ids': picked.toList()..sort(), 'amount': charge},
+            if (rest.isNotEmpty && restAmount > 0)
+              {'item_ids': rest, 'amount': restAmount},
+          ],
         );
-        setState(() {
-          _splitByItemLoading = false;
-          _phase = null;
-        });
-        return;
-      }
+        if (!mounted) return;
 
-      final PosSplitByItemState createdState = PosSplitByItemState.fromJson(
-        Map<String, dynamic>.from(createResp.response.data as Map),
-        deviceId: state.deviceId,
-      );
-      _splitByItem.update(createdState);
+        if (!createResp.isSuccess) {
+          showCustomSnackBarHelper(
+            'Group creation failed: ${createResp.error}',
+            isError: true,
+          );
+          setState(() {
+            _splitByItemLoading = false;
+            _phase = null;
+          });
+          return;
+        }
+
+        final PosSplitByItemState createdState = PosSplitByItemState.fromJson(
+          Map<String, dynamic>.from(createResp.response!.data as Map),
+          deviceId: state.deviceId,
+        );
+        _splitByItem.update(createdState);
+        group = createdState.pendingGroup;
+        if (group == null) {
+          setState(() {
+            _splitByItemLoading = false;
+            _phase = null;
+          });
+          showCustomSnackBarHelper('Group creation failed', isError: true);
+          return;
+        }
+      }
+      if (!mounted) return;
       setState(() => _phase = null);
+      final int groupSeq = group.seq;
+      final double amount = group.amount;
+      final String reference = 'pos-sbi-${state.orderId}-$groupSeq';
 
       // 2. Card charge (skipped for cash).
       String? transactionRef;
@@ -935,7 +1116,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       }
 
       final PosSplitByItemState updatedState = PosSplitByItemState.fromJson(
-        Map<String, dynamic>.from(recordResp.response.data as Map),
+        Map<String, dynamic>.from(recordResp.response!.data as Map),
         deviceId: state.deviceId,
       );
       _splitByItem.update(updatedState);
@@ -943,6 +1124,8 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       setState(() {
         _splitByItemLoading = false;
         _splitByItemCardKey = null;
+        _sbiTender = null;
+        _sbiDenomination = null;
       });
 
       _showSplitByItemSuccessCard(updatedState);
@@ -992,14 +1175,20 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     _showSuccessCard((dialogContext) {
       if (!state.fullyPaid) {
         // No frame draws this intermediate state; it uses frame 08's card.
+        final List<PosSplitByItemGroup> paid = state.paidGroups;
         return PosPaymentSuccessCard(
-          title: 'Split Payment ${state.groups.length} Successful',
-          amount: state.groups.isEmpty ? 0 : state.groups.last.paidAmount,
+          title: 'Split Payment ${paid.length} Successful',
+          amount: paid.isEmpty ? 0 : paid.last.paidAmount,
           buttonLabel: 'Start next payment',
           onContinue: () {
             Navigator.pop(dialogContext);
             setState(() {
-              _splitByItemGroups.nextGroup(state.nextSequence);
+              _splitByItemGroups.nextGroup(state.nextPaymentNumber);
+              // The next payment settles the remaining group: its items
+              // come ticked (frame 16).
+              for (final int id in state.pendingGroup?.itemIds ?? const []) {
+                _splitByItemGroups.toggleItem(id);
+              }
               _splitByItemMethod = PosPaymentMethod.card;
             });
           },
@@ -1065,7 +1254,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
 
     try {
-      final KioskPlaceResult placed = await placeKioskOrder(
+      final KioskPlaceResult placed = await posPlaceOrder(
         context,
         amount: grandTotal,
         tipAmountOverride: _tip.value > 0 ? _tip.value : null,
@@ -1204,7 +1393,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     });
 
     try {
-      final KioskPlaceResult placed = await placeKioskOrder(
+      final KioskPlaceResult placed = await posPlaceOrder(
         context,
         amount: grandTotal,
         tipAmountOverride: _tip.value > 0 ? _tip.value : null,
@@ -1378,12 +1567,21 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       setState(() => _changeOther = null);
       return;
     }
+    if (_splitChooser) {
+      setState(() => _splitChooser = false);
+      return;
+    }
     if (_split.value != null) {
       _split.clear();
+      setState(() => _splitCustom = false);
       return;
     }
     if (_splitByItem.value != null) {
       _splitByItem.clear();
+      setState(() {
+        _sbiTender = null;
+        _sbiDenomination = null;
+      });
       return;
     }
     if (_invoiceActive) {
@@ -1801,6 +1999,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                             _cancelActiveOther();
                                             _startSplit(grandTotal);
                                           },
+                                    splitCustom: _splitCustom,
+                                    splitChooser: _splitChooser,
+                                    splitChoice: _splitChoice,
+                                    onSplitChoice: (c) =>
+                                        setState(() => _splitChoice = c),
                                     onSplitConfirm: _splittingPayment
                                         ? null
                                         : _recordSplit,
@@ -1812,12 +2015,26 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     splitByItemLineItems: sbiItems,
                                     onSplitByItem: _change != null || inSplitByItem
                                         ? null
-                                        : () {
-                                            _cancelActiveOther();
-                                            _startSplitByItem(grandTotal);
-                                          },
+                                        : _openSplitChooser,
                                     onSplitByItemMethod: (m) =>
                                         setState(() => _splitByItemMethod = m),
+                                    sbiAmountOf: (_) =>
+                                        _sbiCharge(sbiItems) ??
+                                        _splitByItemGroups.value
+                                            .calculateAmount(sbiItems),
+                                    sbiTender: _sbiTender,
+                                    sbiDenomination: _sbiDenomination,
+                                    sbiCharge: _sbiCharge(sbiItems),
+                                    sbiPickedNames: [
+                                      for (final i in sbiItems)
+                                        if (_splitByItemGroups.value
+                                            .isSelected(i.id))
+                                          i.name,
+                                    ],
+                                    onSbiKey: _onSbiKey,
+                                    onSbiBackspace: _onSbiBackspace,
+                                    onSbiDenomination: _onSbiDenomination,
+                                    onSbiMethod: _onSbiMethod,
                                     onSplitByItemStartPayment:
                                         _splitByItemLoading
                                             ? null
@@ -1896,21 +2113,41 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                         : _submitStandalone,
                                   );
                                 }
-                                // Frames 05 / 09–12: the split pane is
-                                // confirmed from this bar.
+                                // Frame 13: the chooser commits from this bar.
+                                if (_splitChooser) {
+                                  return PosPayPillBar(
+                                    label: 'Continue',
+                                    loading: _confirming,
+                                    onConfirm: _confirming
+                                        ? null
+                                        : () =>
+                                            _continueSplitChooser(grandTotal),
+                                  );
+                                }
+                                // Frames 05 / 09–12 ("Start Payment N") and
+                                // 19 ("Start Payment N · € X"): the split
+                                // pane is confirmed from this bar, live only
+                                // for an amount the backend will take.
                                 if (splitState != null) {
+                                  final int? applied = _splitAppliedCents();
+                                  final String amount = applied == null
+                                      ? ''
+                                      : ' · ${PosHomeSpec.formatPrice(posCentsToMoney(applied, decimals: _splitEntry.decimals), padZero: false)}';
                                   return PosPayPillBar(
                                     label:
-                                        'Start Payment ${splitState.nextSequence}',
+                                        'Start Payment ${splitState.nextSequence}'
+                                        '${_splitCustom ? amount : ''}',
                                     loading: _splittingPayment,
-                                    onConfirm: _splittingPayment
+                                    onConfirm: _splittingPayment ||
+                                            applied == null
                                         ? null
                                         : _recordSplit,
                                   );
                                 }
                                 // Frames 14 / 16 / 20 / 21: "Start Payment N
                                 // · € X" from this bar, live with the
-                                // selection.
+                                // selection; frame 15: "Confirm Payment · €
+                                // X" once the cash tender covers it.
                                 if (sbiState != null) {
                                   final List<PosSplitByItemLineItem> items =
                                       _buildLineItemsFromCart(lines);
@@ -1918,17 +2155,41 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                       PosSplitByItemGroupBuilder>(
                                     valueListenable: _splitByItemGroups,
                                     builder: (context, builder, _) {
-                                      final double amount =
-                                          builder.calculateAmount(items);
+                                      final double? charge = _sbiCharge(items);
+                                      final String due = PosHomeSpec.formatPrice(
+                                          charge ??
+                                              builder.calculateAmount(items),
+                                          padZero: false);
+                                      final PosCashEntry? tender = _sbiTender;
+                                      if (tender != null) {
+                                        final bool covers = charge != null &&
+                                            tender.cents >=
+                                                posMoneyToCents(charge,
+                                                    decimals: tender.decimals);
+                                        return PosPayPillBar(
+                                          label: 'Confirm Payment · $due',
+                                          loading: _splitByItemLoading,
+                                          onConfirm: covers &&
+                                                  !_splitByItemLoading
+                                              ? () =>
+                                                  _startSplitByItemPayment(
+                                                      items)
+                                              : null,
+                                        );
+                                      }
+                                      final bool cash = _splitByItemMethod ==
+                                          PosPaymentMethod.cash;
                                       return PosPayPillBar(
                                         label:
-                                            'Start Payment ${sbiState.nextSequence}'
-                                            ' · ${PosHomeSpec.formatPrice(amount, padZero: false)}',
+                                            'Start Payment ${sbiState.nextPaymentNumber}'
+                                            ' · $due',
                                         loading: _splitByItemLoading,
-                                        onConfirm: amount > 0 &&
+                                        onConfirm: charge != null &&
                                                 !_splitByItemLoading
-                                            ? () =>
-                                                _startSplitByItemPayment(items)
+                                            ? () => cash
+                                                ? _startSbiCash(items)
+                                                : _startSplitByItemPayment(
+                                                    items)
                                             : null,
                                       );
                                     },
@@ -2033,6 +2294,14 @@ class _Content extends StatelessWidget {
   final VoidCallback? onSplitConfirm;
   final bool splitLoading;
 
+  /// The split was started from the chooser's Custom amount (frame 19).
+  final bool splitCustom;
+
+  /// Frame 13's chooser is on screen, with [splitChoice] picked.
+  final bool splitChooser;
+  final PosSplitChoice splitChoice;
+  final ValueChanged<PosSplitChoice> onSplitChoice;
+
   // Split-by-item (Family 3) parameters.
   final bool inSplitByItem;
   final PosSplitByItemState? splitByItemState;
@@ -2042,6 +2311,19 @@ class _Content extends StatelessWidget {
   final VoidCallback? onSplitByItem;
   final ValueChanged<PosPaymentMethod> onSplitByItemMethod;
   final VoidCallback? onSplitByItemStartPayment;
+  final double Function(PosSplitByItemGroupBuilder pick) sbiAmountOf;
+
+  /// Frame 15: the cash tender for the picked items; null = item picker.
+  final PosCashEntry? sbiTender;
+  final PosCashDenomination? sbiDenomination;
+
+  /// What the current pick charges; null when it cannot be paid.
+  final double? sbiCharge;
+  final List<String> sbiPickedNames;
+  final ValueChanged<String> onSbiKey;
+  final VoidCallback onSbiBackspace;
+  final void Function(PosCashDenomination d, int dueCents) onSbiDenomination;
+  final ValueChanged<PosPaymentMethod> onSbiMethod;
 
   // Invoice (Family 4) parameters.
   final bool invoiceActive;
@@ -2109,6 +2391,10 @@ class _Content extends StatelessWidget {
     required this.onSplitByPayment,
     required this.onSplitConfirm,
     required this.splitLoading,
+    required this.splitCustom,
+    required this.splitChooser,
+    required this.splitChoice,
+    required this.onSplitChoice,
     required this.inSplitByItem,
     required this.splitByItemState,
     required this.splitByItemGroups,
@@ -2117,6 +2403,15 @@ class _Content extends StatelessWidget {
     required this.onSplitByItem,
     required this.onSplitByItemMethod,
     required this.onSplitByItemStartPayment,
+    required this.sbiAmountOf,
+    required this.sbiTender,
+    required this.sbiDenomination,
+    required this.sbiCharge,
+    required this.sbiPickedNames,
+    required this.onSbiKey,
+    required this.onSbiBackspace,
+    required this.onSbiDenomination,
+    required this.onSbiMethod,
     required this.invoiceActive,
     this.changeOther,
     required this.invoiceForm,
@@ -2158,9 +2453,12 @@ class _Content extends StatelessWidget {
       cardEnabled: cardEnabled,
       onSelectMethod: onSelectMethod,
       onSplitByPayment: onSplitByPayment,
-      splitActive: inSplit,
+      // A custom-amount split is saved as split by payment, but the operator
+      // reached it through "Split by item" (frames 13 / 19).
+      splitActive: inSplit && !splitCustom,
       onSplitByItem: onSplitByItem,
-      splitByItemActive: inSplitByItem,
+      splitByItemActive:
+          inSplitByItem || splitChooser || (inSplit && splitCustom),
       onInvoice: onInvoice,
       invoiceActive: invoiceActive || changeOther == 'invoice',
       onStandalone: onStandalone,
@@ -2229,23 +2527,78 @@ class _Content extends StatelessWidget {
       );
     }
 
+    // Frame 13: By item or Custom amount, before anything is placed.
+    if (splitChooser) {
+      return PosPayCard(
+        borderColor: PosSplitSummaryPanel.borderColor,
+        borderWidth: PosSplitSummaryPanel.borderWidth,
+        child: PosSplitChooserPanel(
+          grandTotal: total,
+          choice: splitChoice,
+          onChoice: onSplitChoice,
+          fill: fill,
+        ),
+      );
+    }
+
     // Split-by-item mode (Family 3): item checklist + Card/Cash + Start Payment.
     if (inSplitByItem && splitByItemState != null) {
+      final PosSplitByItemState sbi = splitByItemState!;
+      final PosCashEntry? tender = sbiTender;
+      final double? charge = sbiCharge;
+      // Frame 15: the cash tender for the picked items.
+      if (tender != null && charge != null) {
+        final int due = posMoneyToCents(charge, decimals: tender.decimals);
+        return PosPayCard(
+          borderColor: PosSplitSummaryPanel.borderColor,
+          borderWidth: PosSplitSummaryPanel.borderWidth,
+          child: PosSplitSummaryPanel(
+            grandTotal: sbi.grandTotal,
+            remaining: sbi.fullyPaid ? 0 : sbi.remaining,
+            paid: [
+              for (final PosSplitByItemGroup g in sbi.paidGroups)
+                PosSplitPaidRowData(
+                  label: 'Payment ${g.seq}',
+                  subtitle: g.paidWith == 'card'
+                      ? 'Card payment successful'
+                      : 'Cash payment successful',
+                  amount: g.paidAmount,
+                ),
+            ],
+            subtitle: 'By item · ${sbiPickedNames.join(', ')}',
+            entryLabel: 'PAYMENT ${sbi.nextPaymentNumber} · AMOUNT DUE '
+                '${PosHomeSpec.formatPrice(charge, padZero: false)}',
+            changeBaseCents: due,
+            tipRowHeight: PosPaymentSpec.v2SplitTipRowHeight,
+            entry: tender,
+            splitMethod: PosPaymentMethod.cash,
+            onSplitMethod: onSbiMethod,
+            onKey: onSbiKey,
+            onBackspace: onSbiBackspace,
+            onDenomination: (d) => onSbiDenomination(d, due),
+            selectedDenomination: sbiDenomination,
+            tip: tip,
+            fill: fill,
+          ),
+        );
+      }
       return PosPayCard(
         borderColor: PosSplitSummaryPanel.borderColor,
         borderWidth: PosSplitSummaryPanel.borderWidth,
         child: PosSplitByItemPanel(
-          groups: splitByItemState!.groups,
-          groupSeq: splitByItemState!.nextSequence,
-          grandTotal: splitByItemState!.grandTotal,
-          remaining: splitByItemState!.remaining,
+          groups: sbi.groups,
+          groupSeq: sbi.nextPaymentNumber,
+          grandTotal: sbi.grandTotal,
+          remaining: sbi.remaining,
           lineItems: splitByItemLineItems,
           groupBuilder: splitByItemGroups,
           paymentMethod: splitByItemMethod,
           onToggleItem: (id) => splitByItemGroups.toggleItem(id),
           onPaymentMethodChanged: onSplitByItemMethod,
           onStartPayment: onSplitByItemStartPayment ?? () {},
-          onAddTip: onTip ?? () {},
+          // The order (tip included) is already placed: informational.
+          tip: tip,
+          amountOf: sbiAmountOf,
         ),
       );
     }
@@ -2255,20 +2608,18 @@ class _Content extends StatelessWidget {
       return PosPayCard(
         borderColor: PosSplitSummaryPanel.borderColor,
         borderWidth: PosSplitSummaryPanel.borderWidth,
-        child: PosSplitSummaryPanel(
+        child: PosSplitSummaryPanel.forPayments(
           state: splitState!,
           entry: splitEntry,
           splitMethod: splitMethod,
           onSplitMethod: onSplitMethod,
           onKey: onSplitKey,
           onBackspace: onSplitBackspace,
-          onClear: onSplitClear,
           onDenomination: onSplitDenomination,
           selectedDenomination: splitDenomination,
           tip: tip,
-          onConfirm: onSplitConfirm,
-          loading: splitLoading,
           fill: fill,
+          customAmount: splitCustom,
         ),
       );
     }

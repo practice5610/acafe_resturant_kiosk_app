@@ -309,6 +309,12 @@ class PosPayChangeDueBanner extends StatelessWidget {
             : PosHomeSpec.inkAlpha(0.03),
         borderRadius:
             BorderRadius.circular(PosPaymentSpec.changeBannerRadius), // 12
+      ),
+      // Figma strokes inside the box: the 1px line must not push the text
+      // in (node 1915:11904 — "Change Due" sits 16 from the edge).
+      foregroundDecoration: BoxDecoration(
+        borderRadius:
+            BorderRadius.circular(PosPaymentSpec.changeBannerRadius),
         border: Border.all(
           color: covered ? PosHomeSpec.discountGreen : PosHomeSpec.hairline,
           width: PosPaymentSpec.changeBannerBorder, // 1

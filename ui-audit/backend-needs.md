@@ -71,3 +71,19 @@ short. Needed: subtract succeeded refunds (by `partial_payment_id` / `split_grou
 - **Card last four** (frames 26: "Card •••• 4242"): no card data is stored anywhere (`order_partial_payments`,
   `orders`). Needs the terminal's masked PAN / last four persisted with the payment and returned on
   `transactions/{id}` (e.g. `card_last4`). The app shows "Card •••• nnnn" only when that field is present.
+
+## B6 — Split by item: one split definition per order (blocks 3+ payers)
+
+`SplitByItemController::createGroups()` requires the posted groups to sum to `order_amount` (±1 cent, lines 87–91)
+and deletes every existing group of the order first (line 94). A payer-by-payer flow (frame 14 → 16 → …) cannot
+add a group per payment, and re-calling after a payment would delete the paid group.
+
+The app now defines the split once at the first payment: the picked items, and the rest as a single group, which the
+next payment settles whole. To let each guest pick their own items one payment at a time, the backend needs one of:
+
+1. `POST split-by-item/add-group {order_id, item_ids, amount}` that appends a group while
+   Σ(groups) ≤ `order_amount` and rejects item ids already in a group; or
+2. allow `create-groups` to keep `succeeded` groups (only replace `pending` ones) and validate
+   Σ(succeeded + posted) = `order_amount`.
+
+Either way, the snapshot should also return each group's `id` (B3).

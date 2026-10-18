@@ -422,6 +422,26 @@ class PosPaymentSpec {
   /// A tile with nothing to do (no handler) is drawn at this opacity — distinct
   /// from both idle and selected. The frames draw no disabled tile.
   static const double v2TileDisabledOpacity = 0.4;
+
+  // ── Option rows (split chooser 1915:11090, refund options 1915:11411) ──
+  static const double v2OptionRadius = 12;
+  static const double v2OptionPaddingH = 16;
+  static const double v2OptionPaddingV = 14; // refund options; chooser is p-16
+  static const double v2ChooserOptionPadding = 16;
+  static const Color v2OptionIdleBorder = Color(0xFFE8E3D6);
+  static const double v2OptionIdleBorderWidth = 1;
+  static const double v2OptionSelectedBorderWidth = 1.5;
+  static const double v2OptionLabelSize = 15; // Loew Bold
+  static const double v2OptionSubtitleSize = 11; // Swiss
+  static const Color v2OptionSubtitleInk = Color(0xFF78706E);
+  static const double v2OptionTextGap = 3;
+  static const double v2OptionGap = 12; // text column → radio
+  static const double v2OptionRadioSize = 24;
+  static const double v2OptionRadioDot = 10; // r5
+  static const Color v2OptionRadioDotColor = Color(0xFFF0EBD9);
+  /// Section captions in the split / refund panes (node 1915:11089).
+  static const double v2SectionLabelSize = 11; // Loew Bold
+  static const Color v2SectionLabelInk = Color(0xFF78706E);
   static const double v2OtherRowPaddingH = 12;
   static const double v2OtherRowPaddingV = 10;
   static const double v2OtherRowInnerGap = 6; // top row -> label
@@ -574,8 +594,19 @@ class PosPaymentSpec {
 
   /// Split panes (`Column/Right`, node 1915:10034): gap-8 between sections.
   static const double v2SplitGap = 8;
+  static const double v2SplitPanePaddingH = 20;
+  static const double v2SplitPanePaddingTop = 24;
+  static const double v2SplitPanePaddingBottom = 14;
   /// A payment already taken (node 1915:9775): 48 tall, pl-20 pr-8 py-8.
   static const double v2SplitPaidRowHeight = 48;
+  static const double v2PaidRowPaddingLeft = 20;
+  static const double v2PaidRowPaddingRight = 8;
+  static const double v2PaidRowPaddingV = 8;
+  /// The paid row's Refund pill (node 1915:9783).
+  static const double v2RefundPillWidth = 85;
+  static const double v2RefundPillHeight = 24;
+  static const double v2RefundPillRadius = 12;
+  static const double v2RefundPillLabelSize = 10;
   /// The tip row once payments are listed (node 1915:9765): 48 tall, py-8.
   static const double v2SplitTipRowHeight = 48;
   /// "Payment Card/Open" (node 1915:10048).

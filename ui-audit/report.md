@@ -248,9 +248,9 @@ Verified on render (frames 14 & 16): labels 189 / 249, row text 229.5 / 289 / 38
 
 | # | Element | Figma value | Code value | Sev | Status |
 |---|---|---|---|---|---|
-| 1 | Frame 13 | After "Split by item", a chooser: **By item** / **Custom amount** | Tapping "Split by item" goes straight to item selection | High | **Not implemented — new flow, needs decision (D9)** |
-| 2 | Frame 19 | "Custom amount" per guest with keypad | No such mode (closest is "Split by payment") | High | **Not implemented (D9)** |
-| 3 | Frame 15 | Cash entry for a split-by-item payment (tender field, change, denominations, keypad) | Cash split-by-item records the group amount directly, no tender step | High | **Not implemented (D9)** — needs a tender step in the split-by-item money path |
+| 1 | Frame 13 | After "Split by item", a chooser: **By item** / **Custom amount** | Tapping "Split by item" goes straight to item selection | High | **Built in round 2 (R2a)** |
+| 2 | Frame 19 | "Custom amount" per guest with keypad | No such mode (closest is "Split by payment") | High | **Built in round 2 (R2a)** |
+| 3 | Frame 15 | Cash entry for a split-by-item payment (tender field, change, denominations, keypad) | Cash split-by-item records the group amount directly, no tender step | High | **Built in round 2 (R2a)** |
 
 ## 18a / 18b Order paid – Receipt options (1915:13024 · 13077)
 
@@ -402,3 +402,39 @@ item 01-#5 → **Fixed**.
 
 States covered: default, selected, pressed, disabled (all tiles); loading = the sticky bar's spinner and the dimmed
 PRIMARY while an OTHER order is being placed; error = snackbar / status cards (unchanged).
+
+## R2a — Frames 13, 15, 19: the split chooser, custom amount, split-by-item cash
+
+**Flow now:** OTHER → *Split by item* → **frame 13** chooser (nothing placed yet; "Continue") →
+*By item* → item picker (14) → PAY WITH Card → terminal → success, or PAY WITH Cash → **frame 15** tender step →
+"Confirm Payment · € X" → success; *Custom amount* → **frame 19** per-guest amount → Card / Cash → success. Every path
+ends on 08 ("Start next payment") or 18 ("Order Paid" → Receipt / Next order).
+
+**How payments are saved — unchanged.** Custom amount is the existing split-by-payment path (`PosSplitRepo.record`,
+same references, same idempotency key handling), only worded per guest. Split by item still uses
+`PosSplitByItemRepo.createGroups` + `recordPayment`; what changed is *what* is sent so the backend accepts it (bug
+N2 below). The cash step records the group's amount, never the tender.
+
+| # | Part | Figma | Built | Verified |
+|---|---|---|---|---|
+| 1 | Chooser pane (13) | header "Choose how to divide between guests", Remaining = total, DIVIDE BETWEEN GUESTS, two p-16 option rows (selected 1.5 ink, idle 1 `#E8E3D6`, radio 24), gap 12, bar "Continue" | `PosSplitChooserPanel` (in `pos_split_summary_panel.dart`) on the shared `PosPayOptionRow` (now also the refund screen's option rows) | text rects = Figma: SPLIT PAYMENT 902,91 · subtitle 109 · total 128 · DIVIDE 224 · By item 919.5,266.5 · Custom amount 919,347 · subtitles 287.5 / 368 |
+| 2 | OTHER group while chooser / sbi / custom split is up | "Split by item" active, PRIMARY off | selector flags; custom split shows *Split by item* (not *Split by payment*) active | goldens 13, 15, 19 |
+| 3 | Custom amount (19) | "Enter the amount this guest pays", "GUEST N · CUSTOM AMOUNT", bar "Start Payment N · € X" | `PosSplitSummaryPanel.forPayments(customAmount: true)`; paid rows "Guest N" | GUEST label 914,232 · key "1" 961.9,314.5 · Add tip 956,662 = Figma |
+| 4 | Custom amount validation | — | bar live only for an amount the backend takes: > 0, ≤ remaining on card (cash: tender capped at remaining, the excess is change); decimals capped at the currency's precision (3rd decimal ignored); amount formatted by `PosHomeSpec.formatPrice` | flow test "validates: no zero, no overpay, currency decimals" |
+| 5 | Sbi cash step (15) | "By item · names", "PAYMENT N · AMOUNT DUE € X", Change Due, €5…Exact, keypad, 48px tip, bar "Confirm Payment · € X" | data-driven `PosSplitSummaryPanel`; opens on Exact; bar live once the tender covers the amount; Card on its toggle returns to the picker | label 914,232 · Change Due 918,299.5 · € 5 928.4,347 · key 961.9,408.5 · Add tip 956,749.5 = Figma; flow test "cash (frame 15)" |
+| 6 | Bar amount on the picker | "Start Payment N · € X" | the amount actually charged (`_sbiCharge`), not just the ticked sum | flow tests |
+
+**New bugs found and fixed (all pre-existing):**
+
+| # | Bug | Fix | Verified |
+|---|---|---|---|
+| N1 | Split by payment, Cash: a tender above what is still owed was *recorded* (e.g. € 50 on € 19) → backend 422 "exceeds remaining" — a cash split could never be overpaid with change | the recorded amount is min(tender, remaining); the bar is off for a card amount above the remaining or for zero | flow tests "cash over-tender records only what is owed", "card above the remaining is blocked" |
+| N2 | **Split by item never worked against the backend.** Each payment called `create-groups` with only its own group; the controller requires the groups to sum to the order total (422 otherwise) and deletes existing groups on every call | first payment defines the whole split once: the pick + the rest as one group; later payment settles that group; a retry after a decline does not re-create; picking everything = one group = the total | flow tests (create payload asserted against a fake with the controller's validation) |
+| N3 | Parsing the real responses crashed: group snapshots have no `paid_amount`, `create-groups` has no `paid / remaining / fully_paid` (`null as num`) | tolerant `fromJson` (paid amount = amount once `succeeded`; totals derived) | same flow tests use the controller's exact shapes |
+| N4 | Split-by-item line prices ignored paid add-ons (used the base price) and the variant column showed the variation name | line = `kioskLineUnitPrice × qty` (what the receipt charges); variant = the Cup / Can like frame 14 | goldens 14 / 16 |
+| N5 | Split-by-item tip row opened the tip dialog *after* the order (tip included) was placed — the new tip never reached the order but changed the totals on screen | informational row with the placed tip, as on the split-by-payment pane | code + golden 14 |
+| N6 | Change Due banner: 1px layout border pushed text in (919 vs Figma 918; 915 vs 914 on frame 02) | inside stroke (`foregroundDecoration`) on the shared `PosPayChangeDueBanner` | rects 918 / 914; goldens 02, 10, 15, stress_cash updated (diff = banner only) |
+
+**Not done / limits:** a split by item with **three or more** payers cannot be expressed: the backend accepts one
+split definition per order (B6). Payment 2 therefore pays all remaining items together; the bar stays off for a
+partial pick of the remaining group.

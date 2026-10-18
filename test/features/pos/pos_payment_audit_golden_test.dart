@@ -5,11 +5,13 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
+import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
@@ -48,6 +50,7 @@ import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -146,6 +149,7 @@ Future<CartProvider> pumpPaymentApp(
   Widget Function(SharedPreferences prefs) home, {
   Size? size,
   List<CartModel>? lines,
+  bool routed = false,
 }) async {
   size ??= auditSize;
   tester.view.physicalSize = size;
@@ -182,6 +186,12 @@ Future<CartProvider> pumpPaymentApp(
           ),
         ),
         ChangeNotifierProvider<CartProvider>.value(value: cart),
+        // The cart's storage key reads the branch (clearing it after a sale).
+        ChangeNotifierProvider<BranchProvider>(
+          create: (_) => BranchProvider(
+            splashRepo: SplashRepo(dioClient: dio, sharedPreferences: prefs),
+          ),
+        ),
         ChangeNotifierProvider<CouponProvider>(
           create: (_) => CouponProvider(couponRepo: null),
         ),
@@ -195,13 +205,38 @@ Future<CartProvider> pumpPaymentApp(
       child: MediaQuery(
         data: MediaQueryData(size: size),
         child: PosShell(
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            // The production theme, so inherited text styles match the app.
-            theme: light,
-            navigatorKey: navigatorKey,
-            home: home(prefs),
-          ),
+          child: routed
+              // Flow tests: the screen leaves with `context.go`, so it runs
+              // under a router whose other destinations are named stubs.
+              ? MaterialApp.router(
+                  debugShowCheckedModeBanner: false,
+                  theme: light,
+                  routerConfig: GoRouter(
+                    navigatorKey: navigatorKey,
+                    initialLocation: '/pay',
+                    routes: [
+                      GoRoute(path: '/pay', builder: (_, __) => home(prefs)),
+                      for (final String stub in [
+                        PosRoutes.home,
+                        PosRoutes.receipts,
+                        PosRoutes.refund,
+                      ])
+                        GoRoute(
+                          path: stub,
+                          builder: (_, __) =>
+                              Scaffold(body: Text('ROUTE $stub')),
+                        ),
+                    ],
+                  ),
+                )
+              : MaterialApp(
+                  debugShowCheckedModeBanner: false,
+                  // The production theme, so inherited text styles match the
+                  // app.
+                  theme: light,
+                  navigatorKey: navigatorKey,
+                  home: home(prefs),
+                ),
         ),
       ),
     ),
@@ -216,6 +251,7 @@ Future<void> pumpPaymentScreen(
   Size? size,
   List<CartModel>? lines,
   PosPaymentMethod method = PosPaymentMethod.card,
+  bool routed = false,
 }) async {
   PosSaleSession.instance.customerName.text = 'Dylan';
   PosSaleSession.instance.paymentMethod = method;
@@ -224,6 +260,7 @@ Future<void> pumpPaymentScreen(
     (prefs) => PosPaymentSelectionScreen(sharedPreferences: prefs),
     size: size,
     lines: lines,
+    routed: routed,
   );
 }
 
@@ -364,6 +401,50 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
   '12_split_p4': (t) => _splitFrame(t,
       paid: const [(9.0, 'card'), (5.0, 'card'), (2.0, 'card')],
       typed: '3.00'),
+  '13_split_chooser': (t) => pumpComposedFrame(
+        t,
+        splitByItemActive: true,
+        summary: (fill) => PosPayCard(
+          borderColor: PosSplitSummaryPanel.borderColor,
+          borderWidth: PosSplitSummaryPanel.borderWidth,
+          child: PosSplitChooserPanel(
+            grandTotal: 19,
+            choice: PosSplitChoice.byItem,
+            onChoice: (_) {},
+            fill: fill,
+          ),
+        ),
+        bar: PosPayPillBar(label: 'Continue', onConfirm: () {}),
+      ),
+  '15_sbi_cash': (t) => pumpComposedFrame(
+        t,
+        splitByItemActive: true,
+        summary: (fill) => PosPayCard(
+          borderColor: PosSplitSummaryPanel.borderColor,
+          borderWidth: PosSplitSummaryPanel.borderWidth,
+          child: PosSplitSummaryPanel(
+            grandTotal: 19,
+            remaining: 19,
+            paid: const [],
+            subtitle: 'By item · Oat Milk Matcha, Vanilla Matcha Latte',
+            entryLabel: 'PAYMENT 1 · AMOUNT DUE € 12.00',
+            changeBaseCents: 1200,
+            tipRowHeight: PosPaymentSpec.v2SplitTipRowHeight,
+            entry: const PosCashEntry().key('2').key('0'),
+            splitMethod: PosPaymentMethod.cash,
+            onSplitMethod: (_) {},
+            onKey: (_) {},
+            onBackspace: () {},
+            onDenomination: (_) {},
+            selectedDenomination: const PosCashDenomination.note(2000),
+            fill: fill,
+          ),
+        ),
+        bar: PosPayPillBar(
+            label: 'Confirm Payment · € 12.00', onConfirm: () {}),
+      ),
+  '19_split_custom': (t) =>
+      _splitFrame(t, paid: const [], typed: '8,50', custom: true),
   '14_sbi_select': (t) => _sbiFrame(t,
       items: _sbiTicket,
       selected: {0, 1},
@@ -476,7 +557,6 @@ Future<void> _sbiFrame(
         onToggleItem: (_) {},
         onPaymentMethodChanged: (_) {},
         onStartPayment: () {},
-        onAddTip: () {},
         groups: [if (paid != null) paid],
       ),
     ),
@@ -686,6 +766,7 @@ Future<void> _splitFrame(
   required String typed,
   bool cash = false,
   PosCashDenomination? denomination,
+  bool custom = false,
 }) async {
   final double paidSum = paid.fold(0.0, (a, p) => a + p.$1);
   final state = PosSplitState(
@@ -711,25 +792,28 @@ Future<void> _splitFrame(
   }
   await pumpComposedFrame(
     tester,
-    splitActive: true,
+    splitActive: !custom,
+    splitByItemActive: custom,
     summary: (fill) => PosPayCard(
       borderColor: PosSplitSummaryPanel.borderColor,
       borderWidth: PosSplitSummaryPanel.borderWidth,
-      child: PosSplitSummaryPanel(
+      child: PosSplitSummaryPanel.forPayments(
         state: state,
         entry: entry,
         splitMethod: cash ? PosPaymentMethod.cash : PosPaymentMethod.card,
         onSplitMethod: (_) {},
         onKey: (_) {},
         onBackspace: () {},
-        onClear: () {},
         onDenomination: (_) {},
         selectedDenomination: denomination,
         fill: fill,
+        customAmount: custom,
       ),
     ),
     bar: PosPayPillBar(
-        label: 'Start Payment ${state.nextSequence}', onConfirm: () {}),
+        label: 'Start Payment ${state.nextSequence}'
+            '${custom && entry.cents > 0 ? ' · ${PosHomeSpec.formatPrice(entry.cents / 100, padZero: false)}' : ''}',
+        onConfirm: () {}),
   );
 }
 

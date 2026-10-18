@@ -133,7 +133,7 @@ Future<PosCheckoutResult> posConfirmPayment(
   }
 
   onPhase?.call(PosCheckoutPhase.placingOrder);
-  final KioskPlaceResult placed = await placeKioskOrder(
+  final KioskPlaceResult placed = await posPlaceOrder(
     context,
     amount: amount,
     paymentRef: paymentRef,
@@ -160,6 +160,38 @@ Future<PosCheckoutResult> posConfirmPayment(
 
   return PosCheckoutResult(PosCheckoutStatus.placed, orderId: placed.orderId);
 }
+
+/// Signature of the order post the POS payment flows make.
+typedef PosPlaceOrderFn = Future<KioskPlaceResult> Function(
+  BuildContext context, {
+  required double amount,
+  String? paymentRef,
+  double? bringChangeAmount,
+  double? tipAmountOverride,
+});
+
+/// Test seam for the order post. Null in production, where [posPlaceOrder] is
+/// exactly [placeKioskOrder]; widget tests set it to walk the payment flows
+/// without the order / auth / branch providers and the network.
+@visibleForTesting
+PosPlaceOrderFn? debugPosPlaceOrder;
+
+/// The single order post of every POS payment flow (card, cash, split, split
+/// by item, invoice, stand-alone): [placeKioskOrder], unchanged.
+Future<KioskPlaceResult> posPlaceOrder(
+  BuildContext context, {
+  required double amount,
+  String? paymentRef,
+  double? bringChangeAmount,
+  double? tipAmountOverride,
+}) =>
+    (debugPosPlaceOrder ?? placeKioskOrder)(
+      context,
+      amount: amount,
+      paymentRef: paymentRef,
+      bringChangeAmount: bringChangeAmount,
+      tipAmountOverride: tipAmountOverride,
+    );
 
 /// Asks the terminal to abandon the payment in flight.
 ///

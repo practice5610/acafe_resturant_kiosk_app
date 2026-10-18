@@ -21,15 +21,15 @@ Shared chrome on every in-flow frame: `back-btn-row` (h67) · `content-area`
 | 10 | Split by payment – Payment 2 cash, change due | 1915:9677 | `pos_split_summary_panel.dart` (+ `PosPayChangeDueBanner` / `PosPayDenominationRow`) | Implemented (change due + denominations added) |
 | 11 | Split by payment – Payment 3 card | 1915:10493 | `pos_split_summary_panel.dart` | Implemented |
 | 12 | Split by payment – Payment 4 card (final) | 1915:10714 | `pos_split_summary_panel.dart` | Implemented |
-| 13 | Split by item – Choose how to split | 1915:10945 | — | **Not implemented** (D9) |
+| 13 | Split by item – Choose how to split | 1915:10945 | `widgets/pos_split_summary_panel.dart` (`PosSplitChooserPanel`) | Implemented (round 2) |
 | 14 | Split by item – Select items | 1915:11101 | `widgets/pos_split_by_item_panel.dart` | Implemented |
-| 15 | Split by item – Payment 1 cash entry | 1915:11795 | — | **Not implemented** (D9) |
+| 15 | Split by item – Payment 1 cash entry | 1915:11795 | `pos_split_summary_panel.dart` (data-driven `PosSplitSummaryPanel`) | Implemented (round 2) |
 | 16 | Split by item – Payment 1 paid, Payment 2 card | 1915:12010 | `pos_split_by_item_panel.dart` | Implemented |
 | 17 | Split by item – Payment 2 waiting for card | 1915:12207 | `PosWaitingCard` | Implemented |
 | 18 | Split by item – Order paid | 1915:12225 | `pos_payment_success_card.dart` via `_showSplitByItemSuccessCard` / `_showSinglePaymentSuccessCard` | Implemented |
 | 18a | Order paid, Receipt options (Email) | 1915:13024 | `widgets/pos_receipt_dialog.dart` | Implemented |
 | 18b | Order paid, Receipt options (Print) | 1915:13077 | `widgets/pos_receipt_dialog.dart` | Implemented |
-| 19 | Split by item – Custom amount | 1915:12240 | — | **Not implemented** (D9) |
+| 19 | Split by item – Custom amount | 1915:12240 | `pos_split_summary_panel.dart` (`.forPayments(customAmount: true)`) | Implemented (round 2) |
 | 20 | Split by item – 6 items (scrolling list) | 1915:12475 | `pos_split_by_item_panel.dart` | Implemented |
 | 21 | Split by item – 10 items with variants | 1915:12705 | `pos_split_by_item_panel.dart` | Implemented |
 | 22 | Error – Card terminal offline | 1915:11287 | `widgets/pos_payment_error_card.dart` | Render-only (not wired) |

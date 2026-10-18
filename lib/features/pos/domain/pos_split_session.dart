@@ -11,12 +11,25 @@ class PosSplitPayment {
   final double paidAmount;
   final String reference;
 
+  /// `order_partial_payments.id` — what `refund/create` takes as
+  /// `partial_payment_id`. Null until the backend includes it in its
+  /// snapshot (backend-needs B3).
+  final int? id;
+
+  /// `succeeded` for a recorded payment.
+  final String status;
+
   const PosSplitPayment({
     required this.seq,
     required this.paidWith,
     required this.paidAmount,
     required this.reference,
+    this.id,
+    this.status = 'succeeded',
   });
+
+  /// Can this payment be refunded from the payment screen?
+  bool get refundable => id != null && status == 'succeeded' && paidAmount > 0;
 
   factory PosSplitPayment.fromJson(Map<String, dynamic> json) =>
       PosSplitPayment(
@@ -24,6 +37,8 @@ class PosSplitPayment {
         paidWith: (json['paid_with'] as String?) ?? '',
         paidAmount: (json['paid_amount'] as num).toDouble(),
         reference: (json['reference'] as String?) ?? '',
+        id: (json['id'] as num?)?.toInt(),
+        status: (json['status'] as String?) ?? 'succeeded',
       );
 }
 
