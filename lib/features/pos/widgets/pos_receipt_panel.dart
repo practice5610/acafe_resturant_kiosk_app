@@ -268,6 +268,11 @@ class PosReceiptCustomerInfo extends StatelessWidget {
   /// `customer-info` (Figma 1915:9361) is `py-16`, so it passes 16.
   final double paddingTop;
 
+  /// Paint the field's 1.5px border inside the box, as the payment layer's
+  /// `name-input` does (node 1915:9364: text 14px from the edge). Off by
+  /// default, so the counter screen and Receipts keep today's field.
+  final bool insideStroke;
+
   const PosReceiptCustomerInfo({
     super.key,
     required this.nameController,
@@ -275,6 +280,7 @@ class PosReceiptCustomerInfo extends StatelessWidget {
     this.showBottomHairline = true,
     this.readOnly = false,
     this.paddingTop = 0,
+    this.insideStroke = false,
   });
 
   @override
@@ -297,6 +303,7 @@ class PosReceiptCustomerInfo extends StatelessWidget {
             child: _NameTrigger(
               controller: nameController,
               readOnly: readOnly,
+              insideStroke: insideStroke,
             ),
           ),
           if (showBottomHairline)
@@ -322,8 +329,13 @@ class PosReceiptCustomerInfo extends StatelessWidget {
 class _NameTrigger extends StatelessWidget {
   final TextEditingController controller;
   final bool readOnly;
+  final bool insideStroke;
 
-  const _NameTrigger({required this.controller, required this.readOnly});
+  const _NameTrigger({
+    required this.controller,
+    required this.readOnly,
+    this.insideStroke = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -347,18 +359,20 @@ class _NameTrigger extends StatelessWidget {
           valueListenable: controller,
           builder: (context, value, _) {
             final bool hasName = value.text.trim().isNotEmpty;
+            final BoxDecoration border = BoxDecoration(
+              borderRadius: BorderRadius.circular(PosHomeSpec.fieldRadius),
+              border: Border.all(
+                color: PosHomeSpec.ink,
+                width: PosHomeSpec.fieldBorder,
+              ),
+            );
             final Widget field = Container(
               height: PosHomeSpec.fieldInputHeight,
               width: double.infinity,
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(PosHomeSpec.fieldRadius),
-                border: Border.all(
-                  color: PosHomeSpec.ink,
-                  width: PosHomeSpec.fieldBorder,
-                ),
-              ),
+              decoration: insideStroke ? null : border,
+              foregroundDecoration: insideStroke ? border : null,
               child: Text(
                 hasName ? value.text : 'Enter customer name',
                 maxLines: 1,

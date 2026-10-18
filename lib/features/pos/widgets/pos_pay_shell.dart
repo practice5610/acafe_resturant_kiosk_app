@@ -480,8 +480,9 @@ class PosPayReceiptCard extends StatelessWidget {
             nameController: customerNameController,
             tableController: tableController,
             showBottomHairline: false,
-            // `customer-info` (1915:9361) is py-16.
+            // `customer-info` (1915:9361) is py-16; inside-stroke field.
             paddingTop: PosPaymentSpec.v2CustomerInfoPaddingTop,
+            insideStroke: true,
           ),
           const PosReceiptOrderListLabel(),
           if (fill) Expanded(child: list) else list,

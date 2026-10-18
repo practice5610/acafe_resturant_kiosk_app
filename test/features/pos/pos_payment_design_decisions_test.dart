@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,4 +55,41 @@ void main() {
       expect(pill, lessThan(next));
     });
   }
+
+  group('R4: customer-name field stroke', () {
+    Future<double> textInset(WidgetTester tester, {required bool inside}) async {
+      final name = TextEditingController(text: 'Dylan');
+      final table = TextEditingController();
+      addTearDown(name.dispose);
+      addTearDown(table.dispose);
+      await pumpPaymentApp(
+        tester,
+        (_) => Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 440,
+              child: PosReceiptCustomerInfo(
+                nameController: name,
+                tableController: table,
+                insideStroke: inside,
+              ),
+            ),
+          ),
+        ),
+      );
+      return tester.getTopLeft(find.text('Dylan')).dx;
+    }
+
+    testWidgets('payment screens: text 14px inside the field (Figma)',
+        (tester) async {
+      // 24 pane padding + 14 field padding.
+      expect(await textInset(tester, inside: true), 38);
+    });
+
+    testWidgets('default (Receipts / counter): unchanged, +1.5 border',
+        (tester) async {
+      expect(await textInset(tester, inside: false), 39.5);
+    });
+  });
 }

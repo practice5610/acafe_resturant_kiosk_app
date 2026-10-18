@@ -445,6 +445,7 @@ class _RefundReceiptCard extends StatelessWidget {
             readOnly: true,
             showBottomHairline: false,
             paddingTop: PosPaymentSpec.v2CustomerInfoPaddingTop,
+            insideStroke: true,
           ),
           const PosReceiptOrderListLabel(),
           if (fill) Expanded(child: list) else list,

@@ -378,3 +378,12 @@ refunded" message (tested).
 | DD4 | 18a/18b list Next order above Receipt; 18 / 28 the reverse | Receipt (outline) above Next order (filled) on every success screen, incl. the cards behind 18a / 18b and the refund success card | `PosPaymentSuccessCard(secondaryLabel:)` | test DD4 on 18, 18a, 18b; refund card in R8 |
 
 These supersede decisions D2, D5 and the 18a/18b note in round 1.
+
+## R4 — Customer-name 1.5px offset
+
+`PosReceiptCustomerInfo` (in `widgets/pos_receipt_panel.dart`, not one of the other session's files) gained
+`insideStroke` (default `false`). The payment screens (`PosPayReceiptCard`) and the refund screen pass `true`, so the
+1.5px border no longer insets the text: "Dylan" now starts at x 70 = Figma 32 + 24 + 14. The Receipts panel
+(`pos_receipt_detail_panel.dart`, untouched) and the counter screen use the default and render exactly as before.
+Verified by `pos_payment_design_decisions_test.dart` (R4: 38 vs 39.5 inside a 440 pane) and the audit render. Round 1
+item 01-#5 → **Fixed**.
