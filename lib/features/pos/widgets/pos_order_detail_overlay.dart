@@ -866,8 +866,19 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
                 : const SizedBox.shrink(),
           ),
           const SizedBox(height: PosOrderDetailSpec.progressGap),
-          for (final PosOrderDetailItem item in detail.items)
-            _liveItemRow(item),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final bool stacked =
+                  _stackItemRows(context, detail, constraints.maxWidth);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final PosOrderDetailItem item in detail.items)
+                    _liveItemRow(item, stacked),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -877,7 +888,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
   ///
   /// A line the server could not address (no id) still renders -- it simply
   /// shows its status and offers no action, rather than disappearing.
-  Widget _liveItemRow(PosOrderDetailItem item) {
+  Widget _liveItemRow(PosOrderDetailItem item, bool stacked) {
     final int? id = item.id;
     final _ItemCell? cell = id == null ? null : _cells[id];
 
@@ -888,6 +899,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
         busy: false,
         enabled: false,
         onAction: null,
+        stacked: stacked,
       );
     }
 
@@ -905,11 +917,75 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
               busy: busy,
               enabled: !orderBusy && !_locked,
               onAction: (target) => _setItemStatus(id!, target),
+              stacked: stacked,
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// Whether this order's item rows put their pill and action on a line of
+  /// their own, decided once for the whole order so its rows never mix.
+  ///
+  /// Side by side only while every item's name keeps a readable width next to
+  /// the widest pill any of them can show — in any status, so a row moving
+  /// from Pending to Preparing never re-flows — and an action button. A
+  /// phone-width window always stacks.
+  bool _stackItemRows(
+    BuildContext context,
+    PosOrderDetail detail,
+    double width,
+  ) {
+    // No rows, nothing to decide — and nothing below may be read: the image
+    // toggle's provider is only guaranteed where rows are drawn.
+    if (detail.items.isEmpty) return false;
+    if (width < PosOrderDetailSpec.itemRowStackBelowWidth) return true;
+
+    double widestPill = 0;
+    for (final PosOrderDetailItem item in detail.items) {
+      for (final PrepStatus status in PrepStatus.values) {
+        final double pill = _pillWidth(context, item.station, status);
+        if (pill > widestPill) widestPill = pill;
+      }
+    }
+
+    final bool images = context.watch<KioskAuthProvider>().showImages;
+    final double leading = PosOrderDetailSpec.itemAccentWidth +
+        PosOrderDetailSpec.itemRowGap +
+        (images
+            ? PosOrderDetailSpec.itemThumbWidth + PosOrderDetailSpec.itemRowGap
+            : 0);
+    final double trailing = PosOrderDetailSpec.itemStatusGap +
+        widestPill +
+        PosOrderDetailSpec.itemStatusGap +
+        PosOrderDetailSpec.itemActionMinWidth;
+    final double name =
+        width - PosOrderDetailSpec.itemRowPadH * 2 - leading - trailing;
+
+    return name < PosOrderDetailSpec.itemNameMinWidth;
+  }
+
+  /// A status pill's laid-out width, measured with its own text style.
+  static double _pillWidth(
+    BuildContext context,
+    String? station,
+    PrepStatus status,
+  ) {
+    final TextPainter painter = TextPainter(
+      text: TextSpan(
+        text: posStationLabel(station, status),
+        style: loewExtraBold.copyWith(
+          fontSize: PosOrderDetailSpec.itemPillTextSize,
+        ),
+      ),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final double width = painter.width + PosOrderDetailSpec.itemPillPadH * 2;
+    painter.dispose();
+    return width;
   }
 
   Widget _actionBar() {
@@ -1344,12 +1420,17 @@ class _ItemRow extends StatelessWidget {
   final bool enabled;
   final void Function(PrepStatus target)? onAction;
 
+  /// Pill and action on their own line under the text (decided per order by
+  /// the overlay's `_stackItemRows`).
+  final bool stacked;
+
   const _ItemRow({
     required this.item,
     required this.status,
     required this.busy,
     required this.enabled,
     required this.onAction,
+    required this.stacked,
   });
 
   /// `€ 4.50 · Cup` — the variation labels Figma appends after the price. A
@@ -1396,13 +1477,8 @@ class _ItemRow extends StatelessWidget {
           bottom: BorderSide(color: PosOrderDetailSpec.itemDivider),
         ),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Too narrow for text, pill and action side by side (a phone-width
-          // window): the pill and the action drop onto their own line rather
-          // than squeezing the item's name to nothing.
-          final bool stack =
-              constraints.maxWidth < PosOrderDetailSpec.itemRowStackBelowWidth;
+      child: Builder(
+        builder: (context) {
           final Widget chip =
               PosItemStatusChip(status: status, station: item.station);
           final Widget? button = action != null && onAction != null
@@ -1563,7 +1639,7 @@ class _ItemRow extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (!stack) ...[
+                      if (!stacked) ...[
                         const SizedBox(width: PosOrderDetailSpec.itemStatusGap),
                         Center(child: chip),
                         if (button != null) ...[
@@ -1575,7 +1651,7 @@ class _ItemRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (stack)
+                if (stacked)
                   Padding(
                     padding: const EdgeInsets.only(
                       top: PosOrderDetailSpec.itemDetailGap * 2,
@@ -1586,7 +1662,12 @@ class _ItemRow extends StatelessWidget {
                       spacing: PosOrderDetailSpec.itemStatusGap,
                       runSpacing: PosOrderDetailSpec.itemDetailGap * 2,
                       crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [chip, if (button != null) button],
+                      // IntrinsicWidth: inside a Wrap the button's aligned box
+                      // would otherwise stretch to the whole line.
+                      children: [
+                        chip,
+                        if (button != null) IntrinsicWidth(child: button),
+                      ],
                     ),
                   ),
               ],

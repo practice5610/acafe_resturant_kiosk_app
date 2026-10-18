@@ -197,6 +197,11 @@ class PosOrderDetailSpec {
   /// item's text instead of beside it.
   static const double itemRowStackBelowWidth = 400;
 
+  /// …or when an item's name would get less than this beside the order's
+  /// widest pill and an action. 100 keeps a station-less order side by side
+  /// at the 420 column even with thumbnails, as it always was.
+  static const double itemNameMinWidth = 100;
+
   /// The header's per-station pills (1915:16209): the item pill at 12px.
   static const double headerStationTextSize = 12;
 
