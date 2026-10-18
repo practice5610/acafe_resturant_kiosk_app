@@ -492,6 +492,8 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
   '18b_receipt_print': (t) => _receiptFrame(t, print: true),
   '25_refund_select': (t) => _refundFrame(t, step: 25),
   '26_refund_method': (t) => _refundFrame(t, step: 26),
+  '26b_refund_method_last4_credit': (t) =>
+      _refundFrame(t, step: 26, backendData: true),
   '27_refund_waiting': (t) => _refundFrame(t, step: 27),
   '28_refund_complete': (t) => _refundFrame(t, step: 28),
   '29_refund_split_confirm': (t) => _refundFrame(t, step: 29, split: true),
@@ -673,7 +675,7 @@ class _FakeRefundRepo extends PosRefundRepo {
 
 /// Refund frames 25–30: the real [PosRefundScreen], driven step by step.
 Future<void> _refundFrame(WidgetTester tester,
-    {required int step, bool split = false}) async {
+    {required int step, bool split = false, bool backendData = false}) async {
   final session = PosRefundSession.instance;
   session.reset();
   addTearDown(session.reset);
@@ -689,6 +691,9 @@ Future<void> _refundFrame(WidgetTester tester,
     orderStatus: 'delivered',
     paymentStatus: 'paid',
     lines: figmaTicket(),
+    // Frame 26 as Figma draws it, once the backend sends these (B5).
+    cardLast4: backendData ? '4242' : null,
+    storeCreditAvailable: backendData,
   );
   session.splits = split
       ? const [

@@ -5,6 +5,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
@@ -571,7 +572,7 @@ class _MethodPane extends StatelessWidget {
         options: [
           PosPayOptionRow(
             label: 'Original payment',
-            subtitle: original == 'card' ? 'Card' : 'Cash',
+            subtitle: original == 'card' ? _cardLabel(s.order) : 'Cash',
             selected: method == original,
             onTap: () => s.refundMethod.value = original,
           ),
@@ -581,6 +582,14 @@ class _MethodPane extends StatelessWidget {
               subtitle: 'Pay out from the cash drawer',
               selected: method == 'cash',
               onTap: () => s.refundMethod.value = 'cash',
+            ),
+          // Frame 26's third option, only when the backend offers it (B5).
+          if (s.order?.storeCreditAvailable ?? false)
+            PosPayOptionRow(
+              label: 'Store credit',
+              subtitle: 'Add to customer balance',
+              selected: method == _storeCredit,
+              onTap: () => s.refundMethod.value = _storeCredit,
             ),
         ],
       ),
@@ -649,6 +658,23 @@ class _OptionColumn extends StatelessWidget {
   }
 }
 
+/// `RefundController` method key for store credit, once it exists (B5).
+const String _storeCredit = 'store_credit';
+
+/// "Card •••• 4242" (node 1915:11518) when the backend sent the last four
+/// digits, else plain "Card".
+String _cardLabel(PosReceiptDetail? order) {
+  final String? last4 = order?.cardLast4;
+  return last4 == null ? 'Card' : 'Card •••• $last4';
+}
+
+/// The "Refund to" value (node 1915:11549).
+String _refundToLabel(PosRefundSession s) => switch (s.refundMethod.value) {
+      'card' => _cardLabel(s.order),
+      _storeCredit => 'Store credit',
+      _ => 'Cash',
+    };
+
 const _labelInk = Color(0xFF78706E);
 const _noteInk = Color(0xFFA6A199);
 const _rowBorder = Color(0xFFE8E3D6);
@@ -692,13 +718,16 @@ class _RefundSummaryPane extends StatelessWidget {
               ),
       ];
 
-      final String method = s.refundMethod.value == 'card' ? 'Card' : 'Cash';
+      final String method = _refundToLabel(s);
       final String note = switch (mode) {
         _SummaryMode.items =>
           'Tap items on the left to include them in this refund.',
-        _ => s.refundMethod.value == 'card'
-            ? 'Refunds to the original payment method can take 3–5 business days.'
-            : 'Hand the cash to the customer from the drawer.',
+        _ => switch (s.refundMethod.value) {
+            'card' =>
+              'Refunds to the original payment method can take 3–5 business days.',
+            _storeCredit => 'Added to the customer balance.',
+            _ => 'Hand the cash to the customer from the drawer.',
+          },
       };
 
       return SingleChildScrollView(
@@ -935,11 +964,18 @@ class _WaitingStep extends StatelessWidget {
           }
           // Frame 29: "Refund Payment N?" · tender · REFUND AMOUNT · Cancel /
           // Refund € X. A single-payment cash refund uses the same card.
+          final bool credit = s.refundMethod.value == _storeCredit;
           return PosPaymentStatusCard(
-            heading: split != null ? 'Refund Payment ${split.seq}?' : 'Cash Refund',
+            heading: split != null
+                ? 'Refund Payment ${split.seq}?'
+                : credit
+                    ? 'Store Credit Refund'
+                    : 'Cash Refund',
             subheading: split != null
                 ? _splitSubheading(split)
-                : 'Cash · hand the refund to the customer from the drawer',
+                : credit
+                    ? 'Store credit · added to the customer balance'
+                    : 'Cash · hand the refund to the customer from the drawer',
             amountDue: amount,
             amountLabel: 'REFUND AMOUNT',
             belowAmount: s.error.value == null ? null : _ErrorText(s.error),

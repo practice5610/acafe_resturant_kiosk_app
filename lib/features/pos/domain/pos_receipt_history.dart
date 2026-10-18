@@ -94,6 +94,16 @@ class PosReceiptDetail {
   /// and add-on notes, with no second copy of that layout to keep in step.
   final List<CartModel> lines;
 
+  /// The card's last four digits, for "Card •••• 4242" on the refund method
+  /// step (frame 26). Read from `card_last4` — which the backend does not
+  /// send yet (ui-audit/backend-needs.md B5), so it is null today and the
+  /// step says just "Card". Never made up.
+  final String? cardLast4;
+
+  /// The refund step offers "Store credit" only when the backend says the
+  /// order can take one (`store_credit_available: true`, B5) — never today.
+  final bool storeCreditAvailable;
+
   const PosReceiptDetail({
     required this.id,
     required this.placedAt,
@@ -106,6 +116,8 @@ class PosReceiptDetail {
     required this.orderStatus,
     required this.paymentStatus,
     required this.lines,
+    this.cardLast4,
+    this.storeCreditAvailable = false,
   });
 
   /// True when the order has received at least one payment and has not already
@@ -143,7 +155,15 @@ class PosReceiptDetail {
       orderStatus: '${json['order_status'] ?? ''}',
       paymentStatus: '${json['payment_status'] ?? ''}',
       lines: lines,
+      cardLast4: _last4(json['card_last4']),
+      storeCreditAvailable: json['store_credit_available'] == true,
     );
+  }
+
+  /// Exactly four digits, or nothing.
+  static String? _last4(dynamic v) {
+    final String text = '${v ?? ''}'.trim();
+    return RegExp(r'^\d{4}$').hasMatch(text) ? text : null;
   }
 
   String get receiptNumber => '$id';

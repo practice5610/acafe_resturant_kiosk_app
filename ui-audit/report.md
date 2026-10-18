@@ -455,3 +455,14 @@ same visit reuses the refund already created instead of reserving a second one.
 
 **Production today:** the pill stays hidden — neither split snapshot returns row ids (B3). After B3, refunding a
 split-by-item group mid-sale still needs B8, and the balance on the sale screen will not reopen until B4.
+
+## R2c — Refund method: card last four and Store credit (frame 26)
+
+| # | Part | Figma | Built | Verified |
+|---|---|---|---|---|
+| 1 | "Original payment · Card •••• 4242" and "Refund to · Card •••• 4242" | nodes 1915:11518 / 11549 | `PosReceiptDetail.cardLast4` from `card_last4` (exactly four digits, else null); the option subtitle and the Refund-to value read "Card •••• nnnn" only then, plain "Card" otherwise | parsing tests (absent, malformed, int); goldens 26 (today) and 26b (with data): text at 533.5,164.5 and right edge 1302,316 = Figma |
+| 2 | "Store credit · Add to customer balance" | node 1915:11526 | third option, shown only when `store_credit_available: true`; picks method `store_credit`; Refund to / note / confirmation card follow it | test "with the data … Store credit"; golden 26b: label 533,296 = Figma |
+| 3 | No fake data | — | today the backend sends neither field (`KioskManagerController::transactionDetail`), so production shows "Card" and two options — exactly golden 26 | test "without the data" |
+
+Backend work: B5 (store the terminal's last four with the payment; a `store_credit` refund method with a customer
+balance to credit — POS guest orders have no customer today).
