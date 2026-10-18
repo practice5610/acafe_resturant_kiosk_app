@@ -133,7 +133,7 @@ class PosPaymentSpec {
   );
 
   // ── numeric-keypad (1641:3849) ───────────────────────────────────────
-  /// Mirrors `posCashKeypadStyle`. Held here as well because the column has to
+  /// Mirrors `posPaymentKeypadStyle`. Held here as well because the column has to
   /// know how tall the pad will be *before* it builds one — see
   /// [PosPaymentDensity.fit].
   static const double keypadKeyHeight = 48;
@@ -344,7 +344,7 @@ class PosPaymentSpec {
 
   // ── Cash tender in the summary pane (node 1915:10234 / 10244) ─────────
   /// `cash-payment-panel` wrapper: `px-16 py-8`, 12px between sections.
-  static const double v2CashPanelPaddingH = 16;
+  static const double v2CashPanelPaddingH = 20;
   static const double v2CashPanelPaddingV = 6;
   static const double v2CashPanelGap = 10;
 
@@ -362,6 +362,36 @@ class PosPaymentSpec {
   /// ([PosHomeSpec.hairline]); inlined here because this spec does not import
   /// that file.
   static const Color v2KeypadBackspaceFill = Color(0xFFF0EBD8);
+
+  // ── Figma payment layout tokens (frame 1915:11795, 1366x1024) ─────────
+  // Right pane keypad.
+  static const double keypadWidth = 412;
+  static const double keypadHeight = 348;
+  static const double keyHeight = 78;
+  static const double keyGap = 12; // horizontal and vertical
+  static const double keyFontHeight = 29;
+
+  // Quick denomination buttons.
+  static const double denomBtnWidth = 76;
+  static const double denomBtnHeight = 41;
+  static const double denomBtnGap = 8;
+
+  // PAY WITH buttons.
+  static const double payWithBtnHeight = 48;
+  static const double payWithBtnGap = 8;
+
+  // Change Due banner, tip, selected total, Payment Card/Active.
+  static const double changeDueHeight = 37;
+  static const double tipSectionHeight = 61;
+  static const double selectedTotalHeight = 33;
+  static const double paymentCardHeight = 62;
+
+  // 3-pane widths at the 1366 canvas.
+  static const double leftPaneWidth = 440;
+  static const double centerPaneWidth = 370;
+  static const double rightPaneWidth = 452;
+  static const double paneGap = 20;
+  static const double paneMargin = 32;
 
   // ── Overlay status cards (declined / error / success) ─────────────────
   /// Error-card subtitle — Swiss 721 Light 13, `#78706E` (nodes 1915:11294 /

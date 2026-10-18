@@ -256,8 +256,9 @@ class _KeyState extends State<_Key> {
   }
 }
 
-/// Cash-tender pad paint — Figma `numeric-keypad` (1641:3849).
-PosKeypadStyle posCashKeypadStyle({required String backspaceAsset}) =>
+/// Compact 48px pad paint — Figma `numeric-keypad` (1641:3849). Used ONLY by
+/// the close-day dialog; every payment screen uses [posPaymentKeypadStyle].
+PosKeypadStyle posCompactKeypadStyle({required String backspaceAsset}) =>
     PosKeypadStyle(
       keyHeight: 48,
       keyRadius: 12,
@@ -275,15 +276,15 @@ PosKeypadStyle posCashKeypadStyle({required String backspaceAsset}) =>
       backspaceAsset: backspaceAsset,
     );
 
-/// Redesigned cash-tender pad — Figma `numeric-keypad` (node **1915:10266**).
-/// 78px keys, r12, 12px gaps, Loew Bold 24, `#D8D1BE` borders; the backspace
-/// cell takes a `#F0EBD8` fill.
-PosKeypadStyle posCashKeypadStyleV2({required String backspaceAsset}) =>
+/// The single payment keypad — Figma `numeric-keypad` (node **1915:10266**).
+/// 78px keys, r12, 12px gaps (412x348 in a 412 column), Loew Bold 24,
+/// `#D8D1BE` borders; the backspace cell takes a `#F0EBD8` fill.
+PosKeypadStyle posPaymentKeypadStyle({required String backspaceAsset}) =>
     PosKeypadStyle(
-      keyHeight: PosPaymentSpec.v2KeypadKeyHeight,
+      keyHeight: PosPaymentSpec.keyHeight,
       keyRadius: PosPaymentSpec.v2KeypadKeyRadius,
-      columnGap: PosPaymentSpec.v2KeypadGap,
-      rowGap: PosPaymentSpec.v2KeypadGap,
+      columnGap: PosPaymentSpec.keyGap,
+      rowGap: PosPaymentSpec.keyGap,
       labelSize: PosPaymentSpec.v2KeypadLabelSize,
       labelHeight: 1.0,
       labelStyle: loewBold,

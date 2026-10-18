@@ -1,7 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart';
+import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -37,8 +37,8 @@ class PosPayCashSummaryPanel extends StatelessWidget {
   /// Opens the tip modal. Null when tipping is disabled → the row is inert.
   final VoidCallback? onTipTap;
 
-  /// When true the panel is inside a bounded pane (fill column). It uses a
-  /// [LayoutBuilder] to scale the keypad so everything fits without scrolling.
+  /// When true the panel is inside a bounded pane (fill column). The keypad
+  /// stays a fixed 348px; only the content above it scrolls if it overflows.
   final bool fill;
 
   const PosPayCashSummaryPanel({
@@ -56,9 +56,6 @@ class PosPayCashSummaryPanel extends StatelessWidget {
     this.onTipTap,
     this.fill = false,
   });
-
-  // Natural keypad height: 4 rows × 78px + 3 gaps × 12px.
-  static const double _kNaturalKeypad = 348.0;
 
   @override
   Widget build(BuildContext context) => fill ? _bodyFill() : _body();
@@ -85,13 +82,16 @@ class PosPayCashSummaryPanel extends StatelessWidget {
               const SizedBox(height: gap),
               _ChangeDueBanner(cents: entry.cents - totalCents, covered: entry.cents >= totalCents),
               const SizedBox(height: gap),
-              _DenominationRow(denominations: PosCashPanel.defaultDenominations, selected: selectedDenomination, onSelect: onDenomination),
+              _DenominationRow(denominations: PosCashDenomination.defaults, selected: selectedDenomination, onSelect: onDenomination),
               const SizedBox(height: gap),
-              PosKeypad(
-                rows: PosKeypad.digitRows(decimal: ','),
-                style: posCashKeypadStyleV2(backspaceAsset: Images.posKeyBackspaceSvg),
-                onKey: onKey,
-                onBackspace: onBackspace,
+              SizedBox(
+                height: PosPaymentSpec.keypadHeight,
+                child: PosKeypad(
+                  rows: PosKeypad.digitRows(decimal: ','),
+                  style: posPaymentKeypadStyle(backspaceAsset: Images.posKeyBackspaceSvg),
+                  onKey: onKey,
+                  onBackspace: onBackspace,
+                ),
               ),
             ],
           ),
@@ -102,51 +102,56 @@ class PosPayCashSummaryPanel extends StatelessWidget {
     );
   }
 
-  /// Fill mode: fixed fields above, keypad takes remaining slack via [Expanded].
+  /// Fill mode: header + tender fields scroll inside the pane if they ever
+  /// overflow; the 348px keypad and tip row are pinned and never scroll.
   Widget _bodyFill() {
+    const double gap = PosPaymentSpec.v2CashPanelGap;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.max,
       children: [
-        PosPaySummaryHeader(total: total, subtitle: 'Overview for partial payments', amountFontSize: 32),
-        const PosPaySummaryDivider(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            PosPaymentSpec.v2CashPanelPaddingH,
-            PosPaymentSpec.v2CashPanelPaddingV,
-            PosPaymentSpec.v2CashPanelPaddingH,
-            0,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _TenderedField(entry: entry, onTyped: onTyped, onClear: onClear),
-              const SizedBox(height: PosPaymentSpec.v2CashPanelGap),
-              _ChangeDueBanner(cents: entry.cents - totalCents, covered: entry.cents >= totalCents),
-              const SizedBox(height: PosPaymentSpec.v2CashPanelGap),
-              _DenominationRow(denominations: PosCashPanel.defaultDenominations, selected: selectedDenomination, onSelect: onDenomination),
-            ],
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PosPaySummaryHeader(total: total, subtitle: 'Overview for partial payments', amountFontSize: 32),
+                const PosPaySummaryDivider(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    PosPaymentSpec.v2CashPanelPaddingH,
+                    PosPaymentSpec.v2CashPanelPaddingV,
+                    PosPaymentSpec.v2CashPanelPaddingH,
+                    0,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _TenderedField(entry: entry, onTyped: onTyped, onClear: onClear),
+                      const SizedBox(height: gap),
+                      _ChangeDueBanner(cents: entry.cents - totalCents, covered: entry.cents >= totalCents),
+                      const SizedBox(height: gap),
+                      _DenominationRow(denominations: PosCashDenomination.defaults, selected: selectedDenomination, onSelect: onDenomination),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: PosPaymentSpec.v2CashPanelGap),
-        // Keypad takes all remaining space; scale = available / natural so the
-        // keypad exactly fills whatever Expanded gives — no minimum clamp so it
-        // never grows past its allocation and never overlaps the tip row.
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: PosPaymentSpec.v2CashPanelPaddingH),
-            child: LayoutBuilder(
-              builder: (context, c) {
-                final double s = (c.maxHeight / _kNaturalKeypad).clamp(0.0, 1.0);
-                return PosKeypad(
-                  rows: PosKeypad.digitRows(decimal: ','),
-                  style: posCashKeypadStyleV2(backspaceAsset: Images.posKeyBackspaceSvg),
-                  scale: s,
-                  onKey: onKey,
-                  onBackspace: onBackspace,
-                );
-              },
+        const SizedBox(height: gap),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: PosPaymentSpec.v2CashPanelPaddingH),
+          child: SizedBox(
+            key: const Key('pad-box'),
+            height: PosPaymentSpec.keypadHeight,
+            child: PosKeypad(
+              rows: PosKeypad.digitRows(decimal: ','),
+              style: posPaymentKeypadStyle(backspaceAsset: Images.posKeyBackspaceSvg),
+              onKey: onKey,
+              onBackspace: onBackspace,
             ),
           ),
         ),
@@ -222,9 +227,11 @@ class _TenderedFieldState extends State<_TenderedField> {
       fontSize: PosPaymentSpec.cashAmountSize, // 22
       color: PosHomeSpec.ink,
     );
-    return Column(
+    return SizedBox(
+      height: PosPaymentSpec.paymentCardHeight,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       children: [
         Text(
           'Amount Tendered',
@@ -233,12 +240,13 @@ class _TenderedFieldState extends State<_TenderedField> {
             color: PosHomeSpec.inkAlpha(PosPaymentSpec.cashFieldLabelOpacity),
           ),
         ),
-        const SizedBox(height: PosPaymentSpec.cashFieldLabelGap), // 8
-        Container(
+        const SizedBox(height: 4),
+        Expanded(
+          child: Container(
           padding: const EdgeInsets.symmetric(
             horizontal: PosPaymentSpec.cashFieldPadding,
-            vertical: 4,
           ),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: PosHomeSpec.tileBg,
             borderRadius:
@@ -267,7 +275,7 @@ class _TenderedFieldState extends State<_TenderedField> {
                   decoration: InputDecoration(
                     isDense: true,
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 2),
                     hintText: '0.00',
                     hintStyle: amountStyle.copyWith(
                       color: PosHomeSpec.inkAlpha(0.3),
@@ -280,7 +288,9 @@ class _TenderedFieldState extends State<_TenderedField> {
             ],
           ),
         ),
+        ),
       ],
+    ),
     );
   }
 }
@@ -337,7 +347,9 @@ class _ChangeDueBanner extends StatelessWidget {
     final Color accent =
         covered ? PosHomeSpec.discountGreen : PosHomeSpec.inkAlpha(0.35);
     return Container(
-      padding: const EdgeInsets.all(PosPaymentSpec.changeBannerPadding), // 16
+      key: const Key('change-due'),
+      height: PosPaymentSpec.changeDueHeight,
+      padding: const EdgeInsets.symmetric(horizontal: PosPaymentSpec.changeBannerPadding), // 16
       decoration: BoxDecoration(
         color: covered
             ? PosPaymentSpec.changeBannerFill // #EBF9F1
@@ -440,9 +452,10 @@ class _DenominationChip extends StatelessWidget {
           onTap: onTap,
           borderRadius: radius,
           child: Container(
+            key: const Key('denom-chip'),
+            height: PosPaymentSpec.denomBtnHeight,
             padding: const EdgeInsets.symmetric(
-              horizontal: PosPaymentSpec.denomPaddingH, // 16
-              vertical: PosPaymentSpec.denomPaddingV, // 12
+              horizontal: 4,
             ),
             alignment: Alignment.center,
             decoration: BoxDecoration(

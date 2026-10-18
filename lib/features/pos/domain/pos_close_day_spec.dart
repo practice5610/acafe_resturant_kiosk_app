@@ -56,7 +56,7 @@ class PosCloseDaySpec {
   static const Color inputPlaceholder = Color(0x66241F20); // 40% ink
   static const Color inputBorderColor = Color(0xFFE1DBC4);
 
-  // ── Keypad (matches posCashKeypadStyle / Figma numeric-keypad) ────────
+  // ── Keypad (matches posPaymentKeypadStyle / Figma numeric-keypad) ────────
   static const double keypadGapAbove = 6; // group gap already covers label→field
   static const Color keypadBorder = Color(0xFFF0EBD8);
 

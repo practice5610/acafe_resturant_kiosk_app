@@ -66,9 +66,6 @@ class PosSplitSummaryPanel extends StatelessWidget {
     this.fill = false,
   });
 
-  // Natural keypad height: 4 rows × 78px + 3 gaps × 12px.
-  static const double _kNaturalKeypad = 348.0;
-
   @override
   Widget build(BuildContext context) => fill ? _bodyFill() : _body();
 
@@ -90,11 +87,14 @@ class PosSplitSummaryPanel extends StatelessWidget {
         const SizedBox(height: 6),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: PosPaymentSpec.v2CashPanelPaddingH),
-          child: PosKeypad(
-            rows: PosKeypad.digitRows(decimal: '.'),
-            style: posCashKeypadStyleV2(backspaceAsset: Images.posKeyBackspaceSvg),
-            onKey: onKey,
-            onBackspace: onBackspace,
+          child: SizedBox(
+            height: PosPaymentSpec.keypadHeight,
+            child: PosKeypad(
+              rows: PosKeypad.digitRows(decimal: '.'),
+              style: posPaymentKeypadStyle(backspaceAsset: Images.posKeyBackspaceSvg),
+              onKey: onKey,
+              onBackspace: onBackspace,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -116,32 +116,36 @@ class PosSplitSummaryPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.max,
       children: [
-        _Header(grandTotal: state.grandTotal),
-        const PosPaySummaryDivider(),
-        _RemainingBar(remaining: state.remaining, fullyPaid: state.fullyPaid),
-        if (state.payments.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          _PastPaymentsList(payments: state.payments),
-        ],
-        const SizedBox(height: 6),
-        _EntryCard(seq: state.nextSequence, entry: entry, method: splitMethod, onMethod: onSplitMethod, onClear: onClear),
-        const SizedBox(height: 6),
-        // Keypad takes all remaining space; scale = available / natural so the
-        // keypad fills exactly its allocation without overflowing.
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: PosPaymentSpec.v2CashPanelPaddingH),
-            child: LayoutBuilder(
-              builder: (context, c) {
-                final double s = (c.maxHeight / _kNaturalKeypad).clamp(0.0, 1.0);
-                return PosKeypad(
-                  rows: PosKeypad.digitRows(decimal: '.'),
-                  style: posCashKeypadStyleV2(backspaceAsset: Images.posKeyBackspaceSvg),
-                  scale: s,
-                  onKey: onKey,
-                  onBackspace: onBackspace,
-                );
-              },
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _Header(grandTotal: state.grandTotal),
+                const PosPaySummaryDivider(),
+                _RemainingBar(remaining: state.remaining, fullyPaid: state.fullyPaid),
+                if (state.payments.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  _PastPaymentsList(payments: state.payments),
+                ],
+                const SizedBox(height: 6),
+                _EntryCard(seq: state.nextSequence, entry: entry, method: splitMethod, onMethod: onSplitMethod, onClear: onClear),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        // Fixed 412x348 keypad — never scaled.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: PosPaymentSpec.v2CashPanelPaddingH),
+          child: SizedBox(
+            height: PosPaymentSpec.keypadHeight,
+            child: PosKeypad(
+              rows: PosKeypad.digitRows(decimal: '.'),
+              style: posPaymentKeypadStyle(backspaceAsset: Images.posKeyBackspaceSvg),
+              onKey: onKey,
+              onBackspace: onBackspace,
             ),
           ),
         ),

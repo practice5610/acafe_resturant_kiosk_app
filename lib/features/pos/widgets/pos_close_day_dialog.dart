@@ -434,7 +434,7 @@ class _ActualAmountBlock extends StatelessWidget {
           const SizedBox(height: PosCloseDaySpec.inputGroupGap),
           PosKeypad(
             rows: PosKeypad.digitRows(decimal: ','),
-            style: posCashKeypadStyle(
+            style: posCompactKeypadStyle(
               backspaceAsset: Images.posKeyBackspaceSvg,
             ),
             onKey: onKey,

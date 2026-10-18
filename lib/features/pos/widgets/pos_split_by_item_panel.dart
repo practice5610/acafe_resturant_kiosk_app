@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dart';
@@ -77,7 +78,7 @@ class PosSplitByItemPanel extends StatelessWidget {
             // ── Fixed bottom actions ──────────────────────────────────────
             const _SectionDivider(),
             _SectionLabel('PAY WITH'),
-            _PayWithRow(
+            PosPayWithRow(
               method: paymentMethod,
               onChanged: onPaymentMethodChanged,
             ),
@@ -244,16 +245,16 @@ class _ItemTile extends StatelessWidget {
 
 // ── Pay with row ──────────────────────────────────────────────────────────────
 
-class _PayWithRow extends StatelessWidget {
+class PosPayWithRow extends StatelessWidget {
   final PosPaymentMethod method;
   final ValueChanged<PosPaymentMethod> onChanged;
 
-  const _PayWithRow({required this.method, required this.onChanged});
+  const PosPayWithRow({super.key, required this.method, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
           _MethodButton(
@@ -294,7 +295,7 @@ class _MethodButton extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          height: 44,
+          height: PosPaymentSpec.payWithBtnHeight,
           decoration: BoxDecoration(
             color: active ? PosHomeSpec.ink : Colors.white,
             border: Border.all(
@@ -306,13 +307,13 @@ class _MethodButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16,
+              Icon(icon, size: 18,
                   color: active ? Colors.white : PosHomeSpec.ink),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: loewBold.copyWith(
-                  fontSize: 14,
+                  fontSize: 15,
                   color: active ? Colors.white : PosHomeSpec.ink,
                 ),
               ),
@@ -338,11 +339,13 @@ class _SelectedSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            height: PosPaymentSpec.selectedTotalHeight,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: const Color(0xFFF0EBD9),
               borderRadius: BorderRadius.circular(8),
@@ -352,12 +355,12 @@ class _SelectedSummary extends StatelessWidget {
               children: [
                 Text(
                   'Selected total',
-                  style: loewBold.copyWith(fontSize: 11, color: _labelInk),
+                  style: loewBold.copyWith(fontSize: 13, color: _labelInk),
                 ),
                 Text(
                   PosHomeSpec.formatPrice(selectedAmount, padZero: false),
                   style: loewExtraBold.copyWith(
-                      fontSize: 13, color: PosHomeSpec.ink),
+                      fontSize: 17, color: PosHomeSpec.ink),
                 ),
               ],
             ),

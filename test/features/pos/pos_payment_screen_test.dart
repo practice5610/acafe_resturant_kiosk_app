@@ -25,7 +25,7 @@ import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart'
+import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart'
     show PosCashDenomination;
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_cash_panel.dart';

@@ -172,8 +172,10 @@ class PosPayTipRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool hasTip = amount > 0;
-    final Widget row = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    final Widget row = Container(
+      height: PosPaymentSpec.tipSectionHeight,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
           const PosPaySectionIcon(svg: posPayIconPlusCircle),
@@ -185,13 +187,13 @@ class PosPayTipRow extends StatelessWidget {
               children: [
                 Text(
                   'Add tip',
-                  style: loewBold.copyWith(fontSize: 12, color: PosHomeSpec.ink),
+                  style: loewBold.copyWith(fontSize: 14, color: PosHomeSpec.ink),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   'Add the tip you received here',
                   style: swiss721Light.copyWith(
-                    fontSize: 10,
+                    fontSize: 12,
                     color: PosHomeSpec.inkAlpha(
                         PosPaymentSpec.v2MutedInkOpacity), // #8A94A6
                   ),
@@ -205,7 +207,7 @@ class PosPayTipRow extends StatelessWidget {
             // ("0.00"); a chosen tip keeps that treatment but in ink + bold.
             hasTip ? PosHomeSpec.formatPrice(amount, padZero: false) : '0.00',
             style: loewBold.copyWith(
-              fontSize: 14,
+              fontSize: 17,
               color: hasTip
                   ? PosHomeSpec.ink
                   : PosHomeSpec.inkAlpha(PosPaymentSpec.v2MutedInkOpacity),

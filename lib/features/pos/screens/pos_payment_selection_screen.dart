@@ -36,7 +36,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_cash_panel.dart'
+import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart'
     show PosCashDenomination;
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_cash_panel.dart';
@@ -221,8 +221,6 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// Method that was just committed in change mode (`card`, `cash`, `invoice`,
   /// `standalone`). Non-null swaps the body for the success card + BACK bar.
   String? _changedTo;
-
-  /// The receipt total the committed change applied to (for the success card).
   double _changedTotal = 0;
 
   /// The tip applied to this sale, in currency (Family 1). Held in a
