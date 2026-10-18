@@ -154,6 +154,8 @@ class PosPaymentStatusCard extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: swiss721Light.copyWith(
                         fontSize: PosPaymentSpec.v2ErrorSubtitleSize,
+                        height: PosPaymentSpec.figmaLeading(
+                            PosPaymentSpec.v2ErrorSubtitleSize),
                         color: PosPaymentSpec.v2ErrorSubtitle,
                       ),
                     ),

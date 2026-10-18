@@ -166,6 +166,18 @@ Verified: 08 heading 433 / AMOUNT PAID 502 / pill 619; 18 heading 409.5 / TOTAL 
 order 642.5 — equal to Figma. Invoice / Stand-alone / split-by-item intermediate outcomes have no frame; they now use
 the same card (noted, D8).
 
+## 22 / 23 / 24 Errors – Terminal offline · Timed out · Cash too low (1915:11287 · 11306 · 11325)
+
+| # | Element | Figma value | Code value | File:line | Sev | Status |
+|---|---|---|---|---|---|---|
+| 1 | Subtitle line box | Swiss 13 → 16 | 18 | `widgets/pos_waiting_card.dart` (`PosPaymentStatusCard.subheading`) | Low | Fixed |
+| 2 | Strokes / divider / mark | as 07 | as 07 | shared card | Med | Fixed with 07 |
+| 3 | Copy | "Terminal Offline / Check the terminal connection and try again / Retry connection"; "Payment Timed Out / No card was presented within 60 seconds"; "Amount Too Low / Received € 5.70 of € 9.00 / STILL DUE € 3.30 / Back / Add cash" | identical | `widgets/pos_payment_error_card.dart` | — | Matches |
+| 4 | Wiring | — | Render-only: no offline / timeout / short-cash path exists to show them | — | — | Not changed (logic, out of scope) |
+
+Verified on render: heading 415.4, subtitle 455.4, amount box text 527.4, buttons 698.4 — equal to Figma (card 522.84
+centred on 1024).
+
 ---
 
 ## Decisions for you

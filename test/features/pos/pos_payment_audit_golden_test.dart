@@ -22,6 +22,7 @@ import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_payment_error_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
@@ -360,6 +361,18 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
         buttonLabel: 'Start next payment',
         onContinue: () {},
       )),
+  '22_terminal_offline': (t) => pumpOverlayFrame(
+      t,
+      PosPaymentErrorCard.terminalOffline(
+          amountDue: 9, onCancel: () {}, onRetry: () {})),
+  '23_timed_out': (t) => pumpOverlayFrame(
+      t,
+      PosPaymentErrorCard.timedOut(
+          amountDue: 9, onCancel: () {}, onTryAgain: () {})),
+  '24_cash_too_low': (t) => pumpOverlayFrame(
+      t,
+      PosPaymentErrorCard.cashTooLow(
+          received: 5.7, total: 9, onBack: () {}, onAddCash: () {})),
   '18_order_paid': (t) => pumpOverlayFrame(
       t,
       PosPaymentSuccessCard(
