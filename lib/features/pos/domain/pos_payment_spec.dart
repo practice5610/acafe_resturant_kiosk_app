@@ -471,7 +471,7 @@ class PosPaymentSpec {
   static const double v2SplitHeaderTracking = 1.0;
 
   /// Grand total display — Loew ExtraBold 30 (compact to keep right pane on screen).
-  static const double v2SplitTotalSize = 30;
+  static const double v2SplitTotalSize = 36; // node 1915:10041
 
   /// Remaining bar: `#F0EBD8` fill (= [PosHomeSpec.hairline]), r8, px10 py6.
   static const double v2SplitRemainRadius = 8;
@@ -482,7 +482,6 @@ class PosPaymentSpec {
 
   /// Payment-N entry card: #E8E3D5 1.5px border (= v2OtherRowBorder), r12, h54.
   static const double v2SplitPaymentCardRadius = 12;
-  static const double v2SplitPaymentCardHeight = 54;
   static const double v2SplitPaymentAmountSize = 20;
   static const double v2SplitPaymentLabelTracking = 0.6;
 
@@ -490,7 +489,16 @@ class PosPaymentSpec {
   static const double v2SplitToggleRadius = 8;
   static const double v2SplitToggleInnerRadius = 6;
   static const double v2SplitTogglePadding = 3;
-  static const double v2SplitToggleLabelSize = 12;
+  static const double v2SplitToggleLabelSize = 10; // node 1915:10060
+
+  /// Split panes (`Column/Right`, node 1915:10034): gap-8 between sections.
+  static const double v2SplitGap = 8;
+  /// A payment already taken (node 1915:9775): 48 tall, pl-20 pr-8 py-8.
+  static const double v2SplitPaidRowHeight = 48;
+  /// The tip row once payments are listed (node 1915:9765): 48 tall, py-8.
+  static const double v2SplitTipRowHeight = 48;
+  /// "Payment Card/Open" (node 1915:10048).
+  static const double v2SplitEntryCardHeight = 62;
 }
 
 /// Vertical density for the payment column.

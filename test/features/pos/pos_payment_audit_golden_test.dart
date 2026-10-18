@@ -17,7 +17,11 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_invoice_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
+import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart';
+import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
@@ -329,7 +333,73 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
       bar: PosPayPillBar(label: 'Confirm Payment', onConfirm: () {}),
     );
   },
+  '05_split_enter': (t) => _splitFrame(t, paid: const [], typed: ''),
+  '09_split_p2': (t) => _splitFrame(t, paid: const [(9.0, 'card')], typed: ''),
+  '10_split_p2_cash': (t) => _splitFrame(t,
+      paid: const [(9.0, 'card')],
+      typed: '20',
+      cash: true,
+      denomination: const PosCashDenomination.note(2000)),
+  '11_split_p3': (t) => _splitFrame(t,
+      paid: const [(9.0, 'card'), (5.0, 'cash')], typed: ''),
+  '12_split_p4': (t) => _splitFrame(t,
+      paid: const [(9.0, 'card'), (5.0, 'card'), (2.0, 'card')],
+      typed: '3.00'),
 };
+
+/// Split-by-payment frames: the Dylan € 19.00 order with [paid] already taken.
+Future<void> _splitFrame(
+  WidgetTester tester, {
+  required List<(double, String)> paid,
+  required String typed,
+  bool cash = false,
+  PosCashDenomination? denomination,
+}) async {
+  final double paidSum = paid.fold(0.0, (a, p) => a + p.$1);
+  final state = PosSplitState(
+    orderId: 27362,
+    deviceId: 1,
+    grandTotal: 19,
+    payments: [
+      for (int i = 0; i < paid.length; i++)
+        PosSplitPayment(
+          seq: i + 1,
+          paidWith: paid[i].$2,
+          paidAmount: paid[i].$1,
+          reference: 'r$i',
+        ),
+    ],
+    paid: paidSum,
+    remaining: 19 - paidSum,
+    fullyPaid: false,
+  );
+  PosCashEntry entry = const PosCashEntry();
+  for (final c in typed.split('')) {
+    entry = entry.key(c);
+  }
+  await pumpComposedFrame(
+    tester,
+    splitActive: true,
+    summary: (fill) => PosPayCard(
+      borderColor: PosSplitSummaryPanel.borderColor,
+      borderWidth: PosSplitSummaryPanel.borderWidth,
+      child: PosSplitSummaryPanel(
+        state: state,
+        entry: entry,
+        splitMethod: cash ? PosPaymentMethod.cash : PosPaymentMethod.card,
+        onSplitMethod: (_) {},
+        onKey: (_) {},
+        onBackspace: () {},
+        onClear: () {},
+        onDenomination: (_) {},
+        selectedDenomination: denomination,
+        fill: fill,
+      ),
+    ),
+    bar: PosPayPillBar(
+        label: 'Start Payment ${state.nextSequence}', onConfirm: () {}),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

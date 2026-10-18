@@ -93,9 +93,9 @@ class PosPayCashSummaryPanel extends StatelessWidget {
             children: [
               _TenderedField(entry: entry, onTyped: onTyped, onClear: onClear),
               const SizedBox(height: gap),
-              _ChangeDueBanner(cents: entry.cents - totalCents, covered: entry.cents >= totalCents),
+              PosPayChangeDueBanner(cents: entry.cents - totalCents, covered: entry.cents >= totalCents),
               const SizedBox(height: gap),
-              _DenominationRow(denominations: PosCashDenomination.defaults, selected: selectedDenomination, onSelect: onDenomination),
+              PosPayDenominationRow(denominations: PosCashDenomination.defaults, selected: selectedDenomination, onSelect: onDenomination),
               const SizedBox(height: gap),
               SizedBox(
                 key: const Key('pad-box'),
@@ -287,11 +287,12 @@ class _ClearButton extends StatelessWidget {
 /// state; when the tender is short the banner stays in place but goes neutral
 /// and reads zero — a negative "change" is a number no till should print, and
 /// blanking the row would make the panel jump as the amount crosses the total.
-class _ChangeDueBanner extends StatelessWidget {
+class PosPayChangeDueBanner extends StatelessWidget {
   final int cents;
   final bool covered;
 
-  const _ChangeDueBanner({required this.cents, required this.covered});
+  const PosPayChangeDueBanner(
+      {super.key, required this.cents, required this.covered});
 
   @override
   Widget build(BuildContext context) {
@@ -339,12 +340,13 @@ class _ChangeDueBanner extends StatelessWidget {
 }
 
 /// `quick-denominations` (node 1915:10255): €5 / €10 / €20 / €50 / Exact.
-class _DenominationRow extends StatelessWidget {
+class PosPayDenominationRow extends StatelessWidget {
   final List<PosCashDenomination> denominations;
   final PosCashDenomination? selected;
   final ValueChanged<PosCashDenomination> onSelect;
 
-  const _DenominationRow({
+  const PosPayDenominationRow({
+    super.key,
     required this.denominations,
     required this.selected,
     required this.onSelect,

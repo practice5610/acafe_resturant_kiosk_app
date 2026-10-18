@@ -132,6 +132,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// Amount keyed in for the current split.
   PosCashEntry _splitEntry = const PosCashEntry();
 
+  /// The denomination chip behind [_splitEntry] on a cash split (frame 10);
+  /// cleared by any keypad entry, like [_denomination] on a plain cash sale.
+  PosCashDenomination? _splitDenomination;
+
   /// True while a split payment (charge + record) is in flight.
   bool _splittingPayment = false;
 
@@ -520,6 +524,20 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void _onSplitKey(String token) {
     setState(() {
       _splitEntry = _splitEntry.key(token);
+      _splitDenomination = null;
+    });
+  }
+
+  /// Cash split denomination chip: a note value, or Exact = what is still
+  /// owed on the order.
+  void _onSplitDenomination(PosCashDenomination denomination) {
+    final PosSplitState? state = _split.value;
+    if (state == null) return;
+    setState(() {
+      _splitEntry = _splitEntry.withCents(denomination.exact
+          ? posMoneyToCents(state.remaining, decimals: _splitEntry.decimals)
+          : denomination.cents!);
+      _splitDenomination = denomination;
     });
   }
 
@@ -527,6 +545,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void _onSplitBackspace() {
     setState(() {
       _splitEntry = _splitEntry.backspace();
+      _splitDenomination = null;
     });
   }
 
@@ -534,6 +553,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void _onSplitClear() {
     setState(() {
       _splitEntry = _splitEntry.clear();
+      _splitDenomination = null;
     });
   }
 
@@ -541,6 +561,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void _onSplitMethod(PosPaymentMethod method) {
     setState(() {
       _splitMethod = method;
+      _splitDenomination = null;
     });
   }
 
@@ -2060,6 +2081,8 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     onSplitKey: _onSplitKey,
                                     onSplitBackspace: _onSplitBackspace,
                                     onSplitClear: _onSplitClear,
+                                    onSplitDenomination: _onSplitDenomination,
+                                    splitDenomination: _splitDenomination,
                                     onSplitByPayment: _change != null
                                         ? null
                                         : () {
@@ -2161,7 +2184,19 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                         : _submitStandalone,
                                   );
                                 }
-                                if (sbiState != null || splitState != null) {
+                                // Frames 05 / 09–12: the split pane is
+                                // confirmed from this bar.
+                                if (splitState != null) {
+                                  return PosPayPillBar(
+                                    label:
+                                        'Start Payment ${splitState.nextSequence}',
+                                    loading: _splittingPayment,
+                                    onConfirm: _splittingPayment
+                                        ? null
+                                        : _recordSplit,
+                                  );
+                                }
+                                if (sbiState != null) {
                                   return const SizedBox.shrink();
                                 }
                                 if (_change != null) {
@@ -2257,6 +2292,8 @@ class _Content extends StatelessWidget {
   final ValueChanged<String> onSplitKey;
   final VoidCallback onSplitBackspace;
   final VoidCallback onSplitClear;
+  final ValueChanged<PosCashDenomination> onSplitDenomination;
+  final PosCashDenomination? splitDenomination;
   final VoidCallback? onSplitByPayment;
   final VoidCallback? onSplitConfirm;
   final bool splitLoading;
@@ -2332,6 +2369,8 @@ class _Content extends StatelessWidget {
     required this.onSplitKey,
     required this.onSplitBackspace,
     required this.onSplitClear,
+    required this.onSplitDenomination,
+    required this.splitDenomination,
     required this.onSplitByPayment,
     required this.onSplitConfirm,
     required this.splitLoading,
@@ -2477,7 +2516,8 @@ class _Content extends StatelessWidget {
     // In split mode: show the split entry panel (node 1915:10034).
     if (inSplit && splitState != null) {
       return PosPayCard(
-        summaryBorder: true,
+        borderColor: PosSplitSummaryPanel.borderColor,
+        borderWidth: PosSplitSummaryPanel.borderWidth,
         child: PosSplitSummaryPanel(
           state: splitState!,
           entry: splitEntry,
@@ -2486,6 +2526,8 @@ class _Content extends StatelessWidget {
           onKey: onSplitKey,
           onBackspace: onSplitBackspace,
           onClear: onSplitClear,
+          onDenomination: onSplitDenomination,
+          selectedDenomination: splitDenomination,
           tip: tip,
           onConfirm: onSplitConfirm,
           loading: splitLoading,

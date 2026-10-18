@@ -108,6 +108,35 @@ x 920, toggle row 524/540) equals the Figma coordinate.
 Steps keep their bordered `Container`: this frame *includes* the stroke in layout (badge at x13 / y11, rows 44 tall),
 unlike the OTHER rows — verified on render (step texts at 324.5 / 378.5 / 432.5, x 953; approval 473 / 501).
 
+## 05 / 09 / 10 / 11 / 12 Split by payment – entry pane (1915:9902 · 11566 · 9677 · 10493 · 10714)
+
+One pane (`Column/Right`, node 1915:10034) drawn in five states, so it is audited once.
+
+| # | Element | Figma value | Code value | File:line | Sev | Status |
+|---|---|---|---|---|---|---|
+| 1 | Confirm action | Sticky-bar pill "Start Payment N" | Pill drawn *inside* the pane (with its own bar chrome) between keypad and tip row; screen bar hidden | `widgets/pos_split_summary_panel.dart` · screen bar builder | High | Fixed — screen bar, same `_recordSplit` / `_splittingPayment` |
+| 2 | Pane stroke & padding | `#E8E3D5` 1.5px; pt-24 px-20 pb-14, gap-8 | `#E8E0CC` 1px; ad-hoc 12/8/6/4 gaps, sections individually padded | same · `PosPayCard` | Med | Fixed (`PosPayCard.borderColor/Width`) |
+| 3 | Subtitle copy | "One amount at a time, the remainder follows automatically" | "Overview for split payment" | `_Header` | Med | Fixed |
+| 4 | Total | ExtraBold **36**, `leading-none`, gap-1 to "Total to pay" | 30, natural line, gap 2 | `v2SplitTotalSize` | Med | Fixed |
+| 5 | Divider under header | none | 1px summary rule | same | Low | Fixed (removed) |
+| 6 | Remaining bar padding | px-10 py-6 | px-14 py-8 | `_RemainingBar` | Low | Fixed |
+| 7 | Paid payments | 48px rows: dial-pad well, "Payment N" Bold 12 / "Card payment successful" Swiss 10, amount Bold 14 | 10px Swiss one-liners "Payment N  (Card)" + Bold 11 amount | `_PastPaymentsList` → `PosSplitPaidRow` | High | Fixed |
+| 8 | Paid row "Refund" pill | Black 85×24 pill per paid payment | Not present | — | — | **Not fixed — needs logic** (refunding one split mid-sale is a money path, not UI). See D7 |
+| 9 | Entry card | 62 tall, p-12, `PAYMENT N` over the raw typed amount `€  20` (caret `€  \|` when empty), segmented control right, vertically centred | min 54, p 14/10, formatted `€ 20.00` / grey `0.00`, a ✕ clear icon | `_EntryCard` | Med | Fixed — ✕ removed (backspace on the keypad clears) |
+| 10 | Card / Cash control | 12px icons + Bold **10** labels; idle `#A7A19A`, idle cash glyph @45%; active white, no shadow | text-only, 12px labels, idle ink @0.5, drop shadow | `PosSplitMethodToggle` | Med | Fixed (Figma vectors inlined) |
+| 11 | Cash split | Change Due banner + €5…Exact row under the entry card (frame 10) | Missing | pane + screen | High | Fixed — reuses the cash pane's banner/denominations; Exact = remaining; new `_onSplitDenomination` only sets the keyed amount (same as typing it) |
+| 12 | Keypad decimal key | "," | "." | pane | Low | Fixed (`PosCashEntry` accepts both) |
+| 13 | Tip row | 61 / py-16 with no payments (05); 48 / py-8 once rows are listed (09–12); 20px inset inside the pane | always 61 full-bleed | `PosPayTipRow(height:)` | Low | Fixed |
+| 14 | Swiss captions | 12 line box at 10px | 14 | pane | Low | Fixed |
+
+Verified on frame 10's render: SPLIT PAYMENT 91, total 128, Remaining 192, paid row text 229.5 (x 956), PAYMENT 2 288,
+amount 302, Change Due 355.5, denoms 403, key "1" 464.5, Add tip 805.5 — equal to Figma. The segmented control lands
+between frame 05's and frame 10's positions (they differ by 3px).
+
+Figma inconsistencies noted (not "fixed"): frame 12 compresses the paid rows to 44px with 4px gaps (09–11 use 48 / 8 and
+the pane fits either way) → code follows 09–11. Paid amounts are written "€9.00" (no space) while every other amount
+in the layer is "€ 9.00" → code keeps the app-wide format.
+
 ---
 
 ## Decisions for you
@@ -126,5 +155,7 @@ unlike the OTHER rows — verified on render (step texts at 324.5 / 378.5 / 432.
   code now matches; it looks like a placeholder — confirm or send distinct icons.
 - **D6 — Unspecified states.** Figma draws only the "on" toggle and only a focused (ink) company field.
   Off toggle = POS inactive fill `#DED9C8`, thumb left; unfocused fields = `#E0D9C8` (as drawn for VAT/email).
+- **D7 — Per-split "Refund" pill** (frames 09–12). Not built: it needs a refund-one-split path inside the
+  sale. Say if you want it wired (the refund flow for receipts already exists, frames 25–30).
 - **D5 — Amount header is 12px shorter on Cash than on Card** (47 vs 58 line box). Implemented per frame,
   so switching Card ↔ Cash moves "Amount due" by 11px. Say if one of the two should win.

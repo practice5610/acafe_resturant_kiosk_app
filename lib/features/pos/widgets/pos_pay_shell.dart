@@ -195,11 +195,18 @@ class PosPayCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final bool summaryBorder;
 
+  /// Explicit stroke, for panes the file draws in neither style — the split
+  /// panes (`Column/Right`, node 1915:10034) use `#E8E3D5` at 1.5px.
+  final Color? borderColor;
+  final double? borderWidth;
+
   const PosPayCard({
     super.key,
     required this.child,
     this.padding,
     this.summaryBorder = false,
+    this.borderColor,
+    this.borderWidth,
   });
 
   @override
@@ -219,12 +226,14 @@ class PosPayCard extends StatelessWidget {
       foregroundDecoration: BoxDecoration(
         borderRadius: radius,
         border: Border.all(
-          color: summaryBorder
-              ? PosPaymentSpec.v2SummaryBorder
-              : PosHomeSpec.hairline,
-          width: summaryBorder
-              ? PosPaymentSpec.v2OtherRowBorderWidth // 1px
-              : PosPaymentSpec.cardBorder, // 1.5px
+          color: borderColor ??
+              (summaryBorder
+                  ? PosPaymentSpec.v2SummaryBorder
+                  : PosHomeSpec.hairline),
+          width: borderWidth ??
+              (summaryBorder
+                  ? PosPaymentSpec.v2OtherRowBorderWidth // 1px
+                  : PosPaymentSpec.cardBorder), // 1.5px
         ),
       ),
       child: child,

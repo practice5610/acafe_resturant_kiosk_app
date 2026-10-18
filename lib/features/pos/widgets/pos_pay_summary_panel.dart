@@ -189,13 +189,22 @@ class PosPayTipRow extends StatelessWidget {
   /// Null = inert (tipping off).
   final VoidCallback? onTap;
 
-  const PosPayTipRow({super.key, this.amount = 0, this.onTap});
+  /// 61 tall with py-16 on the summary panes; the split panes draw it 48 tall
+  /// with py-8 once a payment is listed (node 1915:9765).
+  final double height;
+
+  const PosPayTipRow({
+    super.key,
+    this.amount = 0,
+    this.onTap,
+    this.height = PosPaymentSpec.tipSectionHeight,
+  });
 
   @override
   Widget build(BuildContext context) {
     final bool hasTip = amount > 0;
     final Widget row = Container(
-      height: PosPaymentSpec.tipSectionHeight,
+      height: height,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
