@@ -181,9 +181,16 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
           ),
           barLabel: (_) => 'Continue to refund method',
           barEnabled: () => true,
-          onBar: () => setState(() => _step = _session.isSplitOrder
-              ? _RefundStep.chooseSplit
-              : _RefundStep.chooseMethod),
+          onBar: () {
+            // Frame 26 opens on "Original payment".
+            if (!_session.isSplitOrder) {
+              _session.refundMethod.value =
+                  _session.order?.method == 'card' ? 'card' : 'cash';
+            }
+            setState(() => _step = _session.isSplitOrder
+                ? _RefundStep.chooseSplit
+                : _RefundStep.chooseMethod);
+          },
           customerName: _customerName,
           table: _table,
         );
@@ -287,7 +294,12 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
     _session.pendingRefundId.value  = body['refund_id'] as int?;
     _session.pendingRefundSeq.value = body['refund_seq'] as int?;
     _session.refundAmount.value     = (body['amount'] as num?)?.toDouble() ?? 0;
-    _session.refundMethod.value     = (body['method'] as String?) ?? 'cash';
+    // `create` answers with the source's original method; the refund goes
+    // out the way the operator chose on frame 26 (confirm records the method
+    // it is sent). Only an empty choice falls back to the backend's.
+    if (_session.refundMethod.value.isEmpty) {
+      _session.refundMethod.value = (body['method'] as String?) ?? 'cash';
+    }
 
     setState(() => _step = _RefundStep.waiting);
   }
