@@ -524,7 +524,7 @@ Other session's uncommitted files, listed before starting and never edited or st
 | Store credit, card last four | No data in the backend | B5 |
 | Refund shown on the printed / emailed receipt | Receipt print data has no refund lines | B9 |
 | Very large discount, split by item: a first pick whose item prices reach the discounted total | Backend needs the remaining group > 0; the operator must pick fewer items first | (edge, noted) |
-| Real run on a device | **Not done on a device.** No local backend can run here (its `.env` needs MySQL, which is not installed), and every non-debug-web build talks to production (`admin.acafepos.com`), where walking these flows would place real orders, charges and refunds. Done instead: `flutter build web --release` compiles; every flow is walked through the real screen in widget tests against fakes that apply the controllers' validation. Devices seen: Chrome, macOS (no `macos/` target in the project), a Pixel 8 emulator, a wireless iPhone | — |
+| Real run on a device | **Not done on a device.** The local backend's database (MAMP MySQL 8.0, port 8889) was stopped during this session, so the local backend answered 500 to every call — an earlier version of this line said MySQL was not installed, which was wrong; it is MAMP's. Every non-debug-web build talks to production (`admin.acafepos.com`), where walking these flows would place real orders, charges and refunds. Done instead: `flutter build web --release` compiles; every flow is walked through the real screen in widget tests against fakes that apply the controllers' validation. Devices seen: Chrome, macOS (no `macos/` target in the project), a Pixel 8 emulator, a wireless iPhone | — |
 
 ## Backend work needed
 
