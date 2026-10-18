@@ -80,18 +80,26 @@ class PosOrdersSpec {
   /// The pills themselves are [PosFilterPill], already Figma's r20 / 1.5 / 13.
   static const double pillGap = 8;
 
-  // ── Sections ─────────────────────────────────────────────────────────
-  static const double sectionHeaderSize = 14;
+  // ── Sections (1915:15831 / 15968 / 16050) ──────────────────────────
+  static const double sectionHeaderSize = 15;
   /// `section-header-*` to `*-cards-grid`.
-  static const double sectionHeaderGap = 30;
+  static const double sectionHeaderGap = 12;
   /// Between one section's grid and the next section's header.
-  static const double sectionGap = 40;
+  static const double sectionGap = 20;
 
   static const double badgeHeight = 17;
   static const double badgeMinWidth = 23;
   static const double badgeRadius = 8.5;
+  static const double badgePaddingH = 8;
   static const double badgeTextSize = 11;
   static const double badgeGap = 8;
+
+  /// Count badge fills, one per section (`new-badge` / `progress-badge` /
+  /// `finished-badge`). NEW's and IN PROGRESS's are the same hexes the detail
+  /// modal's status badge uses.
+  static const Color sectionBadgeNew = Color(0xFF496052);
+  static const Color sectionBadgeInProgress = Color(0xFF2D9CDB);
+  static const Color sectionBadgeFinished = Color(0xFF59B86B);
 
   // ── Cards ────────────────────────────────────────────────────────────
   /// `card-*` is 288 wide with a 300 pitch → a 12px gap on both axes.

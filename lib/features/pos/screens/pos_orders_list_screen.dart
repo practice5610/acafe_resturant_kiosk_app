@@ -560,10 +560,7 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionHeader(
-          PosOrderGrouping.labelFor(section),
-          provider.countOf(section),
-        ),
+        _sectionHeader(section, provider.countOf(section)),
         const SizedBox(height: PosOrdersSpec.sectionHeaderGap),
         if (cards.isEmpty)
           Text(
@@ -602,13 +599,30 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     );
   }
 
-  Widget _sectionHeader(String label, int count) {
+  /// `section-header-*`: ExtraBold 15 plus a count badge in that section's
+  /// own colour.
+  Widget _sectionHeader(PosOrderSection section, int count) {
+    final (Color fill, Color ink) = switch (section) {
+      PosOrderSection.newOrders => (
+          PosOrdersSpec.sectionBadgeNew,
+          PosHomeSpec.pageBg,
+        ),
+      PosOrderSection.inProgress => (
+          PosOrdersSpec.sectionBadgeInProgress,
+          Colors.white,
+        ),
+      PosOrderSection.finished || PosOrderSection.excluded => (
+          PosOrdersSpec.sectionBadgeFinished,
+          PosHomeSpec.pageBg,
+        ),
+    };
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          label,
-          style: loewBold.copyWith(
+          PosOrderGrouping.labelFor(section),
+          style: loewExtraBold.copyWith(
             fontSize: PosOrdersSpec.sectionHeaderSize,
             color: PosHomeSpec.ink,
           ),
@@ -619,16 +633,18 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
           constraints:
               const BoxConstraints(minWidth: PosOrdersSpec.badgeMinWidth),
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 7),
+          padding: const EdgeInsets.symmetric(
+            horizontal: PosOrdersSpec.badgePaddingH,
+          ),
           decoration: BoxDecoration(
-            color: PosHomeSpec.inactiveFill,
+            color: fill,
             borderRadius: BorderRadius.circular(PosOrdersSpec.badgeRadius),
           ),
           child: Text(
             '$count',
             style: loewBold.copyWith(
               fontSize: PosOrdersSpec.badgeTextSize,
-              color: PosHomeSpec.ink,
+              color: ink,
             ),
           ),
         ),
