@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
+import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
 
 /// One row of `GET /api/v1/kiosk/manager/orders` — a single card on the board.
 ///
@@ -27,6 +28,10 @@ class PosOrderCard {
   /// the card simply draws no progress line rather than a hollow one.
   final List<PrepStatus> itemStates;
 
+  /// One aggregate per kitchen station, from the feed's `stations` — the
+  /// card's footer pills. Empty when no line has a station.
+  final List<PosStationStatus> stations;
+
   const PosOrderCard({
     required this.id,
     required this.createdAt,
@@ -39,6 +44,7 @@ class PosOrderCard {
     required this.displayMethod,
     this.branchName,
     this.itemStates = const <PrepStatus>[],
+    this.stations = const <PosStationStatus>[],
   });
 
   PosOrderSection get section => PosOrderGrouping.sectionOf(orderStatus);
@@ -108,6 +114,7 @@ class PosOrderCard {
         displayMethod: displayMethod,
         branchName: branchName,
         itemStates: itemStates,
+        stations: stations,
       );
 
   factory PosOrderCard.fromJson(Map<String, dynamic> json) {
@@ -133,6 +140,7 @@ class PosOrderCard {
               .map((e) => PrepStatus.fromWire(e['prep_status']))
               .toList(growable: false)
           : const <PrepStatus>[],
+      stations: PosStationStatus.listFromJson(json['stations']),
     );
   }
 }

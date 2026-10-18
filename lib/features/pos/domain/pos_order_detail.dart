@@ -13,6 +13,7 @@
 library;
 
 import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
+import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
 
 class PosOrderDetail {
   final int id;
@@ -42,6 +43,9 @@ class PosOrderDetail {
   final int itemsReady;
   final int itemsTotal;
 
+  /// One aggregate per kitchen station — the header's pills.
+  final List<PosStationStatus> stations;
+
   final double subtotal;
   final double discount;
   final double total;
@@ -62,6 +66,7 @@ class PosOrderDetail {
     required this.items,
     required this.itemsReady,
     required this.itemsTotal,
+    this.stations = const <PosStationStatus>[],
     required this.subtotal,
     required this.discount,
     required this.total,
@@ -131,6 +136,7 @@ class PosOrderDetail {
     List<PosOrderDetailItem>? items,
     int? itemsReady,
     int? itemsTotal,
+    List<PosStationStatus>? stations,
   }) =>
       PosOrderDetail(
         id: id,
@@ -148,6 +154,7 @@ class PosOrderDetail {
         items: items ?? this.items,
         itemsReady: itemsReady ?? this.itemsReady,
         itemsTotal: itemsTotal ?? this.itemsTotal,
+        stations: stations ?? this.stations,
         subtotal: subtotal,
         discount: discount,
         total: total,
@@ -173,6 +180,7 @@ class PosOrderDetail {
           .toList(growable: false),
       itemsReady: int.tryParse('${json['items_ready']}') ?? 0,
       itemsTotal: int.tryParse('${json['items_total']}') ?? 0,
+      stations: PosStationStatus.listFromJson(json['stations']),
       subtotal: _asDouble(json['subtotal']) ?? 0,
       discount: _asDouble(json['discount']) ?? 0,
       total: _asDouble(json['total']) ?? 0,
@@ -209,6 +217,10 @@ class PosOrderDetailItem {
 
   final List<PosOrderDetailAddon> addons;
 
+  /// The kitchen station that prepares this line — a name, never an id. Null
+  /// when it has none; the row then shows its status alone.
+  final String? station;
+
   const PosOrderDetailItem({
     required this.id,
     required this.prepStatus,
@@ -219,6 +231,7 @@ class PosOrderDetailItem {
     required this.instruction,
     required this.variationLabels,
     required this.addons,
+    this.station,
   });
 
   /// Whether this line has anything to draw under its price row. Figma always
@@ -243,6 +256,7 @@ class PosOrderDetailItem {
         instruction: instruction,
         variationLabels: variationLabels,
         addons: addons,
+        station: station,
       );
 
   factory PosOrderDetailItem.fromJson(Map<String, dynamic> json) {
@@ -270,6 +284,7 @@ class PosOrderDetailItem {
           .whereType<Map>()
           .map((e) => PosOrderDetailAddon.fromJson(Map<String, dynamic>.from(e)))
           .toList(growable: false),
+      station: _nullableString(json['station']),
     );
   }
 }

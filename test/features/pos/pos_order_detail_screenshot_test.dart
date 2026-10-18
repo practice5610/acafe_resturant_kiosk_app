@@ -122,9 +122,13 @@ Map<String, dynamic> _item({
   String? variation,
   List<String> addons = const [],
   String? instruction,
+  String? station,
+  String prepStatus = 'pending',
 }) =>
     <String, dynamic>{
       'name': name,
+      'station': station,
+      'prep_status': prepStatus,
       'image': null,
       'quantity': 1,
       'unit_price': price,
@@ -143,6 +147,14 @@ Map<String, dynamic> _item({
         for (final String a in addons) {'name': a, 'quantity': 1},
       ],
     };
+
+/// A line's prep state for an order in [status]: nothing started on a new
+/// order, Bar done and Kitchen part-way while preparing, all done after.
+String _prep(String status, String station) {
+  if (status == 'completed') return 'ready';
+  if (status == 'preparing') return station == 'Bar' ? 'ready' : 'preparing';
+  return 'pending';
+}
 
 Map<String, dynamic> _payload({
   required String status,
@@ -164,22 +176,34 @@ Map<String, dynamic> _payload({
       'customer_phone': withContact ? '+49 176 1234567' : null,
       'customer_email': withContact ? 'max.mustermann@example.com' : null,
       'order_note': note,
+      // Figma 1915:16197 (NEW: every station not started) and 1915:16874
+      // (IN PROGRESS: Bar done, Kitchen part-way).
       'items': [
         _item(
             name: 'Cappuccino',
             price: 4.5,
             variation: 'Cup',
-            addons: ['Oat Milk']),
+            addons: ['Oat Milk'],
+            station: 'Bar',
+            prepStatus: _prep(status, 'Bar')),
         _item(
             name: 'Croissant',
             price: 3.2,
             variation: 'Can',
-            instruction: 'Warmed up'),
+            instruction: 'Warmed up',
+            station: 'Kitchen',
+            prepStatus: _prep(status, 'Kitchen')),
         _item(
             name: 'Flat White',
             price: 4.0,
             variation: 'Cup',
-            addons: ['Extra hot']),
+            addons: ['Extra hot'],
+            station: 'Bar',
+            prepStatus: _prep(status, 'Bar')),
+      ],
+      'stations': [
+        {'name': 'Bar', 'status': _prep(status, 'Bar')},
+        {'name': 'Kitchen', 'status': _prep(status, 'Kitchen')},
       ],
       'subtotal': 11.7,
       'discount': 0,

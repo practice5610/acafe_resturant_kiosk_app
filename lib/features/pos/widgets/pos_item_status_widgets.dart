@@ -1,5 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -14,36 +16,108 @@ import 'package:flutter/material.dart';
 /// inline numbers, so a Figma change is a token change.
 
 /// Read-only status pill (Figma 1915:16246 `item-status-pill`): solid status
-/// fill, white ExtraBold 11.
+/// fill, white ExtraBold 11. "Bar · Pending" when the line has a station,
+/// the status alone when it has none.
 ///
 /// The kitchen's equivalent is `_PrepStatusChip` (order_ticket_card.dart:
 /// 1028-1058). Same wording; Figma's fills and type.
 class PosItemStatusChip extends StatelessWidget {
   final PrepStatus status;
+  final String? station;
 
-  const PosItemStatusChip({super.key, required this.status});
+  const PosItemStatusChip({super.key, required this.status, this.station});
+
+  @override
+  Widget build(BuildContext context) {
+    return _StatusPill(
+      label: posStationLabel(station, status),
+      color: status.color,
+      radius: PosOrderDetailSpec.itemPillRadius,
+      padH: PosOrderDetailSpec.itemPillPadH,
+      padV: PosOrderDetailSpec.itemPillPadV,
+      textSize: PosOrderDetailSpec.itemPillTextSize,
+    );
+  }
+}
+
+/// "Kitchen · Preparing" — Figma's `Station · Status`, in the kitchen's
+/// wording. No station, no prefix.
+String posStationLabel(String? station, PrepStatus status) {
+  final String name = (station ?? '').trim();
+  return name.isEmpty ? status.label : '$name · ${status.label}';
+}
+
+/// Where a [PosStationPill] is drawn — Figma sizes it per surface.
+enum PosStationPillSize {
+  /// Board card footer (1915:15995): ExtraBold 10.
+  card,
+
+  /// Detail modal header (1915:16209): ExtraBold 12.
+  header,
+}
+
+/// One station's aggregate as a pill: "Bar · Ready".
+class PosStationPill extends StatelessWidget {
+  final PosStationStatus station;
+  final PosStationPillSize size;
+
+  const PosStationPill({
+    super.key,
+    required this.station,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool card = size == PosStationPillSize.card;
+
+    return _StatusPill(
+      label: posStationLabel(station.name, station.status),
+      color: station.status.color,
+      radius: card
+          ? PosOrdersSpec.stationPillRadius
+          : PosOrderDetailSpec.itemPillRadius,
+      padH: card ? PosOrdersSpec.stationPillPadH : PosOrderDetailSpec.itemPillPadH,
+      padV: card ? PosOrdersSpec.stationPillPadV : PosOrderDetailSpec.itemPillPadV,
+      textSize: card
+          ? PosOrdersSpec.stationPillTextSize
+          : PosOrderDetailSpec.headerStationTextSize,
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final Color color;
+  final double radius;
+  final double padH;
+  final double padV;
+  final double textSize;
+
+  const _StatusPill({
+    required this.label,
+    required this.color,
+    required this.radius,
+    required this.padH,
+    required this.padV,
+    required this.textSize,
+  });
 
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: PosOrderDetailSpec.itemStateAnimation,
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(
-        horizontal: PosOrderDetailSpec.itemPillPadH,
-        vertical: PosOrderDetailSpec.itemPillPadV,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
       decoration: BoxDecoration(
-        color: status.color,
-        borderRadius:
-            BorderRadius.circular(PosOrderDetailSpec.itemPillRadius),
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
       ),
       child: Text(
-        status.label,
+        label,
         maxLines: 1,
-        style: loewExtraBold.copyWith(
-          fontSize: PosOrderDetailSpec.itemPillTextSize,
-          color: Colors.white,
-        ),
+        overflow: TextOverflow.ellipsis,
+        style: loewExtraBold.copyWith(fontSize: textSize, color: Colors.white),
       ),
     );
   }

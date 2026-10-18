@@ -13,6 +13,7 @@ import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_item_status_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
@@ -149,6 +150,11 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
   late final ValueNotifier<PrepProgress> _progress =
       ValueNotifier<PrepProgress>(widget.order.progress);
 
+  /// The header's station pills. Seeded from the card so they draw before
+  /// the fetch lands; every read and every write response replaces them.
+  late final ValueNotifier<List<PosStationStatus>> _stations =
+      ValueNotifier<List<PosStationStatus>>(widget.order.stations);
+
   /// True while the whole order is blocked -- on hold, or a bulk write running.
   final ValueNotifier<bool> _orderBusy = ValueNotifier<bool>(false);
 
@@ -181,6 +187,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
     }
     _orderStatus.dispose();
     _progress.dispose();
+    _stations.dispose();
     _orderBusy.dispose();
     super.dispose();
   }
@@ -245,6 +252,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
 
     _orderStatus.value = detail.orderStatus;
     _progress.value = detail.progress;
+    _stations.value = detail.stations;
   }
 
   /// Current per-item statuses, in the order the lines are drawn.
@@ -357,6 +365,11 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
       _orderStatus.value = orderStatus;
     }
 
+    // The server re-derives the station aggregates after every write.
+    if (body.containsKey('stations')) {
+      _stations.value = PosStationStatus.listFromJson(body['stations']);
+    }
+
     final int? ready = int.tryParse('${body['items_ready']}');
     final int? total = int.tryParse('${body['items_total']}');
     if (ready != null && total != null && total > 0) {
@@ -380,6 +393,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
         items: updated,
         itemsReady: _progress.value.ready,
         itemsTotal: _progress.value.total,
+        stations: _stations.value,
       );
     }
   }
@@ -560,13 +574,18 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _Header(
-                        orderId: widget.order.id,
-                        status: _status,
-                        createdAt: _detail?.createdAt ?? widget.order.createdAt,
-                        channelKey:
-                            _detail?.channelKey ?? widget.order.channelKey,
-                        onClose: () => Navigator.of(context).maybePop(),
+                      ValueListenableBuilder<List<PosStationStatus>>(
+                        valueListenable: _stations,
+                        builder: (_, stations, __) => _Header(
+                          orderId: widget.order.id,
+                          status: _status,
+                          createdAt:
+                              _detail?.createdAt ?? widget.order.createdAt,
+                          channelKey:
+                              _detail?.channelKey ?? widget.order.channelKey,
+                          stations: stations,
+                          onClose: () => Navigator.of(context).maybePop(),
+                        ),
                       ),
                       Flexible(child: _body()),
                       _actionBar(),
@@ -984,6 +1003,9 @@ class _Header extends StatelessWidget {
   final String status;
   final DateTime? createdAt;
   final String channelKey;
+
+  /// One pill per station (Figma 1915:16209), after the source badge.
+  final List<PosStationStatus> stations;
   final VoidCallback onClose;
 
   const _Header({
@@ -991,6 +1013,7 @@ class _Header extends StatelessWidget {
     required this.status,
     required this.createdAt,
     required this.channelKey,
+    required this.stations,
     required this.onClose,
   });
 
@@ -1090,6 +1113,11 @@ class _Header extends StatelessWidget {
                     ],
                   ),
                 ),
+                for (final PosStationStatus station in stations)
+                  PosStationPill(
+                    station: station,
+                    size: PosStationPillSize.header,
+                  ),
               ],
             ),
           ),
@@ -1447,7 +1475,7 @@ class _ItemRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: PosOrderDetailSpec.itemStatusGap),
-            PosItemStatusChip(status: status),
+            PosItemStatusChip(status: status, station: item.station),
             if (action != null && onAction != null) ...[
               const SizedBox(width: PosOrderDetailSpec.itemStatusGap),
               PosItemActionButton(

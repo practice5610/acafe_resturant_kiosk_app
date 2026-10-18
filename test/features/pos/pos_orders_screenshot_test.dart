@@ -113,9 +113,14 @@ class _StubOrdersRepo implements PosOrdersRepo {
     required double amount,
     String name = 'Max Mustermann',
     List<String> address = const [],
+    List<(String, String)> stations = const [],
   }) =>
       <String, dynamic>{
         'id': id,
+        'stations': [
+          for (final (String name, String status) in stations)
+            {'name': name, 'status': status},
+        ],
         'created_at': _frozenNow
             .subtract(Duration(minutes: minutesAgo, seconds: 23))
             .toIso8601String(),
@@ -195,12 +200,14 @@ class _StubOrdersRepo implements PosOrdersRepo {
             amount: 11.67,
           ),
           // IN PROGRESS
+          // Figma 1915:15974 / 15999 / 16025's station pills.
           _row(
             id: 27363,
             status: 'preparing',
             channel: 'web_app',
             minutesAgo: 3,
             amount: 11.67,
+            stations: [('Bar', 'ready'), ('Kitchen', 'preparing')],
           ),
           _row(
             id: 27362,
@@ -209,6 +216,7 @@ class _StubOrdersRepo implements PosOrdersRepo {
             minutesAgo: 7,
             amount: 11.67,
             address: ['Potsdamer Str. 33', '14974 Ludwigsfelde'],
+            stations: [('Bar', 'preparing'), ('Kitchen', 'preparing')],
           ),
           _row(
             id: 27361,
@@ -216,6 +224,7 @@ class _StubOrdersRepo implements PosOrdersRepo {
             channel: 'counter_pos',
             minutesAgo: 18,
             amount: 11.67,
+            stations: [('Bar', 'ready'), ('Kitchen', 'pending')],
           ),
           // FINISHED
           _row(

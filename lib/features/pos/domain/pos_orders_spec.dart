@@ -144,6 +144,14 @@ class PosOrdersSpec {
   /// `timer-section` → `card-footer`.
   static const double cardBlockGap = 8;
 
+  /// `station-pill` in the card footer (1915:15995): solid status fill,
+  /// white ExtraBold 10, 4 apart, right of the price.
+  static const double stationPillRadius = 12;
+  static const double stationPillPadH = 8;
+  static const double stationPillPadV = 3;
+  static const double stationPillTextSize = 10;
+  static const double stationPillGap = 4;
+
   // ── Card colours ─────────────────────────────────────────────────────
   /// The `time-row` dot is coloured by **section**. Figma's layer names say so
   /// (`status-dot-yellow` / `-blue` / `-green`); its NEW and IN PROGRESS fills

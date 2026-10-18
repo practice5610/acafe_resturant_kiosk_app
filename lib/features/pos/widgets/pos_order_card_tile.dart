@@ -5,6 +5,8 @@ import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_timer.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_item_status_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -131,10 +133,10 @@ class PosOrderCardTile extends StatelessWidget {
           _customerBlock(),
           const SizedBox(height: PosOrdersSpec.cardBlockGap),
           _timerRow(urgency),
-          // Item progress sits between the timer and the price, under the
-          // existing subtitle block -- an extra line inside the card, not a
-          // change to how the card is sized or laid out.
-          if (order.itemStates.isNotEmpty) ...[
+          // Item progress sits between the timer and the price. Figma draws
+          // station pills in the footer instead; an order whose lines have no
+          // station keeps this line, so the counter still sees how far it is.
+          if (order.stations.isEmpty && order.itemStates.isNotEmpty) ...[
             const SizedBox(height: PosOrdersSpec.progressGap),
             _itemProgress(),
           ],
@@ -294,19 +296,41 @@ class PosOrderCardTile extends StatelessWidget {
     );
   }
 
+  /// `card-footer`: the price, and the station pills to its right
+  /// (1915:15994 `station-status`). Pills wrap rather than overflow when an
+  /// order spans more stations than one line holds.
   Widget _footer() {
+    final Widget price = Text(
+      PosHomeSpec.formatPrice(order.orderAmount),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: loewExtraBold.copyWith(
+        fontSize: PosOrdersSpec.priceTextSize,
+        color: PosHomeSpec.ink,
+      ),
+    );
+
+    if (order.stations.isEmpty) {
+      return Row(children: [Expanded(child: price)]);
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        price,
+        const SizedBox(width: PosOrdersSpec.stationPillGap * 2),
         Expanded(
-          child: Text(
-            PosHomeSpec.formatPrice(order.orderAmount),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: loewExtraBold.copyWith(
-              fontSize: PosOrdersSpec.priceTextSize,
-              color: PosHomeSpec.ink,
-            ),
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: PosOrdersSpec.stationPillGap,
+            runSpacing: PosOrdersSpec.stationPillGap,
+            children: [
+              for (final PosStationStatus station in order.stations)
+                PosStationPill(
+                  station: station,
+                  size: PosStationPillSize.card,
+                ),
+            ],
           ),
         ),
       ],

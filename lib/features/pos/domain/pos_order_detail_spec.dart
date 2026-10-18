@@ -193,6 +193,9 @@ class PosOrderDetailSpec {
   static const Color itemStatusPreparing = Color(0xFF2E99D9);
   static const Color itemStatusReady = Color(0xFF2A8456);
 
+  /// The header's per-station pills (1915:16209): the item pill at 12px.
+  static const double headerStationTextSize = 12;
+
   /// Swiss 721 Light for the item's price and note lines (Figma 1915:16242).
   static const double itemMetaAlpha = 0.6;
 
