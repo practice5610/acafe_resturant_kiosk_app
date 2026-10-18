@@ -245,11 +245,12 @@ void main() {
   testWidgets('every filter dropdown opens below its pill and picks cleanly',
       (tester) async {
     await pumpBoard(tester, _StubOrdersRepo(), size: const Size(2000, 1200));
+    // Figma 1915:15802…15814 draws the dropdowns in capitals.
     for (final String label in const [
-      'All sources',
-      'All types',
-      'All payment methods',
-      'Any status',
+      'ALL SOURCES',
+      'ALL TYPES',
+      'ALL PAYMENT METHODS',
+      'ANY STATUS',
     ]) {
       final Finder pill = find.text(label);
       expect(pill, findsOneWidget, reason: label);
@@ -409,11 +410,42 @@ void main() {
     expect(find.text('2'), findsOneWidget);
     expect(find.text('1'), findsNWidgets(2));
 
-    // The quick-pills carry the same counts; PosFilterPill uppercases them.
-    expect(find.text('NEW  2'), findsOneWidget);
-    expect(find.text('IN PROGRESS  1'), findsOneWidget);
-    expect(find.text('FINISHED  1'), findsOneWidget);
-    expect(find.text('ALL  4'), findsOneWidget);
+    // Figma 1915:15818: the quick-pills carry no counts — those live on the
+    // section headers above.
+    expect(find.text('ALL'), findsOneWidget);
+    expect(find.text('NEW  2'), findsNothing);
+    expect(find.text('ALL  4'), findsNothing);
+  });
+
+  testWidgets('FILTER folds the dropdown row away and back', (tester) async {
+    await pumpBoard(tester, _StubOrdersRepo(), size: const Size(2000, 1200));
+    expect(find.text('ALL SOURCES'), findsOneWidget);
+
+    await tester.tap(find.text('FILTER'));
+    await tester.pumpAndSettle();
+    expect(find.text('ALL SOURCES'), findsNothing);
+    expect(find.text('ANY STATUS'), findsNothing);
+
+    await tester.tap(find.text('FILTER'));
+    await tester.pumpAndSettle();
+    expect(find.text('ALL SOURCES'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the search clear chip empties the field', (tester) async {
+    final repo = _StubOrdersRepo();
+    await pumpBoard(tester, repo, size: const Size(2000, 1200));
+
+    await tester.enterText(find.byType(TextField), 'max');
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      isEmpty,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('each card carries the action for its own rung of the ladder',

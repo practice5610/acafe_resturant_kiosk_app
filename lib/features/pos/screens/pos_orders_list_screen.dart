@@ -20,8 +20,10 @@ import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dar
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
+import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 /// The POS Orders board (Figma **1641:2874**).
@@ -68,6 +70,10 @@ class _PosOrdersBoard extends StatefulWidget {
 
 class _PosOrdersBoardState extends State<_PosOrdersBoard> {
   final TextEditingController _searchController = TextEditingController();
+
+  /// Whether the dropdown row is unfolded. Screen state, not a filter: it
+  /// changes what is on screen, never what the board fetches.
+  bool _filtersOpen = true;
 
   /// One clock for the whole board. Every card reads `_now` rather than owning
   /// a timer, so a hundred open orders still cost one tick per second.
@@ -299,92 +305,28 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
   }
 
   // ── Filter bar ───────────────────────────────────────────────────────
+  /// `filters-area` (Figma 1915:15771): the date row, the dropdown row and the
+  /// section pills, ruled off from the board by a 1px ink line.
   Widget _filters(PosOrdersProvider provider) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        PosOrdersSpec.pagePadding,
-        14,
-        PosOrdersSpec.pagePadding,
-        PosOrdersSpec.filtersBottomGap,
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: PosOrdersSpec.pagePadding,
+        vertical: PosOrdersSpec.filtersPaddingV,
+      ),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: PosHomeSpec.ink,
+            width: PosOrdersSpec.filtersDivider,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // A Wrap, not a Row: the date fields, the preset chips and the
-          // search box together are too wide to hold on one line below
-          // roughly tablet width, and a Wrap reflows the overflow onto its
-          // own line instead of clipping it — no breakpoint to maintain.
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: PosOrdersSpec.dropdownGap,
-            runSpacing: PosOrdersSpec.filterRowGap,
-            children: [
-              // Quick presets lead the row, ahead of the explicit picker they
-              // are shortcuts for — an operator reaches for "Yesterday" far
-              // more often than for hand-picked dates, so the fast path reads
-              // first, left to right.
-              PosOrderDatePresetBar(
-                value: provider.datePreset,
-                onChanged: provider.setDatePreset,
-              ),
-              PosOrderDateRangeBar(
-                from: provider.from,
-                to: provider.to,
-                now: provider.now,
-                onNow: provider.setNow,
-                onFrom: (value) => provider.setRange(
-                  from: value,
-                  to: provider.to,
-                  now: false,
-                ),
-                onTo: (value) => provider.setRange(
-                  from: provider.from,
-                  to: value,
-                  now: false,
-                ),
-              ),
-              SizedBox(
-                width: PosOrdersSpec.searchFieldWidth,
-                child: PosSearchField(
-                  controller: _searchController,
-                  hintText: 'Search in orders...',
-                  style: PosSearchFieldStyle.settings,
-                  onChanged: provider.setSearch,
-                ),
-              ),
-            ],
-          ),
+          _dateRow(provider),
           const SizedBox(height: PosOrdersSpec.filterRowGap),
-          Wrap(
-            spacing: PosOrdersSpec.dropdownGap,
-            runSpacing: PosOrdersSpec.dropdownGap,
-            children: [
-              PosFilterDropdown<String?>(
-                label: 'All sources',
-                options: PosOrderFilters.sources,
-                value: provider.source,
-                onChanged: provider.setSource,
-              ),
-              PosFilterDropdown<String?>(
-                label: 'All types',
-                options: PosOrderFilters.types,
-                value: provider.type,
-                onChanged: provider.setType,
-              ),
-              PosFilterDropdown<String?>(
-                label: 'All payment methods',
-                options: PosOrderFilters.methods,
-                value: provider.method,
-                onChanged: provider.setMethod,
-              ),
-              PosFilterDropdown<String?>(
-                label: 'Any status',
-                options: PosOrderFilters.statuses,
-                value: provider.status,
-                onChanged: provider.setStatus,
-              ),
-            ],
-          ),
+          _dropdownRow(provider),
           const SizedBox(height: PosOrdersSpec.filterRowGap),
           // A horizontal scroller, not a Wrap, and for a specific reason:
           // PosFilterPill's Container carries an `alignment` and no width, so
@@ -398,28 +340,20 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _sectionPill(provider, null, 'All', provider.totalCount),
+                  // Figma's labels exactly: "All" in title case, the sections
+                  // in capitals, and no counts — those sit on the section
+                  // headers below.
+                  _sectionPill(provider, null, 'All'),
                   const SizedBox(width: PosOrdersSpec.pillGap),
-                  _sectionPill(
-                    provider,
-                    PosOrderSection.newOrders,
-                    'New',
-                    provider.countOf(PosOrderSection.newOrders),
-                  ),
+                  _sectionPill(provider, PosOrderSection.newOrders, 'NEW'),
                   const SizedBox(width: PosOrdersSpec.pillGap),
                   _sectionPill(
                     provider,
                     PosOrderSection.inProgress,
-                    'In progress',
-                    provider.countOf(PosOrderSection.inProgress),
+                    'IN PROGRESS',
                   ),
                   const SizedBox(width: PosOrdersSpec.pillGap),
-                  _sectionPill(
-                    provider,
-                    PosOrderSection.finished,
-                    'Finished',
-                    provider.countOf(PosOrderSection.finished),
-                  ),
+                  _sectionPill(provider, PosOrderSection.finished, 'FINISHED'),
                 ],
               ),
             ),
@@ -429,14 +363,135 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     );
   }
 
+  /// `date-row`: presets, NOW, From, To, and a search that takes the rest.
+  ///
+  /// One row at POS width, as Figma draws it. On a narrower terminal the
+  /// fixed controls already fill most of the line, so the search drops onto a
+  /// full-width line of its own rather than shrinking to a sliver.
+  Widget _dateRow(PosOrdersProvider provider) {
+    final Widget presets = PosOrderDatePresetBar(
+      value: provider.datePreset,
+      onChanged: provider.setDatePreset,
+    );
+    final Widget range = PosOrderDateRangeBar(
+      from: provider.from,
+      to: provider.to,
+      now: provider.now,
+      onNow: provider.setNow,
+      onFrom: (value) => provider.setRange(
+        from: value,
+        to: provider.to,
+        now: false,
+      ),
+      onTo: (value) => provider.setRange(
+        from: provider.from,
+        to: value,
+        now: false,
+      ),
+    );
+    final Widget search = PosSearchField(
+      controller: _searchController,
+      hintText: 'SEARCH IN ORDERS...',
+      style: PosSearchFieldStyle.orders,
+      onChanged: provider.setSearch,
+      onClear: () {
+        _searchController.clear();
+        provider.setSearch('');
+      },
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= PosOrdersSpec.searchInlineMinWidth) {
+          return Row(
+            children: [
+              presets,
+              const SizedBox(width: PosOrdersSpec.dateGap),
+              range,
+              const SizedBox(width: PosOrdersSpec.dateGap),
+              Expanded(child: search),
+            ],
+          );
+        }
+
+        return Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: PosOrdersSpec.dateGap,
+          runSpacing: PosOrdersSpec.filterRowGap,
+          children: [
+            presets,
+            range,
+            SizedBox(width: constraints.maxWidth, child: search),
+          ],
+        );
+      },
+    );
+  }
+
+  /// `dropdown-row`: FILTER leads and folds the four dropdowns away or back.
+  /// The dropdowns still apply the moment they change; FILTER only decides
+  /// whether they are on screen.
+  Widget _dropdownRow(PosOrdersProvider provider) {
+    // Folded-away filters still narrow the board, so the button says how many
+    // are in force rather than letting orders go missing without a clue why.
+    final int narrowed = <bool>[
+      provider.source != PosOrderFilters.sources.first.value,
+      provider.type != PosOrderFilters.types.first.value,
+      provider.method != PosOrderFilters.methods.first.value,
+      provider.status != PosOrderFilters.statuses.first.value,
+    ].where((active) => active).length;
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: PosOrdersSpec.dropdownGap,
+      runSpacing: PosOrdersSpec.dropdownGap,
+      children: [
+        _FilterToggleButton(
+          open: _filtersOpen,
+          narrowedCount: _filtersOpen ? 0 : narrowed,
+          onTap: () => setState(() => _filtersOpen = !_filtersOpen),
+        ),
+        if (_filtersOpen) ...[
+          PosFilterDropdown<String?>(
+            label: 'All sources',
+            options: PosOrderFilters.sources,
+            value: provider.source,
+            onChanged: provider.setSource,
+            style: PosFilterDropdownStyle.orders,
+          ),
+          PosFilterDropdown<String?>(
+            label: 'All types',
+            options: PosOrderFilters.types,
+            value: provider.type,
+            onChanged: provider.setType,
+            style: PosFilterDropdownStyle.orders,
+          ),
+          PosFilterDropdown<String?>(
+            label: 'All payment methods',
+            options: PosOrderFilters.methods,
+            value: provider.method,
+            onChanged: provider.setMethod,
+            style: PosFilterDropdownStyle.orders,
+          ),
+          PosFilterDropdown<String?>(
+            label: 'Any status',
+            options: PosOrderFilters.statuses,
+            value: provider.status,
+            onChanged: provider.setStatus,
+            style: PosFilterDropdownStyle.orders,
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _sectionPill(
     PosOrdersProvider provider,
     PosOrderSection? section,
     String label,
-    int count,
   ) {
     return PosFilterPill(
-      label: count > 0 ? '$label  $count' : label,
+      label: label,
       active: provider.section == section,
       onTap: () => provider.setSection(section),
     );
@@ -474,7 +529,7 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(
             PosOrdersSpec.pagePadding,
-            0,
+            PosOrdersSpec.boardPaddingTop,
             PosOrdersSpec.pagePadding,
             PosOrdersSpec.pagePadding,
           ),
@@ -578,6 +633,76 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// `filter-btn` (Figma 1915:15798): ink-filled while the dropdown row is
+/// shown, outlined once it is folded away.
+class _FilterToggleButton extends StatelessWidget {
+  final bool open;
+
+  /// Filters still in force while folded away; 0 hides the count.
+  final int narrowedCount;
+  final VoidCallback onTap;
+
+  const _FilterToggleButton({
+    required this.open,
+    required this.narrowedCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color ink = open ? PosHomeSpec.pageBg : PosHomeSpec.ink;
+    final BorderRadius radius =
+        BorderRadius.circular(PosOrdersSpec.filterPillRadius);
+
+    return Semantics(
+      button: true,
+      toggled: open,
+      label: open ? 'Hide filters' : 'Show filters',
+      child: Material(
+        color: open ? PosHomeSpec.ink : Colors.transparent,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: PosOrdersSpec.filterButtonPaddingH,
+              vertical: PosOrdersSpec.filterPillPaddingV,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(
+                color: PosHomeSpec.ink,
+                width: PosOrdersSpec.filterPillBorder,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SvgPicture.asset(
+                  Images.posOrdersFilterSvg,
+                  width: PosOrdersSpec.filterIconSize,
+                  height: PosOrdersSpec.filterIconSize,
+                  colorFilter: ColorFilter.mode(ink, BlendMode.srcIn),
+                ),
+                const SizedBox(width: PosOrdersSpec.filterIconGap),
+                Text(
+                  narrowedCount > 0 ? 'FILTER ($narrowedCount)' : 'FILTER',
+                  style: loewBold.copyWith(
+                    fontSize: PosOrdersSpec.dropdownLabelSize,
+                    color: ink,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -17,43 +17,68 @@ class PosOrdersSpec {
   /// `body` sits under the 80px nav bar; every row insets 24 from the edges.
   static const double pagePadding = 24;
 
-  /// `filters-area` is 144 tall: three 32px rows at y=14 / 56 / 98.
-  static const double filterRowHeight = 32;
+  /// `filters-area` (1915:15771): 14 above and below, rows 10 apart, and a
+  /// 1px ink rule separating it from the board.
+  static const double filtersPaddingV = 14;
   static const double filterRowGap = 10;
-  static const double filtersBottomGap = 20;
+  static const double filtersDivider = 1;
 
-  // ── Date row (1641:2878) ─────────────────────────────────────────────
-  /// Matches the dropdown-row pills below (`PosReceiptsSpec.filterRadius` /
-  /// `filterPaddingV` / `filterPaddingH`) so the two rows read as one design
-  /// language — square-cornered fields, not a mix of pills and rectangles.
+  /// `orders-scroll-area` starts its content 20 below that rule.
+  static const double boardPaddingTop = 20;
+
+  // ── Filter controls (1915:15772 / 1915:15797) ────────────────────────
+  /// Every control in the filter area is the same outlined pill — NOW, the
+  /// date fields, the presets, search and the dropdowns: 1.5px ink, r20, 8 top
+  /// and bottom. Active ones fill with ink.
+  static const double filterPillRadius = 20;
+  static const double filterPillBorder = 1.5;
+  static const double filterPillPaddingV = 8;
+  static const double filterIconSize = 14;
+  static const double filterIconGap = 6;
+
+  // ── Date row (1915:15772) ────────────────────────────────────────────
   static const double nowButtonWidth = 62;
-  static const double dateFieldHeight = 36;
-  static const double dateFieldRadius = 8;
-  static const double dateFieldPaddingH = 16;
-  static const double dateIconSize = 14;
+  static const double nowPaddingH = 14;
+  static const double dateFieldPaddingH = 10;
+
+  /// Between the row's groups (presets, NOW, From, To, search).
   static const double dateGap = 8;
+
+  /// `FROM` / `TO` to their field.
+  static const double dateLabelGap = 6;
   static const double dateLabelSize = 12;
-  static const double dateTextSize = 13;
+  static const double dateTextSize = 12;
 
-  /// Fixed rather than `Expanded` — this row also carries the date-preset
-  /// chips and a search box that fills whatever space is left would crowd
-  /// them at every width, so it gets a deliberately modest budget instead.
-  static const double searchFieldWidth = 220;
+  // ── Search (1915:15790) ──────────────────────────────────────────────
+  static const double searchHeight = 32;
+  static const double searchPaddingH = 10;
+  static const double searchTextSize = 12;
+  static const double searchHintAlpha = 0.38;
+  static const double searchClearRadius = 4;
+  static const double searchClearPadH = 6;
+  static const double searchClearPadV = 3;
+  static const double searchClearIconSize = 10;
+  static const Color searchClearFill = Color(0xFFE1DBC4);
 
-  // ── Dropdown row (1641:2903) ─────────────────────────────────────────
-  static const double dropdownHeight = 32;
-  static const double dropdownRadius = 8;
-  static const double dropdownPaddingH = 12;
+  /// Figma's search fills whatever the date row leaves. Below this content
+  /// width the presets, NOW and the two date fields already take most of the
+  /// row, so search drops onto its own full-width line instead of squeezing.
+  static const double searchInlineMinWidth = 1100;
+
+  // ── Dropdown row (1915:15797) ────────────────────────────────────────
   static const double dropdownGap = 8;
+  static const double dropdownPaddingLeft = 12;
+  static const double dropdownPaddingRight = 10;
   static const double dropdownLabelSize = 13;
   static const double chevronSize = 14;
 
-  // ── Status pills (1641:2924) ─────────────────────────────────────────
-  static const double pillHeight = 32;
-  static const double pillRadius = 16;
-  static const double pillPaddingH = 18;
+  /// `filter-btn`: ink-filled while the dropdowns are shown, outlined when
+  /// they are folded away.
+  static const double filterButtonPaddingH = 16;
+
+  // ── Status pills (1915:15818) ────────────────────────────────────────
+  /// The pills themselves are [PosFilterPill], already Figma's r20 / 1.5 / 13.
   static const double pillGap = 8;
-  static const double pillLabelSize = 13;
 
   // ── Sections ─────────────────────────────────────────────────────────
   static const double sectionHeaderSize = 14;

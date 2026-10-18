@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -9,7 +10,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 ///
 /// [PosSearchFieldStyle.pill] is the original product-grid look and stays the
 /// default so existing call sites are unchanged. [PosSearchFieldStyle.settings]
-/// is the shorter, square-cornered field the Settings frames use.
+/// is the shorter, square-cornered field the Settings frames use, and
+/// [PosSearchFieldStyle.orders] the Orders board's filter-row pill.
 @immutable
 class PosSearchFieldStyle {
   final double height;
@@ -23,6 +25,13 @@ class PosSearchFieldStyle {
   final double? textHeight;
   final double hintAlpha;
 
+  /// Field fill. White everywhere except the Orders board, which draws its
+  /// filter controls straight on the page.
+  final Color fillColor;
+
+  /// Search glyph. The Orders board uses its own 14px Figma export.
+  final String iconAsset;
+
   const PosSearchFieldStyle({
     required this.height,
     required this.radius,
@@ -34,6 +43,8 @@ class PosSearchFieldStyle {
     required this.textSize,
     required this.hintAlpha,
     this.textHeight,
+    this.fillColor = Colors.white,
+    this.iconAsset = Images.posSearchSvg,
   });
 
   /// Product grid / receipts (Figma home frames).
@@ -64,6 +75,23 @@ class PosSearchFieldStyle {
     textHeight: 18 / 14,
     hintAlpha: 0.6,
   );
+
+  /// Orders board filter row (Figma **1915:15790**): the same outlined r20
+  /// pill as every other control in that row.
+  static const PosSearchFieldStyle orders = PosSearchFieldStyle(
+    height: PosOrdersSpec.searchHeight,
+    radius: PosOrdersSpec.filterPillRadius,
+    borderColor: PosHomeSpec.ink,
+    borderWidth: PosOrdersSpec.filterPillBorder,
+    paddingH: PosOrdersSpec.searchPaddingH,
+    gap: PosOrdersSpec.filterIconGap,
+    iconSize: PosOrdersSpec.filterIconSize,
+    textSize: PosOrdersSpec.searchTextSize,
+    textHeight: PosOrdersSpec.filterIconSize / PosOrdersSpec.searchTextSize,
+    hintAlpha: PosOrdersSpec.searchHintAlpha,
+    fillColor: Colors.transparent,
+    iconAsset: Images.posOrdersSearchSvg,
+  );
 }
 
 /// Search field with icon + hint kept on one horizontal baseline.
@@ -81,12 +109,17 @@ class PosSearchField extends StatelessWidget {
   /// Defaults to the product-grid look so existing callers stay unchanged.
   final PosSearchFieldStyle style;
 
+  /// Draws the Orders board's `close-btn` chip at the trailing edge. Null (the
+  /// default) draws nothing, so existing callers are unchanged.
+  final VoidCallback? onClear;
+
   const PosSearchField({
     super.key,
     required this.controller,
     required this.onChanged,
     this.hintText = 'Search products..',
     this.style = PosSearchFieldStyle.pill,
+    this.onClear,
   });
 
   @override
@@ -108,12 +141,12 @@ class PosSearchField extends StatelessWidget {
         decoration: InputDecoration(
           isDense: true,
           filled: true,
-          fillColor: Colors.white,
+          fillColor: style.fillColor,
           contentPadding: EdgeInsets.only(right: style.paddingH),
           prefixIcon: Padding(
             padding: EdgeInsets.only(left: style.paddingH, right: style.gap),
             child: SvgPicture.asset(
-              Images.posSearchSvg,
+              style.iconAsset,
               width: style.iconSize,
               height: style.iconSize,
               fit: BoxFit.contain,
@@ -124,6 +157,12 @@ class PosSearchField extends StatelessWidget {
             minWidth: style.paddingH + style.iconSize + style.gap,
             minHeight: style.height - style.borderWidth * 2,
           ),
+          suffixIcon: onClear == null ? null : _ClearChip(onTap: onClear!),
+          suffixIconConstraints: onClear == null
+              ? null
+              : BoxConstraints(
+                  minHeight: style.height - style.borderWidth * 2,
+                ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(style.radius),
             borderSide: BorderSide(
@@ -148,6 +187,50 @@ class PosSearchField extends StatelessWidget {
           hintText: hintText,
           hintStyle: textStyle.copyWith(
             color: PosHomeSpec.inkAlpha(style.hintAlpha),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// `close-btn` (Figma 1915:15794): a small filled chip with a 10px ×.
+class _ClearChip extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _ClearChip({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosOrdersSpec.searchClearRadius);
+
+    // Align, so the chip keeps its own 16px height instead of being stretched
+    // to the field's by the suffix slot's constraints.
+    return Padding(
+      padding: const EdgeInsets.only(right: PosOrdersSpec.searchPaddingH),
+      child: Align(
+        widthFactor: 1,
+        child: Tooltip(
+          message: 'Clear search',
+          child: Material(
+            color: PosOrdersSpec.searchClearFill,
+            borderRadius: radius,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: radius,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: PosOrdersSpec.searchClearPadH,
+                  vertical: PosOrdersSpec.searchClearPadV,
+                ),
+                child: SvgPicture.asset(
+                  Images.posOrdersClearSvg,
+                  width: PosOrdersSpec.searchClearIconSize,
+                  height: PosOrdersSpec.searchClearIconSize,
+                ),
+              ),
+            ),
           ),
         ),
       ),

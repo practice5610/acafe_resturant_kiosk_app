@@ -324,6 +324,17 @@ class Images {
       'assets/svg/pos_menu_credit_card.svg';
   static const String posMenuStarSvg = 'assets/svg/pos_menu_star.svg';
 
+  // POS Orders board — exported unedited from Figma 1915:15767. Separate from
+  // the shared pos_* glyphs above: the board draws them at 14px with its own
+  // stroke weight and opacity, which the shared ones do not match.
+  static const String posOrdersCalendarSvg = 'assets/svg/pos_orders_calendar.svg';
+  static const String posOrdersClockSvg = 'assets/svg/pos_orders_clock.svg';
+  static const String posOrdersSearchSvg = 'assets/svg/pos_orders_search.svg';
+  static const String posOrdersClearSvg = 'assets/svg/pos_orders_clear.svg';
+  static const String posOrdersFilterSvg = 'assets/svg/pos_orders_filter.svg';
+  static const String posOrdersChevronDownSvg =
+      'assets/svg/pos_orders_chevron_down.svg';
+
   static String getImageUrl(imageName) => 'assets/image/$imageName.png';
   static String getPaymentImage(String name) => 'assets/payment/$name.png';
   static String getShareIcon(String name) => 'assets/icon/$name.png';

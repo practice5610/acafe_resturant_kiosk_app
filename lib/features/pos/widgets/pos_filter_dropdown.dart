@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_dropdown.dart';
@@ -6,6 +7,79 @@ import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
+/// How a [PosFilterDropdown] trigger is drawn. Only the trigger varies; the
+/// menu is always the shared [PosDropdown].
+///
+/// [receipts] is the original look and stays the default, so the Receipts
+/// screen is unchanged. [orders] is the Orders board's filter-row pill.
+@immutable
+class PosFilterDropdownStyle {
+  final double radius;
+  final Color idleFill;
+  final Color idleBorder;
+  final double borderWidth;
+  final EdgeInsets padding;
+  final TextStyle labelFont;
+  final double labelSize;
+  final bool uppercase;
+  final String chevronAsset;
+  final double chevronSize;
+  final double gap;
+
+  const PosFilterDropdownStyle({
+    required this.radius,
+    required this.idleFill,
+    required this.idleBorder,
+    required this.borderWidth,
+    required this.padding,
+    required this.labelFont,
+    required this.labelSize,
+    required this.uppercase,
+    required this.chevronAsset,
+    required this.chevronSize,
+    required this.gap,
+  });
+
+  /// Receipts (Figma 1641:3239…1641:3251).
+  static const PosFilterDropdownStyle receipts = PosFilterDropdownStyle(
+    radius: PosReceiptsSpec.filterRadius,
+    idleFill: PosReceiptsSpec.surface,
+    idleBorder: PosReceiptsSpec.fieldBorder,
+    borderWidth: 1,
+    padding: EdgeInsets.symmetric(
+      horizontal: PosReceiptsSpec.filterPaddingH,
+      vertical: PosReceiptsSpec.filterPaddingV,
+    ),
+    labelFont: loewBold,
+    labelSize: PosReceiptsSpec.filterLabelSize,
+    uppercase: false,
+    chevronAsset: Images.posChevronDownSvg,
+    chevronSize: PosReceiptsSpec.filterChevronSize,
+    gap: PosReceiptsSpec.filterGap,
+  );
+
+  /// Orders board `dropdown-row` (Figma 1915:15802…1915:15814): outlined ink
+  /// pill on the page, Medium 13 uppercase.
+  static const PosFilterDropdownStyle orders = PosFilterDropdownStyle(
+    radius: PosOrdersSpec.filterPillRadius,
+    idleFill: Colors.transparent,
+    idleBorder: PosHomeSpec.ink,
+    borderWidth: PosOrdersSpec.filterPillBorder,
+    padding: EdgeInsets.fromLTRB(
+      PosOrdersSpec.dropdownPaddingLeft,
+      PosOrdersSpec.filterPillPaddingV,
+      PosOrdersSpec.dropdownPaddingRight,
+      PosOrdersSpec.filterPillPaddingV,
+    ),
+    labelFont: loewMedium,
+    labelSize: PosOrdersSpec.dropdownLabelSize,
+    uppercase: true,
+    chevronAsset: Images.posOrdersChevronDownSvg,
+    chevronSize: PosOrdersSpec.chevronSize,
+    gap: PosOrdersSpec.filterIconGap,
+  );
+}
 
 /// A filter pill that opens a menu — Figma `status-filter` / `category-filter`
 /// / `amount-filter` / `date-filter` (1641:3239…1641:3251).
@@ -28,6 +102,9 @@ class PosFilterDropdown<T> extends StatelessWidget {
   /// name while they are on their "all" entry.
   final bool alwaysShowSelection;
 
+  /// Trigger look. Defaults to [PosFilterDropdownStyle.receipts].
+  final PosFilterDropdownStyle style;
+
   const PosFilterDropdown({
     super.key,
     required this.label,
@@ -35,6 +112,7 @@ class PosFilterDropdown<T> extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.alwaysShowSelection = false,
+    this.style = PosFilterDropdownStyle.receipts,
   });
 
   PosReceiptFilterOption<T>? get _selected {
@@ -51,8 +129,10 @@ class PosFilterDropdown<T> extends StatelessWidget {
   bool get _isActive => options.isNotEmpty && value != options.first.value;
 
   String get _displayLabel {
-    if (!_isActive && !alwaysShowSelection) return label;
-    return _selected?.label ?? label;
+    final String text = (!_isActive && !alwaysShowSelection)
+        ? label
+        : (_selected?.label ?? label);
+    return style.uppercase ? text.toUpperCase() : text;
   }
 
   @override
@@ -69,22 +149,21 @@ class PosFilterDropdown<T> extends StatelessWidget {
           PosDropdownOption<T>(value: o.value, label: o.label),
       ],
       triggerBuilder: (context, selected, isOpen, toggle) {
+        final Color ink = active ? PosReceiptsSpec.selectedInk : PosHomeSpec.ink;
+
         return Material(
-          color: active ? PosHomeSpec.ink : PosReceiptsSpec.surface,
-          borderRadius: BorderRadius.circular(PosReceiptsSpec.filterRadius),
+          color: active ? PosHomeSpec.ink : style.idleFill,
+          borderRadius: BorderRadius.circular(style.radius),
           child: InkWell(
             onTap: toggle,
-            borderRadius: BorderRadius.circular(PosReceiptsSpec.filterRadius),
+            borderRadius: BorderRadius.circular(style.radius),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: PosReceiptsSpec.filterPaddingH,
-                vertical: PosReceiptsSpec.filterPaddingV,
-              ),
+              padding: style.padding,
               decoration: BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(PosReceiptsSpec.filterRadius),
+                borderRadius: BorderRadius.circular(style.radius),
                 border: Border.all(
-                  color: active ? PosHomeSpec.ink : PosReceiptsSpec.fieldBorder,
+                  color: active ? PosHomeSpec.ink : style.idleBorder,
+                  width: style.borderWidth,
                 ),
               ),
               child: Row(
@@ -95,33 +174,26 @@ class PosFilterDropdown<T> extends StatelessWidget {
                       _displayLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: loewBold.copyWith(
-                        fontSize: PosReceiptsSpec.filterLabelSize,
-                        color: active
-                            ? PosReceiptsSpec.selectedInk
-                            : PosHomeSpec.ink,
+                      style: style.labelFont.copyWith(
+                        fontSize: style.labelSize,
+                        color: ink,
                         height: 1.2,
                       ),
                     ),
                   ),
-                  const SizedBox(width: PosReceiptsSpec.filterGap),
+                  SizedBox(width: style.gap),
                   AnimatedRotation(
                     turns: isOpen ? 0.5 : 0,
                     duration: const Duration(milliseconds: 140),
                     child: SvgPicture.asset(
-                      Images.posChevronDownSvg,
-                      width: PosReceiptsSpec.filterChevronSize,
-                      height: PosReceiptsSpec.filterChevronSize,
-                      colorFilter: ColorFilter.mode(
-                        active ? PosReceiptsSpec.selectedInk : PosHomeSpec.ink,
-                        BlendMode.srcIn,
-                      ),
+                      style.chevronAsset,
+                      width: style.chevronSize,
+                      height: style.chevronSize,
+                      colorFilter: ColorFilter.mode(ink, BlendMode.srcIn),
                       placeholderBuilder: (_) => Icon(
                         Icons.keyboard_arrow_down_rounded,
-                        size: PosReceiptsSpec.filterChevronSize,
-                        color: active
-                            ? PosReceiptsSpec.selectedInk
-                            : PosHomeSpec.ink,
+                        size: style.chevronSize,
+                        color: ink,
                       ),
                     ),
                   ),

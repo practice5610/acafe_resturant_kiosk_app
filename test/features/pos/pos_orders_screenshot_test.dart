@@ -372,7 +372,7 @@ void main() {
       (tester) async {
     await pumpAt(tester, const Size(1366, 926));
 
-    expect(find.text('Search in orders...'), findsOneWidget);
+    expect(find.text('SEARCH IN ORDERS...'), findsOneWidget);
     expect(sectionHeader('NEW'), findsOneWidget);
     expect(sectionHeader('IN PROGRESS'), findsOneWidget);
     expect(sectionHeader('FINISHED'), findsOneWidget);
