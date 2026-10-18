@@ -16,12 +16,14 @@ import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_item_status_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
+import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
-/// The Orders board detail overlay — Figma **1641:4341** (App / NEW),
-/// **1641:4490** (Kiosk), **1641:4640** (Cashier) and **1641:5129**
-/// (In Progress).
+/// The Orders board detail overlay — Figma **1915:16197** (App / NEW),
+/// **1915:16344** (Kiosk), **1915:16492** (Cashier) and **1915:16874**
+/// (In Progress), the 1915:15767 revision of 1641:4341 / 4490 / 4640 / 5129.
 ///
 /// Those four frames are **one modal on two independent axes**, so this is one
 /// widget with two conditionals rather than four screens:
@@ -717,14 +719,14 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
             const SizedBox(height: PosOrderDetailSpec.customerCardGap),
             if (detail.customerPhone != null)
               _ContactRow(
-                icon: Icons.phone_outlined,
+                icon: Images.posOrdersPhoneSvg,
                 value: detail.customerPhone!,
               ),
             if (detail.customerPhone != null && detail.customerEmail != null)
               const SizedBox(height: PosOrderDetailSpec.contactLineGap),
             if (detail.customerEmail != null)
               _ContactRow(
-                icon: Icons.mail_outline,
+                icon: Images.posOrdersMailSvg,
                 value: detail.customerEmail!,
               ),
           ],
@@ -1076,11 +1078,7 @@ class _Header extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        PosOrderSourceIcon.iconFor(channelKey),
-                        size: PosOrderDetailSpec.sourceIconSize,
-                        color: PosOrderDetailSpec.ink,
-                      ),
+                      PosOrderSourceIcon.headerGlyph(channelKey),
                       const SizedBox(width: PosOrderDetailSpec.sourceBadgeGap),
                       Text(
                         PosOrderSourceIcon.labelFor(channelKey),
@@ -1105,10 +1103,11 @@ class _Header extends StatelessWidget {
               minWidth: PosOrderDetailSpec.closeSize,
               minHeight: PosOrderDetailSpec.closeSize,
             ),
-            icon: Icon(
-              Icons.cancel_outlined,
-              size: PosOrderDetailSpec.closeSize,
-              color: PosOrderDetailSpec.inkAlpha(0.6),
+            // Figma 1915:16214 `x-circle`, full ink.
+            icon: SvgPicture.asset(
+              Images.posOrdersXCircleSvg,
+              width: PosOrderDetailSpec.closeSize,
+              height: PosOrderDetailSpec.closeSize,
             ),
           ),
         ],
@@ -1200,7 +1199,8 @@ class _Section extends StatelessWidget {
 }
 
 class _ContactRow extends StatelessWidget {
-  final IconData icon;
+  /// Figma's `phone` / `mail` export (60% ink baked in).
+  final String icon;
   final String value;
 
   const _ContactRow({required this.icon, required this.value});
@@ -1209,10 +1209,10 @@ class _ContactRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
+        SvgPicture.asset(
           icon,
-          size: PosOrderDetailSpec.contactIconSize,
-          color: PosOrderDetailSpec.inkAlpha(0.6),
+          width: PosOrderDetailSpec.contactIconSize,
+          height: PosOrderDetailSpec.contactIconSize,
         ),
         const SizedBox(width: PosOrderDetailSpec.contactRowGap),
         Expanded(
@@ -1395,11 +1395,13 @@ class _ItemRow extends StatelessWidget {
                   const SizedBox(height: PosOrderDetailSpec.itemDetailGap),
                   Text(
                     _meta,
-                    style: loewRegular.copyWith(
+                    style: swiss721Light.copyWith(
                       fontSize: PosOrderDetailSpec.itemMetaSize,
                       color: done
                           ? PosOrderDetailSpec.inkAlpha(0.45)
-                          : PosOrderDetailSpec.inkAlpha(0.6),
+                          : PosOrderDetailSpec.inkAlpha(
+                              PosOrderDetailSpec.itemMetaAlpha,
+                            ),
                       decoration: strike,
                       decorationColor: PosOrderDetailSpec.inkAlpha(0.45),
                     ),
@@ -1427,7 +1429,7 @@ class _ItemRow extends StatelessWidget {
                         Expanded(
                           child: Text(
                             note,
-                            style: loewRegular.copyWith(
+                            style: swiss721Light.copyWith(
                               fontSize: PosOrderDetailSpec.itemNoteSize,
                               color: done
                                   ? PosOrderDetailSpec.inkAlpha(0.45)

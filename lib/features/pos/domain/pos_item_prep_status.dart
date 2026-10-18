@@ -56,15 +56,16 @@ enum PrepStatus {
     }
   }
 
-  /// POS palette (see the class doc for why these are not kitchen's hexes).
+  /// POS palette (see the class doc for why these are not kitchen's hexes):
+  /// Figma 1915:16246's item status fills.
   Color get color {
     switch (this) {
       case PrepStatus.pending:
-        return PosOrderDetailSpec.inkAlpha(0.45);
+        return PosOrderDetailSpec.itemStatusPending;
       case PrepStatus.preparing:
-        return PosOrderDetailSpec.badgeInProgress;
+        return PosOrderDetailSpec.itemStatusPreparing;
       case PrepStatus.ready:
-        return PosOrderDetailSpec.badgeFinished;
+        return PosOrderDetailSpec.itemStatusReady;
     }
   }
 

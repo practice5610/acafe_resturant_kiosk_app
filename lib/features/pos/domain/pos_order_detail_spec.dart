@@ -178,6 +178,24 @@ class PosOrderDetailSpec {
   /// State changes cross-fade rather than snapping, and never reflow the row.
   static const Duration itemStateAnimation = Duration(milliseconds: 180);
 
+  // ── Item status pill (Figma 1915:16246) ──────────────────────────────
+  /// Solid fill, white ExtraBold 11. Supersedes the tinted chip above; the
+  /// wording stays the kitchen's (Pending / Preparing / Ready).
+  static const double itemPillRadius = 12;
+  static const double itemPillPadH = 10;
+  static const double itemPillPadV = 4;
+  static const double itemPillTextSize = 11;
+
+  /// Item status fills — `Not started` / `In progress` / `Done` in Figma.
+  /// Also the colour bar, progress segments and action outlines, so an item
+  /// reads in one colour wherever it is drawn.
+  static const Color itemStatusPending = Color(0xFF8C8580);
+  static const Color itemStatusPreparing = Color(0xFF2E99D9);
+  static const Color itemStatusReady = Color(0xFF2A8456);
+
+  /// Swiss 721 Light for the item's price and note lines (Figma 1915:16242).
+  static const double itemMetaAlpha = 0.6;
+
   // ── Items section header + progress ──────────────────────────────────
   static const double progressBarHeight = 4;
   static const double progressBarRadius = 2;

@@ -13,10 +13,11 @@ import 'package:flutter/material.dart';
 /// Everything here reads its metrics from [PosOrderDetailSpec]; there are no
 /// inline numbers, so a Figma change is a token change.
 
-/// Read-only status pill: a dot plus the label, tinted with the status colour.
+/// Read-only status pill (Figma 1915:16246 `item-status-pill`): solid status
+/// fill, white ExtraBold 11.
 ///
 /// The kitchen's equivalent is `_PrepStatusChip` (order_ticket_card.dart:
-/// 1028-1058). Same idea and same wording; POS palette and POS type.
+/// 1028-1058). Same wording; Figma's fills and type.
 class PosItemStatusChip extends StatelessWidget {
   final PrepStatus status;
 
@@ -24,37 +25,25 @@ class PosItemStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = status.color;
-
     return AnimatedContainer(
       duration: PosOrderDetailSpec.itemStateAnimation,
       curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(
-        horizontal: PosOrderDetailSpec.itemChipPadH,
-        vertical: PosOrderDetailSpec.itemChipPadV,
+        horizontal: PosOrderDetailSpec.itemPillPadH,
+        vertical: PosOrderDetailSpec.itemPillPadV,
       ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: PosOrderDetailSpec.itemChipFillOpacity),
+        color: status.color,
         borderRadius:
-            BorderRadius.circular(PosOrderDetailSpec.itemChipRadius),
+            BorderRadius.circular(PosOrderDetailSpec.itemPillRadius),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: PosOrderDetailSpec.itemChipDot,
-            height: PosOrderDetailSpec.itemChipDot,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: PosOrderDetailSpec.itemChipDotGap),
-          Text(
-            status.label,
-            style: loewBold.copyWith(
-              fontSize: PosOrderDetailSpec.itemChipTextSize,
-              color: color,
-            ),
-          ),
-        ],
+      child: Text(
+        status.label,
+        maxLines: 1,
+        style: loewExtraBold.copyWith(
+          fontSize: PosOrderDetailSpec.itemPillTextSize,
+          color: Colors.white,
+        ),
       ),
     );
   }

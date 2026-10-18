@@ -74,17 +74,26 @@ class PosOrderSourceIcon extends StatelessWidget {
     }
   }
 
+  /// Figma 1915:16208 / 16356 / 16505's source-badge wording.
   static String labelFor(String channelKey) {
     switch (channelKey) {
       case 'counter_pos':
-        return 'Counter POS';
+        return 'Cashier';
       case 'kiosk':
-        return 'Kiosk';
+        return 'Kiosk Order';
       case 'web_app':
-        return 'Web app';
+        return 'App Order';
       default:
         return 'Order';
     }
+  }
+
+  /// The 14px glyph in the detail modal's source badge. Same as the card's
+  /// except the counter, which Figma 1915:16501 draws as a cash register
+  /// rather than the card's storefront.
+  static Widget headerGlyph(String channelKey) {
+    if (channelKey == 'counter_pos') return const _RegisterGlyph();
+    return cardGlyph(channelKey);
   }
 
   @override
@@ -106,6 +115,44 @@ class PosOrderSourceIcon extends StatelessWidget {
                 ),
         ),
         child: cardGlyph(channelKey, finished: finished),
+      ),
+    );
+  }
+}
+
+/// Figma 1915:16501 `cashier-icon`, which is not an exported asset but three
+/// 2px-stroked rounded rectangles in a 14px frame — rebuilt from the same
+/// geometry: `register-body`, `register-window` and `drawer`.
+class _RegisterGlyph extends StatelessWidget {
+  const _RegisterGlyph();
+
+  static Widget _part(double left, double top, double width, double height,
+          double radius) =>
+      Positioned(
+        left: left,
+        top: top,
+        width: width,
+        height: height,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: PosHomeSpec.ink, width: 2),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: PosOrdersSpec.sourceIconSize,
+      height: PosOrdersSpec.sourceIconSize,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          _part(2, 2, 10, 8, 2),
+          _part(4, 4, 6, 4, 1),
+          _part(2, 10, 10, 2, 1),
+        ],
       ),
     );
   }

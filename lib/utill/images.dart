@@ -345,6 +345,9 @@ class Images {
       'assets/svg/pos_orders_store_finished.svg';
   static const String posOrdersMoreVertFinishedSvg =
       'assets/svg/pos_orders_more_vert_finished.svg';
+  static const String posOrdersXCircleSvg = 'assets/svg/pos_orders_x_circle.svg';
+  static const String posOrdersPhoneSvg = 'assets/svg/pos_orders_phone.svg';
+  static const String posOrdersMailSvg = 'assets/svg/pos_orders_mail.svg';
 
   static String getImageUrl(imageName) => 'assets/image/$imageName.png';
   static String getPaymentImage(String name) => 'assets/payment/$name.png';
