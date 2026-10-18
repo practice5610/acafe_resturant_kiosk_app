@@ -60,13 +60,15 @@ void main() {
     expect(gap, closeTo(8, 0.5));
   });
 
+  // Figma 1915:11264: the pane's 412 content width (452 - px-20 x 2), so two
+  // buttons of (412 - 8) / 2 = 202.
   testWidgets('PAY WITH buttons are ~202px wide and 48px tall', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: Align(
           alignment: Alignment.topLeft,
           child: SizedBox(
-            width: 452,
+            width: 412,
             child: PosPayWithRow(
               method: PosPaymentMethod.card,
               onChanged: (_) {},

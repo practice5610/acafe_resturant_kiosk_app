@@ -166,12 +166,17 @@ class PosSplitSummaryHeader extends StatelessWidget {
   final double total;
   final double remaining;
 
+  /// The split-by-item item picker (frames 14 / 16 / 20) drops the Remaining
+  /// bar; its own "… remaining after this payment" note carries it.
+  final bool showRemaining;
+
   const PosSplitSummaryHeader({
     super.key,
     required this.title,
     required this.subtitle,
     required this.total,
     required this.remaining,
+    this.showRemaining = true,
   });
 
   @override
@@ -220,6 +225,7 @@ class PosSplitSummaryHeader extends StatelessWidget {
             color: PosPaymentSpec.v2SplitLabelInk,
           ),
         ),
+        if (showRemaining) ...[
         const SizedBox(height: 7),
         // Nog te betalen: #F0EBD8, r8, px-10 py-6.
         Container(
@@ -252,6 +258,7 @@ class PosSplitSummaryHeader extends StatelessWidget {
             ],
           ),
         ),
+        ],
       ],
     );
   }

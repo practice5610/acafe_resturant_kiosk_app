@@ -503,6 +503,11 @@ class PosPaymentSpec {
   static const double v2SplitTipRowHeight = 48;
   /// "Payment Card/Open" (node 1915:10048).
   static const double v2SplitEntryCardHeight = 62;
+
+  /// Split-by-item pane (`Column/Right`, node 1915:11233): gap-12.
+  static const double v2SplitItemGap = 12;
+  /// The scrolling item list on a longer order (node 1915:12647).
+  static const double v2SplitItemListHeight = 276;
 }
 
 /// Vertical density for the payment column.

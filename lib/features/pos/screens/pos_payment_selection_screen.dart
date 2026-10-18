@@ -1907,8 +1907,31 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                         : _recordSplit,
                                   );
                                 }
+                                // Frames 14 / 16 / 20 / 21: "Start Payment N
+                                // · € X" from this bar, live with the
+                                // selection.
                                 if (sbiState != null) {
-                                  return const SizedBox.shrink();
+                                  final List<PosSplitByItemLineItem> items =
+                                      _buildLineItemsFromCart(lines);
+                                  return ValueListenableBuilder<
+                                      PosSplitByItemGroupBuilder>(
+                                    valueListenable: _splitByItemGroups,
+                                    builder: (context, builder, _) {
+                                      final double amount =
+                                          builder.calculateAmount(items);
+                                      return PosPayPillBar(
+                                        label:
+                                            'Start Payment ${sbiState.nextSequence}'
+                                            ' · ${PosHomeSpec.formatPrice(amount, padZero: false)}',
+                                        loading: _splitByItemLoading,
+                                        onConfirm: amount > 0 &&
+                                                !_splitByItemLoading
+                                            ? () =>
+                                                _startSplitByItemPayment(items)
+                                            : null,
+                                      );
+                                    },
+                                  );
                                 }
                                 if (_change != null) {
                                   return PosPayPillBar(
@@ -2208,8 +2231,10 @@ class _Content extends StatelessWidget {
     // Split-by-item mode (Family 3): item checklist + Card/Cash + Start Payment.
     if (inSplitByItem && splitByItemState != null) {
       return PosPayCard(
-        summaryBorder: true,
+        borderColor: PosSplitSummaryPanel.borderColor,
+        borderWidth: PosSplitSummaryPanel.borderWidth,
         child: PosSplitByItemPanel(
+          groups: splitByItemState!.groups,
           groupSeq: splitByItemState!.nextSequence,
           grandTotal: splitByItemState!.grandTotal,
           remaining: splitByItemState!.remaining,

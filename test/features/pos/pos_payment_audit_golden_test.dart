@@ -19,7 +19,10 @@ import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dart';
+import 'package:acafe_customer/features/pos/domain/pos_split_by_item_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_error_card.dart';
@@ -349,6 +352,33 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
   '12_split_p4': (t) => _splitFrame(t,
       paid: const [(9.0, 'card'), (5.0, 'card'), (2.0, 'card')],
       typed: '3.00'),
+  '14_sbi_select': (t) => _sbiFrame(t,
+      items: _sbiTicket,
+      selected: {0, 1},
+      method: PosPaymentMethod.cash),
+  '16_sbi_p2': (t) => _sbiFrame(t,
+      items: _sbiTicket,
+      selected: {2},
+      paid: const PosSplitByItemGroup(
+          seq: 1,
+          itemIds: [0, 1],
+          amount: 12,
+          paidWith: 'cash',
+          paidAmount: 12,
+          reference: 'r1')),
+  '20_sbi_six': (t) => _sbiFrame(t,
+      items: const [
+        PosSplitByItemLineItem(id: 0, name: 'Oat Milk Matcha', variant: '', price: 6),
+        PosSplitByItemLineItem(id: 1, name: 'Vanilla Matcha Latte', variant: '', price: 6),
+        PosSplitByItemLineItem(id: 2, name: 'Mango Matcha', variant: '', price: 7),
+        PosSplitByItemLineItem(id: 3, name: 'Iced Americano', variant: '', price: 3.5),
+        PosSplitByItemLineItem(id: 4, name: 'Butter Croissant', variant: '', price: 3.2),
+        PosSplitByItemLineItem(id: 5, name: 'Banana Bread', variant: '', price: 4.2),
+      ],
+      selected: {0, 1},
+      total: 29.9,
+      backLabel: 'Dylan / € 29.90',
+      method: PosPaymentMethod.cash),
   '06_waiting': (t) => pumpOverlayFrame(
       t, PosWaitingCard(amountDue: 9, onCancel: () {})),
   '07_declined': (t) => pumpOverlayFrame(t,
@@ -385,6 +415,60 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
         onContinue: () {},
       )),
 };
+
+const List<PosSplitByItemLineItem> _sbiTicket = [
+  PosSplitByItemLineItem(id: 0, name: 'Oat Milk Matcha', variant: 'Cup', price: 6),
+  PosSplitByItemLineItem(
+      id: 1, name: 'Vanilla Matcha Latte', variant: 'Can', price: 6),
+  PosSplitByItemLineItem(id: 2, name: 'Mango Matcha', variant: 'Cup', price: 7),
+];
+
+/// Split-by-item frames: [items] with [selected] ticked, after [paid].
+Future<void> _sbiFrame(
+  WidgetTester tester, {
+  required List<PosSplitByItemLineItem> items,
+  required Set<int> selected,
+  PosSplitByItemGroup? paid,
+  double total = 19,
+  String backLabel = 'Dylan / € 19.00',
+  PosPaymentMethod method = PosPaymentMethod.card,
+}) async {
+  final groups = PosSplitByItemGroupsBuilder(groupSeq: paid == null ? 1 : 2);
+  addTearDown(groups.dispose);
+  for (final id in selected) {
+    groups.toggleItem(id);
+  }
+  final double remaining = total - (paid?.paidAmount ?? 0);
+  await pumpComposedFrame(
+    tester,
+    splitByItemActive: true,
+    backLabel: backLabel,
+    summary: (_) => PosPayCard(
+      borderColor: PosSplitSummaryPanel.borderColor,
+      borderWidth: PosSplitSummaryPanel.borderWidth,
+      child: PosSplitByItemPanel(
+        groupSeq: paid == null ? 1 : 2,
+        grandTotal: total,
+        remaining: remaining,
+        lineItems: items,
+        groupBuilder: groups,
+        paymentMethod: method,
+        onToggleItem: (_) {},
+        onPaymentMethodChanged: (_) {},
+        onStartPayment: () {},
+        onAddTip: () {},
+        groups: [if (paid != null) paid],
+      ),
+    ),
+    bar: PosPayPillBar(
+      label: 'Start Payment ${paid == null ? 1 : 2}'
+          ' · ${PosHomeSpec.formatPrice(groups.value.calculateAmount(items), padZero: false)}',
+      onConfirm: () {},
+    ),
+  );
+  // Let the scrollbar thumb finish fading in.
+  await tester.pump(const Duration(seconds: 1));
+}
 
 /// A full-screen state: [card] alone on the page background, as the screen
 /// shows the waiting / declined cards (no back row) and the success dialogs
