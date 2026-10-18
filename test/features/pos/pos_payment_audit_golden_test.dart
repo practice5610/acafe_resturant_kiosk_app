@@ -9,6 +9,7 @@ import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
+import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
@@ -186,6 +187,11 @@ Future<CartProvider> pumpPaymentApp(
           ),
         ),
         ChangeNotifierProvider<CartProvider>.value(value: cart),
+        // The receipt settings read the app's language (auto-print check).
+        ChangeNotifierProvider<LocalizationProvider>(
+          create: (_) =>
+              LocalizationProvider(sharedPreferences: prefs, dioClient: dio),
+        ),
         // The cart's storage key reads the branch (clearing it after a sale).
         ChangeNotifierProvider<BranchProvider>(
           create: (_) => BranchProvider(

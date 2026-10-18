@@ -1,9 +1,13 @@
 import 'package:acafe_customer/common/models/api_response_model.dart';
+import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/di_container.dart' show sl;
 import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/pos/domain/pos_checkout.dart';
+import 'package:acafe_customer/features/pos/domain/pos_invoice_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/features/pos/domain/pos_standalone_repo.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_send_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
@@ -16,6 +20,7 @@ import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:dio/dio.dart';
@@ -313,6 +318,38 @@ class FakeReceiptSendRepo implements PosReceiptSendRepo {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// `InvoiceController::create` / `StandalonePaymentController::record`.
+class FakeInvoiceRepo implements PosInvoiceRepo {
+  final List<Map<String, dynamic>> created = [];
+
+  @override
+  Future<ApiResponseModel> create(Map<String, dynamic> payload) async {
+    created.add(payload);
+    return _ok({'invoice_id': 1, 'replayed': false});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class FakeStandaloneRepo implements PosStandaloneRepo {
+  final List<(int, String?)> recorded = [];
+
+  @override
+  Future<ApiResponseModel> record({
+    required int orderId,
+    required int deviceId,
+    required String reference,
+    String? approvalCode,
+  }) async {
+    recorded.add((orderId, approvalCode));
+    return _ok({'payment_status': 'paid', 'replayed': false});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 // ── Harness ────────────────────────────────────────────────────────────────
 
 late FakeTerminal terminal;
@@ -320,6 +357,8 @@ late FakeSplitRepo splitRepo;
 late FakeSbiRepo sbiRepo;
 late FakeRefundRepo refundRepo;
 late FakeReceiptSendRepo receiptRepo;
+late FakeInvoiceRepo invoiceRepo;
+late FakeStandaloneRepo standaloneRepo;
 late List<double> placed;
 bool placeFails = false;
 
@@ -334,6 +373,8 @@ void setUpFlowFakes() {
   sbiRepo = FakeSbiRepo();
   refundRepo = FakeRefundRepo(splitRepo, sbiRepo);
   receiptRepo = FakeReceiptSendRepo();
+  invoiceRepo = FakeInvoiceRepo();
+  standaloneRepo = FakeStandaloneRepo();
   placed = [];
   placeFails = false;
   _register<KioskPaymentService>(terminal);
@@ -341,6 +382,8 @@ void setUpFlowFakes() {
   _register<PosSplitByItemRepo>(sbiRepo);
   _register<PosRefundRepo>(refundRepo);
   _register<PosReceiptSendRepo>(receiptRepo);
+  _register<PosInvoiceRepo>(invoiceRepo);
+  _register<PosStandaloneRepo>(standaloneRepo);
   debugPosPlaceOrder = (context,
       {required amount,
       paymentRef,
@@ -350,6 +393,9 @@ void setUpFlowFakes() {
       return const KioskPlaceResult(success: false, message: 'Server down');
     }
     placed.add(amount);
+    // The order the split controllers see is the one just placed.
+    splitRepo.grandTotal = amount;
+    sbiRepo.grandTotal = amount;
     return const KioskPlaceResult(success: true, orderId: '27362');
   };
 }
@@ -362,6 +408,8 @@ void tearDownFlowFakes() {
     () => sl.unregister<PosSplitByItemRepo>(),
     () => sl.unregister<PosRefundRepo>(),
     () => sl.unregister<PosReceiptSendRepo>(),
+    () => sl.unregister<PosInvoiceRepo>(),
+    () => sl.unregister<PosStandaloneRepo>(),
   ]) {
     try {
       unregister();
@@ -370,7 +418,17 @@ void tearDownFlowFakes() {
 }
 
 Future<void> tap(WidgetTester tester, Finder f) async {
+  // On a short window the panes stack into one lazily built scroll: bring
+  // the control in, as an operator would scroll to it.
+  if (f.evaluate().isEmpty) {
+    final Finder panes = find.descendant(
+        of: find.byType(PosPayThreePane), matching: find.byType(Scrollable));
+    if (panes.evaluate().isNotEmpty) {
+      await tester.scrollUntilVisible(f, 200, scrollable: panes.first);
+    }
+  }
   await tester.ensureVisible(f);
+  await tester.pumpAndSettle();
   await tester.tap(f);
   await tester.pumpAndSettle();
 }
@@ -930,5 +988,172 @@ void main() {
       expect(refundRepo.confirmed.single['method'], 'cash');
       expect(find.text('Refund Successful'), findsOneWidget);
     });
+  });
+
+  group('card · cash · invoice · stand-alone → success → Receipt / Next order',
+      () {
+    void receiptAboveNext(WidgetTester tester) => expect(
+        tester.getTopLeft(find.text('Receipt')).dy,
+        lessThan(tester.getTopLeft(find.text('Next order')).dy));
+
+    testWidgets('card: charged once → Order Paid → Receipt (email) → counter',
+        (tester) async {
+      await pumpPaymentScreen(tester, routed: true);
+      expect(bar(tester), ('Confirm Payment', true));
+      await confirmBar(tester);
+      expect(terminal.charged, [19]);
+      expect(placed, [19]);
+      expect(find.text('Order Paid'), findsOneWidget);
+      receiptAboveNext(tester);
+
+      await tap(tester, find.text('Receipt'));
+      await tester.enterText(
+          find.descendant(
+              of: find.byType(PosReceiptDialog),
+              matching: find.byType(TextField)),
+          'dylan@example.com');
+      await tap(tester, find.text('Send email receipt'));
+      expect(receiptRepo.sent, [(27362, 'email')]);
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
+    });
+
+    testWidgets('cash with change: € 20 on € 19 → € 1.00 → Next order',
+        (tester) async {
+      await pumpPaymentScreen(tester,
+          routed: true, method: PosPaymentMethod.cash);
+      await tap(tester, find.text('€ 20'));
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('change-due')),
+              matching: find.text('€ 1.00')),
+          findsOneWidget);
+      await confirmBar(tester);
+      expect(terminal.charged, isEmpty);
+      expect(placed, [19]);
+      expect(find.text('Order Paid'), findsOneWidget);
+      receiptAboveNext(tester);
+      await tap(tester, find.text('Next order'));
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
+    });
+
+    testWidgets('cash short of the total cannot be confirmed', (tester) async {
+      await pumpPaymentScreen(tester,
+          routed: true, method: PosPaymentMethod.cash);
+      await tap(tester, find.text('€ 10'));
+      expect(bar(tester), ('Confirm Payment', false));
+    });
+
+    testWidgets('invoice: company name required → Invoice created → counter',
+        (tester) async {
+      await pumpPaymentScreen(tester, routed: true);
+      await tap(tester, find.text('Invoice'));
+      expect(placed, [19]);
+      expect(bar(tester), ('Confirm Payment', false));
+      await tester.enterText(
+          find.descendant(
+              of: find.byType(PosInvoicePanel),
+              matching: find.byType(TextField)).first,
+          'Acafe B.V.');
+      await tester.pumpAndSettle();
+      expect(bar(tester), ('Confirm Payment', true));
+      await confirmBar(tester);
+      expect(invoiceRepo.created.single['company_name'], 'Acafe B.V.');
+      expect(find.text('Invoice created'), findsOneWidget);
+      receiptAboveNext(tester);
+      await tap(tester, find.text('Next order'));
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
+    });
+
+    testWidgets('stand-alone: recorded with the approval code → Receipt (print)',
+        (tester) async {
+      await pumpPaymentScreen(tester, routed: true);
+      await tap(tester, find.text('Stand-alone'));
+      expect(placed, [19]);
+      await tester.enterText(
+          find.descendant(
+              of: find.byType(PosStandalonePanel),
+              matching: find.byType(TextField)),
+          '123456');
+      await tester.pumpAndSettle();
+      await confirmBar(tester);
+      expect(standaloneRepo.recorded.single, (27362, '123456'));
+      expect(find.text('Payment confirmed'), findsOneWidget);
+      receiptAboveNext(tester);
+      await tap(tester, find.text('Receipt'));
+      await tap(tester, find.text('Print'));
+      await tap(tester, find.text('Print receipt'));
+      expect(receiptRepo.sent, [(27362, 'print')]);
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
+    });
+  });
+
+  group('stress: the new panes with long text, many rows, five figures', () {
+    List<CartModel> longTicket() => [
+          for (int i = 0; i < 14; i++)
+            figmaLine(
+              i.isEven
+                  ? 'Ceremonial Grade Uji Matcha Latte with Oat Milk and Extra Vanilla Foam $i'
+                  : 'Iced Matcha $i',
+              1234.56,
+              added: const ['Oat milk', 'Vanilla syrup'],
+              id: i + 1,
+            ),
+        ];
+
+    const sizes = <Size>[Size(1366, 1024), Size(900, 600), Size(768, 1024)];
+
+    for (final size in sizes) {
+      final String at = '${size.width.toInt()}x${size.height.toInt()}';
+
+      testWidgets('chooser → custom amount, € 17,283.84 at $at', (tester) async {
+        await pumpPaymentScreen(tester,
+            routed: true, size: size, lines: longTicket());
+        await tap(tester, find.text('Split by item'));
+        expect(tester.takeException(), isNull);
+        await tap(tester, find.text('Custom amount'));
+        await confirmBar(tester);
+        expect(tester.takeException(), isNull);
+        await keys(tester, '99999');
+        expect(bar(tester).$2, isFalse, reason: 'above the remaining');
+        await backspace(tester, 5);
+        await keys(tester, '12345,67');
+        expect(bar(tester), ('Start Payment 1 · € 12,345.67', true));
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('split by item, 14 long lines, cash step at $at',
+          (tester) async {
+        await pumpPaymentScreen(tester,
+            routed: true, size: size, lines: longTicket());
+        await tap(tester, find.text('Split by item'));
+        await confirmBar(tester);
+        expect(tester.takeException(), isNull);
+        expect(find.textContaining('· 0 OF 14'), findsOneWidget);
+        final Finder rows = find.descendant(
+            of: find.byType(PosSplitByItemPanel),
+            matching: find.textContaining('Ceremonial Grade'));
+        await tap(tester, rows.first);
+        await tap(tester, inPane(PosPayWithRow, 'Cash'));
+        await confirmBar(tester);
+        expect(find.textContaining('AMOUNT DUE € 1,234.56'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await confirmBar(tester);
+        expect(sbiRepo.records.single.$3, 1234.56);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('split by payment with six paid rows at $at', (tester) async {
+        await pumpPaymentScreen(tester, routed: true, size: size);
+        await tap(tester, find.text('Split by payment'));
+        for (int i = 0; i < 6; i++) {
+          await keys(tester, '1');
+          await confirmBar(tester);
+          await tap(tester, find.text('Start next payment'));
+        }
+        expect(find.byType(PosSplitPaidRow), findsNWidgets(6));
+        expect(find.text('PAYMENT 7'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }
