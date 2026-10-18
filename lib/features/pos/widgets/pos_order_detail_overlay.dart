@@ -60,7 +60,8 @@ class PosOrderDetailOverlay extends StatefulWidget {
 
   /// Pause / cancel, routed through the board so the confirmation and the error
   /// handling stay in one place. Returns null on success, or a message.
-  final Future<String?> Function(PosOrderCard order, String status)? onSetStatus;
+  final Future<String?> Function(PosOrderCard order, String status)?
+      onSetStatus;
 
   /// Lets the board push an `order.changed` for THIS order straight into the
   /// overlay, so a kitchen change lands immediately instead of waiting out the
@@ -207,7 +208,9 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
 
     final response = apiResponse.response;
 
-    if (response != null && response.statusCode == 200 && response.data is Map) {
+    if (response != null &&
+        response.statusCode == 200 &&
+        response.data is Map) {
       final PosOrderDetail detail = PosOrderDetail.fromJson(
         Map<String, dynamic>.from(response.data as Map),
       );
@@ -328,7 +331,9 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
     _orderBusy.value = false;
 
     final response = apiResponse.response;
-    if (response != null && response.statusCode == 200 && response.data is Map) {
+    if (response != null &&
+        response.statusCode == 200 &&
+        response.data is Map) {
       _applyWriteResult(Map<String, dynamic>.from(response.data as Map));
       widget.onChanged?.call();
       return;
@@ -427,7 +432,8 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
     // Re-reading settles the real status, which disables every item action.
     if (code == 409 && errorCode == 'order_locked') {
       fallback?.call();
-      _toast(error?['message']?.toString() ?? 'This order is not editable right now');
+      _toast(error?['message']?.toString() ??
+          'This order is not editable right now');
       unawaited(_load(silent: true));
       return;
     }
@@ -529,7 +535,8 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
   Widget build(BuildContext context) {
     final Size window = MediaQuery.sizeOf(context);
     final double maxWidth = window.width - PosOrderDetailSpec.viewportInset * 2;
-    final double maxHeight = window.height - PosOrderDetailSpec.viewportInset * 2;
+    final double maxHeight =
+        window.height - PosOrderDetailSpec.viewportInset * 2;
 
     return Material(
       color: Colors.transparent,
@@ -652,8 +659,8 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool stacked = constraints.maxWidth <
-            PosOrderDetailSpec.stackColumnsBelowWidth;
+        final bool stacked =
+            constraints.maxWidth < PosOrderDetailSpec.stackColumnsBelowWidth;
 
         final Widget left = _leftColumn(detail);
         final Widget right = _itemsSection(detail);
@@ -825,7 +832,8 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
         children: [
           ValueListenableBuilder<PrepProgress>(
             valueListenable: _progress,
-            builder: (_, progress, __) => PosItemProgressBar(progress: progress),
+            builder: (_, progress, __) =>
+                PosItemProgressBar(progress: progress),
           ),
           ValueListenableBuilder<String>(
             valueListenable: _orderStatus,
@@ -964,8 +972,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
   /// to pause or cancel. Mirrors the kitchen's own rule, which never opens its
   /// status menu for a completed or cancelled order
   /// (status_action_sheet.dart:18).
-  bool get _canUseMoreMenu =>
-      _status != 'completed' && _status != 'canceled';
+  bool get _canUseMoreMenu => _status != 'completed' && _status != 'canceled';
 
   Future<void> _onMoreAction(PosOrderMenuAction action) async {
     // Cancelling is a void; pausing and resuming are ordinary order handling.
@@ -1314,7 +1321,8 @@ class _ItemRow extends StatelessWidget {
   /// `€ 4.50 · Cup` — the variation labels Figma appends after the price. A
   /// line with no variation just shows the price.
   String get _meta {
-    final String price = PosHomeSpec.formatPrice(item.unitPrice, padZero: false);
+    final String price =
+        PosHomeSpec.formatPrice(item.unitPrice, padZero: false);
     if (item.variationLabels.isEmpty) return price;
     return '$price · ${item.variationLabels.join(' · ')}';
   }
@@ -1337,9 +1345,8 @@ class _ItemRow extends StatelessWidget {
 
     // A finished line goes quiet: struck through, dimmed and tinted. Kitchen's
     // treatment (order_ticket_card.dart:684-735) in POS colours.
-    final Color bodyInk = done
-        ? PosOrderDetailSpec.inkAlpha(0.45)
-        : PosOrderDetailSpec.ink;
+    final Color bodyInk =
+        done ? PosOrderDetailSpec.inkAlpha(0.45) : PosOrderDetailSpec.ink;
     final TextDecoration? strike = done ? TextDecoration.lineThrough : null;
 
     final PrepAction? action = status.next;
