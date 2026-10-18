@@ -38,9 +38,9 @@ Shared chrome on every in-flow frame: `back-btn-row` (h67) · `content-area`
 | 25 | Refund – Select items and reason | 1915:11344 | `screens/pos_refund_screen.dart` (`_SelectionFrame`, `_ReasonPane`, `_RefundSummaryPane`) | Implemented |
 | 26 | Refund – Choose refund method | 1915:11448 | `screens/pos_refund_screen.dart` | Implemented |
 | 27 | Refund – Waiting for card on terminal | 1915:11777 | `screens/pos_refund_screen.dart` (`_WaitingStep` → `PosPaymentStatusCard`) | Implemented (keeps approval code, D13) |
-| 28 | Refund – Complete | 1915:11551 | `screens/pos_refund_screen.dart` (`_CompleteStep` → `PosPaymentSuccessCard`) | Implemented (no Receipt button, D13) |
-| 29 | Refund – Confirm refund of split payment 1 | 1915:12443 | `screens/pos_refund_screen.dart` | Implemented |
-| 30 | Refund – Split payment 1 refunded | 1915:12462 | `screens/pos_refund_screen.dart` | Implemented |
+| 28 | Refund – Complete | 1915:11551 | `screens/pos_refund_screen.dart` (`_CompleteStep` → `PosPaymentSuccessCard`) | Implemented (Receipt + Next order, round 2) |
+| 29 | Refund – Confirm refund of split payment 1 | 1915:12443 | `screens/pos_refund_screen.dart` (`_SplitConfirmStep`, `fromPayment` entry) | Implemented — reached from a paid row's Refund pill (round 2) |
+| 30 | Refund – Split payment 1 refunded | 1915:12462 | `screens/pos_refund_screen.dart` | Implemented — "Back to order" returns to the sale (round 2) |
 
 Figma reference renders: `ui-audit/figma/<nn>_*.png` (+ exported vectors in `ui-audit/figma/assets/`). Code
 renders: golden test `test/features/pos/pos_payment_audit_golden_test.dart` →

@@ -3,7 +3,13 @@ import 'package:acafe_customer/di_container.dart' show sl;
 import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/pos/domain/pos_checkout.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_send_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
+import 'package:acafe_customer/features/pos/screens/pos_refund_screen.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
@@ -234,23 +240,29 @@ class FakeRefundRepo implements PosRefundRepo {
       'split_group_id': splitGroupId,
       'items_json': itemsJson,
     });
-    final int id = partialPaymentId ?? splitGroupId!;
-    final String key =
-        partialPaymentId != null ? 'partial_payment_id' : 'split_group_id';
+    final int? id = partialPaymentId ?? splitGroupId;
+    final String key = partialPaymentId != null
+        ? 'partial_payment_id'
+        : splitGroupId != null
+            ? 'split_group_id'
+            : 'order';
+    // A single-payment order (the Receipts entry): its paid total, card.
     final Map<String, dynamic> source = partialPaymentId != null
         ? splits.payments.firstWhere((p) => p['id'] == id)
-        : groups.groups.firstWhere((g) => g['id'] == id);
+        : splitGroupId != null
+            ? groups.groups.firstWhere((g) => g['id'] == id)
+            : {'amount': 19.0, 'paid_with': 'card'};
     final double paid =
         (source['paid_amount'] ?? source['amount'] as num).toDouble();
     final int reserved = refunds
-        .where((r) => r[key] == id)
+        .where((r) => key == 'order' ? r.containsKey('order') : r[key] == id)
         .fold(0, (a, r) => a + _cents(r['amount'] as double));
     final int left = _cents(paid) - reserved;
     if (left <= 0) {
       return ApiResponseModel.withError('This payment is already fully refunded.');
     }
     refunds.add({
-      key: id,
+      key: id ?? orderId,
       'amount': left / 100,
       'status': 'pending',
       'refund_seq': refunds.length + 1,
@@ -281,12 +293,33 @@ class FakeRefundRepo implements PosRefundRepo {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// `ReceiptController::send`.
+class FakeReceiptSendRepo implements PosReceiptSendRepo {
+  final List<(int, String)> sent = [];
+
+  @override
+  Future<ApiResponseModel> send({
+    required int orderId,
+    required String method,
+    String? email,
+    required int deviceId,
+    required String reference,
+  }) async {
+    sent.add((orderId, method));
+    return _ok({'status': 'sent', 'replayed': false});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 // ── Harness ────────────────────────────────────────────────────────────────
 
 late FakeTerminal terminal;
 late FakeSplitRepo splitRepo;
 late FakeSbiRepo sbiRepo;
 late FakeRefundRepo refundRepo;
+late FakeReceiptSendRepo receiptRepo;
 late List<double> placed;
 bool placeFails = false;
 
@@ -300,12 +333,14 @@ void setUpFlowFakes() {
   splitRepo = FakeSplitRepo();
   sbiRepo = FakeSbiRepo();
   refundRepo = FakeRefundRepo(splitRepo, sbiRepo);
+  receiptRepo = FakeReceiptSendRepo();
   placed = [];
   placeFails = false;
   _register<KioskPaymentService>(terminal);
   _register<PosSplitRepo>(splitRepo);
   _register<PosSplitByItemRepo>(sbiRepo);
   _register<PosRefundRepo>(refundRepo);
+  _register<PosReceiptSendRepo>(receiptRepo);
   debugPosPlaceOrder = (context,
       {required amount,
       paymentRef,
@@ -326,6 +361,7 @@ void tearDownFlowFakes() {
     () => sl.unregister<PosSplitRepo>(),
     () => sl.unregister<PosSplitByItemRepo>(),
     () => sl.unregister<PosRefundRepo>(),
+    () => sl.unregister<PosReceiptSendRepo>(),
   ]) {
     try {
       unregister();
@@ -357,6 +393,14 @@ Future<void> tapAndPump(WidgetTester tester, Finder f) async {
 Future<void> confirmBar(WidgetTester tester) async {
   tester.widget<PosPayPillBar>(find.byType(PosPayPillBar)).onConfirm!();
   await tester.pumpAndSettle();
+}
+
+/// [confirmBar] when the next step animates forever (the terminal card).
+Future<void> confirmBarNoSettle(WidgetTester tester) async {
+  tester.widget<PosPayPillBar>(find.byType(PosPayPillBar)).onConfirm!();
+  for (int i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 Future<void> keys(WidgetTester tester, String typed) async {
@@ -775,6 +819,116 @@ void main() {
       expect(refundRepo.created.single['split_group_id'], 201);
       expect(refundRepo.created.single['partial_payment_id'], isNull);
       expect(find.text('Payment 1 Refunded'), findsOneWidget);
+    });
+  });
+
+  group('refunds from Receipts · 2d Receipt on the success card', () {
+    Future<void> openRefund(WidgetTester tester) async {
+      PosRefundSession.instance
+        ..reset()
+        ..order = PosReceiptDetail(
+          id: 27362,
+          placedAt: null,
+          customerName: 'Dylan',
+          table: null,
+          method: 'card',
+          subtotal: 19,
+          discount: 0,
+          total: 19,
+          orderStatus: 'delivered',
+          paymentStatus: 'paid',
+          lines: figmaTicket(),
+        );
+      addTearDown(PosRefundSession.instance.reset);
+      await pumpPaymentApp(tester, (_) => const PosRefundScreen(),
+          routed: true);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tick(WidgetTester tester, List<String> names) async {
+      for (final n in names) {
+        await tap(
+            tester,
+            find.descendant(
+                of: find.byType(PosReceiptLine), matching: find.text(n)));
+      }
+    }
+
+    Future<void> toMethod(WidgetTester tester, List<String> items) async {
+      await tick(tester, items);
+      await tap(tester, find.text('Customer changed mind'));
+      await confirmBar(tester);
+      expect(find.text('REFUND METHOD'), findsOneWidget);
+    }
+
+    testWidgets('partial (one item): card → 27 → 28 → Receipt → print → next',
+        (tester) async {
+      await openRefund(tester);
+      await toMethod(tester, ['Oat Milk Matcha']);
+      // Frame 26 opens on the original payment.
+      expect(PosRefundSession.instance.refundMethod.value, 'card');
+      // The backend refunds the whole remaining balance (R1 / B1).
+      expect(bar(tester), ('Confirm refund · € 19.00', true));
+      await confirmBarNoSettle(tester);
+      expect(refundRepo.created.single['items_json'], isNull);
+      expect(find.text('Waiting for card on terminal...'), findsOneWidget);
+      await tapAndPump(tester, find.text('Confirm Refund'));
+      await tester.pumpAndSettle();
+      expect(refundRepo.confirmed.single['method'], 'card');
+
+      // Frame 28: Receipt above Next order.
+      expect(find.text('Refund Successful'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Receipt')).dy,
+          lessThan(tester.getTopLeft(find.text('Next order')).dy));
+      await tap(tester, find.text('Receipt'));
+      expect(find.byType(PosReceiptDialog), findsOneWidget);
+      await tap(tester, find.text('Print'));
+      await tap(tester, find.text('Print receipt'));
+      expect(receiptRepo.sent, [(27362, 'print')]);
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
+    });
+
+    testWidgets('full (every item): Next order goes to the counter',
+        (tester) async {
+      await openRefund(tester);
+      await toMethod(
+          tester, ['Oat Milk Matcha', 'Vanilla Matcha Latte', 'Mango Matcha']);
+      await confirmBarNoSettle(tester);
+      await tapAndPump(tester, find.text('Confirm Refund'));
+      await tester.pumpAndSettle();
+      await tap(tester, find.text('Next order'));
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
+      expect(receiptRepo.sent, isEmpty);
+    });
+
+    testWidgets('Receipt then "skip" stays on the success card',
+        (tester) async {
+      await openRefund(tester);
+      await toMethod(tester, ['Oat Milk Matcha']);
+      await confirmBarNoSettle(tester);
+      await tapAndPump(tester, find.text('Confirm Refund'));
+      await tester.pumpAndSettle();
+      await tap(tester, find.text('Receipt'));
+      final PosReceiptDialog dialog =
+          tester.widget<PosReceiptDialog>(find.byType(PosReceiptDialog));
+      dialog.onSkip();
+      await tester.pumpAndSettle();
+      expect(find.byType(PosReceiptDialog), findsNothing);
+      expect(find.text('Refund Successful'), findsOneWidget);
+    });
+
+    testWidgets('Cash on a card order is refunded as cash (was sent as card)',
+        (tester) async {
+      await openRefund(tester);
+      await toMethod(tester, ['Oat Milk Matcha']);
+      await tap(tester, find.text('Cash'));
+      expect(find.text('Hand the cash to the customer from the drawer.'),
+          findsOneWidget);
+      await confirmBar(tester);
+      expect(find.text('Cash Refund'), findsOneWidget);
+      await tap(tester, find.text('Refund € 19.00'));
+      expect(refundRepo.confirmed.single['method'], 'cash');
+      expect(find.text('Refund Successful'), findsOneWidget);
     });
   });
 }

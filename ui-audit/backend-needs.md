@@ -104,3 +104,11 @@ narrows but cannot close this gap.
 only sets `paid` once every group is paid (line 211). `RefundController::resolveCeiling()` refuses any order not in
 `paid / partial_paid / partial_refunded`, so refunding one paid group before the whole order is settled returns 422.
 Fix: set `partial_paid` after a group payment while groups remain, as the split-by-payment controller does.
+
+## B9 — Receipts do not show refunds
+
+`ReceiptController::buildPrintData()` (and the email it sends) lists the order's items and `total = order_amount +
+tip_amount` — no refund lines. The refund success card's Receipt button uses this existing flow, so the receipt a
+customer gets after a refund shows the original sale only. Needed: refund rows (amount, method, date, reference) and
+the net total in `print_data` / the email when `order_refunds` has `succeeded` rows. Note the same tip double-count
+as B2 in `total` here. (This controller has another session's uncommitted changes; nothing was touched.)

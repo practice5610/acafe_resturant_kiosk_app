@@ -12,6 +12,7 @@ import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_option_row.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
@@ -118,6 +119,39 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
     } else {
       context.go(PosRoutes.receipts);
     }
+  }
+
+  /// Frame 28's "Next order": the refund is done; back to the counter.
+  void _nextOrder() {
+    _session.reset();
+    context.go(PosRoutes.home);
+  }
+
+  /// Frame 28's "Receipt": the existing receipt options (email / print, the
+  /// dialog of frames 18a / 18b) for this order; once sent, on to the next
+  /// order as after a payment.
+  void _openReceipt() {
+    final order = _session.order;
+    if (order == null) return;
+    final int deviceId =
+        Provider.of<KioskAuthProvider>(context, listen: false).deviceId ?? 0;
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'receipt',
+      // `dim-overlay` (1915:13039): ink at 40%.
+      barrierColor: PosPaymentSpec.v2DialogScrim,
+      pageBuilder: (dialogContext, anim, secAnim) => PosReceiptDialog(
+        orderId: order.id,
+        total: order.total,
+        deviceId: deviceId,
+        onComplete: () {
+          Navigator.pop(dialogContext);
+          _nextOrder();
+        },
+        onSkip: () => Navigator.pop(dialogContext),
+      ),
+    );
   }
 
   /// Back to the payment screen this refund was pushed from — still holding
@@ -235,15 +269,11 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
                   : _RefundStep.chooseMethod),
         );
       case _RefundStep.complete:
+        // Frame 28: Receipt above Next order (DD4). Frame 30 (one payment of
+        // a sale still in progress) has only "Back to order".
         return _CompleteStep(
-          onDone: () {
-            if (_session.fromPayment) {
-              _leaveToSale();
-              return;
-            }
-            _session.reset();
-            context.go(PosRoutes.receipts);
-          },
+          onReceipt: _session.fromPayment ? null : _openReceipt,
+          onDone: _session.fromPayment ? _leaveToSale : _nextOrder,
         );
     }
   }
@@ -1072,7 +1102,11 @@ class _ApprovalCodeField extends StatelessWidget {
 
 class _CompleteStep extends StatelessWidget {
   final VoidCallback onDone;
-  const _CompleteStep({required this.onDone});
+
+  /// Frame 28's outline "Receipt"; null on frame 30.
+  final VoidCallback? onReceipt;
+
+  const _CompleteStep({required this.onDone, this.onReceipt});
 
   @override
   Widget build(BuildContext context) {
@@ -1089,7 +1123,9 @@ class _CompleteStep extends StatelessWidget {
             : 'Refund Successful',
         amount: amount,
         amountLabel: 'AMOUNT REFUNDED',
-        buttonLabel: isSplit ? 'Back to order' : 'Back to Receipts',
+        secondaryLabel: onReceipt == null ? null : 'Receipt',
+        onSecondary: onReceipt,
+        buttonLabel: isSplit ? 'Back to order' : 'Next order',
         onContinue: onDone,
       ),
     );

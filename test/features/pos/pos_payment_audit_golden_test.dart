@@ -649,10 +649,10 @@ class _FakeRefundRepo extends PosRefundRepo {
     int? splitGroupId,
   }) async {
     // Like RefundController: the whole remaining balance of the source.
-    final PosRefundSplit? split = partialPaymentId == null
+    final int? source = partialPaymentId ?? splitGroupId;
+    final PosRefundSplit? split = source == null
         ? null
-        : PosRefundSession.instance.splits
-            .firstWhere((s) => s.id == partialPaymentId);
+        : PosRefundSession.instance.splits.firstWhere((s) => s.id == source);
     return _ok({
       'refund_id': 1,
       'refund_seq': 1,
@@ -695,12 +695,21 @@ Future<void> _refundFrame(WidgetTester tester,
     cardLast4: backendData ? '4242' : null,
     storeCreditAvailable: backendData,
   );
+  // Frames 29 / 30: one paid payment of a sale in progress, opened from its
+  // Refund pill — Payment 1 of frame 16 (cash, the two lattes).
   session.splits = split
       ? const [
-          PosRefundSplit(id: 11, seq: 1, method: 'cash', amount: 12),
-          PosRefundSplit(id: 12, seq: 2, method: 'card', amount: 7),
+          PosRefundSplit(
+            id: 11,
+            seq: 1,
+            method: 'cash',
+            amount: 12,
+            itemGroup: true,
+            items: 'Oat Milk Matcha, Vanilla Matcha Latte',
+          ),
         ]
       : const [];
+  session.fromPayment = split;
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   if (sl.isRegistered<PosRefundRepo>()) sl.unregister<PosRefundRepo>();
@@ -714,6 +723,19 @@ Future<void> _refundFrame(WidgetTester tester,
 
   await pumpPaymentApp(tester, (_) => const PosRefundScreen());
   await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+  if (split) {
+    // Opens on frame 29 with the backend's quote.
+    await tester.pump();
+    if (step == 29) return;
+    await tester.tap(find.text('Refund € 12.00'));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    return;
+  }
+
   // The screen clears the flow on entry; pick as the frames show.
   session.selectedItemIndices.value = {0};
   session.reason.value = PosRefundReason.customerChanged;
@@ -735,11 +757,7 @@ Future<void> _refundFrame(WidgetTester tester,
 
   await tap(find.text('Continue to refund method'));
   await tester.pump();
-  if (split) {
-    await tap(find.text('Payment 1'));
-  } else {
-    await tap(find.text('Original payment'));
-  }
+  await tap(find.text('Original payment'));
   await tester.pump();
   if (step == 26) return;
 
@@ -747,9 +765,9 @@ Future<void> _refundFrame(WidgetTester tester,
   await tester.runAsync(() => Future<void>.delayed(Duration.zero));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
-  if (step == 27 || step == 29) return;
+  if (step == 27) return;
 
-  await tap(find.text(split ? 'Refund € 12.00' : 'Confirm Refund'));
+  await tap(find.text('Confirm Refund'));
   await tester.runAsync(() => Future<void>.delayed(Duration.zero));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));

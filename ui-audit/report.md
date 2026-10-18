@@ -466,3 +466,24 @@ split-by-item group mid-sale still needs B8, and the balance on the sale screen 
 
 Backend work: B5 (store the terminal's last four with the payment; a `store_credit` refund method with a customer
 balance to credit — POS guest orders have no customer today).
+
+## R2d — Receipt on the refund success card (frame 28)
+
+| # | Part | Figma | Built | Verified |
+|---|---|---|---|---|
+| 1 | Buttons | "Receipt" (outline) above "Next order" (filled) — nodes 1915:11562 / 11564 | `PosPaymentSuccessCard(secondaryLabel: 'Receipt')` + "Next order" (was a single "Back to Receipts", round-1 D13 — superseded by DD4) | text Receipt 650.5,579.5 · Next order 638.2,642.5 · title 409.5 · AMOUNT REFUNDED 470.5 = Figma; golden 28 |
+| 2 | Receipt → existing flow | — | opens the same `PosReceiptDialog` as frames 18a / 18b (email / print → `POST receipt/send` for the order); once sent, on to the next order, as after a payment; skip closes the dialog only | flow tests "partial … Receipt → print → next", "Receipt then skip stays on the success card" |
+| 3 | Next order | — | `context.go(PosRoutes.home)` (the counter) after resetting the refund session | flow test "full (every item): Next order goes to the counter" |
+| 4 | Frame 30 | single "Back to order" | unchanged — the sale is still open; its receipt comes at the end of the sale | golden 30 (no Receipt) |
+
+Frame 29 now reads the real data line "Cash · Oat Milk Matcha, Vanilla Matcha Latte" for a split-by-item payment
+(golden 29 regenerated; round-1 note "subtitle cannot list the split's items" no longer applies). The frame's own
+overlay is shifted 18px down by a stray `calendar` layer; the card is centred in both.
+
+**New bug found and fixed (N7, money):** `RefundController::confirm` records the `method` it is sent, but the screen
+overwrote the operator's frame-26 choice with `create`'s original method — "Cash" on a card order went to the
+terminal step and was recorded as a card refund. The choice is kept; frame 26 also opens on "Original payment" as drawn
+(it opened on Cash). Commit `9e7f0bf`; flow test "Cash on a card order is refunded as cash".
+
+**Limit (backend, B9):** the receipt the existing flow sends is the *order's* receipt — `ReceiptController::buildPrintData`
+has no refund lines (amount, method, date), so a printed / emailed receipt after a refund does not show the refund.
