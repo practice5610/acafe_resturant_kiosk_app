@@ -26,6 +26,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'pos_test_kiosk_auth.dart';
+
 /// Per-item kitchen status in the POS Orders overlay.
 ///
 /// The case that matters most here is the mixed one — a coffee finished while
@@ -227,6 +229,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     MultiProvider(
       providers: [
+        testKioskAuthProvider(prefs),
         ChangeNotifierProvider<SplashProvider>(
           create: (_) => _StubSplashProvider(
             splashRepo: SplashRepo(
@@ -581,6 +584,7 @@ void main() {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
+            testKioskAuthProvider(prefs),
             ChangeNotifierProvider<SplashProvider>(
               create: (_) => _StubSplashProvider(
                 splashRepo: SplashRepo(
@@ -670,6 +674,7 @@ void main() {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
+            testKioskAuthProvider(prefs),
             ChangeNotifierProvider<SplashProvider>(
               create: (_) => _StubSplashProvider(
                 splashRepo: SplashRepo(

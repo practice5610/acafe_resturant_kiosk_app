@@ -20,6 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'pos_test_kiosk_auth.dart';
+
 /// Renders the Orders detail overlay to PNG so each of the four Figma frames
 /// can be compared by eye:
 ///
@@ -222,6 +224,7 @@ Future<void> _shoot(
   await tester.pumpWidget(
     MultiProvider(
       providers: [
+        testKioskAuthProvider(prefs),
         ChangeNotifierProvider<SplashProvider>(
           create: (_) => _StubSplashProvider(
             splashRepo: SplashRepo(dioClient: dio, sharedPreferences: prefs),

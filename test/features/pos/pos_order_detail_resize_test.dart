@@ -11,6 +11,10 @@ import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dar
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'pos_test_kiosk_auth.dart';
 
 /// The overlay opens before the order has been fetched, so it necessarily
 /// draws one frame with no content. The bug these tests pin: that frame used a
@@ -122,14 +126,20 @@ Future<_PendingManagerRepo> _pump(WidgetTester tester) async {
   final _PendingManagerRepo repo =
       _PendingManagerRepo(_singleItemPayload());
 
-  await tester.pumpWidget(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: Scaffold(
-      body: PosOrderDetailOverlay(
-        order: _card(),
-        repo: repo,
-        ordersRepo: _StubOrdersRepo(),
-        onAdvance: (_) async => const PosAdvanceResult.advanced(),
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+
+  await tester.pumpWidget(MultiProvider(
+    providers: [testKioskAuthProvider(prefs)],
+    child: MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: PosOrderDetailOverlay(
+          order: _card(),
+          repo: repo,
+          ordersRepo: _StubOrdersRepo(),
+          onAdvance: (_) async => const PosAdvanceResult.advanced(),
+        ),
       ),
     ),
   ));
