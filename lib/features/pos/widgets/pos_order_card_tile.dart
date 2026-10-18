@@ -64,11 +64,15 @@ class PosOrderCardTile extends StatelessWidget {
     switch (order.section) {
       case PosOrderSection.newOrders:
         return PosOrdersSpec.dotNew;
-      case PosOrderSection.inProgress:
-        return PosOrdersSpec.dotInProgress;
-      case PosOrderSection.finished:
+      case PosOrderSection.preparing:
+        return PosOrdersSpec.dotPreparing;
+      case PosOrderSection.readyToCollect:
+        return PosOrdersSpec.dotReadyToCollect;
+      case PosOrderSection.onHold:
+        return PosOrdersSpec.dotOnHold;
+      case PosOrderSection.completed:
       case PosOrderSection.excluded:
-        return PosOrdersSpec.dotFinished;
+        return PosOrdersSpec.dotCompleted;
     }
   }
 
@@ -80,9 +84,10 @@ class PosOrderCardTile extends StatelessWidget {
       now: now,
     );
     final bool urgent = urgency == PosOrderUrgency.urgent;
-    // FINISHED cards use Figma's ring-less badge and thinner glyphs; the
-    // timer and the menu still follow the real status.
-    final bool finished = order.section == PosOrderSection.finished;
+    // READY TO COLLECT and COMPLETED cards use Figma's FINISHED variant:
+    // ring-less badge and thinner glyphs. The timer and the menu still follow
+    // the real status.
+    final bool finished = PosOrderGrouping.usesFinishedCard(order.section);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: PosOrdersSpec.cardMinHeight),
@@ -130,12 +135,13 @@ class PosOrderCardTile extends StatelessWidget {
   }
 
   /// Station pills are an IN PROGRESS thing in Figma: NEW cards would only
-  /// ever say "Pending", FINISHED ones "Ready", and Figma draws neither.
-  bool get _inProgress => order.section == PosOrderSection.inProgress;
+  /// ever say "Pending", finished ones "Ready", and Figma draws neither.
+  /// PREPARING and ON HOLD orders are the ones still in the kitchen.
+  bool get _inProgress => PosOrderGrouping.usesInProgressCard(order.section);
 
   bool get _showStations => _inProgress && order.stations.isNotEmpty;
 
-  /// An IN PROGRESS order whose lines have no station keeps its "n/m ready"
+  /// An in-progress order whose lines have no station keeps its "n/m ready"
   /// line, so the counter still sees how far it has got.
   bool get _showProgress =>
       _inProgress && order.stations.isEmpty && order.itemStates.isNotEmpty;
@@ -153,7 +159,7 @@ class PosOrderCardTile extends StatelessWidget {
               _customerBlock(),
               // IN PROGRESS: `customer-info` is flex-1, so the timer and the
               // footer sit on the card's bottom edge (1915:15986). NEW and
-              // FINISHED cards stack from the top and keep the slack below.
+              // finished cards stack from the top and keep the slack below.
               if (_inProgress) const Spacer(),
               const SizedBox(height: PosOrdersSpec.cardBlockGap),
               _timerRow(urgency),
@@ -267,8 +273,8 @@ class PosOrderCardTile extends StatelessWidget {
   }
 
   Widget _timerRow(PosOrderUrgency urgency) {
-    // "Done" is the end of the ladder, not the FINISHED section: an
-    // `item_to_collect` order lives in FINISHED but is still running, and
+    // "Done" is the end of the ladder, not a finished-looking card: an
+    // `item_to_collect` order is drawn as finished but is still running, and
     // labelling it Done beside a live "Mark as complete" button would
     // contradict itself.
     final String label = urgency == PosOrderUrgency.done

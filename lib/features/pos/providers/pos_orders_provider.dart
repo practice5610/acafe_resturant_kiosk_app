@@ -117,9 +117,7 @@ class PosOrdersProvider extends ChangeNotifier {
   int countOf(PosOrderSection section) => _counts[section] ?? 0;
 
   int get totalCount =>
-      countOf(PosOrderSection.newOrders) +
-      countOf(PosOrderSection.inProgress) +
-      countOf(PosOrderSection.finished);
+      PosOrderGrouping.boardSections.fold(0, (sum, s) => sum + countOf(s));
 
   /// The cards for one section, newest first — the order the feed returns them.
   List<PosOrderCard> ordersIn(PosOrderSection section) =>
@@ -169,11 +167,16 @@ class PosOrdersProvider extends ChangeNotifier {
           .toList(growable: false);
 
       final counts = Map<String, dynamic>.from(data['counts'] as Map? ?? {});
+      // A backend that predates the kitchen sections only sends new /
+      // in_progress / finished; its sections then count the cards it returned
+      // rather than reading 0 above a row of orders.
       _counts = <PosOrderSection, int>{
-        PosOrderSection.newOrders: int.tryParse('${counts['new']}') ?? 0,
-        PosOrderSection.inProgress:
-            int.tryParse('${counts['in_progress']}') ?? 0,
-        PosOrderSection.finished: int.tryParse('${counts['finished']}') ?? 0,
+        for (final PosOrderSection section in PosOrderGrouping.boardSections)
+          section: counts.containsKey(PosOrderGrouping.queryValueFor(section))
+              ? int.tryParse(
+                      '${counts[PosOrderGrouping.queryValueFor(section)]}') ??
+                  0
+              : _orders.where((o) => o.section == section).length,
       };
       _error = null;
       _loaded = true;

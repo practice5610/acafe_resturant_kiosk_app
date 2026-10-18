@@ -412,20 +412,19 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  // Figma's labels exactly: "All" in title case, the sections
-                  // in capitals, and no counts — those sit on the section
-                  // headers below.
+                  // The Kitchen Display's tabs, in its order, so the counter
+                  // and the kitchen filter by the same words. No counts —
+                  // those sit on the section headers below.
                   _sectionPill(provider, null, 'All'),
-                  const SizedBox(width: PosOrdersSpec.pillGap),
-                  _sectionPill(provider, PosOrderSection.newOrders, 'NEW'),
-                  const SizedBox(width: PosOrdersSpec.pillGap),
-                  _sectionPill(
-                    provider,
-                    PosOrderSection.inProgress,
-                    'IN PROGRESS',
-                  ),
-                  const SizedBox(width: PosOrdersSpec.pillGap),
-                  _sectionPill(provider, PosOrderSection.finished, 'FINISHED'),
+                  for (final PosOrderSection section
+                      in PosOrderGrouping.boardSections) ...[
+                    const SizedBox(width: PosOrdersSpec.pillGap),
+                    _sectionPill(
+                      provider,
+                      section,
+                      PosOrderGrouping.labelFor(section),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -586,11 +585,7 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     }
 
     final List<PosOrderSection> sections = provider.section == null
-        ? const [
-            PosOrderSection.newOrders,
-            PosOrderSection.inProgress,
-            PosOrderSection.finished,
-          ]
+        ? PosOrderGrouping.boardSections
         : <PosOrderSection>[provider.section!];
 
     return LayoutBuilder(
@@ -674,12 +669,20 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
           PosOrdersSpec.sectionBadgeNew,
           PosHomeSpec.pageBg,
         ),
-      PosOrderSection.inProgress => (
-          PosOrdersSpec.sectionBadgeInProgress,
+      PosOrderSection.preparing => (
+          PosOrdersSpec.sectionBadgePreparing,
           Colors.white,
         ),
-      PosOrderSection.finished || PosOrderSection.excluded => (
-          PosOrdersSpec.sectionBadgeFinished,
+      PosOrderSection.readyToCollect => (
+          PosOrdersSpec.sectionBadgeReadyToCollect,
+          PosHomeSpec.pageBg,
+        ),
+      PosOrderSection.onHold => (
+          PosOrdersSpec.sectionBadgeOnHold,
+          PosHomeSpec.pageBg,
+        ),
+      PosOrderSection.completed || PosOrderSection.excluded => (
+          PosOrdersSpec.sectionBadgeCompleted,
           PosHomeSpec.pageBg,
         ),
     };

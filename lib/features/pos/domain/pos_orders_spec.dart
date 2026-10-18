@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:flutter/material.dart';
 
@@ -105,12 +106,18 @@ class PosOrdersSpec {
   static const double badgeTextSize = 11;
   static const double badgeGap = 8;
 
-  /// Count badge fills, one per section (`new-badge` / `progress-badge` /
-  /// `finished-badge`). NEW's and IN PROGRESS's are the same hexes the detail
-  /// modal's status badge uses.
+  /// Count badge fills, one per section. Figma draws three (`new-badge` /
+  /// `progress-badge` / `finished-badge`); the board now has the Kitchen
+  /// Display's five sections, so PREPARING keeps IN PROGRESS's blue, COMPLETED
+  /// keeps FINISHED's green, and the two new ones borrow a tone the POS already
+  /// gives that state rather than inventing one: READY TO COLLECT the item
+  /// "Ready" green, ON HOLD the kitchen's on-hold brown.
   static const Color sectionBadgeNew = Color(0xFF496052);
-  static const Color sectionBadgeInProgress = Color(0xFF2D9CDB);
-  static const Color sectionBadgeFinished = Color(0xFF59B86B);
+  static const Color sectionBadgePreparing = Color(0xFF2D9CDB);
+  static const Color sectionBadgeReadyToCollect =
+      PosOrderDetailSpec.itemStatusReady;
+  static const Color sectionBadgeOnHold = PosOrderDetailSpec.holdTone;
+  static const Color sectionBadgeCompleted = Color(0xFF59B86B);
 
   // ── Cards (1915:15837 and variants) ─────────────────────────────────
   /// `card-*` is 288 wide with a 300 pitch → a 12px gap on both axes.
@@ -174,9 +181,13 @@ class PosOrdersSpec {
   /// The `time-row` dot is coloured by **section**. Figma's layer names say so
   /// (`status-dot-yellow` / `-blue` / `-green`); its NEW and IN PROGRESS fills
   /// do not, and were ruled a Figma slip. FINISHED's green is Figma's own.
+  /// The two kitchen sections Figma has no dot for take the same tones as
+  /// their count badges.
   static const Color dotNew = Color(0xFFE0A11B);
-  static const Color dotInProgress = Color(0xFF2F6FB5);
-  static const Color dotFinished = Color(0xFF59B86B);
+  static const Color dotPreparing = Color(0xFF2F6FB5);
+  static const Color dotReadyToCollect = PosOrderDetailSpec.itemStatusReady;
+  static const Color dotOnHold = PosOrderDetailSpec.holdTone;
+  static const Color dotCompleted = Color(0xFF59B86B);
 
   /// The late card's bar, dot and clock (`urgent-border` / `urgent-dot`).
   static const Color urgentAccent = Color(0xFFEB5757);

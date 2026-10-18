@@ -45,7 +45,7 @@ class PosOrderTimer {
   /// order that happened to take 40 minutes is not an alarm — it is history.
   ///
   /// "Unfinished" is decided by the order's real status, not by the section it
-  /// is drawn in. `item_to_collect` is grouped under FINISHED but is not a
+  /// is drawn in. `item_to_collect` is drawn on a finished card but is not a
   /// terminal status — an order sitting uncollected on the pass for twenty
   /// minutes is exactly the case staff need flagged, and keying this on the
   /// section would have quietly shown it as settled. The Kitchen Display

@@ -115,7 +115,13 @@ class _Repo implements PosOrdersRepo {
         requestOptions: RequestOptions(path: '/orders'),
         statusCode: 200,
         data: {
-          'counts': {'new': 6, 'in_progress': 3, 'finished': 3},
+          'counts': {
+            'new': 6,
+            'preparing': 2,
+            'ready_to_collect': 0,
+            'on_hold': 1,
+            'completed': 3,
+          },
           'orders': [
             _row(27364, 'new', 'web_app', 1, address: _addr),
             _row(27366, 'new', 'counter_pos', 2, address: _addr),

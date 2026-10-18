@@ -71,6 +71,13 @@ class PosOrderDetailSpec {
   static const Color badgeInProgress = Color(0xFF2D9CDB);
   static const Color badgeFinished = Color(0xFF3F8A4F);
 
+  /// The header badge per Kitchen Display section — the board's section
+  /// tones, with FINISHED's darker green kept for COMPLETED.
+  static const Color badgePreparing = badgeInProgress;
+  static const Color badgeReadyToCollect = itemStatusReady;
+  static const Color badgeOnHold = holdTone;
+  static const Color badgeCompleted = badgeFinished;
+
   // ── Body ─────────────────────────────────────────────────────────────
   static const double bodyPad = 24;
   static const double columnGap = 32;

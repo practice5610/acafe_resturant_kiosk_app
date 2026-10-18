@@ -13,33 +13,67 @@ void main() {
       expect(PosOrderGrouping.sectionOf('pending'), PosOrderSection.newOrders);
     });
 
-    test('preparing and on_hold land in IN PROGRESS', () {
+    test('each Kitchen Display tab status lands in its own section', () {
+      // The KDS tabs are exact matches on one status each
+      // (order_status_tab_widget.dart); the board files them the same way.
       expect(
         PosOrderGrouping.sectionOf('preparing'),
-        PosOrderSection.inProgress,
+        PosOrderSection.preparing,
       );
-      // A paused order is still active — it simply is not progressing.
       expect(
-        PosOrderGrouping.sectionOf('on_hold'),
-        PosOrderSection.inProgress,
+        PosOrderGrouping.sectionOf('item_to_collect'),
+        PosOrderSection.readyToCollect,
+      );
+      // A paused order is its own section now, not hidden inside preparing.
+      expect(PosOrderGrouping.sectionOf('on_hold'), PosOrderSection.onHold);
+      expect(
+        PosOrderGrouping.sectionOf('completed'),
+        PosOrderSection.completed,
       );
     });
 
-    test('item_to_collect, completed and legacy delivered land in FINISHED',
-        () {
-      expect(
-        PosOrderGrouping.sectionOf('item_to_collect'),
-        PosOrderSection.finished,
-      );
-      expect(
-        PosOrderGrouping.sectionOf('completed'),
-        PosOrderSection.finished,
-      );
+    test('legacy statuses keep a home', () {
+      for (final String s in const ['confirmed', 'processing', 'cooking']) {
+        expect(PosOrderGrouping.sectionOf(s), PosOrderSection.preparing,
+            reason: s);
+      }
       // `delivered` is a live legacy value on real rows, not just an alias
       // constant. Dropping it would silently hide those orders.
       expect(
         PosOrderGrouping.sectionOf('delivered'),
-        PosOrderSection.finished,
+        PosOrderSection.completed,
+      );
+    });
+
+    test('sections, pills and wire values line up with the backend', () {
+      expect(PosOrderGrouping.boardSections, const [
+        PosOrderSection.newOrders,
+        PosOrderSection.preparing,
+        PosOrderSection.readyToCollect,
+        PosOrderSection.onHold,
+        PosOrderSection.completed,
+      ]);
+      expect(
+        PosOrderGrouping.boardSections.map(PosOrderGrouping.labelFor),
+        ['NEW', 'PREPARING', 'READY TO COLLECT', 'ON HOLD', 'COMPLETED'],
+      );
+      // KioskManagerController::orders() `section` values and `counts` keys.
+      expect(
+        PosOrderGrouping.boardSections.map(PosOrderGrouping.queryValueFor),
+        ['new', 'preparing', 'ready_to_collect', 'on_hold', 'completed'],
+      );
+      expect(PosOrderGrouping.queryValueFor(PosOrderSection.excluded), isNull);
+    });
+
+    test('Figma card variants: in-kitchen vs out-of-kitchen', () {
+      expect(
+        PosOrderGrouping.boardSections
+            .where(PosOrderGrouping.usesInProgressCard),
+        [PosOrderSection.preparing, PosOrderSection.onHold],
+      );
+      expect(
+        PosOrderGrouping.boardSections.where(PosOrderGrouping.usesFinishedCard),
+        [PosOrderSection.readyToCollect, PosOrderSection.completed],
       );
     });
 
@@ -47,7 +81,7 @@ void main() {
       expect(PosOrderGrouping.sectionOf('canceled'), PosOrderSection.excluded);
       expect(
         PosOrderGrouping.sectionOf('canceled'),
-        isNot(PosOrderSection.finished),
+        isNot(PosOrderSection.completed),
       );
     });
 
@@ -90,8 +124,10 @@ void main() {
       // in a section holding a button that can never legally fire.
       final Set<String> onBoard = {
         ...PosOrderGrouping.newStatuses,
-        ...PosOrderGrouping.inProgressStatuses,
-        ...PosOrderGrouping.finishedStatuses,
+        ...PosOrderGrouping.preparingStatuses,
+        ...PosOrderGrouping.readyToCollectStatuses,
+        ...PosOrderGrouping.onHoldStatuses,
+        ...PosOrderGrouping.completedStatuses,
       };
 
       for (final String status in onBoard) {
@@ -108,12 +144,14 @@ void main() {
       }
     });
 
-    test('item_to_collect is grouped FINISHED yet still advanceable', () {
-      // The exact case the section-keyed version got wrong: drawn under
-      // FINISHED, but not terminal, so its card still finishes it.
+    test('item_to_collect is drawn as finished yet still advanceable', () {
+      // The exact case the section-keyed version got wrong: drawn on Figma's
+      // FINISHED card, but not terminal, so its card still finishes it.
       expect(
-        PosOrderGrouping.sectionOf('item_to_collect'),
-        PosOrderSection.finished,
+        PosOrderGrouping.usesFinishedCard(
+          PosOrderGrouping.sectionOf('item_to_collect'),
+        ),
+        isTrue,
       );
       expect(PosOrderGrouping.nextStatusFor('item_to_collect'), 'completed');
     });
@@ -259,7 +297,7 @@ void main() {
       final PosOrderCard moved = original.withStatus('preparing');
 
       expect(original.section, PosOrderSection.newOrders);
-      expect(moved.section, PosOrderSection.inProgress);
+      expect(moved.section, PosOrderSection.preparing);
       expect(moved.id, original.id);
       expect(moved.customerName, original.customerName);
     });

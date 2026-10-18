@@ -1128,10 +1128,14 @@ class _Header extends StatelessWidget {
     switch (PosOrderGrouping.sectionOf(status)) {
       case PosOrderSection.newOrders:
         return PosOrderDetailSpec.badgeNew;
-      case PosOrderSection.inProgress:
-        return PosOrderDetailSpec.badgeInProgress;
-      case PosOrderSection.finished:
-        return PosOrderDetailSpec.badgeFinished;
+      case PosOrderSection.preparing:
+        return PosOrderDetailSpec.badgePreparing;
+      case PosOrderSection.readyToCollect:
+        return PosOrderDetailSpec.badgeReadyToCollect;
+      case PosOrderSection.onHold:
+        return PosOrderDetailSpec.badgeOnHold;
+      case PosOrderSection.completed:
+        return PosOrderDetailSpec.badgeCompleted;
       case PosOrderSection.excluded:
         return PosOrderDetailSpec.inkAlpha(0.4);
     }

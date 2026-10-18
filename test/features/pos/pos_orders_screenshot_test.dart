@@ -150,7 +150,13 @@ class _StubOrdersRepo implements PosOrdersRepo {
       requestOptions: RequestOptions(path: '/orders'),
       statusCode: 200,
       data: <String, dynamic>{
-        'counts': {'new': 6, 'in_progress': 3, 'finished': 3},
+        'counts': {
+          'new': 6,
+          'preparing': 2,
+          'ready_to_collect': 1,
+          'on_hold': 1,
+          'completed': 2,
+        },
         'limit': limit,
         'orders': [
           // NEW — normal, warning and urgent, plus the address variants.
@@ -383,8 +389,7 @@ void main() {
 
     expect(find.text('SEARCH IN ORDERS...'), findsOneWidget);
     expect(sectionHeader('NEW'), findsOneWidget);
-    expect(sectionHeader('IN PROGRESS'), findsOneWidget);
-    expect(sectionHeader('FINISHED'), findsOneWidget);
+    expect(sectionHeader('PREPARING'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await expectLater(
@@ -395,20 +400,26 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pump();
 
-    expect(sectionHeader('FINISHED'), findsOneWidget);
+    expect(sectionHeader('COMPLETED'), findsOneWidget);
     expect(find.text('Done'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   }, skip: !Platform.isMacOS && !Platform.isLinux);
 
   testWidgets('the whole board in one frame, for Figma comparison',
       (tester) async {
-    // Taller than any real terminal on purpose: this image exists so all three
-    // sections can be checked against 1641:2874 at once, without scrolling.
-    await pumpAt(tester, const Size(1366, 1500));
+    // Taller than any real terminal on purpose: this image exists so all five
+    // sections can be checked against 1915:15768 at once, without scrolling.
+    await pumpAt(tester, const Size(1366, 1900));
 
-    expect(sectionHeader('NEW'), findsOneWidget);
-    expect(sectionHeader('IN PROGRESS'), findsOneWidget);
-    expect(sectionHeader('FINISHED'), findsOneWidget);
+    for (final String label in const [
+      'NEW',
+      'PREPARING',
+      'READY TO COLLECT',
+      'ON HOLD',
+      'COMPLETED',
+    ]) {
+      expect(sectionHeader(label), findsOneWidget, reason: label);
+    }
     // Figma 1915:15767 draws no action on the card face — the rungs live
     // behind each card's ⋮.
     expect(find.text('Mark as ready'), findsNothing);

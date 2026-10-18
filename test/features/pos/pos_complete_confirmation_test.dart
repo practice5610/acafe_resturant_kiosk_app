@@ -57,7 +57,13 @@ class _StubOrdersRepo implements PosOrdersRepo {
         data: {
           // One card at the terminal rung, so its action is 'Mark as complete'.
           'orders': [_row(1234, 'item_to_collect')],
-          'counts': {'new': 0, 'in_progress': 0, 'finished': 1},
+          'counts': {
+            'new': 0,
+            'preparing': 0,
+            'ready_to_collect': 1,
+            'on_hold': 0,
+            'completed': 0,
+          },
         },
       ));
 

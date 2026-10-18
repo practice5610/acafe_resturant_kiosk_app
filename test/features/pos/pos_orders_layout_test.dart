@@ -103,7 +103,13 @@ class _StubOrdersRepo implements PosOrdersRepo {
       requestOptions: RequestOptions(path: '/orders'),
       statusCode: 200,
       data: <String, dynamic>{
-        'counts': {'new': 2, 'in_progress': 1, 'finished': 1},
+        'counts': {
+          'new': 2,
+          'preparing': 1,
+          'ready_to_collect': 1,
+          'on_hold': _includeOnHold ? 1 : 0,
+          'completed': 1,
+        },
         'limit': limit,
         'orders': [
           _row(
@@ -122,7 +128,7 @@ class _StubOrdersRepo implements PosOrdersRepo {
             name: 'A customer with a very long name indeed, truly',
           ),
           _row(id: 27363, status: 'preparing', channel: 'counter_pos'),
-          // Grouped under FINISHED but not terminal — it must still carry the
+          // Drawn as finished but not terminal — it must still carry the
           // action that finishes it.
           _row(id: 27359, status: 'item_to_collect', channel: 'counter_pos'),
           _row(id: 27358, status: 'completed', channel: 'counter_pos'),
@@ -348,7 +354,7 @@ void main() {
     });
   });
 
-  testWidgets('the board stacks three sections vertically, not side by side',
+  testWidgets('the board stacks the five kitchen sections, not side by side',
       (tester) async {
     await pumpBoard(tester, _StubOrdersRepo());
 
@@ -360,21 +366,34 @@ void main() {
         widget.data == label &&
         widget.style?.fontSize == PosOrdersSpec.sectionHeaderSize);
 
-    expect(header('NEW'), findsOneWidget);
-    expect(header('IN PROGRESS'), findsOneWidget);
-    expect(header('FINISHED'), findsOneWidget);
-
-    final double newY = tester.getTopLeft(header('NEW')).dy;
-    final double progressY = tester.getTopLeft(header('IN PROGRESS')).dy;
-    final double finishedY = tester.getTopLeft(header('FINISHED')).dy;
-
-    // Figma draws every section at the full content width, one under the next.
-    expect(progressY, greaterThan(newY));
-    expect(finishedY, greaterThan(progressY));
-
-    final double newX = tester.getTopLeft(header('NEW')).dx;
-    expect(tester.getTopLeft(header('IN PROGRESS')).dx, newX);
-    expect(tester.getTopLeft(header('FINISHED')).dx, newX);
+    // The Kitchen Display's tab order, top to bottom. An empty section keeps
+    // its header (with a 0) so the board's shape never shifts under the
+    // operator.
+    const List<String> order = [
+      'NEW',
+      'PREPARING',
+      'READY TO COLLECT',
+      'ON HOLD',
+      'COMPLETED',
+    ];
+    final Finder board = find
+        .descendant(of: find.byType(ListView), matching: find.byType(Scrollable))
+        .first;
+    double? lastY;
+    double? newX;
+    for (final String label in order) {
+      await tester.scrollUntilVisible(header(label), 200, scrollable: board);
+      expect(header(label), findsOneWidget, reason: label);
+      final Offset at = tester.getTopLeft(header(label));
+      final double y =
+          at.dy + tester.state<ScrollableState>(board).position.pixels;
+      // Figma draws every section at the full content width, one under the
+      // next.
+      if (lastY != null) expect(y, greaterThan(lastY), reason: label);
+      lastY = y;
+      newX ??= at.dx;
+      expect(at.dx, newX, reason: label);
+    }
   });
 
   testWidgets('cards hold the Figma 288px width and 12px gap', (tester) async {
@@ -418,10 +437,33 @@ void main() {
   testWidgets('section badges show the server counts', (tester) async {
     await pumpBoard(tester, _StubOrdersRepo());
 
-    // NEW's header badge. IN PROGRESS and FINISHED both show 1, so only the
-    // 2 is unambiguous as a bare badge.
-    expect(find.text('2'), findsOneWidget);
-    expect(find.text('1'), findsNWidgets(2));
+    // Each header's own badge — the Text after the label in its Row — so a
+    // count can't be credited to the wrong section.
+    Finder header(String label) => find.byWidgetPredicate((widget) =>
+        widget is Text &&
+        widget.data == label &&
+        widget.style?.fontSize == PosOrdersSpec.sectionHeaderSize);
+    final Finder board = find
+        .descendant(of: find.byType(ListView), matching: find.byType(Scrollable))
+        .first;
+    const Map<String, String> expected = {
+      'NEW': '2',
+      'PREPARING': '1',
+      'READY TO COLLECT': '1',
+      'ON HOLD': '0',
+      'COMPLETED': '1',
+    };
+    for (final MapEntry<String, String> e in expected.entries) {
+      await tester.scrollUntilVisible(header(e.key), 200, scrollable: board);
+      final Finder row =
+          find.ancestor(of: header(e.key), matching: find.byType(Row)).first;
+      final Text badge = tester
+          .widgetList<Text>(
+              find.descendant(of: row, matching: find.byType(Text)))
+          .last;
+      expect(badge.data, e.value, reason: e.key);
+    }
+    await tester.scrollUntilVisible(find.text('ALL'), -200, scrollable: board);
 
     // Figma 1915:15818: the quick-pills carry no counts — those live on the
     // section headers above.

@@ -1,5 +1,14 @@
-/// The three sections of the Orders board, plus "not on the board at all".
-enum PosOrderSection { newOrders, inProgress, finished, excluded }
+/// The sections of the Orders board — the Kitchen Display's own tabs (New /
+/// Preparing / Ready to collect / On hold / Completed), so the counter and the
+/// kitchen file an order under the same word — plus "not on the board at all".
+enum PosOrderSection {
+  newOrders,
+  preparing,
+  readyToCollect,
+  onHold,
+  completed,
+  excluded,
+}
 
 /// Maps a real `orders.order_status` onto a board section.
 ///
@@ -8,42 +17,71 @@ enum PosOrderSection { newOrders, inProgress, finished, excluded }
 /// re-groups locally after an optimistic status change, and the two answers
 /// have to agree or a card would jump to the wrong section for the duration of
 /// the round trip.
+///
+/// Each Kitchen Display tab is one exact status; the sets below add only the
+/// legacy values that tab would otherwise drop on the floor.
 class PosOrderGrouping {
   PosOrderGrouping._();
+
+  /// Board order, top to bottom — and the filter pills, left to right.
+  static const List<PosOrderSection> boardSections = [
+    PosOrderSection.newOrders,
+    PosOrderSection.preparing,
+    PosOrderSection.readyToCollect,
+    PosOrderSection.onHold,
+    PosOrderSection.completed,
+  ];
 
   /// `pending` is the legacy alias for `new` and is still readable on old rows.
   static const Set<String> newStatuses = {'new', 'pending'};
 
-  /// Being worked. `on_hold` belongs here: a paused order is still active, it
-  /// simply is not progressing.
-  static const Set<String> inProgressStatuses = {
+  /// Being worked. The Kitchen Display only writes `preparing`; the others are
+  /// legacy values still readable on old rows.
+  static const Set<String> preparingStatuses = {
     'preparing',
     'confirmed',
     'processing',
     'cooking',
-    'on_hold',
   };
 
-  /// Kitchen work is done. `item_to_collect` sits here rather than in progress
-  /// because from the counter's side a ready order is finished and waiting to
-  /// be handed over. `delivered` is a legacy value that is still written on
-  /// live rows — omitting it would silently drop those orders off the board.
-  static const Set<String> finishedStatuses = {
-    'item_to_collect',
-    'completed',
-    'delivered',
-  };
+  /// The kitchen is done; the handover is not. Not terminal — its card still
+  /// carries "Mark as complete".
+  static const Set<String> readyToCollectStatuses = {'item_to_collect'};
 
-  /// `canceled` has no section. It is not folded into FINISHED: a canceled
+  /// Paused but still active.
+  static const Set<String> onHoldStatuses = {'on_hold'};
+
+  /// `delivered` is a legacy value that is still written on live rows —
+  /// omitting it would silently drop those orders off the board.
+  static const Set<String> completedStatuses = {'completed', 'delivered'};
+
+  /// `canceled` has no section. It is not folded into COMPLETED: a canceled
   /// order is not a fulfilled one, and showing it as such would misreport what
   /// happened to it.
   static const Set<String> excludedStatuses = {'canceled', 'returned', 'failed'};
 
+  /// Figma draws three card variants (NEW / IN PROGRESS / FINISHED); the five
+  /// kitchen sections reuse them. PREPARING and ON HOLD orders are still in the
+  /// kitchen, so they get the IN PROGRESS card: station pills or the "n/m
+  /// ready" line, footer pinned to the bottom edge.
+  static bool usesInProgressCard(PosOrderSection section) =>
+      section == PosOrderSection.preparing || section == PosOrderSection.onHold;
+
+  /// READY TO COLLECT and COMPLETED orders are out of the kitchen, so they get
+  /// Figma's FINISHED card: ring-less source badge, thinner glyphs.
+  static bool usesFinishedCard(PosOrderSection section) =>
+      section == PosOrderSection.readyToCollect ||
+      section == PosOrderSection.completed;
+
   static PosOrderSection sectionOf(String status) {
     final String s = status.trim().toLowerCase();
     if (newStatuses.contains(s)) return PosOrderSection.newOrders;
-    if (inProgressStatuses.contains(s)) return PosOrderSection.inProgress;
-    if (finishedStatuses.contains(s)) return PosOrderSection.finished;
+    if (preparingStatuses.contains(s)) return PosOrderSection.preparing;
+    if (readyToCollectStatuses.contains(s)) {
+      return PosOrderSection.readyToCollect;
+    }
+    if (onHoldStatuses.contains(s)) return PosOrderSection.onHold;
+    if (completedStatuses.contains(s)) return PosOrderSection.completed;
     return PosOrderSection.excluded;
   }
 
@@ -65,7 +103,7 @@ class PosOrderGrouping {
   ///   completed / delivered / canceled  -> nothing
   ///
   /// Keying on status rather than section is what keeps grouping and gating
-  /// consistent: `item_to_collect` is grouped under FINISHED, but it is not a
+  /// consistent: `item_to_collect` is drawn on a finished card, but it is not a
   /// terminal status, so its card still carries the action that finishes it.
   /// Nothing is ever grouped into a section whose action cannot fire, because
   /// the action is not a property of the section.
@@ -74,7 +112,7 @@ class PosOrderGrouping {
 
     if (newStatuses.contains(s)) return 'preparing';
     if (s == 'on_hold') return 'preparing';
-    if (inProgressStatuses.contains(s)) return 'item_to_collect';
+    if (preparingStatuses.contains(s)) return 'item_to_collect';
     if (s == 'item_to_collect') return 'completed';
 
     // completed / delivered / canceled are the end of the line.
@@ -84,7 +122,7 @@ class PosOrderGrouping {
   /// Label for that action.
   ///
   /// Deliberately describes the transition it actually performs. Figma draws
-  /// "Mark as complete" on every IN PROGRESS card, but a `preparing` order's
+  /// "Mark as complete" on every in-progress card, but a `preparing` order's
   /// next rung is `item_to_collect`, not `completed` — labelling that button
   /// "complete" would tell staff the order is finished when the customer has
   /// not been handed anything, and would skip the "ready to collect" push the
@@ -103,28 +141,39 @@ class PosOrderGrouping {
     return 'Mark as complete';
   }
 
+  /// Section header and modal badge text: the Kitchen Display's tab names, in
+  /// the capitals Figma sets every section label in.
   static String labelFor(PosOrderSection section) {
     switch (section) {
       case PosOrderSection.newOrders:
         return 'NEW';
-      case PosOrderSection.inProgress:
-        return 'IN PROGRESS';
-      case PosOrderSection.finished:
-        return 'FINISHED';
+      case PosOrderSection.preparing:
+        return 'PREPARING';
+      case PosOrderSection.readyToCollect:
+        return 'READY TO COLLECT';
+      case PosOrderSection.onHold:
+        return 'ON HOLD';
+      case PosOrderSection.completed:
+        return 'COMPLETED';
       case PosOrderSection.excluded:
         return '';
     }
   }
 
-  /// Wire value for the endpoint's `section` parameter.
+  /// Wire value for the endpoint's `section` parameter — also the key of that
+  /// section's total in its `counts`.
   static String? queryValueFor(PosOrderSection section) {
     switch (section) {
       case PosOrderSection.newOrders:
         return 'new';
-      case PosOrderSection.inProgress:
-        return 'in_progress';
-      case PosOrderSection.finished:
-        return 'finished';
+      case PosOrderSection.preparing:
+        return 'preparing';
+      case PosOrderSection.readyToCollect:
+        return 'ready_to_collect';
+      case PosOrderSection.onHold:
+        return 'on_hold';
+      case PosOrderSection.completed:
+        return 'completed';
       case PosOrderSection.excluded:
         return null;
     }

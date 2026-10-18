@@ -24,6 +24,18 @@ class _FakeRepo implements PosOrdersRepo {
   String? lastDateTo;
   String? lastOrderStatus;
 
+  /// The board endpoint's `counts` — both the kitchen sections and the old
+  /// three-way keys, as KioskManagerController::orders() sends them.
+  Map<String, dynamic> counts = <String, dynamic>{
+    'new': 1,
+    'in_progress': 1,
+    'finished': 0,
+    'preparing': 1,
+    'ready_to_collect': 0,
+    'on_hold': 0,
+    'completed': 0,
+  };
+
   /// Mutated between calls so a refetch can be made to return a changed board.
   List<Map<String, dynamic>> rows = [
     {
@@ -89,7 +101,7 @@ class _FakeRepo implements PosOrdersRepo {
       requestOptions: RequestOptions(path: '/orders'),
       statusCode: 200,
       data: <String, dynamic>{
-        'counts': {'new': 1, 'in_progress': 1, 'finished': 0},
+        'counts': counts,
         'limit': limit,
         'orders': rows,
       },
@@ -243,7 +255,7 @@ void main() {
     expect(repo.lastOrderStatus, 'item_to_collect');
   });
 
-  test('an item_to_collect order still advances, though it sits in FINISHED',
+  test('an item_to_collect order still advances, though it looks finished',
       () async {
     repo.rows = [
       {
@@ -262,7 +274,7 @@ void main() {
     await provider.load();
 
     final order = provider.orders.single;
-    expect(order.section, PosOrderSection.finished);
+    expect(order.section, PosOrderSection.readyToCollect);
 
     final String? error = await provider.advance(order);
 
@@ -345,7 +357,7 @@ void main() {
     );
     // The badge above it agrees.
     expect(provider.countOf(PosOrderSection.newOrders), 1);
-    expect(provider.countOf(PosOrderSection.inProgress), 1);
+    expect(provider.countOf(PosOrderSection.preparing), 1);
     expect(provider.isPending(1), isFalse);
   });
 
@@ -432,10 +444,40 @@ void main() {
       () async {
     await provider.load();
 
-    provider.setSection(PosOrderSection.finished);
+    provider.setSection(PosOrderSection.readyToCollect);
     await Future<void>.delayed(Duration.zero);
 
-    expect(repo.lastSection, 'finished');
+    expect(repo.lastSection, 'ready_to_collect');
+  });
+
+  test('section counts come from the server, per kitchen section', () async {
+    repo.counts = <String, dynamic>{
+      'new': 4,
+      'preparing': 3,
+      'ready_to_collect': 2,
+      'on_hold': 1,
+      'completed': 9,
+    };
+    await provider.load();
+
+    expect(provider.countOf(PosOrderSection.newOrders), 4);
+    expect(provider.countOf(PosOrderSection.preparing), 3);
+    expect(provider.countOf(PosOrderSection.readyToCollect), 2);
+    expect(provider.countOf(PosOrderSection.onHold), 1);
+    expect(provider.countOf(PosOrderSection.completed), 9);
+    expect(provider.totalCount, 19);
+  });
+
+  test('a backend without the kitchen keys counts the cards it returned',
+      () async {
+    // Old backend: only new / in_progress / finished. Reading the missing
+    // keys as 0 would put "0" above a row of cards.
+    repo.counts = <String, dynamic>{'new': 1, 'in_progress': 1, 'finished': 0};
+    await provider.load();
+
+    expect(provider.countOf(PosOrderSection.newOrders), 1);
+    expect(provider.countOf(PosOrderSection.preparing), 1);
+    expect(provider.countOf(PosOrderSection.onHold), 0);
   });
 
   test('the payment filter sends the derived value', () async {
