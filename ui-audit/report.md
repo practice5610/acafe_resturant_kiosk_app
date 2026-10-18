@@ -13,6 +13,10 @@ or colour · **Low** = ≤2px or sub-pixel.
 
 ## Summary
 
+> **Round 2 (2026-10-18, finishing the flow):** frames 13 / 15 / 19, the per-payment Refund, store credit / last four
+> and the refund Receipt are built; design decisions DD1–DD4 applied; 8 more bugs fixed. See **"Round 2 — final report"**
+> at the end. The round-1 counts below are kept as they were.
+
 | | Count |
 |---|---|
 | Frames audited | 32 / 32 |
@@ -487,3 +491,115 @@ terminal step and was recorded as a card refund. The choice is kept; frame 26 al
 
 **Limit (backend, B9):** the receipt the existing flow sends is the *order's* receipt — `ReceiptController::buildPrintData`
 has no refund lines (amount, method, date), so a printed / emailed receipt after a refund does not show the refund.
+
+# Round 2 — final report
+
+Branch `pos/new_design`, commits `14c74ec` onward (list below) on top of round 1 (`bb71799`). Backend: nothing changed — every
+backend gap is written up in `ui-audit/backend-needs.md` (B1–B9).
+
+## What was fixed / built, item by item
+
+| Item | Outcome | Commit | Verified by |
+|---|---|---|---|
+| 1 · Refund items not sent | **Backend does not support item-level refunds** (B1) → no payload invented, item stops there. Fixed what the app controls: the quote now equals the amount `create` refunds, and API failures no longer hang the screen | `14c74ec` | `pos_refund_amount_test.dart` (8): quote = bar = create amount; payload; ledger maths; failure path |
+| 2a · Frames 13 / 15 / 19 | **Built**: chooser → By item (card, or cash with tender / change / keypad) or Custom amount (validated: > 0, ≤ remaining on card, currency decimals) → success. Payments saved through the same repos; split-by-item now sends what the backend accepts (N2) | `2352f2d` | goldens 13 / 15 / 19 (text anchors = Figma); flow tests (chooser, by item card & cash, custom, decline retry) |
+| 2b · Per-payment Refund | **Built**: pill on paid rows (only refundable payments) → existing refund screen for that one payment → 29 → 27 → 30 → back to the sale. Hidden in production until the backend returns row ids (B3) | `3bf178b` | goldens 09–12 / 16 (pill at Figma's position); flow tests (card, cash, cancel, already refunded, split-by-item group) |
+| 2c · Store credit / last four | **Built, hidden without data**: "Card •••• nnnn" and "Store credit" appear only from `card_last4` / `store_credit_available`, which the backend does not send (B5) | `5121377` | parsing tests; goldens 26 (today) and 26b (with data, = Figma) |
+| 2d · Receipt on refund success | **Built**: Receipt (outline) above Next order on frame 28, opening the existing receipt dialog (email / print); frame 30 keeps "Back to order" | `2d030cc` | golden 28 (= Figma); flow tests (print → counter, skip, Next order) |
+| 3 · Figma conflicts | **Applied** DD1–DD4 (see "Design decisions") | `7dae31b`, `6105e1b` | `pos_payment_design_decisions_test.dart` |
+| 4 · Customer-name 1.5px | **Fixed** with `PosReceiptCustomerInfo(insideStroke:)`, default unchanged; used only on the payment / refund screens. The other session's files were not touched | `aa14e64` | test R4 (38 vs 39.5); Receipts panel renders as before |
+| Three card sections | One `PosPaySelectableTile` + `PosPayTileStyle` tokens for method tiles, OTHER rows and receipt options; summary literals → tokens; inside strokes; states default / selected / pressed / disabled / loading / error | `6105e1b` | R5 tests; stress goldens (long text, 14 lines, five figures, empty) |
+
+Other session's uncommitted files, listed before starting and never edited or staged: `lib/features/pos/screens/pos_receipts_screen.dart`,
+`lib/features/pos/widgets/pos_receipt_detail_panel.dart` (app) and `app/Http/Controllers/Api/V1/ReceiptController.php` (backend).
+
+## Still not done, and why
+
+| What | Why | Needs |
+|---|---|---|
+| Refunding ticked items / partial quantities / blocking an already-refunded item | Backend refunds the whole remaining balance and stores no quantities | B1 |
+| Split by item with three or more payers | Backend takes one split definition per order; payment 2 pays all remaining items | B6 |
+| Per-payment Refund visible in production | Split snapshots carry no row id | B3 (then B8 for split-by-item mid-sale, B4 so the balance reopens) |
+| Releasing a refund abandoned on the terminal step | No cancel endpoint; `pending` stays reserved | B7 |
+| Store credit, card last four | No data in the backend | B5 |
+| Refund shown on the printed / emailed receipt | Receipt print data has no refund lines | B9 |
+| Very large discount, split by item: a first pick whose item prices reach the discounted total | Backend needs the remaining group > 0; the operator must pick fewer items first | (edge, noted) |
+| Real run on a device | **Not done on a device.** No local backend can run here (its `.env` needs MySQL, which is not installed), and every non-debug-web build talks to production (`admin.acafepos.com`), where walking these flows would place real orders, charges and refunds. Done instead: `flutter build web --release` compiles; every flow is walked through the real screen in widget tests against fakes that apply the controllers' validation. Devices seen: Chrome, macOS (no `macos/` target in the project), a Pixel 8 emulator, a wireless iPhone | — |
+
+## Backend work needed
+
+See `ui-audit/backend-needs.md`: **B1** item-level refunds · **B2** refunds double-count the tip · **B3** split row ids ·
+**B4** refunded split does not reopen the balance · **B5** store credit / card last four · **B6** split-by-item one
+definition per order · **B7** no way to release a pending refund · **B8** split by item never `partial_paid` · **B9**
+receipts show no refunds.
+
+## Design decisions
+
+DD1–DD4 in "Design decisions" above (one PRIMARY tile border set from frame 01; Card header height everywhere; 48 / 8
+paid rows; Receipt above Next order on every success card incl. 18a / 18b and 28). Round 2 also decided, without a
+frame to follow: the split-by-item cash step opens on Exact (as a plain cash sale); Card on its toggle returns to the
+picker; frame 28's "Next order" goes to the counter (was "Back to Receipts", round-1 D13); a refund is created only at
+the operator's final confirmation.
+
+## New bugs found and fixed
+
+| # | Bug | Commit |
+|---|---|---|
+| R1-2 | Any failed refund call threw and left the screen busy forever | `14c74ec` |
+| N1 | Cash split over-tender recorded in full → backend 422 | `2352f2d` |
+| N2 | Split by item never worked against the backend (one group per create-groups call) | `2352f2d` |
+| N3 | Split-by-item responses crashed the parser | `2352f2d` |
+| N4 | Split-by-item line prices ignored paid add-ons | `2352f2d` |
+| N5 | Split-by-item tip row reopened tipping after the order was placed | `2352f2d` |
+| N6 | Change Due banner text 1px in (layout border) | `2352f2d` |
+| N7 | Refund method chosen on frame 26 ignored — "Cash" on a card order recorded as card | `9e7f0bf` |
+
+## Verification
+
+- **Goldens** (`test/features/pos/goldens/payment_audit/`, 1366×1024, production theme): every frame incl. the new 13,
+  15, 19, 26b; text rects measured against Figma frame coordinates (numbers in R2a–R2d). Changed goldens were diffed
+  first: each change is confined to the element that was meant to change.
+- **Multi-size**: all frames at 1366×1024, 1024×768, 1280×800, 1920×1080, 768×1024, 900×600 + stress — no overflow, no
+  exception (`pos_payment_audit_responsive_test.dart`, 237 with the decisions / options tests).
+- **Flows through the real screen** (`pos_payment_flow_test.dart`, 37, fakes that apply the controllers' validation and
+  response shapes): card; cash with change; cash short; split by item card / cash / decline-retry / everything at once;
+  split custom amount; split by payment (incl. over-tender); invoice; stand-alone; partial, full, cash-on-card and
+  per-payment refunds (card, cash, split-by-item group, cancel, already refunded); every success card → Receipt (email /
+  print / skip) and Next order; stress at 1366×1024, 900×600 and 768×1024.
+- **Full suite & analyzer** (clean worktrees, so the other session's uncommitted edits cannot skew it): 1,783 tests at HEAD vs 1,693 at the round-2
+  start (`bb71799`): **115 failing on both, the identical set** — pre-existing goldens / environment tests and four
+  files that do not compile on a clean tree; the 90 tests added this round all pass. **No new failures.** (You quoted 114;
+  the clean round-2-start tree fails 115 on this machine, and the same 115 fail at HEAD.) Analyzer: 32 issues at the start, 32 now — **no new
+  issues** (two `prefer_const` infos in a new test were fixed in `f5f9ad8`).
+- **Outside this layer**: the Receipts panel keeps the default `PosReceiptCustomerInfo` (R4 test). Receipts tests in
+  the full run: change-method dialog 18/18, context menu 4/4, line copy 2/2 pass; the 13 failing tests in
+  `pos_receipts_test.dart` / `pos_receipt_panel_test.dart` / `pos_home_layout_test.dart` and the
+  `pos_receipts_screenshot_test.dart` load failure fail identically on the clean baseline — none is new.
+
+## Commits (round 2)
+
+- `14c74ec` fix(pos-refund): quote the amount the backend refunds; survive API errors
+- `7dae31b` fix(pos-payment): apply design decisions DD2-DD4 and pin them in tests
+- `aa14e64` fix(pos-payment): customer-name text 14px inside its field on payment screens
+- `6105e1b` refactor(pos-payment): one selectable tile + tokens for the three sections
+- `2352f2d` feat(pos-payment): split chooser, custom amount and split-by-item cash (frames 13, 15, 19)
+- `3bf178b` feat(pos-payment): Refund pill on paid split rows, wired to the refund flow
+- `5121377` feat(pos-refund): card last four and Store credit on the refund method step (frame 26)
+- `9e7f0bf` fix(pos-refund): refund the way the operator chose, not create's method
+- `2d030cc` feat(pos-refund): Receipt above Next order on the refund success card (frame 28)
+- `17dd4da` test(pos-payment): walk card, cash, invoice and stand-alone to their success cards
+- `f5f9ad8` test(pos-payment): const in the design-decisions test (analyzer info)
+- the commit carrying this final report (docs only)
+
+## Files changed (round 2)
+
+lib: `domain/pos_checkout.dart` (test seam `debugPosPlaceOrder`), `domain/pos_payment_spec.dart`,
+`domain/pos_receipt_history.dart`, `domain/pos_refund_session.dart`, `domain/pos_split_by_item_model.dart`,
+`domain/pos_split_session.dart`, `screens/pos_payment_selection_screen.dart`, `screens/pos_refund_screen.dart`,
+`widgets/pos_pay_cash_panel.dart`, `widgets/pos_pay_option_row.dart` (new), `widgets/pos_pay_shell.dart`,
+`widgets/pos_pay_summary_panel.dart`, `widgets/pos_payment_method_card.dart`, `widgets/pos_payment_method_selector.dart`,
+`widgets/pos_receipt_dialog.dart`, `widgets/pos_receipt_panel.dart`, `widgets/pos_split_by_item_panel.dart`,
+`widgets/pos_split_summary_panel.dart`, `widgets/pos_waiting_card.dart`.
+tests: `pos_payment_flow_test.dart` (new), `pos_refund_amount_test.dart` (new), `pos_refund_method_options_test.dart`
+(new), `pos_payment_design_decisions_test.dart` (new), `pos_payment_audit_golden_test.dart`, goldens.
+docs: `ui-audit/report.md`, `ui-audit/screens.md`, `ui-audit/backend-needs.md` (new).
