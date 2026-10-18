@@ -174,7 +174,8 @@ class _FilterPill extends StatelessWidget {
             horizontal: PosOrdersSpec.nowPaddingH,
             vertical: PosOrdersSpec.filterPillPaddingV,
           ),
-          decoration: BoxDecoration(
+          // Figma strokes sit inside the pill and move nothing.
+          foregroundDecoration: BoxDecoration(
             borderRadius: radius,
             border: Border.all(
               color: PosHomeSpec.ink,
@@ -291,7 +292,8 @@ class _DateTimeField extends StatelessWidget {
             horizontal: PosOrdersSpec.dateFieldPaddingH,
             vertical: PosOrdersSpec.filterPillPaddingV,
           ),
-          decoration: BoxDecoration(
+          // Figma strokes sit inside the pill and move nothing.
+          foregroundDecoration: BoxDecoration(
             borderRadius: radius,
             border: Border.all(
               color: PosHomeSpec.ink,

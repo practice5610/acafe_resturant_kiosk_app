@@ -84,7 +84,7 @@ class PosSearchFieldStyle {
     borderColor: PosHomeSpec.ink,
     borderWidth: PosOrdersSpec.filterPillBorder,
     paddingH: PosOrdersSpec.searchPaddingH,
-    gap: PosOrdersSpec.filterIconGap,
+    gap: PosOrdersSpec.filterIconGap - PosOrdersSpec.searchPrefixFrameworkGap,
     iconSize: PosOrdersSpec.filterIconSize,
     textSize: PosOrdersSpec.searchTextSize,
     textHeight: PosOrdersSpec.filterIconSize / PosOrdersSpec.searchTextSize,

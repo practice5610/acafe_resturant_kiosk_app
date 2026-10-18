@@ -19,6 +19,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_order_date_range_bar.dar
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
@@ -356,16 +357,21 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<PosOrdersProvider>(
-      builder: (context, provider, _) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _filters(provider),
-            Expanded(child: _board(provider)),
-          ],
-        );
-      },
+    // Without this the theme's Material 3 body line height (1.43) leaks into
+    // every Loew style here and each text line runs ~20% taller than Figma's
+    // `leading-normal`. The payment screens solved the same leak this way.
+    return PosPayTextScope(
+      child: Consumer<PosOrdersProvider>(
+        builder: (context, provider, _) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _filters(provider),
+              Expanded(child: _board(provider)),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -378,7 +384,8 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
         horizontal: PosOrdersSpec.pagePadding,
         vertical: PosOrdersSpec.filtersPaddingV,
       ),
-      decoration: const BoxDecoration(
+      // Inside the area, as Figma draws it: the rule does not add height.
+      foregroundDecoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
             color: PosHomeSpec.ink,
@@ -749,7 +756,7 @@ class _FilterToggleButton extends StatelessWidget {
               horizontal: PosOrdersSpec.filterButtonPaddingH,
               vertical: PosOrdersSpec.filterPillPaddingV,
             ),
-            decoration: BoxDecoration(
+            foregroundDecoration: BoxDecoration(
               borderRadius: radius,
               border: Border.all(
                 color: PosHomeSpec.ink,
@@ -771,7 +778,6 @@ class _FilterToggleButton extends StatelessWidget {
                   style: loewBold.copyWith(
                     fontSize: PosOrdersSpec.dropdownLabelSize,
                     color: ink,
-                    height: 1.2,
                   ),
                 ),
               ],

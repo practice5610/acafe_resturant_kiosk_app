@@ -193,6 +193,10 @@ class PosOrderDetailSpec {
   static const Color itemStatusPreparing = Color(0xFF2E99D9);
   static const Color itemStatusReady = Color(0xFF2A8456);
 
+  /// Below this item-row width the status pill and the action move under the
+  /// item's text instead of beside it.
+  static const double itemRowStackBelowWidth = 400;
+
   /// The header's per-station pills (1915:16209): the item pill at 12px.
   static const double headerStationTextSize = 12;
 

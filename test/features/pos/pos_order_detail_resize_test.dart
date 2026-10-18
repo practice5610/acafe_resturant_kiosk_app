@@ -181,12 +181,16 @@ void main() {
     await tester.pumpAndSettle();
     final double settled = tester.getSize(_modal().first).height;
 
-    // A one-item order is taller than the placeholder, so this is a grow —
-    // and the first frame after the response must not already be there.
-    expect(settled, greaterThan(loadingHeight));
+    // At Figma 1915:16197's line heights a one-item order is a little
+    // shorter than the placeholder, so this settles by shrinking. Either way
+    // the first frame after the response must sit between the two heights,
+    // not already at the end.
+    expect(settled, isNot(loadingHeight));
+    final double lo = settled < loadingHeight ? settled : loadingHeight;
+    final double hi = settled < loadingHeight ? loadingHeight : settled;
     expect(
       firstFrame,
-      lessThan(settled),
+      allOf(greaterThan(lo), lessThan(hi)),
       reason: 'AnimatedSize interpolates the change instead of snapping',
     );
   });

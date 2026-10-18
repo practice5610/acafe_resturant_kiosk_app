@@ -84,36 +84,44 @@ class PosOrderCardTile extends StatelessWidget {
     // timer and the menu still follow the real status.
     final bool finished = order.section == PosOrderSection.finished;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(PosOrdersSpec.cardRadius),
-        // Figma keeps the ink outline on a late card too — lateness is the
-        // red bar, dot and clock, not the frame.
-        border: Border.all(
-          color: PosHomeSpec.ink,
-          width: PosOrdersSpec.cardBorder,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: PosOrdersSpec.cardMinHeight),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(PosOrdersSpec.cardRadius),
         ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        // Transparent so the InkWell's ripple sits over the card colour set
-        // above rather than painting its own white beneath it.
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // `urgent-border` — a full-height 4px bar, not a rounded stripe.
-                if (urgent)
-                  Container(
-                    width: PosOrdersSpec.urgentBarWidth,
-                    color: PosOrdersSpec.urgentAccent,
-                  ),
-                Expanded(child: _body(urgency, urgent, finished)),
-              ],
+        // Figma's stroke sits inside the card and moves nothing — a decoration
+        // border would push every child in by 1.5px. It also keeps the ink
+        // outline on a late card: lateness is the red bar, dot and clock.
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(PosOrdersSpec.cardRadius),
+          border: Border.all(
+            color: PosHomeSpec.ink,
+            width: PosOrdersSpec.cardBorder,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Material(
+          // Transparent so the InkWell's ripple sits over the card colour set
+          // above rather than painting its own white beneath it.
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // `urgent-border` — a full-height 4px bar, not a rounded
+                  // stripe.
+                  if (urgent)
+                    Container(
+                      width: PosOrdersSpec.urgentBarWidth,
+                      color: PosOrdersSpec.urgentAccent,
+                    ),
+                  Expanded(child: _body(urgency, urgent, finished)),
+                ],
+              ),
             ),
           ),
         ),
@@ -121,68 +129,104 @@ class PosOrderCardTile extends StatelessWidget {
     );
   }
 
+  /// Station pills are an IN PROGRESS thing in Figma: NEW cards would only
+  /// ever say "Pending", FINISHED ones "Ready", and Figma draws neither.
+  bool get _inProgress => order.section == PosOrderSection.inProgress;
+
+  bool get _showStations => _inProgress && order.stations.isNotEmpty;
+
+  /// An IN PROGRESS order whose lines have no station keeps its "n/m ready"
+  /// line, so the counter still sees how far it has got.
+  bool get _showProgress =>
+      _inProgress && order.stations.isEmpty && order.itemStates.isNotEmpty;
+
   Widget _body(PosOrderUrgency urgency, bool urgent, bool finished) {
-    return Padding(
-      padding: const EdgeInsets.all(PosOrdersSpec.cardPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _topRow(urgent, finished),
-          const SizedBox(height: PosOrdersSpec.cardBlockGap),
-          _customerBlock(),
-          const SizedBox(height: PosOrdersSpec.cardBlockGap),
-          _timerRow(urgency),
-          // Item progress sits between the timer and the price. Figma draws
-          // station pills in the footer instead; an order whose lines have no
-          // station keeps this line, so the counter still sees how far it is.
-          if (order.stations.isEmpty && order.itemStates.isNotEmpty) ...[
-            const SizedBox(height: PosOrdersSpec.progressGap),
-            _itemProgress(),
-          ],
-          const SizedBox(height: PosOrdersSpec.cardBlockGap),
-          _footer(),
-        ],
-      ),
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(PosOrdersSpec.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _topRow(urgent),
+              const SizedBox(height: PosOrdersSpec.cardBlockGap),
+              _customerBlock(),
+              // IN PROGRESS: `customer-info` is flex-1, so the timer and the
+              // footer sit on the card's bottom edge (1915:15986). NEW and
+              // FINISHED cards stack from the top and keep the slack below.
+              if (_inProgress) const Spacer(),
+              const SizedBox(height: PosOrdersSpec.cardBlockGap),
+              _timerRow(urgency),
+              if (_showProgress) ...[
+                const SizedBox(height: PosOrdersSpec.progressGap),
+                _itemProgress(),
+              ],
+              const SizedBox(height: PosOrdersSpec.cardBlockGap),
+              _footer(),
+            ],
+          ),
+        ),
+        // `source-badge` is pinned to the card's top-right corner, 12 in,
+        // outside the 16px `card-top` row — so it never makes that row taller.
+        Positioned(
+          top: PosOrdersSpec.cardPadding,
+          right: PosOrdersSpec.cardPadding,
+          child: PosOrderSourceIcon(
+            channelKey: order.channelKey,
+            finished: finished,
+          ),
+        ),
+        // `card-actions`: Figma's ⋮ sits on `card-top`'s row under the badge,
+        // where it can be neither seen nor tapped, so it moves just left of
+        // the badge, centred on that row, in a 24px hit box.
+        Positioned(
+          top: PosOrdersSpec.cardPadding +
+              (PosOrdersSpec.cardTopHeight - PosOrdersSpec.menuHitSize) / 2,
+          right: PosOrdersSpec.cardPadding +
+              PosOrdersSpec.sourceBadgeSize +
+              PosOrdersSpec.menuGap,
+          child: _MenuButton(
+            key: menuKeyFor(order.id),
+            pending: pending,
+            finished: finished,
+            onMenu: onMenu,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _topRow(bool urgent, bool finished) {
+  /// `card-top`: the dot and the clock, 16 tall.
+  Widget _topRow(bool urgent) {
     final Color accent = urgent ? PosOrdersSpec.urgentAccent : PosHomeSpec.ink;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: PosOrdersSpec.statusDotSize,
-          height: PosOrdersSpec.statusDotSize,
-          decoration: BoxDecoration(
-            // A late card swaps in Figma's `urgent-dot`.
-            color: urgent ? PosOrdersSpec.urgentAccent : _sectionColor,
-            shape: BoxShape.circle,
+    return SizedBox(
+      height: PosOrdersSpec.cardTopHeight,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: PosOrdersSpec.statusDotSize,
+            height: PosOrdersSpec.statusDotSize,
+            decoration: BoxDecoration(
+              // A late card swaps in Figma's `urgent-dot`.
+              color: urgent ? PosOrdersSpec.urgentAccent : _sectionColor,
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
-        const SizedBox(width: PosOrdersSpec.clockGap),
-        // The order's clock time — `10:36` in Figma. Blank rather than
-        // "--:--" when created_at is unparseable; a fake time on an order
-        // card is worse than none.
-        Text(
-          order.createdAt == null ? '' : _clock.format(order.createdAt!),
-          style: loewBold.copyWith(
-            fontSize: PosOrdersSpec.clockTextSize,
-            color: accent,
+          const SizedBox(width: PosOrdersSpec.clockGap),
+          // The order's clock time — `10:36` in Figma. Blank rather than
+          // "--:--" when created_at is unparseable; a fake time on an order
+          // card is worse than none.
+          Text(
+            order.createdAt == null ? '' : _clock.format(order.createdAt!),
+            style: loewBold.copyWith(
+              fontSize: PosOrdersSpec.clockTextSize,
+              color: accent,
+            ),
           ),
-        ),
-        const Spacer(),
-        _MenuButton(
-          key: menuKeyFor(order.id),
-          pending: pending,
-          finished: finished,
-          onMenu: onMenu,
-        ),
-        const SizedBox(width: PosOrdersSpec.menuGap),
-        PosOrderSourceIcon(channelKey: order.channelKey, finished: finished),
-      ],
+        ],
+      ),
     );
   }
 
@@ -213,6 +257,7 @@ class PosOrderCardTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: swiss721Light.copyWith(
               fontSize: PosOrdersSpec.subtitleTextSize,
+              height: PosOrdersSpec.swissLeading(PosOrdersSpec.subtitleTextSize),
               color: PosHomeSpec.inkAlpha(PosOrdersSpec.subtitleAlpha),
             ),
           ),
@@ -310,7 +355,7 @@ class PosOrderCardTile extends StatelessWidget {
       ),
     );
 
-    if (order.stations.isEmpty) {
+    if (!_showStations) {
       return Row(children: [Expanded(child: price)]);
     }
 

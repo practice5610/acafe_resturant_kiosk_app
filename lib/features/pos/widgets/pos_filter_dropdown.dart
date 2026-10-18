@@ -27,6 +27,15 @@ class PosFilterDropdownStyle {
   final double chevronSize;
   final double gap;
 
+  /// Label line-height multiplier; null is the font's own (Figma's
+  /// `leading-normal`).
+  final double? labelHeight;
+
+  /// Whether the outline takes layout space. Receipts' does (its padding is
+  /// measured inside the border); the Orders pill draws Figma's inside stroke,
+  /// which moves nothing.
+  final bool borderInLayout;
+
   const PosFilterDropdownStyle({
     required this.radius,
     required this.idleFill,
@@ -39,6 +48,8 @@ class PosFilterDropdownStyle {
     required this.chevronAsset,
     required this.chevronSize,
     required this.gap,
+    this.borderInLayout = true,
+    this.labelHeight = 1.2,
   });
 
   /// Receipts (Figma 1641:3239…1641:3251).
@@ -78,6 +89,8 @@ class PosFilterDropdownStyle {
     chevronAsset: Images.posOrdersChevronDownSvg,
     chevronSize: PosOrdersSpec.chevronSize,
     gap: PosOrdersSpec.filterIconGap,
+    borderInLayout: false,
+    labelHeight: null,
   );
 }
 
@@ -150,6 +163,13 @@ class PosFilterDropdown<T> extends StatelessWidget {
       ],
       triggerBuilder: (context, selected, isOpen, toggle) {
         final Color ink = active ? PosReceiptsSpec.selectedInk : PosHomeSpec.ink;
+        final BoxDecoration outline = BoxDecoration(
+          borderRadius: BorderRadius.circular(style.radius),
+          border: Border.all(
+            color: active ? PosHomeSpec.ink : style.idleBorder,
+            width: style.borderWidth,
+          ),
+        );
 
         return Material(
           color: active ? PosHomeSpec.ink : style.idleFill,
@@ -159,13 +179,8 @@ class PosFilterDropdown<T> extends StatelessWidget {
             borderRadius: BorderRadius.circular(style.radius),
             child: Container(
               padding: style.padding,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(style.radius),
-                border: Border.all(
-                  color: active ? PosHomeSpec.ink : style.idleBorder,
-                  width: style.borderWidth,
-                ),
-              ),
+              decoration: style.borderInLayout ? outline : null,
+              foregroundDecoration: style.borderInLayout ? null : outline,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -177,7 +192,7 @@ class PosFilterDropdown<T> extends StatelessWidget {
                       style: style.labelFont.copyWith(
                         fontSize: style.labelSize,
                         color: ink,
-                        height: 1.2,
+                        height: style.labelHeight,
                       ),
                     ),
                   ),

@@ -640,10 +640,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The counter can read progress without opening anything.
-      expect(find.text('0/2 ready'), findsOneWidget);
+      // The counter can read an IN PROGRESS order's progress without opening
+      // it. NEW and FINISHED cards draw no progress line — Figma 1915:15767
+      // gives them none, and theirs would only ever read 0/n or n/n.
       expect(find.text('1/2 ready'), findsOneWidget);
-      expect(find.text('2/2 ready'), findsOneWidget);
+      expect(find.text('0/2 ready'), findsNothing);
+      expect(find.text('2/2 ready'), findsNothing);
 
       // The card face carries no CTA (Figma 1915:15767); the bulk move it
       // names now sits behind the ⋮, covered in pos_orders_layout_test.

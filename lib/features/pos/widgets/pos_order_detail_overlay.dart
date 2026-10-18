@@ -13,10 +13,12 @@ import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_item_status_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -538,71 +540,82 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
     final double maxHeight =
         window.height - PosOrderDetailSpec.viewportInset * 2;
 
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
-        children: [
-          // Tapping the dim closes, matching every other POS overlay.
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).maybePop(),
-              child: const ColoredBox(color: PosOrderDetailSpec.backdrop),
-            ),
-          ),
-          Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: maxWidth < PosOrderDetailSpec.modalWidth
-                    ? maxWidth
-                    : PosOrderDetailSpec.modalWidth,
-                maxHeight: maxHeight < PosOrderDetailSpec.modalHeight
-                    ? maxHeight
-                    : PosOrderDetailSpec.modalHeight,
-              ),
-              // Swallows taps so a click inside the card does not hit the
-              // dismiss layer underneath.
+    // The theme's Material 3 body line height would otherwise leak into every
+    // Loew style in the modal (see PosOrdersListScreen).
+    return PosPayTextScope(
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            // Tapping the dim closes, matching every other POS overlay.
+            Positioned.fill(
               child: GestureDetector(
-                onTap: () {},
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: PosOrderDetailSpec.modalBg,
-                    borderRadius: BorderRadius.circular(
-                      PosOrderDetailSpec.modalRadius,
-                    ),
-                    border: Border.all(
-                      color: PosOrderDetailSpec.hairline,
-                      width: PosOrderDetailSpec.modalBorder,
-                    ),
-                    boxShadow: PosOrderDetailSpec.modalShadow,
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ValueListenableBuilder<List<PosStationStatus>>(
-                        valueListenable: _stations,
-                        builder: (_, stations, __) => _Header(
-                          orderId: widget.order.id,
-                          status: _status,
-                          createdAt:
-                              _detail?.createdAt ?? widget.order.createdAt,
-                          channelKey:
-                              _detail?.channelKey ?? widget.order.channelKey,
-                          stations: stations,
-                          onClose: () => Navigator.of(context).maybePop(),
-                        ),
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(context).maybePop(),
+                child: const ColoredBox(color: PosOrderDetailSpec.backdrop),
+              ),
+            ),
+            Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: maxWidth < PosOrderDetailSpec.modalWidth
+                      ? maxWidth
+                      : PosOrderDetailSpec.modalWidth,
+                  maxHeight: maxHeight < PosOrderDetailSpec.modalHeight
+                      ? maxHeight
+                      : PosOrderDetailSpec.modalHeight,
+                ),
+                // Swallows taps so a click inside the card does not hit the
+                // dismiss layer underneath.
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: PosOrderDetailSpec.modalBg,
+                      borderRadius: BorderRadius.circular(
+                        PosOrderDetailSpec.modalRadius,
                       ),
-                      Flexible(child: _body()),
-                      _actionBar(),
-                    ],
+                      boxShadow: PosOrderDetailSpec.modalShadow,
+                    ),
+                    // Every stroke in this modal is drawn inside its box, as
+                    // Figma draws it, so none of them moves the content.
+                    foregroundDecoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(
+                        PosOrderDetailSpec.modalRadius,
+                      ),
+                      border: Border.all(
+                        color: PosOrderDetailSpec.hairline,
+                        width: PosOrderDetailSpec.modalBorder,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ValueListenableBuilder<List<PosStationStatus>>(
+                          valueListenable: _stations,
+                          builder: (_, stations, __) => _Header(
+                            orderId: widget.order.id,
+                            status: _status,
+                            createdAt:
+                                _detail?.createdAt ?? widget.order.createdAt,
+                            channelKey:
+                                _detail?.channelKey ?? widget.order.channelKey,
+                            stations: stations,
+                            onClose: () => Navigator.of(context).maybePop(),
+                          ),
+                        ),
+                        Flexible(child: _body()),
+                        _actionBar(),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -729,6 +742,10 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
           color: Colors.white,
           borderRadius:
               BorderRadius.circular(PosOrderDetailSpec.customerCardRadius),
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(PosOrderDetailSpec.customerCardRadius),
           border: Border.all(color: PosOrderDetailSpec.hairline),
         ),
         child: Column(
@@ -771,6 +788,9 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
         decoration: BoxDecoration(
           color: PosOrderDetailSpec.noteBg,
           borderRadius: BorderRadius.circular(PosOrderDetailSpec.noteRadius),
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(PosOrderDetailSpec.noteRadius),
           border: Border.all(color: PosOrderDetailSpec.noteBorder),
         ),
         child: Text(
@@ -798,6 +818,10 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
         padding: const EdgeInsets.all(PosOrderDetailSpec.customerCardPad),
         decoration: BoxDecoration(
           color: Colors.white,
+          borderRadius:
+              BorderRadius.circular(PosOrderDetailSpec.customerCardRadius),
+        ),
+        foregroundDecoration: BoxDecoration(
           borderRadius:
               BorderRadius.circular(PosOrderDetailSpec.customerCardRadius),
           border: Border.all(color: PosOrderDetailSpec.hairline),
@@ -1056,7 +1080,7 @@ class _Header extends StatelessWidget {
         PosOrderDetailSpec.headerPadH,
         PosOrderDetailSpec.headerPadBottom,
       ),
-      decoration: const BoxDecoration(
+      foregroundDecoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(color: PosOrderDetailSpec.hairline),
         ),
@@ -1138,6 +1162,11 @@ class _Header extends StatelessWidget {
               minWidth: PosOrderDetailSpec.closeSize,
               minHeight: PosOrderDetailSpec.closeSize,
             ),
+            // Figma's 26px `close-btn`. The padded 48px tap target Material
+            // adds on touch platforms made the header 88 tall instead of 66.
+            style: const ButtonStyle(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             // Figma 1915:16214 `x-circle`, full ink.
             icon: SvgPicture.asset(
               Images.posOrdersXCircleSvg,
@@ -1178,8 +1207,13 @@ class _Pill extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(radius),
-        border: border == null ? null : Border.all(color: border!),
       ),
+      foregroundDecoration: border == null
+          ? null
+          : BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: border!),
+            ),
       child: child,
     );
   }
@@ -1356,144 +1390,209 @@ class _ItemRow extends StatelessWidget {
       curve: Curves.easeOut,
       decoration: BoxDecoration(
         color: done ? PosOrderDetailSpec.itemDoneRowBg : Colors.transparent,
-        border: const Border(
+      ),
+      foregroundDecoration: const BoxDecoration(
+        border: Border(
           bottom: BorderSide(color: PosOrderDetailSpec.itemDivider),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: PosOrderDetailSpec.itemRowPadH,
-          vertical: PosOrderDetailSpec.itemRowPadV,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Status accent, inside the existing padding so the row keeps its
-            // width and nothing below it shifts when the colour changes.
-            AnimatedContainer(
-              duration: PosOrderDetailSpec.itemStateAnimation,
-              curve: Curves.easeOut,
-              width: PosOrderDetailSpec.itemAccentWidth,
-              height: PosOrderDetailSpec.itemThumbHeight,
-              decoration: BoxDecoration(
-                color: status.color,
-                borderRadius: BorderRadius.circular(
-                  PosOrderDetailSpec.itemAccentRadius,
-                ),
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Too narrow for text, pill and action side by side (a phone-width
+          // window): the pill and the action drop onto their own line rather
+          // than squeezing the item's name to nothing.
+          final bool stack =
+              constraints.maxWidth < PosOrderDetailSpec.itemRowStackBelowWidth;
+          final Widget chip =
+              PosItemStatusChip(status: status, station: item.station);
+          final Widget? button = action != null && onAction != null
+              ? PosItemActionButton(
+                  action: action,
+                  busy: busy,
+                  enabled: enabled,
+                  onTap: () => onAction!(action.target),
+                )
+              : null;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: PosOrderDetailSpec.itemRowPadH,
+              vertical: PosOrderDetailSpec.itemRowPadV,
             ),
-            const SizedBox(width: PosOrderDetailSpec.itemRowGap),
-            if (context.watch<KioskAuthProvider>().showImages) ...[
-              AnimatedOpacity(
-                duration: PosOrderDetailSpec.itemStateAnimation,
-                opacity: done ? PosOrderDetailSpec.itemDoneThumbOpacity : 1,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(
-                    PosOrderDetailSpec.itemThumbRadius,
-                  ),
-                  child: SizedBox(
-                    width: PosOrderDetailSpec.itemThumbWidth,
-                    height: PosOrderDetailSpec.itemThumbHeight,
-                    child: CustomImageWidget(
-                      image: item.image ?? '',
-                      width: PosOrderDetailSpec.itemThumbWidth,
-                      height: PosOrderDetailSpec.itemThumbHeight,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: PosOrderDetailSpec.itemRowGap),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AnimatedDefaultTextStyle(
-                    duration: PosOrderDetailSpec.itemStateAnimation,
-                    style: loewExtraBold.copyWith(
-                      fontSize: PosOrderDetailSpec.itemNameSize,
-                      color: bodyInk,
-                      decoration: strike,
-                      decorationColor: bodyInk,
-                    ),
-                    child: Text(
-                      item.quantity > 1
-                          ? '${item.quantity}× ${item.name}'
-                          : item.name,
-                      // Two lines then ellipsis: a long name must never push
-                      // the chip and the action off the row.
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(height: PosOrderDetailSpec.itemDetailGap),
-                  Text(
-                    _meta,
-                    style: swiss721Light.copyWith(
-                      fontSize: PosOrderDetailSpec.itemMetaSize,
-                      color: done
-                          ? PosOrderDetailSpec.inkAlpha(0.45)
-                          : PosOrderDetailSpec.inkAlpha(
-                              PosOrderDetailSpec.itemMetaAlpha,
-                            ),
-                      decoration: strike,
-                      decorationColor: PosOrderDetailSpec.inkAlpha(0.45),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // Only drawn where the line actually has add-ons or a note.
-                  for (final String note in _notes) ...[
-                    const SizedBox(height: PosOrderDetailSpec.itemDetailGap),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '+',
-                          style: loewRegular.copyWith(
-                            fontSize: PosOrderDetailSpec.itemMetaSize,
-                            color: done
-                                ? PosOrderDetailSpec.inkAlpha(0.45)
-                                : PosOrderDetailSpec.itemNoteInk,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // The accent stretches to the row; everything else centres in it. So
+                // a picture-less row is exactly as tall as its text — Figma's 77 —
+                // instead of the 62px bar setting the height.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Status accent, inside the existing padding so the row keeps its
+                      // width and nothing below it shifts when the colour changes.
+                      AnimatedContainer(
+                        duration: PosOrderDetailSpec.itemStateAnimation,
+                        curve: Curves.easeOut,
+                        width: PosOrderDetailSpec.itemAccentWidth,
+                        decoration: BoxDecoration(
+                          color: status.color,
+                          borderRadius: BorderRadius.circular(
+                            PosOrderDetailSpec.itemAccentRadius,
                           ),
                         ),
-                        const SizedBox(
-                          width: PosOrderDetailSpec.itemDetailGap,
-                        ),
-                        Expanded(
-                          child: Text(
-                            note,
-                            style: swiss721Light.copyWith(
-                              fontSize: PosOrderDetailSpec.itemNoteSize,
-                              color: done
-                                  ? PosOrderDetailSpec.inkAlpha(0.45)
-                                  : PosOrderDetailSpec.itemNoteInk,
-                              decoration: strike,
-                              decorationColor:
-                                  PosOrderDetailSpec.inkAlpha(0.45),
+                      ),
+                      const SizedBox(width: PosOrderDetailSpec.itemRowGap),
+                      if (context.watch<KioskAuthProvider>().showImages) ...[
+                        Center(
+                          child: AnimatedOpacity(
+                            duration: PosOrderDetailSpec.itemStateAnimation,
+                            opacity: done
+                                ? PosOrderDetailSpec.itemDoneThumbOpacity
+                                : 1,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                PosOrderDetailSpec.itemThumbRadius,
+                              ),
+                              child: SizedBox(
+                                width: PosOrderDetailSpec.itemThumbWidth,
+                                height: PosOrderDetailSpec.itemThumbHeight,
+                                child: CustomImageWidget(
+                                  image: item.image ?? '',
+                                  width: PosOrderDetailSpec.itemThumbWidth,
+                                  height: PosOrderDetailSpec.itemThumbHeight,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
                           ),
                         ),
+                        const SizedBox(width: PosOrderDetailSpec.itemRowGap),
                       ],
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AnimatedDefaultTextStyle(
+                                duration: PosOrderDetailSpec.itemStateAnimation,
+                                style: loewExtraBold.copyWith(
+                                  fontSize: PosOrderDetailSpec.itemNameSize,
+                                  color: bodyInk,
+                                  decoration: strike,
+                                  decorationColor: bodyInk,
+                                ),
+                                child: Text(
+                                  item.quantity > 1
+                                      ? '${item.quantity}× ${item.name}'
+                                      : item.name,
+                                  // Two lines then ellipsis: a long name must never push
+                                  // the chip and the action off the row.
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(
+                                  height: PosOrderDetailSpec.itemDetailGap),
+                              Text(
+                                _meta,
+                                style: swiss721Light.copyWith(
+                                  fontSize: PosOrderDetailSpec.itemMetaSize,
+                                  height: PosOrdersSpec.swissLeading(
+                                    PosOrderDetailSpec.itemMetaSize,
+                                  ),
+                                  color: done
+                                      ? PosOrderDetailSpec.inkAlpha(0.45)
+                                      : PosOrderDetailSpec.inkAlpha(
+                                          PosOrderDetailSpec.itemMetaAlpha,
+                                        ),
+                                  decoration: strike,
+                                  decorationColor:
+                                      PosOrderDetailSpec.inkAlpha(0.45),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              // Only drawn where the line actually has add-ons or a note.
+                              for (final String note in _notes) ...[
+                                const SizedBox(
+                                    height: PosOrderDetailSpec.itemDetailGap),
+                                Row(
+                                  // Figma's `item-note` is items-center: the 11px note
+                                  // sits half a pixel below the 12px "+".
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '+',
+                                      style: loewRegular.copyWith(
+                                        fontSize:
+                                            PosOrderDetailSpec.itemMetaSize,
+                                        color: done
+                                            ? PosOrderDetailSpec.inkAlpha(0.45)
+                                            : PosOrderDetailSpec.itemNoteInk,
+                                      ),
+                                    ),
+                                    const SizedBox(
+                                      width: PosOrderDetailSpec.itemDetailGap,
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        note,
+                                        style: swiss721Light.copyWith(
+                                          fontSize:
+                                              PosOrderDetailSpec.itemNoteSize,
+                                          height: PosOrdersSpec.swissLeading(
+                                            PosOrderDetailSpec.itemNoteSize,
+                                          ),
+                                          color: done
+                                              ? PosOrderDetailSpec.inkAlpha(
+                                                  0.45)
+                                              : PosOrderDetailSpec.itemNoteInk,
+                                          decoration: strike,
+                                          decorationColor:
+                                              PosOrderDetailSpec.inkAlpha(0.45),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (!stack) ...[
+                        const SizedBox(width: PosOrderDetailSpec.itemStatusGap),
+                        Center(child: chip),
+                        if (button != null) ...[
+                          const SizedBox(
+                              width: PosOrderDetailSpec.itemStatusGap),
+                          Center(child: button),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+                if (stack)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      top: PosOrderDetailSpec.itemDetailGap * 2,
+                      left: PosOrderDetailSpec.itemAccentWidth +
+                          PosOrderDetailSpec.itemRowGap,
                     ),
-                  ],
-                ],
-              ),
+                    child: Wrap(
+                      spacing: PosOrderDetailSpec.itemStatusGap,
+                      runSpacing: PosOrderDetailSpec.itemDetailGap * 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [chip, if (button != null) button],
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: PosOrderDetailSpec.itemStatusGap),
-            PosItemStatusChip(status: status, station: item.station),
-            if (action != null && onAction != null) ...[
-              const SizedBox(width: PosOrderDetailSpec.itemStatusGap),
-              PosItemActionButton(
-                action: action,
-                busy: busy,
-                enabled: enabled,
-                onTap: () => onAction!(action.target),
-              ),
-            ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }

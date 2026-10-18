@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:flutter/material.dart';
 
 /// Figma **1641:2874** — the Orders board.
@@ -16,6 +17,12 @@ class PosOrdersSpec {
   // ── Frame ────────────────────────────────────────────────────────────
   /// `body` sits under the 80px nav bar; every row insets 24 from the edges.
   static const double pagePadding = 24;
+
+  /// Figma's `leading-normal` for Swiss 721 Light (11 → 13, 12 → 14). Loew's
+  /// own metrics already match; Swiss's run ~2px taller. The same rule the
+  /// payment screens use.
+  static double swissLeading(double fontSize) =>
+      PosPaymentSpec.figmaLeading(fontSize);
 
   /// `filters-area` (1915:15771): 14 above and below, rows 10 apart, and a
   /// 1px ink rule separating it from the board.
@@ -59,6 +66,10 @@ class PosOrdersSpec {
   static const double searchClearPadV = 3;
   static const double searchClearIconSize = 10;
   static const Color searchClearFill = Color(0xFFE1DBC4);
+
+  /// Material 3's InputDecorator puts 4px of its own after a prefix icon.
+  /// Figma's search text starts 6 after the glyph, so the field asks for 2.
+  static const double searchPrefixFrameworkGap = 4;
 
   /// Figma's search fills whatever the date row leaves. Below this content
   /// width the presets, NOW and the two date fields already take most of the
@@ -108,11 +119,18 @@ class PosOrdersSpec {
   static const double cardRadius = 10;
   static const double cardPadding = 12;
 
-  /// Every card, in every section, is white with a 1.5px ink outline.
+  /// Every card, in every section, is white with a 1.5px ink outline, drawn
+  /// inside the card like Figma's stroke — it does not move the content.
   static const double cardBorder = 1.5;
+
+  /// `card-*` is 155 tall in every section. A card with more to say grows.
+  static const double cardMinHeight = 155;
 
   /// `urgent-border`: the 4px bar down the left edge of a late card.
   static const double urgentBarWidth = 4;
+
+  /// `card-top`: the dot-and-clock row.
+  static const double cardTopHeight = 16;
 
   static const double statusDotSize = 8;
   static const double clockTextSize = 13;
