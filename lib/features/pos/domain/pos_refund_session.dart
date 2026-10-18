@@ -71,6 +71,20 @@ class PosRefundSession {
   // ── screen 27 (card) ──────────────────────────────────────────────────
   final TextEditingController approvalCode = TextEditingController();
 
+  // ── refundable balance, read from GET refund/list ─────────────────────
+  /// The backend's `refund/list` payload for [order], or null until it has
+  /// loaded (or if it failed). Drives [refundableFor] — the amount the
+  /// backend will actually refund, which is what the screen quotes.
+  final ValueNotifier<Map<String, dynamic>?> refundLedger = ValueNotifier(null);
+
+  /// What `refund/create` will refund for the current selection, or null while
+  /// the ledger is unknown. See [posRefundableAmount].
+  double? refundableFor(PosRefundSplit? split) {
+    final Map<String, dynamic>? ledger = refundLedger.value;
+    if (ledger == null) return null;
+    return posRefundableAmount(ledger: ledger, split: split);
+  }
+
   // ── busy/error ─────────────────────────────────────────────────────────
   final ValueNotifier<bool>    busy  = ValueNotifier(false);
   final ValueNotifier<String?> error = ValueNotifier(null);
@@ -91,6 +105,7 @@ class PosRefundSession {
     refundMethod.value = 'cash';
     pendingRef.value = null;
     approvalCode.clear();
+    refundLedger.value = null;
     busy.value  = false;
     error.value = null;
   }
@@ -102,4 +117,47 @@ class PosRefundSession {
     splits = [];
     resetFlow();
   }
+}
+
+/// The amount `POST refund/create` refunds, mirrored from the backend
+/// (`RefundController::create`), so the screen can quote it before anything
+/// is created.
+///
+/// The backend ignores `items_json` for the money: a refund is always the
+/// whole remaining balance of its source —
+///  * a split payment: that split's amount minus the refunds already
+///    reserved against it (`pending` + `succeeded`);
+///  * otherwise the order: `refundable_remaining` from `refund/list`, minus
+///    order-level refunds still `pending` (the backend reserves those too).
+///
+/// [ledger] is the `refund/list` response. Never negative; rounded to cents.
+double posRefundableAmount({
+  required Map<String, dynamic> ledger,
+  PosRefundSplit? split,
+}) {
+  int cents(dynamic v) => ((num.tryParse('${v ?? 0}') ?? 0) * 100).round();
+  final List<Map<String, dynamic>> refunds = [
+    for (final dynamic r in (ledger['refunds'] as List? ?? const []))
+      if (r is Map) Map<String, dynamic>.from(r),
+  ];
+
+  int remaining;
+  if (split != null) {
+    final int reserved = refunds
+        .where((r) =>
+            '${r['partial_payment_id']}' == '${split.id}' &&
+            (r['status'] == 'pending' || r['status'] == 'succeeded'))
+        .fold(0, (sum, r) => sum + cents(r['amount']));
+    remaining = (split.amount * 100).round() - reserved;
+  } else {
+    final int pendingOrderLevel = refunds
+        .where((r) =>
+            r['partial_payment_id'] == null &&
+            r['split_group_id'] == null &&
+            r['status'] == 'pending')
+        .fold(0, (sum, r) => sum + cents(r['amount']));
+    remaining = cents(ledger['refundable_remaining']) - pendingOrderLevel;
+  }
+  if (remaining < 0) remaining = 0;
+  return remaining / 100;
 }

@@ -62,6 +62,26 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
     // order / splits that the caller just set — a full reset would wipe them
     // and _createRefund would crash on _session.order!.id.
     _session.resetFlow();
+    _loadLedger();
+  }
+
+  /// Reads `refund/list` so the screen can quote the amount the backend will
+  /// refund (see [posRefundableAmount]). Read-only; a failure leaves the
+  /// quote blank ("—") and changes nothing else — the confirmation card after
+  /// `create` still shows the backend's own figure before any money moves.
+  Future<void> _loadLedger() async {
+    final order = _session.order;
+    if (order == null || !di.sl.isRegistered<PosRefundRepo>()) return;
+    final int deviceId =
+        Provider.of<KioskAuthProvider>(context, listen: false).deviceId ?? 0;
+    final ApiResponseModel result = await di
+        .sl<PosRefundRepo>()
+        .list(orderId: order.id, deviceId: deviceId);
+    if (!mounted) return;
+    final dynamic data = result.response?.data;
+    if (result.isSuccess && data is Map) {
+      _session.refundLedger.value = Map<String, dynamic>.from(data);
+    }
   }
 
   @override
@@ -102,6 +122,17 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
     );
   }
 
+  /// The repo hands back a message string, or an error object, or nothing.
+  static String? _errorText(dynamic error) {
+    if (error == null) return null;
+    final String text = '$error'.trim();
+    return text.isEmpty ? null : text;
+  }
+
+  static String _confirmLabel(double? amount) => amount == null
+      ? 'Confirm refund'
+      : 'Confirm refund · ${PosHomeSpec.formatPrice(amount, padZero: false)}';
+
   Widget get _body {
     switch (_step) {
       case _RefundStep.selectItems:
@@ -126,8 +157,7 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
             subtitle: 'Choose which payment to refund',
             mode: _SummaryMode.split,
           ),
-          barLabel: (amount) =>
-              'Confirm refund · ${PosHomeSpec.formatPrice(amount, padZero: false)}',
+          barLabel: _confirmLabel,
           barEnabled: () => _session.selectedSplit.value != null,
           onBar: () => _createRefund(),
           customerName: _customerName,
@@ -140,8 +170,7 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
             subtitle: 'Choose where the money goes',
             mode: _SummaryMode.method,
           ),
-          barLabel: (amount) =>
-              'Confirm refund · ${PosHomeSpec.formatPrice(amount, padZero: false)}',
+          barLabel: _confirmLabel,
           barEnabled: () => true,
           onBar: () => _createRefund(),
           customerName: _customerName,
@@ -195,9 +224,12 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
 
     if (!mounted) return;
 
-    if (!result.response.statusCode.toString().startsWith('2')) {
-      _session.error.value =
-          result.error ?? 'Failed to create refund. Please try again.';
+    // A failed call comes back as `withError` with no response at all, so
+    // the status is read null-safely; the flow stays where it is.
+    if (!result.isSuccess ||
+        !'${result.response?.statusCode}'.startsWith('2')) {
+      _session.error.value = _errorText(result.error) ??
+          'Failed to create refund. Please try again.';
       return;
     }
 
@@ -241,9 +273,12 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
 
     if (!mounted) return;
 
-    if (!result.response.statusCode.toString().startsWith('2')) {
-      _session.error.value =
-          result.error ?? 'Failed to confirm refund. Please try again.';
+    // A failed call comes back as `withError` with no response at all, so
+    // the status is read null-safely; the flow stays where it is.
+    if (!result.isSuccess ||
+        !'${result.response?.statusCode}'.startsWith('2')) {
+      _session.error.value = _errorText(result.error) ??
+          'Failed to confirm refund. Please try again.';
       return;
     }
 
@@ -258,21 +293,13 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
 double _lineAmount(CartModel line) =>
     kioskLineUnitPrice(line) * (line.quantity ?? 1);
 
-/// The figure the summary quotes before the refund is created: the picked
-/// split on a split order, else the picked lines (all of them when none is
-/// picked or the receipt carries no lines — a full-order refund).
-double _quotedAmount(PosRefundSession session) {
-  final PosRefundSplit? split = session.selectedSplit.value;
-  if (session.isSplitOrder) return split?.amount ?? 0;
-  final List<CartModel> lines = session.order?.lines ?? const [];
-  final Set<int> picked = session.selectedItemIndices.value;
-  if (lines.isEmpty || picked.isEmpty) return session.order?.total ?? 0;
-  double sum = 0;
-  for (final int i in picked) {
-    if (i < lines.length) sum += _lineAmount(lines[i]);
-  }
-  return double.parse(sum.toStringAsFixed(2));
-}
+/// The figure the summary quotes before the refund is created: what
+/// `refund/create` will refund for the current selection — the backend's
+/// remaining balance for the order or the picked split. Null until the ledger
+/// has loaded. The ticked items do not change it: the backend records them but
+/// always refunds the whole remaining balance (see [posRefundableAmount]).
+double? _quotedAmount(PosRefundSession session) =>
+    session.refundableFor(session.isSplitOrder ? session.selectedSplit.value : null);
 
 /// Rebuilds [builder] whenever anything the selection panes show changes.
 class _SessionBuilder extends StatelessWidget {
@@ -291,6 +318,7 @@ class _SessionBuilder extends StatelessWidget {
         s.refundMethod,
         s.busy,
         s.error,
+        s.refundLedger,
       ]),
       builder: (context, _) => builder(context),
     );
@@ -302,7 +330,7 @@ class _SessionBuilder extends StatelessWidget {
 class _SelectionFrame extends StatelessWidget {
   final Widget middle;
   final Widget summary;
-  final String Function(double amount) barLabel;
+  final String Function(double? amount) barLabel;
   final bool Function() barEnabled;
   final VoidCallback onBar;
   final TextEditingController customerName;
@@ -717,7 +745,8 @@ class _RefundSummaryPane extends StatelessWidget {
             PosSplitSummaryHeader(
               title: 'REFUND',
               subtitle: subtitle,
-              total: _quotedAmount(s),
+              total: _quotedAmount(s) ?? 0,
+              totalText: _quotedAmount(s) == null ? '—' : null,
               totalLabel: 'Refund amount',
               remaining: s.order?.total ?? 0,
               barLabel: 'Order total',

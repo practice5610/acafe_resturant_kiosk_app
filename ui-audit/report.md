@@ -335,3 +335,35 @@ the picked lines. The new summary shows the picked lines' total exactly as Figma
   built (no refund receipt action).
 - **D5 — Amount header is 12px shorter on Cash than on Card** (47 vs 58 line box). Implemented per frame,
   so switching Card ↔ Cash moves "Amount due" by 11px. Say if one of the two should win.
+
+
+---
+
+# Round 2 — finishing the flow (2026-10-18)
+
+Other sessions' uncommitted files, left untouched throughout: `lib/features/pos/screens/pos_receipts_screen.dart`,
+`lib/features/pos/widgets/pos_receipt_detail_panel.dart` (app) and `app/Http/Controllers/Api/V1/ReceiptController.php`
+(backend, on branch `feature/planday-checkin-backend`). Backend gaps are written up in `ui-audit/backend-needs.md`
+(B1–B5); no backend file was changed.
+
+## R1 — Refund items not sent to the backend
+
+**Trace.** Receipt line checkboxes → `PosRefundSession.selectedItemIndices` → `_createRefund()` → `PosRefundRepo.create`.
+The indices were dropped at `_createRefund` (it never passed `itemsJson`).
+
+**Backend support: not supported** (B1). `RefundController::create` accepts `items_json` (order-detail ids, no
+quantities) but always refunds the whole remaining balance of the source. Per instructions no payload was invented and
+the item-level refund work stops here; `items_json` is still not sent.
+
+**What was fixed in the app instead:**
+
+| # | Problem | Fix | Verified |
+|---|---|---|---|
+| 1 | The summary quoted the ticked lines' total (round 1), but the backend refunds the whole remaining balance → UI ≠ amount refunded | The screen reads `GET refund/list` on entry and quotes exactly what `create` will refund (`posRefundableAmount`, mirrors `RefundController`: split amount − reserved refunds, or `refundable_remaining` − pending order-level refunds). "—" until loaded; never a guess | `pos_refund_amount_test.dart`: quote = bar label = `create` amount (€ 19.00 with one €6 line ticked; split € 12 − € 2 refunded = € 10.00) |
+| 2 | **Bug:** any failed refund call (`withError`, null response) threw `NoSuchMethodError` in `_createRefund` / `_confirmRefund`; the button stayed busy forever, no message | Status read null-safely; the backend message is shown and the flow stays on its step | test "an API failure shows the error and changes nothing" |
+| 3 | Payload | `create` sends order, reason, `partial_payment_id` for a split; `items_json` deliberately null | payload assertions in the same test |
+
+Edge cases from the brief that depend on item-level support (block with no items, partial quantities, already-refunded
+item) cannot be honoured truthfully until B1 lands: the backend would refund the full balance whatever is ticked.
+Already-refunded *sources* are handled: the quote reads € 0.00 and `create` returns the backend's "already fully
+refunded" message (tested).

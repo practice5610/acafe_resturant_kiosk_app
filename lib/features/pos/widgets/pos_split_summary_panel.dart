@@ -175,6 +175,10 @@ class PosSplitSummaryHeader extends StatelessWidget {
   final String totalLabel;
   final String barLabel;
 
+  /// Replaces the formatted [total] (the refund quote reads "—" until the
+  /// backend's balance has loaded).
+  final String? totalText;
+
   const PosSplitSummaryHeader({
     super.key,
     required this.title,
@@ -184,6 +188,7 @@ class PosSplitSummaryHeader extends StatelessWidget {
     this.showRemaining = true,
     this.totalLabel = 'Total to pay',
     this.barLabel = 'Remaining',
+    this.totalText,
   });
 
   @override
@@ -215,7 +220,7 @@ class PosSplitSummaryHeader extends StatelessWidget {
         const SizedBox(height: 7),
         // Totaal: gap-1, the total set `leading-none`.
         Text(
-          PosHomeSpec.formatPrice(total, padZero: false),
+          totalText ?? PosHomeSpec.formatPrice(total, padZero: false),
           maxLines: 1,
           style: loewExtraBold.copyWith(
             fontSize: PosPaymentSpec.v2SplitTotalSize,

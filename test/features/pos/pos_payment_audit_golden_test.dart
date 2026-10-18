@@ -539,6 +539,18 @@ class _FakeRefundRepo extends PosRefundRepo {
         data: data,
       ));
 
+  static const Map<String, dynamic> _ledger = {
+    'refundable_remaining': 19.0,
+    'refunds': <dynamic>[],
+  };
+
+  @override
+  Future<ApiResponseModel> list({
+    required int orderId,
+    required int deviceId,
+  }) async =>
+      _ok(_ledger);
+
   @override
   Future<ApiResponseModel> create({
     required int orderId,
@@ -549,12 +561,16 @@ class _FakeRefundRepo extends PosRefundRepo {
     int? partialPaymentId,
     int? splitGroupId,
   }) async {
-    final bool split = partialPaymentId != null;
+    // Like RefundController: the whole remaining balance of the source.
+    final PosRefundSplit? split = partialPaymentId == null
+        ? null
+        : PosRefundSession.instance.splits
+            .firstWhere((s) => s.id == partialPaymentId);
     return _ok({
       'refund_id': 1,
       'refund_seq': 1,
-      'amount': split ? 12.0 : 6.0,
-      'method': split ? 'cash' : 'card',
+      'amount': posRefundableAmount(ledger: _ledger, split: split),
+      'method': split?.method ?? 'card',
     });
   }
 
@@ -607,6 +623,7 @@ Future<void> _refundFrame(WidgetTester tester,
   addTearDown(() => sl.unregister<PosRefundRepo>());
 
   await pumpPaymentApp(tester, (_) => const PosRefundScreen());
+  await tester.runAsync(() => Future<void>.delayed(Duration.zero));
   // The screen clears the flow on entry; pick as the frames show.
   session.selectedItemIndices.value = {0};
   session.reason.value = PosRefundReason.customerChanged;
