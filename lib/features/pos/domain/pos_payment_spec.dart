@@ -375,8 +375,7 @@ class PosPaymentSpec {
   static const double v2CashTenderPaddingH = 16;
   static const double v2CashTenderPaddingV = 8;
   static const double v2CashTenderGap = 12;
-  /// The Cash frame pins the 48px amount to a 47px line (node 1915:10240).
-  static const double v2CashAmountLineHeight = 47;
+
   /// `amount-input-box` (1915:10247): 58 tall including its 2px border.
   static const double v2CashFieldHeight = 58;
   static const double v2CashFieldPadding = 16;

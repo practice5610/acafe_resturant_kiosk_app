@@ -93,21 +93,11 @@ class PosPaySummaryHeader extends StatelessWidget {
   /// Compact amount font size for fill mode. Defaults to 48 (Figma spec).
   final double amountFontSize;
 
-  /// Line box of the 48px amount. Null = the font's own (58, Card frame
-  /// node 1915:9481); the Cash frame pins it to 47 (node 1915:10240).
-  final double? amountLineHeight;
-
-  /// pb-12 on both frames; the Cash frame's header box is a fixed 139 against
-  /// 140 of content, so it passes 11.
-  final double paddingBottom;
-
   const PosPaySummaryHeader({
     super.key,
     required this.total,
     required this.subtitle,
     this.amountFontSize = 48,
-    this.amountLineHeight,
-    this.paddingBottom = 12,
   });
 
   @override
@@ -117,7 +107,7 @@ class PosPaySummaryHeader extends StatelessWidget {
     // caption block and the total display.
     const double gapBeforeAmt = 10;
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, amtFont < 42 ? 12 : 16, 20, amtFont < 42 ? 8 : paddingBottom),
+      padding: EdgeInsets.fromLTRB(20, amtFont < 42 ? 12 : 16, 20, amtFont < 42 ? 8 : 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -143,11 +133,7 @@ color: PosHomeSpec.inkAlpha(0.33),
           Text(
             PosHomeSpec.formatPrice(total, padZero: false),
             maxLines: 1,
-            style: loewExtraBold.copyWith(
-              fontSize: amtFont,
-              color: PosHomeSpec.ink,
-              height: amountLineHeight == null ? null : amountLineHeight! / amtFont,
-            ),
+            style: loewExtraBold.copyWith(fontSize: amtFont, color: PosHomeSpec.ink),
           ),
           const SizedBox(height: 4),
           Text(

@@ -73,11 +73,12 @@ class PosPayCashSummaryPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Same header box as the Card pane (frame 01: 58px amount line,
+        // pb-12) so "Amount due" does not move when switching methods — the
+        // Cash frame's 47px line is overridden by design decision.
         PosPaySummaryHeader(
           total: total,
           subtitle: 'Overview for partial payments',
-          amountLineHeight: PosPaymentSpec.v2CashAmountLineHeight,
-          paddingBottom: 11,
         ),
         // The frame stacks two 1px rules here (nodes 1915:10242 / 10243).
         const PosPaySummaryDivider(),

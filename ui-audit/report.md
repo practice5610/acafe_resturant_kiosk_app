@@ -367,3 +367,14 @@ Edge cases from the brief that depend on item-level support (block with no items
 item) cannot be honoured truthfully until B1 lands: the backend would refund the full balance whatever is ticked.
 Already-refunded *sources* are handled: the quote reads € 0.00 and `create` returns the backend's "already fully
 refunded" message (tested).
+
+## Design decisions (Figma conflicts resolved by your instruction)
+
+| # | Conflict | Decision | Where | Verified |
+|---|---|---|---|---|
+| DD1 | Card vs Cash tile borders differ between frames 01 and 02 | One border set for every method tile, taken from frame 01 (the screen's normal state): idle `#F0EBD8` 1px, selected black 1px; disabled = dimmed, inert. Defined once as `PosPaymentSpec.v2PrimaryTile` and drawn by the shared `PosPaySelectableTile` | see R5 | `pos_payment_design_decisions_test.dart` (DD1) |
+| DD2 | Cash amount header 11px shorter than Card (47 vs 58 line box) | Card frame's header (58 line, pb-12) on every method; the Cash-only override and its two parameters removed | `widgets/pos_pay_cash_panel.dart`, `pos_pay_summary_panel.dart` | test DD2: "Amount due" rect identical on Card and Cash |
+| DD3 | Frame 12 paid rows 44 / gap 4 vs 09–11 48 / gap 8 | 48 / 8 everywhere (split by payment and split by item) — already the case | `PosSplitPaidRow` | test DD3 |
+| DD4 | 18a/18b list Next order above Receipt; 18 / 28 the reverse | Receipt (outline) above Next order (filled) on every success screen, incl. the cards behind 18a / 18b and the refund success card | `PosPaymentSuccessCard(secondaryLabel:)` | test DD4 on 18, 18a, 18b; refund card in R8 |
+
+These supersede decisions D2, D5 and the 18a/18b note in round 1.
