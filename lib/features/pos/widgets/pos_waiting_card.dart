@@ -59,8 +59,9 @@ class PosWaitingCard extends StatelessWidget {
 /// element at the top, and how many buttons sit at the bottom. Those are the
 /// two parameters.
 class PosPaymentStatusCard extends StatelessWidget {
-  /// The dots, or the error mark. Whatever the state leads with.
-  final Widget indicator;
+  /// The dots, or the error mark. Whatever the state leads with. Null for a
+  /// plain confirmation (frame 29), which opens on the heading.
+  final Widget? indicator;
   final String heading;
 
   /// Optional line under the heading — Swiss 721 Light 13, `#78706E`
@@ -82,14 +83,19 @@ class PosPaymentStatusCard extends StatelessWidget {
   /// splits it evenly, as both frames draw them.
   final List<Widget> actions;
 
+  /// Optional content between the amount box and the divider (the refund
+  /// card's approval code / error line).
+  final Widget? belowAmount;
+
   const PosPaymentStatusCard({
     super.key,
-    required this.indicator,
+    this.indicator,
     required this.heading,
     required this.amountDue,
     required this.actions,
     this.subheading,
     this.amountLabel = 'AMOUNT DUE',
+    this.belowAmount,
   });
 
   @override
@@ -136,8 +142,10 @@ class PosPaymentStatusCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(child: indicator),
-                  const SizedBox(height: PosPaymentSpec.waitCardGap),
+                  if (indicator != null) ...[
+                    Center(child: indicator),
+                    const SizedBox(height: PosPaymentSpec.waitCardGap),
+                  ],
                   Text(
                     heading,
                     textAlign: TextAlign.center,
@@ -162,6 +170,10 @@ class PosPaymentStatusCard extends StatelessWidget {
                   ],
                   const SizedBox(height: PosPaymentSpec.waitCardGap),
                   _AmountDue(amount: amountDue, label: amountLabel),
+                  if (belowAmount != null) ...[
+                    const SizedBox(height: PosPaymentSpec.v2RefundSlotGap),
+                    belowAmount!,
+                  ],
                   const SizedBox(height: PosPaymentSpec.waitCardGap),
                   // `Line` (node 1915:9341) is 0 tall; its 1px stroke sits just
                   // above it, inside the gap.

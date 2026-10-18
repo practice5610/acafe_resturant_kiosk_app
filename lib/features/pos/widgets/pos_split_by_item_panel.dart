@@ -3,6 +3,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_model.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -275,7 +276,7 @@ class _ItemRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (paid) const _PaidPill() else _Checkbox(checked: on),
+          if (paid) const _PaidPill() else PosPayCheckbox(checked: on),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -318,30 +319,6 @@ class _ItemRow extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: body,
-    );
-  }
-}
-
-/// 26px, r7: ink with a `#F0EBD9` tick when checked (node 1915:11244); white
-/// with a 1.5px `#B9B5A6` stroke otherwise (node 1915:11258).
-class _Checkbox extends StatelessWidget {
-  final bool checked;
-
-  const _Checkbox({required this.checked});
-
-  @override
-  Widget build(BuildContext context) {
-    if (checked) {
-      return SvgPicture.string(_checkboxChecked, width: 26, height: 26);
-    }
-    return Container(
-      width: 26,
-      height: 26,
-      decoration: BoxDecoration(
-        color: PosHomeSpec.tileBg,
-        border: Border.all(color: PosHomeSpec.itemDivider, width: 1.5),
-        borderRadius: BorderRadius.circular(7),
-      ),
     );
   }
 }
@@ -486,9 +463,3 @@ class _SelectedTotal extends StatelessWidget {
     );
   }
 }
-
-const String _checkboxChecked =
-    '<svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">'
-    '<rect width="26" height="26" rx="7" fill="#241F20"/>'
-    '<path d="M7.5 13L11.5 17L18.5 9" stroke="#F0EBD9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
-    '</svg>';

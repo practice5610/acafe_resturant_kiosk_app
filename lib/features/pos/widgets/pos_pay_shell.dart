@@ -537,3 +537,33 @@ class PosPayRadio extends StatelessWidget {
     );
   }
 }
+
+/// 26px, r7 checkbox (nodes 1915:11244 / 11258): ink with a `#F0EBD9` tick
+/// when checked; white with a 1.5px `#B9B5A6` stroke otherwise.
+class PosPayCheckbox extends StatelessWidget {
+  final bool checked;
+
+  const PosPayCheckbox({super.key, required this.checked});
+
+  static const String _checkedSvg =
+      '<svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">'
+      '<rect width="26" height="26" rx="7" fill="#241F20"/>'
+      '<path d="M7.5 13L11.5 17L18.5 9" stroke="#F0EBD9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+      '</svg>';
+
+  @override
+  Widget build(BuildContext context) {
+    if (checked) {
+      return SvgPicture.string(_checkedSvg, width: 26, height: 26);
+    }
+    return Container(
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        color: PosHomeSpec.tileBg,
+        border: Border.all(color: PosHomeSpec.itemDivider, width: 1.5),
+        borderRadius: BorderRadius.circular(7),
+      ),
+    );
+  }
+}

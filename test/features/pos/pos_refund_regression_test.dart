@@ -20,6 +20,7 @@ import 'package:acafe_customer/main.dart' show navigatorKey;
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -185,7 +186,10 @@ void main() {
       PosRefundSession.instance.order = _receipt();
       await _pumpRefund(tester);
 
-      expect(find.byType(PosTopNavBar), findsOneWidget);
+      // Figma 1915:11344: the refund frames open on their own back row (no
+      // nav bar), and it is drawn exactly once.
+      expect(find.byType(PosPayBackRow), findsOneWidget);
+      expect(find.byType(PosTopNavBar), findsNothing);
     });
 
     testWidgets('order survives initState (hang regression)', (tester) async {
@@ -203,7 +207,7 @@ void main() {
       PosRefundSession.instance.order = _receipt();
       await _pumpRefund(tester);
 
-      expect(find.text('Reason for refund'), findsOneWidget);
+      expect(find.text('REFUND REASON'), findsOneWidget);
       expect(find.text('Continue to refund method'), findsOneWidget);
     });
   });

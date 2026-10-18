@@ -116,6 +116,13 @@ class PosReceiptLine extends StatelessWidget {
   /// horizontal padding of its own and no thumbnail (Figma 1915:9369).
   final bool inset;
 
+  /// Replaces the qty stepper — the refund frames put a checkbox there
+  /// (node 1915:11377).
+  final Widget? trailing;
+
+  /// Row fill, e.g. a line picked for refund (node 1915:11370).
+  final Color? background;
+
   const PosReceiptLine({
     super.key,
     required this.line,
@@ -125,6 +132,8 @@ class PosReceiptLine extends StatelessWidget {
     this.onEdit,
     this.quantityOnly = false,
     this.inset = false,
+    this.trailing,
+    this.background,
   });
 
   @override
@@ -135,8 +144,9 @@ class PosReceiptLine extends StatelessWidget {
     final String priceLine = unit == null ? price : '$price · $unit';
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(
+      decoration: BoxDecoration(
+        color: background,
+        border: const Border(
           bottom: BorderSide(color: PosHomeSpec.itemDivider),
         ),
       ),
@@ -187,6 +197,9 @@ class PosReceiptLine extends StatelessWidget {
               ),
             ),
             const SizedBox(width: PosHomeSpec.lineGap),
+            if (trailing != null)
+              trailing!
+            else
             SizedBox(
               // Inset rows hug the stepper the way the payment frame's
               // auto-layout does (trash 26 · 8 · digit · 8 · plus 31).

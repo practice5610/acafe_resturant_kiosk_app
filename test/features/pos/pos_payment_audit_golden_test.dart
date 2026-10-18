@@ -24,7 +24,14 @@ import 'package:acafe_customer/features/pos/domain/pos_split_by_item_model.dart'
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
+import 'package:acafe_customer/common/models/api_response_model.dart';
+import 'package:acafe_customer/di_container.dart' show sl;
+import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/features/pos/domain/pos_refund_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
+import 'package:acafe_customer/features/pos/screens/pos_refund_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:dio/dio.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_error_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
@@ -394,6 +401,12 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
       )),
   '18a_receipt_email': (t) => _receiptFrame(t, print: false),
   '18b_receipt_print': (t) => _receiptFrame(t, print: true),
+  '25_refund_select': (t) => _refundFrame(t, step: 25),
+  '26_refund_method': (t) => _refundFrame(t, step: 26),
+  '27_refund_waiting': (t) => _refundFrame(t, step: 27),
+  '28_refund_complete': (t) => _refundFrame(t, step: 28),
+  '29_refund_split_confirm': (t) => _refundFrame(t, step: 29, split: true),
+  '30_refund_split_done': (t) => _refundFrame(t, step: 30, split: true),
   '22_terminal_offline': (t) => pumpOverlayFrame(
       t,
       PosPaymentErrorCard.terminalOffline(
@@ -509,6 +522,113 @@ Future<void> _receiptFrame(WidgetTester tester, {required bool print}) async {
   await tester.pump();
   FocusManager.instance.primaryFocus?.unfocus();
   await tester.pump(const Duration(milliseconds: 300));
+}
+
+/// Answers the refund endpoints like the backend does for the Dylan order.
+class _FakeRefundRepo extends PosRefundRepo {
+  _FakeRefundRepo(DioClient dio) : super(dioClient: dio);
+
+  static ApiResponseModel _ok(Map<String, dynamic> data) =>
+      ApiResponseModel.withSuccess(Response<dynamic>(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 200,
+        data: data,
+      ));
+
+  @override
+  Future<ApiResponseModel> create({
+    required int orderId,
+    required int deviceId,
+    required String reference,
+    String? reason,
+    List<int>? itemsJson,
+    int? partialPaymentId,
+    int? splitGroupId,
+  }) async {
+    final bool split = partialPaymentId != null;
+    return _ok({
+      'refund_id': 1,
+      'refund_seq': 1,
+      'amount': split ? 12.0 : 6.0,
+      'method': split ? 'cash' : 'card',
+    });
+  }
+
+  @override
+  Future<ApiResponseModel> confirm({
+    required int orderId,
+    required int refundSeq,
+    required String method,
+    required String reference,
+    required int deviceId,
+    String? approvalCode,
+  }) async =>
+      _ok({'ok': true});
+}
+
+/// Refund frames 25–30: the real [PosRefundScreen], driven step by step.
+Future<void> _refundFrame(WidgetTester tester,
+    {required int step, bool split = false}) async {
+  final session = PosRefundSession.instance;
+  session.reset();
+  addTearDown(session.reset);
+  session.order = PosReceiptDetail(
+    id: 27362,
+    placedAt: null,
+    customerName: 'Dylan',
+    table: null,
+    method: 'card',
+    subtotal: 19,
+    discount: 0,
+    total: 19,
+    orderStatus: 'delivered',
+    paymentStatus: 'paid',
+    lines: figmaTicket(),
+  );
+  session.splits = split
+      ? const [
+          PosRefundSplit(id: 11, seq: 1, method: 'cash', amount: 12),
+          PosRefundSplit(id: 12, seq: 2, method: 'card', amount: 7),
+        ]
+      : const [];
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+  if (sl.isRegistered<PosRefundRepo>()) sl.unregister<PosRefundRepo>();
+  sl.registerSingleton<PosRefundRepo>(_FakeRefundRepo(DioClient(
+    'http://localhost',
+    null,
+    loggingInterceptor: LoggingInterceptor(),
+    sharedPreferences: prefs,
+  )));
+  addTearDown(() => sl.unregister<PosRefundRepo>());
+
+  await pumpPaymentApp(tester, (_) => const PosRefundScreen());
+  // The screen clears the flow on entry; pick as the frames show.
+  session.selectedItemIndices.value = {0};
+  session.reason.value = PosRefundReason.customerChanged;
+  await tester.pump();
+  if (step == 25) return;
+
+  await tester.tap(find.text('Continue to refund method'));
+  await tester.pump();
+  if (split) {
+    await tester.tap(find.text('Payment 1'));
+  } else {
+    await tester.tap(find.text('Original payment'));
+  }
+  await tester.pump();
+  if (step == 26) return;
+
+  await tester.tap(find.textContaining('Confirm refund'));
+  await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+  if (step == 27 || step == 29) return;
+
+  await tester.tap(find.text(split ? 'Refund € 12.00' : 'Confirm Refund'));
+  await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
 }
 
 /// A full-screen state: [card] alone on the page background, as the screen

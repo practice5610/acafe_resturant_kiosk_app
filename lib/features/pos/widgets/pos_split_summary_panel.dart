@@ -170,6 +170,11 @@ class PosSplitSummaryHeader extends StatelessWidget {
   /// bar; its own "… remaining after this payment" note carries it.
   final bool showRemaining;
 
+  /// "Total to pay" / "Remaining" on the payment panes; the refund panes read
+  /// "Refund amount" / "Order total" (node 1915:11436 / 11438).
+  final String totalLabel;
+  final String barLabel;
+
   const PosSplitSummaryHeader({
     super.key,
     required this.title,
@@ -177,6 +182,8 @@ class PosSplitSummaryHeader extends StatelessWidget {
     required this.total,
     required this.remaining,
     this.showRemaining = true,
+    this.totalLabel = 'Total to pay',
+    this.barLabel = 'Remaining',
   });
 
   @override
@@ -218,7 +225,7 @@ class PosSplitSummaryHeader extends StatelessWidget {
         ),
         const SizedBox(height: 1),
         Text(
-          'Total to pay',
+          totalLabel,
           style: swiss721Light.copyWith(
             fontSize: 10,
             height: PosPaymentSpec.figmaLeading(10),
@@ -241,7 +248,7 @@ class PosSplitSummaryHeader extends StatelessWidget {
           child: Row(
             children: [
               Text(
-                'Remaining',
+                barLabel,
                 style: loewBold.copyWith(
                   fontSize: PosPaymentSpec.v2SplitRemainLabelSize,
                   color: PosPaymentSpec.v2SplitLabelInk,

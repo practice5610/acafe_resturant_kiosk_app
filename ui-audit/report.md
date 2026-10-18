@@ -225,6 +225,33 @@ Verified: 18a title 361, subtitle 389, tiles 475, EMAIL ADDRESS 515, field text 
 18b title 414.5, CTA 580.5 — equal to Figma relative to the dialog (Figma's 18a dialog sits 7px above centre while
 18b is centred; code centres both).
 
+## 25–30 Refunds (1915:11344 · 11448 · 11777 · 11551 · 12443 · 12462)
+
+The refund screen did not use the layer's chrome at all: nav bar + a single centred white card per step with
+Material radios / checkboxes. It now uses the payment layer's components; `_createRefund` / `_confirmRefund` and every
+session read/write are carried over byte-for-byte.
+
+| # | Element | Figma value | Code value | File:line | Sev | Status |
+|---|---|---|---|---|---|---|
+| 1 | Chrome | Back row "Refund / Order #27362", no nav bar, page bg `#F7F1DE`, sticky pill | Nav bar, `panelBg`, in-card buttons | `screens/pos_refund_screen.dart` | High | Fixed (`PosPayBackRow` → Receipts, `PosPayPillBar`) |
+| 2 | 25 / 26 layout | 3 panes: receipt (lines with checkboxes, picked line tinted) · REFUND REASON / REFUND METHOD options · REFUND summary | One 560px card: radio list + "Name × qty" checkbox rows | same | High | Fixed (`PosPayThreePane`, `PosPayReceiptCard`-style sidebar with `PosReceiptLine(trailing:, background:)`) |
+| 3 | Option rows | px-16 py-14 r12, Bold 15 (+ Swiss 11 subtitle), 24px disc radio with `#F0EBD9` dot / `#B9B5A6` ring | Material radio icons, Loew Regular 15, `ink@6%` selected fill | same | Med | Fixed |
+| 4 | Reasons | Customer changed mind · Wrong item · Quality issue · Other | Wrong item · Customer changed mind · Quality issue · **Overcharged** · Other | same | Med | Fixed to the frame (Overcharged no longer offered — D12) |
+| 5 | Summary pane | REFUND / subtitle / 36px amount "Refund amount" / Order total bar / ITEMS TO REFUND rows / "Items selected n of m" or "Refund to" / note | none | same | High | Fixed (shared `PosSplitSummaryHeader` with refund labels) |
+| 6 | 27 card wait | Waiting card: dots · "Waiting for card on terminal..." · REFUND AMOUNT · "Cancel Refund" | Success-card shell, "Refunding…", Material labelled TextField | same | High | Fixed to the status card; keeps the approval-code field and a Confirm button the manual terminal flow needs (not in the frame — D13) |
+| 7 | 29 cash confirm | "Refund Payment 1?" · tender line · REFUND AMOUNT · Cancel / "Refund € 12.00" | "Cash Refund" card, € without space, 28px Bold amount | same | Med | Fixed (subtitle cannot list the split's items — not in the data) |
+| 8 | 28 / 30 done | "Refund Successful" / "Payment 1 Refunded" · AMOUNT REFUNDED | "Refund Complete" / "Split Payment N Refunded" | same | Med | Fixed copy; 28's Receipt + Next order not built (no refund-receipt action); button keeps "Back to Receipts" / Figma 30's "Back to order" (D13) |
+| 9 | Amount format (extra bug) | "€ 6.00" | `'€${v.toStringAsFixed(2)}'` → "€6.00", ignores currency config | same | Med | Fixed (`formatPrice`) |
+| 10 | 26 options | Original payment (Card •••• 4242) · Cash · **Store credit** | Card / Cash | same | — | Store credit and card last-4 not available → **not built (D12)** |
+
+Verified on render: 25 REFUND REASON 91, first option 146.5 (x 533.5), REFUND 91, amount 128, Order total 192, ITEMS
+TO REFUND 224, item 264, summary row 317.5, note 352; 29 heading 357, subtitle 397 — equal to Figma.
+
+**Extra bug (money path, not changed):** the operator ticks items to refund, but `_createRefund` never sends them —
+`PosRefundRepo.create` accepts `itemsJson`, the screen passes nothing, so the backend refunds by order / split, not by
+the picked lines. The new summary shows the picked lines' total exactly as Figma does, which makes the gap visible:
+**this needs your decision before release (D11).**
+
 ---
 
 ## Decisions for you
@@ -253,5 +280,12 @@ Verified: 18a title 361, subtitle 389, tiles 475, EMAIL ADDRESS 515, field text 
   step for a split-by-item payment) and 19 (custom amount per guest). Each is a new flow or a money-path
   change rather than a UI fix, so they are left for your go-ahead.
 - **D10 — Idle receipt-option icon** is white on a 10% well in Figma (unreadable). Kept ink; confirm.
+- **D11 — Refund items are not sent (HIGH).** `_createRefund` ignores `selectedItemIndices`; one-line fix is to pass
+  them as `itemsJson`, but it changes what the backend refunds, so it is yours to approve.
+- **D12 — Refund options.** "Store credit" and "Card •••• 4242" need data / a feature that does not exist;
+  "Overcharged" was dropped from the reason list to match the frame.
+- **D13 — Refund terminal flow.** Frame 27 assumes an integrated terminal (Cancel only); the code confirms a manual
+  terminal refund with an approval code, so the card keeps those controls. Frame 28's Receipt / Next order pair is not
+  built (no refund receipt action).
 - **D5 — Amount header is 12px shorter on Cash than on Card** (47 vs 58 line box). Implemented per frame,
   so switching Card ↔ Cash moves "Amount due" by 11px. Say if one of the two should win.
