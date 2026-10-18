@@ -2151,9 +2151,17 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                     ),
                                   );
                                 }
-                                if (sbiState != null ||
-                                    splitState != null ||
-                                    _standaloneActive) {
+                                // Frame 04: same bar for stand-alone.
+                                if (_standaloneActive) {
+                                  return PosPayPillBar(
+                                    label: 'Confirm Payment',
+                                    loading: _standaloneLoading,
+                                    onConfirm: _standaloneLoading
+                                        ? null
+                                        : _submitStandalone,
+                                  );
+                                }
+                                if (sbiState != null || splitState != null) {
                                   return const SizedBox.shrink();
                                 }
                                 if (_change != null) {
@@ -2400,8 +2408,8 @@ class _Content extends StatelessWidget {
     // Receipt change-method mode: the drafted OTHER method shows the SAME
     // shared panel the order flow uses, in changeMode (no placement CTA/form).
     if (changeOther == 'standalone') {
+      // Frame 04 draws the stand-alone pane on the #F0EBD8 1.5px card.
       return PosPayCard(
-        summaryBorder: true,
         child: PosStandalonePanel(
           grandTotal: standaloneTotal,
           approvalCode: standaloneApprovalCode,
@@ -2426,7 +2434,6 @@ class _Content extends StatelessWidget {
     // Stand-alone mode (Family 5): numbered instructions + approval code.
     if (standaloneActive) {
       return PosPayCard(
-        summaryBorder: true,
         child: PosStandalonePanel(
           grandTotal: standaloneTotal,
           approvalCode: standaloneApprovalCode,

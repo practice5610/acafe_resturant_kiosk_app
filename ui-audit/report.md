@@ -90,6 +90,24 @@ Verified on render: Amount due 179, Amount Tendered 216, field text 256, Change 
 Verified on render: every text anchor in the pane (INVOICE 91, amount 154, labels 311/376/441, inputs 339/404/469 at
 x 920, toggle row 524/540) equals the Figma coordinate.
 
+## 04 Payment – Stand-alone terminal (1915:9519)
+
+| # | Element | Figma value | Code value | File:line | Sev | Status |
+|---|---|---|---|---|---|---|
+| 1 | Confirm action | Sticky-bar pill "Confirm Payment" (node 1915:9675) | Bar hidden; in-pane 56px button | `screens/pos_payment_selection_screen.dart` · `widgets/pos_standalone_panel.dart` | High | Fixed — bar wired to the existing `_submitStandalone` / `_standaloneLoading`; in-pane button removed |
+| 2 | Pane padding | p-24 | px-24 py-20 | `pos_standalone_panel.dart` | Low | Fixed |
+| 3 | Header → subtitle gap | 4 | 2 | same | Low | Fixed |
+| 4 | Amount line box | 58 | 48 (`height: 1.0`) | same | Med | Fixed |
+| 5 | Section rhythm | gap-16 between header / total / divider / steps; steps & approval py-12 gap-10 | 12 / 16 / 16 / 10 / **16** / 6 | same | Med | Fixed |
+| 6 | Approval label → input | 4 | 6 | same | Low | Fixed |
+| 7 | Approval input | 37 tall, Loew **Medium** 14, text at x+14 | ~48 tall, Loew Bold 14, x+18 | `_ApprovalCodeField` | Med | Fixed (dense, `gapPadding: 0`) |
+| 8 | Swiss captions | 14 / 16 line boxes | 16 / 18 | same | Low | Fixed |
+| 9 | Pane border | `#F0EBD8` 1.5px | `#E8E0CC` 1px | screen `_summaryPane` | Low | Fixed |
+| 10 | Amount formatting (extra bug) | "€ 19.00" | `formatPrice` with zero-padding → €9.50 would read "€ 09.50" (also step 1 text) | same | Med | Fixed (`padZero: false`, as every other payment pane) |
+
+Steps keep their bordered `Container`: this frame *includes* the stroke in layout (badge at x13 / y11, rows 44 tall),
+unlike the OTHER rows — verified on render (step texts at 324.5 / 378.5 / 432.5, x 953; approval 473 / 501).
+
 ---
 
 ## Decisions for you

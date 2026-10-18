@@ -1,18 +1,22 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
-// ─── palette (Figma 1915:9519) ───────────────────────────────────────────────
+// ─── palette (Figma 1915:9648) ───────────────────────────────────────────────
 const _headerOpacity = 0.40;
 const _subtitleOpacity = 0.33;
-const _stepBorder = Color(0xFFE8E3D5);
-const _inputBorderInactive = Color(0xFFE0D9C8);
-const _divider = Color(0xFFF0EBD8);
+const _stepBorder = PosPaymentSpec.v2OtherRowBorder; // #E8E3D5
+const _inputBorderInactive = PosHomeSpec.tableFieldBorder; // #E0D9C8
+const _divider = PosHomeSpec.hairline; // #F0EBD8
 
-/// Right pane for the Stand-alone terminal flow (Family 5, Figma 1915:9519).
+/// Right pane for the Stand-alone terminal flow (Family 5) —
+/// `payment-summary-card` (Figma **1915:9648**, frame 04).
 ///
-/// Displays the grand total, three numbered instruction steps, an optional
-/// approval-code input, and a "Confirm Payment" pill CTA.
+/// p-24, gap-16: header, the amount to key in, a hairline, then three numbered
+/// steps and the optional approval code (py-12, gap-10). The pane has no button
+/// of its own — the frame confirms through the screen's sticky "Confirm
+/// Payment" bar, which calls [onConfirm].
 ///
 /// The approval code field writes to [approvalCode] (a [ValueNotifier<String>])
 /// so only the field widget rebuilds on typing — no root setState.
@@ -20,10 +24,12 @@ class PosStandalonePanel extends StatelessWidget {
   final double grandTotal;
   final ValueNotifier<String> approvalCode;
   final bool loading;
+
+  /// Kept for callers; the sticky bar owns the confirm action.
   final VoidCallback onConfirm;
 
-  /// True in the receipt change-method flow: hides the approval-code input and
-  /// the order-placement CTA; the screen's own Confirm change bar commits.
+  /// True in the receipt change-method flow: hides the approval-code input;
+  /// the screen's own Confirm change bar commits.
   final bool changeMode;
 
   const PosStandalonePanel({
@@ -35,128 +41,121 @@ class PosStandalonePanel extends StatelessWidget {
     this.changeMode = false,
   });
 
+  static const double _gap = 16;
+
   @override
   Widget build(BuildContext context) {
+    final String amount = PosHomeSpec.formatPrice(grandTotal, padZero: false);
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: const EdgeInsets.all(24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── STAND-ALONE header ──────────────────────────────────────
-          Text(
-            'STAND-ALONE',
-            style: loewBold.copyWith(
-              fontSize: 14,
-              letterSpacing: 1,
-              color: PosHomeSpec.inkAlpha(_headerOpacity),
+          // ── summary-header (1915:9649): gap-4, pb-12 ───────────────────
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'STAND-ALONE',
+                  style: loewBold.copyWith(
+                    fontSize: 14,
+                    letterSpacing: 1,
+                    color: PosHomeSpec.inkAlpha(_headerOpacity),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Pay on the separate card terminal',
+                  style: swiss721Light.copyWith(
+                    fontSize: 12,
+                    height: PosPaymentSpec.figmaLeading(12),
+                    color: PosHomeSpec.inkAlpha(_subtitleOpacity),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            'Pay on the separate card terminal',
-            style: swiss721Light.copyWith(
-              fontSize: 12,
-              color: PosHomeSpec.inkAlpha(_subtitleOpacity),
+          const SizedBox(height: _gap),
+
+          // ── total display (1915:9652): gap-4, pb-12 ────────────────────
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  amount,
+                  maxLines: 1,
+                  style: loewExtraBold.copyWith(
+                    fontSize: 48,
+                    color: PosHomeSpec.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Amount to enter on the terminal',
+                  style: swiss721Light.copyWith(
+                    fontSize: 13,
+                    height: PosPaymentSpec.figmaLeading(13),
+                    color: PosHomeSpec.inkAlpha(_headerOpacity),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _gap),
 
-          // ── Grand total ──────────────────────────────────────────────
-          Text(
-            PosHomeSpec.formatPrice(grandTotal),
-            style: loewExtraBold.copyWith(
-              fontSize: 48,
-              color: PosHomeSpec.ink,
-              height: 1.0,
+          // ── divider-top (1915:9655) ────────────────────────────────────
+          const ColoredBox(
+            color: _divider,
+            child: SizedBox(height: 1, width: double.infinity),
+          ),
+          const SizedBox(height: _gap),
+
+          // ── steps + approval code (1915:9656): py-12, gap-10 ───────────
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'HOW TO DO STAND ALONE PAYMENT',
+                  style: loewBold.copyWith(
+                    fontSize: 10,
+                    letterSpacing: 0.5,
+                    color: PosHomeSpec.inkAlpha(_subtitleOpacity),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _StepRow(
+                  number: 1,
+                  text: 'Enter $amount on the card terminal',
+                ),
+                const SizedBox(height: 10),
+                const _StepRow(number: 2, text: 'Customer pays on the terminal'),
+                const SizedBox(height: 10),
+                const _StepRow(
+                  number: 3,
+                  text: 'Confirm here once the payment is approved',
+                ),
+                if (!changeMode) ...[
+                  const SizedBox(height: 10),
+                  // terminal-approval-code (1915:9670): gap-4.
+                  Text(
+                    'Approval code (optional)',
+                    style: loewRegular.copyWith(
+                      fontSize: 12,
+                      color: PosHomeSpec.inkAlpha(0.53),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  _ApprovalCodeField(notifier: approvalCode),
+                ],
+              ],
             ),
           ),
-          Text(
-            'Amount to enter on the terminal',
-            style: swiss721Light.copyWith(
-              fontSize: 13,
-              color: PosHomeSpec.inkAlpha(_headerOpacity),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ── Divider ──────────────────────────────────────────────────
-          const Divider(color: _divider, thickness: 1, height: 1),
-          const SizedBox(height: 16),
-
-          // ── HOW TO label ─────────────────────────────────────────────
-          Text(
-            'HOW TO DO STAND ALONE PAYMENT',
-            style: loewBold.copyWith(
-              fontSize: 10,
-              letterSpacing: 0.5,
-              color: PosHomeSpec.inkAlpha(_subtitleOpacity),
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // ── Step 1 ───────────────────────────────────────────────────
-          _StepRow(
-            number: 1,
-            text:
-                'Enter ${PosHomeSpec.formatPrice(grandTotal)} on the card terminal',
-          ),
-          const SizedBox(height: 10),
-
-          // ── Step 2 ───────────────────────────────────────────────────
-          const _StepRow(number: 2, text: 'Customer pays on the terminal'),
-          const SizedBox(height: 10),
-
-          // ── Step 3 ───────────────────────────────────────────────────
-          const _StepRow(
-            number: 3,
-            text: 'Confirm here once the payment is approved',
-          ),
-          const SizedBox(height: 16),
-
-          if (!changeMode) ...[
-          // ── Approval code input ──────────────────────────────────────
-          Text(
-            'Approval code (optional)',
-            style: loewRegular.copyWith(
-              fontSize: 12,
-              color: PosHomeSpec.inkAlpha(0.53),
-            ),
-          ),
-          const SizedBox(height: 6),
-          _ApprovalCodeField(notifier: approvalCode),
-          const SizedBox(height: 20),
-
-          // ── Confirm Payment CTA ──────────────────────────────────────
-          GestureDetector(
-            onTap: loading ? null : onConfirm,
-            child: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                color: loading ? const Color(0xFFD4CDBA) : PosHomeSpec.ink,
-                borderRadius: BorderRadius.circular(28),
-              ),
-              child: Center(
-                child: loading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        'Confirm Payment',
-                        style: loewBold.copyWith(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ],
         ],
       ),
     );
@@ -243,27 +242,31 @@ class _ApprovalCodeFieldState extends State<_ApprovalCodeField> {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: _ctrl,
-      textCapitalization: TextCapitalization.characters,
-      style: loewBold.copyWith(fontSize: 14, color: PosHomeSpec.ink),
-      decoration: InputDecoration(
-        hintText: 'Code from the terminal slip',
-        hintStyle: loewMedium.copyWith(
-          fontSize: 14,
-          color: PosHomeSpec.inkAlpha(0.33),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        enabledBorder: OutlineInputBorder(
+    OutlineInputBorder border(Color color) => OutlineInputBorder(
+          // No floating label, so no notch gap — it would inset the text 4px.
+          gapPadding: 0,
           borderRadius: BorderRadius.circular(10),
-          borderSide:
-              const BorderSide(color: _inputBorderInactive, width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide:
-              const BorderSide(color: Color(0xFF241F20), width: 1.5),
+          borderSide: BorderSide(color: color, width: 1.5),
+        );
+    // `approval-code-input` (1915:9672): 37 tall, px-14 py-10, Loew Medium 14.
+    return SizedBox(
+      height: 37,
+      child: TextField(
+        controller: _ctrl,
+        textCapitalization: TextCapitalization.characters,
+        style: loewMedium.copyWith(fontSize: 14, color: PosHomeSpec.ink),
+        cursorColor: PosHomeSpec.ink,
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Code from the terminal slip',
+          hintStyle: loewMedium.copyWith(
+            fontSize: 14,
+            color: PosHomeSpec.inkAlpha(0.33),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          enabledBorder: border(_inputBorderInactive),
+          focusedBorder: border(PosHomeSpec.ink),
         ),
       ),
     );

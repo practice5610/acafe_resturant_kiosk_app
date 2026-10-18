@@ -18,6 +18,7 @@ import 'package:acafe_customer/features/pos/domain/pos_invoice_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
@@ -306,6 +307,23 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
           form: form,
           loading: false,
           onSubmit: () {},
+        ),
+      ),
+      bar: PosPayPillBar(label: 'Confirm Payment', onConfirm: () {}),
+    );
+  },
+  '04_standalone': (tester) async {
+    final code = ValueNotifier<String>('');
+    addTearDown(code.dispose);
+    await pumpComposedFrame(
+      tester,
+      standaloneActive: true,
+      summary: (_) => PosPayCard(
+        child: PosStandalonePanel(
+          grandTotal: 19,
+          approvalCode: code,
+          loading: false,
+          onConfirm: () {},
         ),
       ),
       bar: PosPayPillBar(label: 'Confirm Payment', onConfirm: () {}),
