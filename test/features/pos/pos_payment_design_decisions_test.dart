@@ -131,7 +131,7 @@ void main() {
         (_) => Scaffold(
           body: Column(
             children: [
-              SizedBox(
+              const SizedBox(
                 width: 322,
                 child: PosPaymentMethodCard(
                   method: PosPaymentMethod.cash,
