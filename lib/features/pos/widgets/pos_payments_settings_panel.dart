@@ -19,9 +19,8 @@ import 'package:provider/provider.dart';
 /// button in the design, and none of these controls has an intermediate state
 /// worth batching. Every switch writes through on change.
 ///
-/// Three of the four method rows and one of the two transaction switches are
-/// rendered **disabled on purpose**. Mobile Pay, Gift Cards and the tipping
-/// screen have no implementation behind them anywhere in the product, so a
+/// Two of the method rows are rendered **disabled on purpose**. Mobile Pay and
+/// Gift Cards have no implementation behind them anywhere in the product, so a
 /// live toggle would promise rails that do not exist. A greyed control says
 /// "not available on this terminal" without needing a line of copy to explain
 /// it, which is also how Figma paints the Gift Cards row.
@@ -369,12 +368,12 @@ class _TransactionSettingsCard extends StatelessWidget {
         const SizedBox(height: PosPaymentsSpec.settingsCardGap),
         const _CardDivider(),
         const SizedBox(height: PosPaymentsSpec.settingsCardGap),
-        // Inert on POS: the kiosk has a real tip flow backed by
-        // `orders.tip_amount`, but POS checkout has no tip step to switch on.
+        // The payment screen's "Add tip" (orders.tip_amount).
         _SettingToggleRow(
           label: 'ENABLE TIPPING SCREEN',
+          subtitle: 'Shows Add tip on the payment screen',
           value: provider.settings.tippingEnabled,
-          onChanged: null,
+          onChanged: provider.setTippingEnabled,
         ),
         const SizedBox(height: PosPaymentsSpec.settingsCardGap),
         const _CardDivider(),

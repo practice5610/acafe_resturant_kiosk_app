@@ -177,7 +177,18 @@ void main() {
       final s = PosPaymentSettings.initial();
       expect(s.mobilePayEnabled, isFalse);
       expect(s.giftCardsEnabled, isFalse);
-      expect(s.tippingEnabled, isFalse);
+    });
+
+    test('tipping is on by default; the old key from the inert switch is '
+        'ignored', () {
+      expect(PosPaymentSettings.initial().tippingEnabled, isTrue);
+      // Written while the switch was disabled — never anyone's choice.
+      expect(
+          PosPaymentSettings.fromJson({'tipping_enabled': false})
+              .tippingEnabled,
+          isTrue);
+      final off = PosPaymentSettings.initial().copyWith(tippingEnabled: false);
+      expect(PosPaymentSettings.fromJson(off.toJson()).tippingEnabled, isFalse);
     });
 
     test('isLastTender is true only when exactly one tender survives', () {
@@ -525,7 +536,6 @@ void main() {
       await _pumpPayments(tester);
       expect(_enabled(tester, _rowToggle('Mobile Pay')), isFalse);
       expect(_enabled(tester, _rowToggle('Gift Cards')), isFalse);
-      expect(_enabled(tester, _rowToggle('ENABLE TIPPING SCREEN')), isFalse);
     });
 
     testWidgets('backed controls stay interactive', (tester) async {
@@ -533,6 +543,7 @@ void main() {
       expect(_enabled(tester, _rowToggle('Cash')), isTrue);
       expect(_enabled(tester, _rowToggle('Credit / Debit Card')), isTrue);
       expect(_enabled(tester, _rowToggle('RECEIPT AUTO-PRINT')), isTrue);
+      expect(_enabled(tester, _rowToggle('ENABLE TIPPING SCREEN')), isTrue);
     });
 
     testWidgets('turning off Card locks the last remaining tender',

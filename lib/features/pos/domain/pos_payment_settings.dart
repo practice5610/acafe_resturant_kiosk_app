@@ -22,9 +22,9 @@
 /// card reference is a no-op entry in the receipt context menu. Their toggles
 /// render disabled so the screen never implies rails that do not exist.
 ///
-/// [tippingEnabled] is likewise **persisted but inert on POS**. A real tip flow
-/// exists on the kiosk (`kiosk_tip.dart`, backed by `orders.tip_amount`), but
-/// the POS checkout has no tip step for this flag to switch on.
+/// [tippingEnabled] shows the "Add tip" step on the payment screen (backed by
+/// `orders.tip_amount`, as on the kiosk). On by default; a venue that does not
+/// take tips switches it off here.
 ///
 /// [defaultTaxRate] is a **display-only label**. Tax in this product is
 /// per-product (`products.tax`, summed per cart line); there is no store-level
@@ -64,7 +64,7 @@ class PosPaymentSettings {
         cardEnabled: true,
         mobilePayEnabled: false,
         giftCardsEnabled: false,
-        tippingEnabled: false,
+        tippingEnabled: true,
         defaultTaxRate: defaultTaxRateLabel,
       );
 
@@ -100,7 +100,7 @@ class PosPaymentSettings {
         'card_enabled': cardEnabled,
         'mobile_pay_enabled': mobilePayEnabled,
         'gift_cards_enabled': giftCardsEnabled,
-        'tipping_enabled': tippingEnabled,
+        _tippingKey: tippingEnabled,
         'default_tax_rate': defaultTaxRate,
       };
 
@@ -120,14 +120,18 @@ class PosPaymentSettings {
           _bool(json['mobile_pay_enabled']) ?? fallback.mobilePayEnabled,
       giftCardsEnabled:
           _bool(json['gift_cards_enabled']) ?? fallback.giftCardsEnabled,
-      tippingEnabled:
-          _bool(json['tipping_enabled']) ?? fallback.tippingEnabled,
+      // Read from [_tippingKey] only: the older `tipping_enabled` was written
+      // while the switch was disabled, so it never held anyone's choice.
+      tippingEnabled: _bool(json[_tippingKey]) ?? fallback.tippingEnabled,
       defaultTaxRate: (json['default_tax_rate'] as String?)?.trim().isNotEmpty ==
               true
           ? (json['default_tax_rate'] as String).trim()
           : fallback.defaultTaxRate,
     );
   }
+
+  /// Persisted key for [tippingEnabled] since the switch went live.
+  static const String _tippingKey = 'tipping_screen_enabled';
 
   static bool? _bool(Object? v) {
     if (v is bool) return v;

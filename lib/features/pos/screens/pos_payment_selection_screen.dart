@@ -313,10 +313,20 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// to the new grand total so a just-added tip does not silently leave the
   /// sale under-tendered.
   Future<void> _openTip(double payable) async {
+    if (!_payments.tippingEnabled) {
+      // Switched off for this terminal: say so rather than a row that does
+      // nothing.
+      showCustomSnackBarHelper(
+        'Tipping is turned off in Settings → Payments.',
+        isError: true,
+      );
+      return;
+    }
     final double? chosen = await showPosTipDialog(
       context: context,
       payable: payable,
       currentTip: _tip.value,
+      decimals: _decimals(context),
     );
     if (chosen == null || !mounted) return;
     _tip.value = chosen < 0 ? 0 : chosen;
@@ -1991,11 +2001,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                   // customer pays and what we charge and store.
                   final double grandTotal = double.parse(
                       (total + tip).toStringAsFixed(2));
-                  // Tipping is gated behind the existing Settings → Payments
-                  // flag; off = the row stays inert, as before this family.
-                  final VoidCallback? onTip = _payments.tippingEnabled
-                      ? () => _openTip(total)
-                      : null;
+                  // Settings → Payments "Enable tipping screen" (on by
+                  // default); off, the row explains instead of opening.
+                  final VoidCallback? onTip =
+                      hasItems ? () => _openTip(total) : null;
 
                   return Column(
                     children: [

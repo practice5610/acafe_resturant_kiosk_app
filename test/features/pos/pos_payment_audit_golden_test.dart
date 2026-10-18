@@ -39,6 +39,8 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_error_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_tip_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_standalone_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
@@ -410,6 +412,21 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
   '12_split_p4': (t) => _splitFrame(t,
       paid: const [(9.0, 'card'), (5.0, 'card'), (2.0, 'card')],
       typed: '3.00'),
+  // "Add tip" — no frame in the layer; built on the Apply-discount modal
+  // (1915:14411). Opened through the real screen.
+  'tip_modal_preset': (t) => _tipFrame(t, (t) async {
+        await _tapVisible(t, _inTip('10%'));
+      }),
+  'tip_modal_custom_error': (t) => _tipFrame(t, (t) async {
+        for (final k in ['2', '5']) {
+          await _tapVisible(
+              t,
+              find.descendant(
+                  of: find.byType(PosTipModal),
+                  matching: find.descendant(
+                      of: find.byType(PosKeypad), matching: find.text(k))));
+        }
+      }),
   '13_split_chooser': (t) => pumpComposedFrame(
         t,
         splitByItemActive: true,
@@ -581,6 +598,33 @@ Future<void> _sbiFrame(
   );
   // Let the scrollbar thumb finish fading in.
   await tester.pump(const Duration(seconds: 1));
+}
+
+Finder _inTip(String text) =>
+    find.descendant(of: find.byType(PosTipModal), matching: find.text(text));
+
+/// Taps [f] the way an operator reaches it: on a short window the panes stack
+/// into one scroll, so scroll to it first.
+Future<void> _tapVisible(WidgetTester tester, Finder f) async {
+  if (f.evaluate().isEmpty) {
+    final Finder panes = find.descendant(
+        of: find.byType(PosPayThreePane), matching: find.byType(Scrollable));
+    if (panes.evaluate().isNotEmpty) {
+      await tester.scrollUntilVisible(f, 200, scrollable: panes.first);
+    }
+  }
+  await tester.ensureVisible(f);
+  await tester.pumpAndSettle();
+  await tester.tap(f);
+  await tester.pumpAndSettle();
+}
+
+/// The payment screen with the tip modal open, then [then] applied.
+Future<void> _tipFrame(WidgetTester tester,
+    Future<void> Function(WidgetTester) then) async {
+  await pumpPaymentScreen(tester);
+  await _tapVisible(tester, find.text('Add tip'));
+  await then(tester);
 }
 
 /// Frames 18a / 18b: the receipt options over the "Order Paid" card.
