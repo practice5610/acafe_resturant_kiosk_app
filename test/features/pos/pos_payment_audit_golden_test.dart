@@ -25,6 +25,7 @@ import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_declined_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_error_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_success_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
@@ -391,6 +392,8 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
         buttonLabel: 'Start next payment',
         onContinue: () {},
       )),
+  '18a_receipt_email': (t) => _receiptFrame(t, print: false),
+  '18b_receipt_print': (t) => _receiptFrame(t, print: true),
   '22_terminal_offline': (t) => pumpOverlayFrame(
       t,
       PosPaymentErrorCard.terminalOffline(
@@ -468,6 +471,44 @@ Future<void> _sbiFrame(
   );
   // Let the scrollbar thumb finish fading in.
   await tester.pump(const Duration(seconds: 1));
+}
+
+/// Frames 18a / 18b: the receipt options over the "Order Paid" card.
+Future<void> _receiptFrame(WidgetTester tester, {required bool print}) async {
+  await pumpOverlayFrame(
+    tester,
+    Stack(
+      children: [
+        PosPaymentSuccessCard(
+          title: 'Order Paid',
+          amount: 19,
+          amountLabel: 'TOTAL PAID',
+          secondaryLabel: 'Receipt',
+          onSecondary: () {},
+          buttonLabel: 'Next order',
+          onContinue: () {},
+        ),
+        const Positioned.fill(
+          child: ColoredBox(color: PosPaymentSpec.v2DialogScrim),
+        ),
+        PosReceiptDialog(
+          orderId: 27362,
+          total: 19,
+          deviceId: 1,
+          onComplete: () {},
+          onSkip: () {},
+        ),
+      ],
+    ),
+  );
+  if (print) {
+    await tester.tap(find.text('Print'));
+  } else {
+    await tester.enterText(find.byType(TextField), 'dylan@example.com');
+  }
+  await tester.pump();
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pump(const Duration(milliseconds: 300));
 }
 
 /// A full-screen state: [card] alone on the page background, as the screen

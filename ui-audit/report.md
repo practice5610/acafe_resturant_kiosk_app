@@ -206,6 +206,25 @@ Verified on render (frames 14 & 16): labels 189 / 249, row text 229.5 / 289 / 38
 | 2 | Frame 19 | "Custom amount" per guest with keypad | No such mode (closest is "Split by payment") | High | **Not implemented (D9)** |
 | 3 | Frame 15 | Cash entry for a split-by-item payment (tender field, change, denominations, keypad) | Cash split-by-item records the group amount directly, no tender step | High | **Not implemented (D9)** — needs a tender step in the split-by-item money path |
 
+## 18a / 18b Order paid – Receipt options (1915:13024 · 13077)
+
+| # | Element | Figma value | Code value | File:line | Sev | Status |
+|---|---|---|---|---|---|---|
+| 1 | Scrim | `rgba(36,31,32,0.4)` | `Colors.black54` | screen `_showReceiptDialog` | Med | Fixed (`v2DialogScrim`) |
+| 2 | Text metrics | `leading-normal` | Dialog sits outside the screen's text scope → M3 1.43 line heights | `widgets/pos_receipt_dialog.dart` | Med | Fixed (`PosPayTextScope`) |
+| 3 | Header → tiles | gap-16, 0-tall line, gap-16 | 12 + 1px divider + 16 | same | Low | Fixed |
+| 4 | Modal & tile strokes | Inside (tiles 64 tall) | Outside (67 / 66) | same | Low | Fixed |
+| 5 | Radios | Figma radio: idle `#B9B5A6` 3px ring (24 drawn in an 18 slot), selected 24px filled with cream centre | Self-drawn: idle ink 2px ring at 18, selected white centre | same | Med | Fixed — shared `PosPayRadio` (also used by the OTHER rows now) |
+| 6 | Tile icons | Figma 14px mail / printer vectors (1.3 stroke) | lucide icons in a 24 viewBox | same | Low | Fixed — vectors inlined. Idle icon kept ink (Figma draws it white on a 10% well → near-invisible), see D10 |
+| 7 | Close icon | Figma 26px x-circle | lucide x-circle | same | Low | Fixed |
+| 8 | "EMAIL ADDRESS" tracking | 0 | 0.5 | same | Low | Fixed |
+| 9 | Email text position | centred in the 56px field, x+14 | 4px high, x+18 (outline notch gap) | `_EmailField` | Low | Fixed |
+| 10 | Subtitle amount | "€ 19.00" | `formatPrice` zero-padded → "€ 09.00" under €10 (extra bug) | `_ModalHeader` | Med | Fixed |
+
+Verified: 18a title 361, subtitle 389, tiles 475, EMAIL ADDRESS 515, field text 551.5 (x 437), helper 592, CTA 634;
+18b title 414.5, CTA 580.5 — equal to Figma relative to the dialog (Figma's 18a dialog sits 7px above centre while
+18b is centred; code centres both).
+
 ---
 
 ## Decisions for you
@@ -233,5 +252,6 @@ Verified on render (frames 14 & 16): labels 189 / 249, row text 229.5 / 289 / 38
 - **D9 — Split-by-item frames with no implementation**: 13 (By item / Custom amount chooser), 15 (cash tender
   step for a split-by-item payment) and 19 (custom amount per guest). Each is a new flow or a money-path
   change rather than a UI fix, so they are left for your go-ahead.
+- **D10 — Idle receipt-option icon** is white on a 10% well in Figma (unreadable). Kept ink; confirm.
 - **D5 — Amount header is 12px shorter on Cash than on Card** (47 vs 58 line box). Implemented per frame,
   so switching Card ↔ Cash moves "Amount due" by 11px. Say if one of the two should win.

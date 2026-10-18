@@ -1,5 +1,6 @@
 import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_send_repo.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -18,55 +19,28 @@ const _ctaBg       = Color(0xFF241F20);
 const _ctaLabel    = Color(0xFFF7F1DE);
 const _subtitleOp  = 0.60;
 
-// ── inline SVG icon strings ───────────────────────────────────────────────────
-const _inkHex = '#241F20';
+// ── Figma vectors, inlined (nodes 1915:13053 / 13063 / 13046) ─────────────
+// Drawn white on the ink well of the selected tile and ink on the idle one.
+// (The file also draws the idle icon white — on a 10% well that is close to
+// invisible, so the idle tile uses ink like the payment OTHER rows.)
+String _svgEmail(String stroke) =>
+    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M3.1 3H10.9C11.7837 3 12.5 3.71634 12.5 4.6V9.4C12.5 10.2837 11.7837 11 10.9 11H3.1C2.21634 11 1.5 10.2837 1.5 9.4V4.6C1.5 3.71634 2.21634 3 3.1 3Z" stroke="$stroke" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'
+    '<path d="M2.3 4.4L7 8L11.7 4.4" stroke="$stroke" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'
+    '</svg>';
 
-const _svgEmail =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_inkHex" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<rect width="20" height="16" x="2" y="4" rx="2"/>'
-    '<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
-
-const _svgEmailWhite =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<rect width="20" height="16" x="2" y="4" rx="2"/>'
-    '<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
-
-const _svgPrint =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_inkHex" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>'
-    '<path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/>'
-    '<rect width="12" height="8" x="6" y="14" rx="1"/></svg>';
-
-const _svgPrintWhite =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>'
-    '<path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/>'
-    '<rect width="12" height="8" x="6" y="14" rx="1"/></svg>';
+String _svgPrint(String stroke) =>
+    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M3.5 5V1.8H10.5V5" stroke="$stroke" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'
+    '<path d="M2.7 5H11.3C11.9627 5 12.5 5.53726 12.5 6.2V8.8C12.5 9.46274 11.9627 10 11.3 10H2.7C2.03726 10 1.5 9.46274 1.5 8.8V6.2C1.5 5.53726 2.03726 5 2.7 5Z" stroke="$stroke" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'
+    '<path d="M3.5 8H10.5V12.2H3.5V8Z" stroke="$stroke" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'
+    '</svg>';
 
 const _svgX =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_inkHex" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'
-    '<circle cx="12" cy="12" r="10"/>'
-    '<path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>';
+    '<svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M16.2504 9.74987L13.0001 13.0001M13.0001 13.0001L9.74987 16.2504M13.0001 13.0001L9.74987 9.74987M13.0001 13.0001L16.2504 16.2504M23.8343 13.0001C23.8343 18.9837 18.9837 23.8343 13.0001 23.8343C7.01657 23.8343 2.16593 18.9837 2.16593 13.0001C2.16593 7.01657 7.01657 2.16593 13.0001 2.16593C18.9837 2.16593 23.8343 7.01657 23.8343 13.0001Z" stroke="#241F20" stroke-width="2" stroke-linecap="round"/>'
+    '</svg>';
 
-const _svgRadioOn =
-    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
-    '<circle cx="12" cy="12" r="10" fill="$_inkHex"/>'
-    '<circle cx="12" cy="12" r="4" fill="white"/></svg>';
-
-const _svgRadioOff =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="$_inkHex" stroke-width="2" '
-    'xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"/></svg>';
-
-/// Receipt options overlay (Figma 1915:13024 / 1915:13077).
-///
-/// Two method tiles — Email / Print. Email adds an address input.
-/// Sending calls [PosReceiptSendRepo.send] then invokes [onComplete].
-/// The X button calls [onSkip] (close without receipt).
 class PosReceiptDialog extends StatefulWidget {
   final int orderId;
   final double total;
@@ -140,14 +114,19 @@ class _PosReceiptDialogState extends State<PosReceiptDialog> {
     return Center(
       child: Material(
         type: MaterialType.transparency,
+        child: PosPayTextScope(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Container(
             width: 560,
             padding: const EdgeInsets.all(20),
+            // Inside stroke, as in the file.
+            foregroundDecoration: BoxDecoration(
+              border: Border.all(color: _modalBorder, width: 1.5),
+              borderRadius: BorderRadius.circular(16),
+            ),
             decoration: BoxDecoration(
               color: _modalBg,
-              border: Border.all(color: _modalBorder, width: 1.5),
               borderRadius: BorderRadius.circular(16),
               boxShadow: const [
                 BoxShadow(
@@ -166,8 +145,21 @@ class _PosReceiptDialogState extends State<PosReceiptDialog> {
                   total:   widget.total,
                   onClose: widget.onSkip,
                 ),
-                const SizedBox(height: 12),
-                const Divider(color: _divider, thickness: 1, height: 1),
+                // gap-16 · a 0-tall `Line` (1915:13048) with its 1px stroke
+                // just above it · gap-16.
+                const SizedBox(height: 16),
+                const SizedBox(
+                  height: 0,
+                  child: OverflowBox(
+                    minHeight: 1,
+                    maxHeight: 1,
+                    alignment: Alignment.bottomCenter,
+                    child: ColoredBox(
+                      color: _divider,
+                      child: SizedBox(height: 1, width: double.infinity),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _MethodTiles(
                   selected: _method,
@@ -186,6 +178,7 @@ class _PosReceiptDialogState extends State<PosReceiptDialog> {
               ],
             ),
           ),
+        ),
         ),
       ),
     );
@@ -224,7 +217,7 @@ class _ModalHeader extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Order #$orderId · ${PosHomeSpec.formatPrice(total)} · How would you like it?',
+                'Order #$orderId · ${PosHomeSpec.formatPrice(total, padZero: false)} · How would you like it?',
                 style: loewBold.copyWith(
                   fontSize: 12,
                   color: PosHomeSpec.inkAlpha(_subtitleOp),
@@ -237,11 +230,7 @@ class _ModalHeader extends StatelessWidget {
             right: 0,
             child: GestureDetector(
               onTap: onClose,
-              child: SvgPicture.string(
-                _svgX,
-                width: 26,
-                height: 26,
-              ),
+              child: SvgPicture.string(_svgX, width: 26, height: 26),
             ),
           ),
         ],
@@ -265,8 +254,8 @@ class _MethodTiles extends StatelessWidget {
         Expanded(
           child: _MethodTile(
             label:     'Email',
-            iconSvg:   _svgEmail,
-            iconSvgWh: _svgEmailWhite,
+            iconSvg:   _svgEmail('#241F20'),
+            iconSvgWh: _svgEmail('#FFFFFF'),
             selected:  selected == 'email',
             onTap:     () => onSelect('email'),
           ),
@@ -275,8 +264,8 @@ class _MethodTiles extends StatelessWidget {
         Expanded(
           child: _MethodTile(
             label:     'Print',
-            iconSvg:   _svgPrint,
-            iconSvgWh: _svgPrintWhite,
+            iconSvg:   _svgPrint('#241F20'),
+            iconSvgWh: _svgPrint('#FFFFFF'),
             selected:  selected == 'print',
             onTap:     () => onSelect('print'),
           ),
@@ -309,6 +298,10 @@ class _MethodTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        // Inside stroke: the tile is 64 tall (10 + 24 + 6 + 14 + 10).
+        foregroundDecoration: BoxDecoration(
           border: Border.all(
             color: selected ? _tileActive : _tileIdle,
             width: selected ? 1.5 : 1.0,
@@ -338,11 +331,7 @@ class _MethodTile extends StatelessWidget {
                       height: 14,
                     ),
                   ),
-                  SvgPicture.string(
-                    selected ? _svgRadioOn : _svgRadioOff,
-                    width: selected ? 24 : 18,
-                    height: selected ? 24 : 18,
-                  ),
+                  PosPayRadio(selected: selected),
                 ],
               ),
             ),
@@ -380,7 +369,6 @@ class _EmailInputGroup extends StatelessWidget {
           'EMAIL ADDRESS',
           style: loewBold.copyWith(
             fontSize: 11,
-            letterSpacing: 0.5,
             color: PosHomeSpec.inkAlpha(_subtitleOp),
           ),
         ),
@@ -435,13 +423,18 @@ class _EmailFieldState extends State<_EmailField> {
             fontSize: 14,
             color: PosHomeSpec.inkAlpha(0.33),
           ),
+          // `Input Field` (1915:13071): 56 tall, text centred, px-14.
+          isDense: true,
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 19.5),
+          // No floating label → no notch gap (it would inset the text 4px).
           enabledBorder: OutlineInputBorder(
+            gapPadding: 0,
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: _tileActive, width: 1.5),
           ),
           focusedBorder: OutlineInputBorder(
+            gapPadding: 0,
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: _tileActive, width: 1.5),
           ),

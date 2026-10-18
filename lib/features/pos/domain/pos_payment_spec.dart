@@ -446,6 +446,8 @@ class PosPaymentSpec {
   static const double v2SuccessCardGap = 24;
   /// With an outline + filled pill pair (frames 18 / 28) the gap is 16.
   static const double v2SuccessCardGapTwoButtons = 16;
+  /// `dim-overlay` behind the receipt options (node 1915:13039): ink @ 40%.
+  static const Color v2DialogScrim = Color(0x66241F20);
   static const double v2SuccessShadowBlur = 12;
   static const Offset v2SuccessShadowOffset = Offset(0, 8);
   static const Color v2SuccessShadow = Color(0x0A241F20); // 4% ink

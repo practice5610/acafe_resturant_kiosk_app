@@ -490,3 +490,50 @@ class PosPayReceiptCard extends StatelessWidget {
     );
   }
 }
+
+/// The small radio of the OTHER rows and the receipt options (nodes 1915:9452
+/// / 10429 / 13056). Idle: an 18px slot drawing the 24px `#B9B5A6` ring
+/// (`inset -16.67%`), overhanging 3px each side. Selected: the 24px filled
+/// radio.
+class PosPayRadio extends StatelessWidget {
+  final bool selected;
+
+  const PosPayRadio({super.key, required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    const double drawn = PosPaymentSpec.v2OtherRadioDrawn;
+    if (selected) {
+      return SvgPicture.asset(
+        Images.posRadioOnSvg,
+        width: drawn,
+        height: drawn,
+        placeholderBuilder: (_) => const Icon(
+          Icons.radio_button_checked,
+          size: drawn,
+          color: PosHomeSpec.ink,
+        ),
+      );
+    }
+    return SizedBox(
+      width: PosPaymentSpec.v2OtherRadioSize,
+      height: PosPaymentSpec.v2OtherRadioSize,
+      child: OverflowBox(
+        minWidth: drawn,
+        maxWidth: drawn,
+        minHeight: drawn,
+        maxHeight: drawn,
+        child: SvgPicture.asset(
+          Images.posRadioOffSvg,
+          width: drawn,
+          height: drawn,
+          placeholderBuilder: (_) => const Icon(
+            Icons.radio_button_unchecked,
+            size: drawn,
+            color: PosHomeSpec.itemDivider,
+          ),
+        ),
+      ),
+    );
+  }
+}

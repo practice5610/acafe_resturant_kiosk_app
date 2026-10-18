@@ -1,8 +1,8 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_card.dart';
-import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -267,40 +267,7 @@ class _OtherMethodRow extends StatelessWidget {
               ),
               Opacity(
                 opacity: enabled ? 1.0 : 0.40,
-                // Idle: an 18px slot drawing the 24px ring (`inset -16.67%`,
-                // node 1915:9452), overhanging 3px each side. Selected: the
-                // 24px filled radio, flush right (node 1915:10429).
-                child: active
-                    ? SvgPicture.asset(
-                        Images.posRadioOnSvg,
-                        width: PosPaymentSpec.v2OtherRadioDrawn,
-                        height: PosPaymentSpec.v2OtherRadioDrawn,
-                        placeholderBuilder: (_) => const Icon(
-                          Icons.radio_button_checked,
-                          size: PosPaymentSpec.v2OtherRadioDrawn,
-                          color: PosHomeSpec.ink,
-                        ),
-                      )
-                    : SizedBox(
-                        width: PosPaymentSpec.v2OtherRadioSize,
-                        height: PosPaymentSpec.v2OtherRadioSize,
-                        child: OverflowBox(
-                          minWidth: PosPaymentSpec.v2OtherRadioDrawn,
-                          maxWidth: PosPaymentSpec.v2OtherRadioDrawn,
-                          minHeight: PosPaymentSpec.v2OtherRadioDrawn,
-                          maxHeight: PosPaymentSpec.v2OtherRadioDrawn,
-                          child: SvgPicture.asset(
-                            Images.posRadioOffSvg,
-                            width: PosPaymentSpec.v2OtherRadioDrawn,
-                            height: PosPaymentSpec.v2OtherRadioDrawn,
-                            placeholderBuilder: (_) => const Icon(
-                              Icons.radio_button_unchecked,
-                              size: PosPaymentSpec.v2OtherRadioDrawn,
-                              color: PosHomeSpec.itemDivider,
-                            ),
-                          ),
-                        ),
-                      ),
+                child: PosPayRadio(selected: active),
               ),
             ],
           ),

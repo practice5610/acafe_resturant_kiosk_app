@@ -1323,7 +1323,8 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'receipt',
-      barrierColor: Colors.black54,
+      // `dim-overlay` (1915:13039): ink at 40%.
+      barrierColor: PosPaymentSpec.v2DialogScrim,
       pageBuilder: (dialogContext, anim, secAnim) => PosReceiptDialog(
         orderId:    orderId,
         total:      total,
