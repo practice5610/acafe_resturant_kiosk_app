@@ -607,6 +607,8 @@ class PosPaymentSpec {
   static const double v2RefundPillHeight = 24;
   static const double v2RefundPillRadius = 12;
   static const double v2RefundPillLabelSize = 10;
+  static const double v2RefundPillLabelLeft = 1; // centre at 43 of 85
+  static const double v2RefundPillLabelTop = 5;
   /// The tip row once payments are listed (node 1915:9765): 48 tall, py-8.
   static const double v2SplitTipRowHeight = 48;
   /// "Payment Card/Open" (node 1915:10048).

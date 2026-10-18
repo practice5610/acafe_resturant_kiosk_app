@@ -22,12 +22,23 @@ class PosRefundSplit {
   final double amount;
   final String? reference;
 
+  /// A split-by-item group (`order_split_groups`, refunded by
+  /// `split_group_id`) rather than a split-by-payment row
+  /// (`order_partial_payments`, by `partial_payment_id`).
+  final bool itemGroup;
+
+  /// What the payment covered, for frame 29's "Cash · Oat Milk Matcha, …"
+  /// line: the group's item names. Null for a split by payment.
+  final String? items;
+
   const PosRefundSplit({
     required this.id,
     required this.seq,
     required this.method,
     required this.amount,
     this.reference,
+    this.itemGroup = false,
+    this.items,
   });
 
   String get label =>
@@ -52,6 +63,11 @@ class PosRefundSession {
   // ── set before entering the flow ──────────────────────────────────────
   PosReceiptDetail? order;
   List<PosRefundSplit> splits = [];
+
+  /// Opened from a paid row's Refund pill on the payment screen (frames
+  /// 09–12, 16) for the one payment in [splits]: the screen opens on frame 29
+  /// and Back / "Back to order" return to the sale instead of Receipts.
+  bool fromPayment = false;
 
   // ── screen 25 ─────────────────────────────────────────────────────────
   final ValueNotifier<Set<int>> selectedItemIndices =
@@ -115,6 +131,7 @@ class PosRefundSession {
   void reset() {
     order = null;
     splits = [];
+    fromPayment = false;
     resetFlow();
   }
 }
@@ -143,9 +160,11 @@ double posRefundableAmount({
 
   int remaining;
   if (split != null) {
+    final String source =
+        split.itemGroup ? 'split_group_id' : 'partial_payment_id';
     final int reserved = refunds
         .where((r) =>
-            '${r['partial_payment_id']}' == '${split.id}' &&
+            '${r[source]}' == '${split.id}' &&
             (r['status'] == 'pending' || r['status'] == 'succeeded'))
         .fold(0, (sum, r) => sum + cents(r['amount']));
     remaining = (split.amount * 100).round() - reserved;

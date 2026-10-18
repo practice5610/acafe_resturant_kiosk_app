@@ -36,6 +36,9 @@ import 'package:provider/provider.dart';
 ///   _RefundStep.chooseMethod → Screen 26 (single-payment) or
 ///   _RefundStep.chooseSplit  → (split order: pick which split; no frame —
 ///                              drawn like 26)
+///   _RefundStep.confirmSplit → Screen 29 before anything is created: opened
+///                              from a paid row's Refund pill on the payment
+///                              screen ([PosRefundSession.fromPayment])
 ///   _RefundStep.waiting      → Screen 27 (card) / 29 (cash confirm)
 ///   _RefundStep.complete     → Screen 28 / 30 (success)
 class PosRefundScreen extends StatefulWidget {
@@ -45,7 +48,14 @@ class PosRefundScreen extends StatefulWidget {
   State<PosRefundScreen> createState() => _PosRefundScreenState();
 }
 
-enum _RefundStep { selectItems, chooseSplit, chooseMethod, waiting, complete }
+enum _RefundStep {
+  selectItems,
+  chooseSplit,
+  chooseMethod,
+  confirmSplit,
+  waiting,
+  complete,
+}
 
 class _PosRefundScreenState extends State<PosRefundScreen> {
   final PosRefundSession _session = PosRefundSession.instance;
@@ -63,6 +73,13 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
     // order / splits that the caller just set — a full reset would wipe them
     // and _createRefund would crash on _session.order!.id.
     _session.resetFlow();
+    // One payment, from its Refund pill: straight to frame 29 for it.
+    if (_session.fromPayment && _session.splits.length == 1) {
+      final PosRefundSplit split = _session.splits.single;
+      _session.selectedSplit.value = split;
+      _session.refundMethod.value = split.method;
+      _step = _RefundStep.confirmSplit;
+    }
     _loadLedger();
   }
 
@@ -92,8 +109,26 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
     super.dispose();
   }
 
-  /// Back from the selection steps: to the receipt the refund was opened on.
-  void _back() => context.go(PosRoutes.receipts);
+  /// Back from the selection steps: to the receipt the refund was opened on,
+  /// or to the sale when opened from a payment row.
+  void _back() {
+    if (_session.fromPayment) {
+      _leaveToSale();
+    } else {
+      context.go(PosRoutes.receipts);
+    }
+  }
+
+  /// Back to the payment screen this refund was pushed from — still holding
+  /// its split session underneath.
+  void _leaveToSale() {
+    _session.reset();
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(PosRoutes.home);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -177,17 +212,27 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
           customerName: _customerName,
           table: _table,
         );
+      case _RefundStep.confirmSplit:
+        return _SplitConfirmStep(
+          onCancel: _leaveToSale,
+          onRefund: _refundOneSplit,
+        );
       case _RefundStep.waiting:
         return _WaitingStep(
           onConfirm: () => _confirmRefund(),
-          onCancel: () => setState(() =>
-              _step = _session.isSplitOrder
+          onCancel: () => setState(() => _step = _session.fromPayment
+              ? _RefundStep.confirmSplit
+              : _session.isSplitOrder
                   ? _RefundStep.chooseSplit
                   : _RefundStep.chooseMethod),
         );
       case _RefundStep.complete:
         return _CompleteStep(
           onDone: () {
+            if (_session.fromPayment) {
+              _leaveToSale();
+              return;
+            }
             _session.reset();
             context.go(PosRoutes.receipts);
           },
@@ -211,6 +256,7 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
     final String ref =
         'refund-${order.id}-${DateTime.now().millisecondsSinceEpoch}';
     _session.pendingRef.value = ref;
+    final PosRefundSplit? split = _session.selectedSplit.value;
 
     final ApiResponseModel result =
         await di.sl<PosRefundRepo>().create(
@@ -218,7 +264,8 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
       deviceId: deviceId,
       reference: ref,
       reason: _session.reason.value?.label,
-      partialPaymentId: _session.selectedSplit.value?.id,
+      partialPaymentId: split != null && !split.itemGroup ? split.id : null,
+      splitGroupId: split != null && split.itemGroup ? split.id : null,
     );
 
     _session.busy.value = false;
@@ -285,8 +332,28 @@ class _PosRefundScreenState extends State<PosRefundScreen> {
 
     setState(() => _step = _RefundStep.complete);
   }
-}
 
+  /// Frame 29's "Refund € X" for one payment: create the refund (only now —
+  /// the backend reserves it, and has no way to release one), then on cash
+  /// pay it out straight away when the backend's figure is the one the
+  /// operator just confirmed; on card, frame 27 while the terminal refunds.
+  Future<void> _refundOneSplit() async {
+    // Created already on this visit (the terminal step was cancelled): carry
+    // on with that refund rather than reserving a second one.
+    if (_session.pendingRefundSeq.value != null) {
+      setState(() => _step = _RefundStep.waiting);
+      return;
+    }
+    final double? quoted = _session.refundableFor(_session.selectedSplit.value);
+    await _createRefund();
+    if (!mounted || _step != _RefundStep.waiting) return;
+    final bool sameAmount = quoted != null &&
+        (quoted * 100).round() == (_session.refundAmount.value * 100).round();
+    if (_session.refundMethod.value == 'cash' && sameAmount) {
+      await _confirmRefund();
+    }
+  }
+}
 
 // ── Amounts shown while choosing ─────────────────────────────────────────────
 
@@ -746,6 +813,73 @@ class _SummaryRow extends StatelessWidget {
 
 // ── Screen 27 / 29 — terminal wait (card) and cash confirmation ──────────────
 
+/// Frame 29's line under the heading: the tender, and what the payment
+/// covered when it was a split by item ("Cash · Oat Milk Matcha, …").
+String _splitSubheading(PosRefundSplit split) {
+  final String? items = split.items;
+  if (items != null && items.isNotEmpty) {
+    return '${split.method == 'card' ? 'Card' : 'Cash'} · $items';
+  }
+  return split.method == 'card'
+      ? 'Card · refunded on the terminal'
+      : 'Cash · hand the refund to the customer from the drawer';
+}
+
+/// Frame 29 before the refund exists — "Refund Payment N?" for the one
+/// payment its Refund pill was tapped on: the backend's quote for it ("—"
+/// until loaded), Cancel / "Refund € X". Nothing is created until Refund.
+class _SplitConfirmStep extends StatelessWidget {
+  final VoidCallback onCancel;
+  final VoidCallback onRefund;
+
+  const _SplitConfirmStep({required this.onCancel, required this.onRefund});
+
+  @override
+  Widget build(BuildContext context) {
+    final PosRefundSession s = PosRefundSession.instance;
+    return _SessionBuilder(builder: (context) {
+      final PosRefundSplit? split = s.selectedSplit.value;
+      if (split == null) return const SizedBox.shrink();
+      final double? quoted = s.refundableFor(split);
+      final bool busy = s.busy.value;
+      final bool nothingLeft = quoted != null && quoted <= 0;
+      return PosPaymentStatusCard(
+        heading: 'Refund Payment ${split.seq}?',
+        subheading: _splitSubheading(split),
+        amountDue: quoted ?? 0,
+        amountText: quoted == null ? '—' : null,
+        amountLabel: 'REFUND AMOUNT',
+        belowAmount: s.error.value != null
+            ? _ErrorText(s.error)
+            : nothingLeft
+                ? const _Note('This payment has already been refunded.')
+                : null,
+        actions: [
+          Expanded(
+            child: PosPaymentCardButton(
+              insideStroke: true,
+              label: 'Cancel',
+              onTap: busy ? null : onCancel,
+            ),
+          ),
+          Expanded(
+            child: PosPaymentCardButton(
+              insideStroke: true,
+              label: busy
+                  ? 'Refunding...'
+                  : quoted == null
+                      ? 'Refund'
+                      : 'Refund ${PosHomeSpec.formatPrice(quoted, padZero: false)}',
+              filled: true,
+              onTap: busy || quoted == null || nothingLeft ? null : onRefund,
+            ),
+          ),
+        ],
+      );
+    });
+  }
+}
+
 class _WaitingStep extends StatelessWidget {
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
@@ -803,7 +937,9 @@ class _WaitingStep extends StatelessWidget {
           // Refund € X. A single-payment cash refund uses the same card.
           return PosPaymentStatusCard(
             heading: split != null ? 'Refund Payment ${split.seq}?' : 'Cash Refund',
-            subheading: 'Cash · hand the refund to the customer from the drawer',
+            subheading: split != null
+                ? _splitSubheading(split)
+                : 'Cash · hand the refund to the customer from the drawer',
             amountDue: amount,
             amountLabel: 'REFUND AMOUNT',
             belowAmount: s.error.value == null ? null : _ErrorText(s.error),
@@ -908,6 +1044,22 @@ class _CompleteStep extends StatelessWidget {
         buttonLabel: isSplit ? 'Back to order' : 'Back to Receipts',
         onContinue: onDone,
       ),
+    );
+  }
+}
+
+class _Note extends StatelessWidget {
+  final String text;
+  const _Note(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(text,
+          style: loewRegular.copyWith(
+              fontSize: 13, color: const Color(0xFFB5490A)),
+          textAlign: TextAlign.center),
     );
   }
 }

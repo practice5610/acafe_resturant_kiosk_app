@@ -87,6 +87,10 @@ class PosPaymentStatusCard extends StatelessWidget {
   /// card's approval code / error line).
   final Widget? belowAmount;
 
+  /// Replaces the formatted [amountDue] — the refund confirmation reads "—"
+  /// until the backend's figure has loaded rather than showing a guess.
+  final String? amountText;
+
   const PosPaymentStatusCard({
     super.key,
     this.indicator,
@@ -96,6 +100,7 @@ class PosPaymentStatusCard extends StatelessWidget {
     this.subheading,
     this.amountLabel = 'AMOUNT DUE',
     this.belowAmount,
+    this.amountText,
   });
 
   @override
@@ -169,7 +174,11 @@ class PosPaymentStatusCard extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: PosPaymentSpec.waitCardGap),
-                  _AmountDue(amount: amountDue, label: amountLabel),
+                  _AmountDue(
+                    amount: amountDue,
+                    label: amountLabel,
+                    text: amountText,
+                  ),
                   if (belowAmount != null) ...[
                     const SizedBox(height: PosPaymentSpec.v2RefundSlotGap),
                     belowAmount!,
@@ -322,8 +331,9 @@ class _PosWaitingDotsState extends State<PosWaitingDots>
 class _AmountDue extends StatelessWidget {
   final double amount;
   final String label;
+  final String? text;
 
-  const _AmountDue({required this.amount, this.label = 'AMOUNT DUE'});
+  const _AmountDue({required this.amount, this.label = 'AMOUNT DUE', this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -364,7 +374,7 @@ class _AmountDue extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              PosHomeSpec.formatPrice(amount, padZero: false),
+              text ?? PosHomeSpec.formatPrice(amount, padZero: false),
               maxLines: 1,
               style: loewExtraBold.copyWith(
                 fontSize: PosPaymentSpec.waitAmountSize,

@@ -22,6 +22,7 @@ import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_line_copy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_menu_actions.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_print.dart';
+import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_builder.dart';
@@ -48,6 +49,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dar
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_tip_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
+import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:flutter/material.dart';
@@ -797,6 +799,99 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
     if (context.mounted) {
       context.go(PosRoutes.home);
+    }
+  }
+
+  // ── Refund one payment (pill on frames 09–12 / 16 → 29 → 27 → 30) ───────
+
+  /// A paid split-by-payment row, as the refund flow takes it.
+  PosRefundSplit _refundSplitOfPayment(PosSplitPayment p) => PosRefundSplit(
+        id: p.id!,
+        seq: p.seq,
+        method: p.paidWith,
+        amount: p.paidAmount,
+        reference: p.reference,
+      );
+
+  /// A paid split-by-item group, with its items named for frame 29.
+  PosRefundSplit _refundSplitOfGroup(PosSplitByItemGroup g) {
+    final List<PosSplitByItemLineItem> items =
+        _buildLineItemsFromCart(context.read<CartProvider>().cartList);
+    return PosRefundSplit(
+      id: g.id!,
+      seq: g.seq,
+      method: g.paidWith,
+      amount: g.paidAmount,
+      reference: g.reference,
+      itemGroup: true,
+      items: [
+        for (final i in items)
+          if (g.itemIds.contains(i.id)) i.name,
+      ].join(', '),
+    );
+  }
+
+  /// A paid row's Refund pill: the existing refund flow for that one payment
+  /// (manager-gated like the Receipts entry), pushed over the sale so the
+  /// split session stays as it is underneath; the balance is read again on
+  /// the way back.
+  Future<void> _refundPayment(PosRefundSplit split) async {
+    if (!PosAccessScope.guard(context, PosPermission.processRefunds)) return;
+    final PosSplitState? byPayment = _split.value;
+    final PosSplitByItemState? byItem = _splitByItem.value;
+    final int orderId = byPayment?.orderId ?? byItem?.orderId ?? 0;
+    final int deviceId = byPayment?.deviceId ?? byItem?.deviceId ?? 0;
+    final List<CartModel> lines = [
+      for (final CartModel? l in context.read<CartProvider>().cartList)
+        if (l != null) l,
+    ];
+    final PosRefundSession refund = PosRefundSession.instance
+      ..reset()
+      ..order = PosReceiptDetail(
+        id: orderId,
+        placedAt: null,
+        customerName: _sale.customerName.text.trim(),
+        table: null,
+        method: split.method,
+        subtotal: kioskCartTotal(lines),
+        discount: context.read<CouponProvider>().discount ?? 0,
+        total: byPayment?.grandTotal ?? byItem?.grandTotal ?? 0,
+        orderStatus: 'pending',
+        paymentStatus: 'partial_paid',
+        lines: lines,
+      )
+      ..splits = [split]
+      ..fromPayment = true;
+    await context.push(PosRoutes.refund);
+    refund.reset();
+    if (!mounted) return;
+    await _refreshSplitBalance(orderId, deviceId);
+  }
+
+  /// Re-reads the split's balance after a refund. A failed read leaves the
+  /// pane as it was.
+  Future<void> _refreshSplitBalance(int orderId, int deviceId) async {
+    try {
+      if (_split.value != null) {
+        final ApiResponseModel r = await di
+            .sl<PosSplitRepo>()
+            .balance(orderId: orderId, deviceId: deviceId);
+        final dynamic data = r.response?.data;
+        if (!mounted || !r.isSuccess || data is! Map) return;
+        _split.update(PosSplitState.fromJson(Map<String, dynamic>.from(data),
+            deviceId: deviceId));
+      } else if (_splitByItem.value != null) {
+        final ApiResponseModel r = await di
+            .sl<PosSplitByItemRepo>()
+            .balance(orderId: orderId, deviceId: deviceId);
+        final dynamic data = r.response?.data;
+        if (!mounted || !r.isSuccess || data is! Map) return;
+        _splitByItem.update(PosSplitByItemState.fromJson(
+            Map<String, dynamic>.from(data),
+            deviceId: deviceId));
+      }
+    } catch (_) {
+      // Leave the pane as it was; the next recorded payment refreshes it.
     }
   }
 
@@ -2000,6 +2095,14 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                             _startSplit(grandTotal);
                                           },
                                     splitCustom: _splitCustom,
+                                    onRefundPayment: _change != null
+                                        ? null
+                                        : (p) => _refundPayment(
+                                            _refundSplitOfPayment(p)),
+                                    onRefundGroup: _change != null
+                                        ? null
+                                        : (g) => _refundPayment(
+                                            _refundSplitOfGroup(g)),
                                     splitChooser: _splitChooser,
                                     splitChoice: _splitChoice,
                                     onSplitChoice: (c) =>
@@ -2297,6 +2400,10 @@ class _Content extends StatelessWidget {
   /// The split was started from the chooser's Custom amount (frame 19).
   final bool splitCustom;
 
+  /// A paid row's Refund pill (shown only for a refundable payment).
+  final ValueChanged<PosSplitPayment>? onRefundPayment;
+  final ValueChanged<PosSplitByItemGroup>? onRefundGroup;
+
   /// Frame 13's chooser is on screen, with [splitChoice] picked.
   final bool splitChooser;
   final PosSplitChoice splitChoice;
@@ -2392,6 +2499,8 @@ class _Content extends StatelessWidget {
     required this.onSplitConfirm,
     required this.splitLoading,
     required this.splitCustom,
+    this.onRefundPayment,
+    this.onRefundGroup,
     required this.splitChooser,
     required this.splitChoice,
     required this.onSplitChoice,
@@ -2563,6 +2672,9 @@ class _Content extends StatelessWidget {
                       ? 'Card payment successful'
                       : 'Cash payment successful',
                   amount: g.paidAmount,
+                  onRefund: onRefundGroup != null && g.refundable
+                      ? () => onRefundGroup!(g)
+                      : null,
                 ),
             ],
             subtitle: 'By item · ${sbiPickedNames.join(', ')}',
@@ -2599,6 +2711,7 @@ class _Content extends StatelessWidget {
           // The order (tip included) is already placed: informational.
           tip: tip,
           amountOf: sbiAmountOf,
+          onRefund: onRefundGroup,
         ),
       );
     }
@@ -2620,6 +2733,7 @@ class _Content extends StatelessWidget {
           tip: tip,
           fill: fill,
           customAmount: splitCustom,
+          onRefund: onRefundPayment,
         ),
       );
     }

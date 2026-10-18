@@ -532,15 +532,25 @@ class _RefundPill extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: radius,
+          // Node 1915:9784: the label's box is 82 wide at x 2, top 5 — its
+          // centre sits at 43 of 85, and 5 from the top rather than centred.
           child: SizedBox(
             width: PosPaymentSpec.v2RefundPillWidth,
             height: PosPaymentSpec.v2RefundPillHeight,
-            child: Center(
-              child: Text(
-                'Refund',
-                style: loewBold.copyWith(
-                  fontSize: PosPaymentSpec.v2RefundPillLabelSize,
-                  color: PosHomeSpec.pageBg, // #F7F1DE
+            child: Padding(
+              padding: const EdgeInsets.only(
+                left: PosPaymentSpec.v2RefundPillLabelLeft,
+                top: PosPaymentSpec.v2RefundPillLabelTop,
+              ),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Text(
+                  'Refund',
+                  maxLines: 1,
+                  style: loewBold.copyWith(
+                    fontSize: PosPaymentSpec.v2RefundPillLabelSize,
+                    color: PosHomeSpec.pageBg, // #F7F1DE
+                  ),
                 ),
               ),
             ),

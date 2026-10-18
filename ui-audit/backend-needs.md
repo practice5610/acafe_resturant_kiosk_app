@@ -87,3 +87,20 @@ next payment settles whole. To let each guest pick their own items one payment a
    Σ(succeeded + posted) = `order_amount`.
 
 Either way, the snapshot should also return each group's `id` (B3).
+
+## B7 — A created refund can never be released
+
+`RefundController::create()` stores the refund as `pending`, and `pending` refunds count against the source's
+refundable balance (line ~365, `whereIn('status', ['pending','succeeded'])`). There is no cancel / void endpoint, so
+a refund created and then abandoned (operator cancels on the terminal step, app closed) blocks that money from ever
+being refunded again ("already fully refunded"). Needed: `POST refund/cancel {order_id, refund_seq}` that marks a
+`pending` refund `canceled` (excluded from the reservation), or an expiry for stale `pending` rows. The app now
+creates a refund only at the operator's final confirmation and reuses a pending one within the same visit, which
+narrows but cannot close this gap.
+
+## B8 — Split by item never marks the order `partial_paid`
+
+`SplitPaymentController::record()` sets `payment_status` to `partial_paid` / `paid`; `SplitByItemController::recordPayment()`
+only sets `paid` once every group is paid (line 211). `RefundController::resolveCeiling()` refuses any order not in
+`paid / partial_paid / partial_refunded`, so refunding one paid group before the whole order is settled returns 422.
+Fix: set `partial_paid` after a group payment while groups remain, as the split-by-payment controller does.

@@ -216,10 +216,13 @@ Future<CartProvider> pumpPaymentApp(
                     initialLocation: '/pay',
                     routes: [
                       GoRoute(path: '/pay', builder: (_, __) => home(prefs)),
+                      GoRoute(
+                        path: PosRoutes.refund,
+                        builder: (_, __) => const PosRefundScreen(),
+                      ),
                       for (final String stub in [
                         PosRoutes.home,
                         PosRoutes.receipts,
-                        PosRoutes.refund,
                       ])
                         GoRoute(
                           path: stub,
@@ -453,6 +456,7 @@ final Map<String, Future<void> Function(WidgetTester)> auditFrames = {
       items: _sbiTicket,
       selected: {2},
       paid: const PosSplitByItemGroup(
+          id: 201,
           seq: 1,
           itemIds: [0, 1],
           amount: 12,
@@ -558,6 +562,7 @@ Future<void> _sbiFrame(
         onPaymentMethodChanged: (_) {},
         onStartPayment: () {},
         groups: [if (paid != null) paid],
+        onRefund: (_) {},
       ),
     ),
     bar: PosPayPillBar(
@@ -776,6 +781,9 @@ Future<void> _splitFrame(
     payments: [
       for (int i = 0; i < paid.length; i++)
         PosSplitPayment(
+          // With an id (backend-needs B3) a paid row carries its Refund pill,
+          // as frames 09–12 draw it.
+          id: 100 + i,
           seq: i + 1,
           paidWith: paid[i].$2,
           paidAmount: paid[i].$1,
@@ -808,6 +816,7 @@ Future<void> _splitFrame(
         selectedDenomination: denomination,
         fill: fill,
         customAmount: custom,
+        onRefund: (_) {},
       ),
     ),
     bar: PosPayPillBar(

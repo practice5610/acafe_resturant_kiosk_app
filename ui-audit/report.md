@@ -438,3 +438,20 @@ N2 below). The cash step records the group's amount, never the tender.
 **Not done / limits:** a split by item with **three or more** payers cannot be expressed: the backend accepts one
 split definition per order (B6). Payment 2 therefore pays all remaining items together; the bar stays off for a
 partial pick of the remaining group.
+
+## R2b — Per-payment "Refund" on split rows (frames 09–12, 16 → 29 → 27 → 30)
+
+| # | Part | Figma | Built | Verified |
+|---|---|---|---|---|
+| 1 | Pill on a paid row | node 1915:9783: black 85×24 r12, "Refund" Loew Bold 10 `#F7F1DE`, label box x 2 / top 5 | `PosSplitPaidRow.onRefund` → `_RefundPill`; on split by payment, custom amount, split by item and the frame 15 cash step | label centre 1264 / top 237 = Figma (frame 09); goldens 09–12, 16 now carry the pill |
+| 2 | Shown only when refundable | — | a payment with an id (B3), `succeeded`, amount > 0 (`PosSplitPayment.refundable`, `PosSplitByItemGroup.refundable`); not in method-change mode | flow test "no payment id from the backend (today): no Refund pill" |
+| 3 | Connected to the existing refund flow | 29 "Refund Payment N?" · Cancel / Refund € X → 27 (card) → 30 "Payment N Refunded" · Back to order | the pill (manager-gated like the Receipts entry, `PosPermission.processRefunds`) pushes the existing `PosRefundScreen` in a new `fromPayment` mode for that one payment; the sale stays mounted underneath; Back / Cancel / "Back to order" pop back to it and the split balance is re-read | flow tests: card (29 → 27 → confirm → 30 → back to PAYMENT 2), cash (one tap pays out), cancel |
+| 4 | Only that payment's amount | — | `create` carries only `partial_payment_id` (split by payment) or `split_group_id` (split by item); no items; the quote is the backend's figure for that source ("—" until loaded) and cash pays out in the same tap only when the created amount equals it | payload asserted; "a refunded payment quotes € 0.00 and cannot be refunded again" |
+| 5 | Frame 29 subtitle | "Cash · Oat Milk Matcha, Vanilla Matcha Latte" | tender · the group's items (split by item); tender + instruction for split by payment (no items exist) | flow test "split by item: refunds the group by split_group_id" |
+
+**Order of calls.** The refund is created only when the operator taps "Refund € X" on 29 — not on entry — because the
+backend reserves a created refund and has no way to release it (B7). A card refund cancelled on 27 and retried in the
+same visit reuses the refund already created instead of reserving a second one.
+
+**Production today:** the pill stays hidden — neither split snapshot returns row ids (B3). After B3, refunding a
+split-by-item group mid-sale still needs B8, and the balance on the sale screen will not reopen until B4.

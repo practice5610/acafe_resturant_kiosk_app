@@ -3,6 +3,7 @@ import 'package:acafe_customer/di_container.dart' show sl;
 import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/pos/domain/pos_checkout.dart';
+import 'package:acafe_customer/features/pos/domain/pos_refund_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_by_item_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
@@ -10,6 +11,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,6 +60,9 @@ class FakeTerminal implements KioskPaymentService {
 /// `SplitPaymentController::record`: 422 above what is still owed.
 class FakeSplitRepo implements PosSplitRepo {
   double grandTotal = 19;
+
+  /// Backend-needs B3: the snapshot carries each payment's id.
+  bool withIds = false;
   final List<Map<String, dynamic>> payments = [];
   final List<double> rejected = [];
 
@@ -79,6 +84,7 @@ class FakeSplitRepo implements PosSplitRepo {
       return ApiResponseModel.withError('Amount exceeds remaining balance.');
     }
     payments.add({
+      if (withIds) 'id': 100 + payments.length + 1,
       'seq': payments.length + 1,
       'paid_with': paidWith,
       'paid_amount': paidAmount,
@@ -104,6 +110,7 @@ class FakeSplitRepo implements PosSplitRepo {
 /// group and must not exceed it. Response shapes as the controller's.
 class FakeSbiRepo implements PosSplitByItemRepo {
   double grandTotal = 19;
+  bool withIds = false;
   List<Map<String, dynamic>> groups = [];
   final List<List<Map<String, dynamic>>> creates = [];
   final List<(int, String, double)> records = [];
@@ -138,6 +145,7 @@ class FakeSbiRepo implements PosSplitByItemRepo {
     this.groups = [
       for (int i = 0; i < groups.length; i++)
         {
+          if (withIds) 'id': 200 + i + 1,
           'seq': i + 1,
           'amount': (groups[i]['amount'] as num).toDouble(),
           'item_ids': groups[i]['item_ids'],
@@ -150,6 +158,7 @@ class FakeSbiRepo implements PosSplitByItemRepo {
       'groups': [
         for (final g in this.groups)
           {
+            if (withIds) 'id': g['id'],
             'seq': g['seq'],
             'amount': g['amount'],
             'item_ids': g['item_ids'],
@@ -186,11 +195,98 @@ class FakeSbiRepo implements PosSplitByItemRepo {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// `RefundController`: `create` reserves the whole remaining balance of the
+/// source (a split row by `partial_payment_id`, a group by `split_group_id`)
+/// as `pending`; `confirm` settles it; `list` reports the ledger.
+class FakeRefundRepo implements PosRefundRepo {
+  FakeRefundRepo(this.splits, this.groups);
+
+  /// The paid sources, read from the split fakes like the controller reads
+  /// `order_partial_payments` / `order_split_groups`.
+  final FakeSplitRepo splits;
+  final FakeSbiRepo groups;
+  final List<Map<String, dynamic>> refunds = [];
+  final List<Map<String, dynamic>> created = [];
+  final List<Map<String, dynamic>> confirmed = [];
+
+  @override
+  Future<ApiResponseModel> list({
+    required int orderId,
+    required int deviceId,
+  }) async =>
+      _ok({
+        'refundable_remaining': 19.0,
+        'refunds': [for (final r in refunds) Map<String, dynamic>.from(r)],
+      });
+
+  @override
+  Future<ApiResponseModel> create({
+    required int orderId,
+    required int deviceId,
+    required String reference,
+    String? reason,
+    List<int>? itemsJson,
+    int? partialPaymentId,
+    int? splitGroupId,
+  }) async {
+    created.add({
+      'partial_payment_id': partialPaymentId,
+      'split_group_id': splitGroupId,
+      'items_json': itemsJson,
+    });
+    final int id = partialPaymentId ?? splitGroupId!;
+    final String key =
+        partialPaymentId != null ? 'partial_payment_id' : 'split_group_id';
+    final Map<String, dynamic> source = partialPaymentId != null
+        ? splits.payments.firstWhere((p) => p['id'] == id)
+        : groups.groups.firstWhere((g) => g['id'] == id);
+    final double paid =
+        (source['paid_amount'] ?? source['amount'] as num).toDouble();
+    final int reserved = refunds
+        .where((r) => r[key] == id)
+        .fold(0, (a, r) => a + _cents(r['amount'] as double));
+    final int left = _cents(paid) - reserved;
+    if (left <= 0) {
+      return ApiResponseModel.withError('This payment is already fully refunded.');
+    }
+    refunds.add({
+      key: id,
+      'amount': left / 100,
+      'status': 'pending',
+      'refund_seq': refunds.length + 1,
+    });
+    return _ok({
+      'refund_id': refunds.length,
+      'refund_seq': refunds.length,
+      'amount': left / 100,
+      'method': source['paid_with'],
+    });
+  }
+
+  @override
+  Future<ApiResponseModel> confirm({
+    required int orderId,
+    required int refundSeq,
+    required String method,
+    required String reference,
+    required int deviceId,
+    String? approvalCode,
+  }) async {
+    confirmed.add({'refund_seq': refundSeq, 'method': method});
+    refunds[refundSeq - 1]['status'] = 'succeeded';
+    return _ok({'status': 'succeeded'});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 // ── Harness ────────────────────────────────────────────────────────────────
 
 late FakeTerminal terminal;
 late FakeSplitRepo splitRepo;
 late FakeSbiRepo sbiRepo;
+late FakeRefundRepo refundRepo;
 late List<double> placed;
 bool placeFails = false;
 
@@ -203,11 +299,13 @@ void setUpFlowFakes() {
   terminal = FakeTerminal();
   splitRepo = FakeSplitRepo();
   sbiRepo = FakeSbiRepo();
+  refundRepo = FakeRefundRepo(splitRepo, sbiRepo);
   placed = [];
   placeFails = false;
   _register<KioskPaymentService>(terminal);
   _register<PosSplitRepo>(splitRepo);
   _register<PosSplitByItemRepo>(sbiRepo);
+  _register<PosRefundRepo>(refundRepo);
   debugPosPlaceOrder = (context,
       {required amount,
       paymentRef,
@@ -227,6 +325,7 @@ void tearDownFlowFakes() {
     () => sl.unregister<KioskPaymentService>(),
     () => sl.unregister<PosSplitRepo>(),
     () => sl.unregister<PosSplitByItemRepo>(),
+    () => sl.unregister<PosRefundRepo>(),
   ]) {
     try {
       unregister();
@@ -238,6 +337,15 @@ Future<void> tap(WidgetTester tester, Finder f) async {
   await tester.ensureVisible(f);
   await tester.tap(f);
   await tester.pumpAndSettle();
+}
+
+/// For steps with a looping animation (the terminal's waiting dots), where
+/// nothing ever settles.
+Future<void> tapAndPump(WidgetTester tester, Finder f) async {
+  await tester.tap(f);
+  for (int i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 /// The sticky bar's label and whether it is live.
@@ -548,6 +656,125 @@ void main() {
       expect(splitRepo.rejected, isEmpty);
       expect(splitRepo.payments.single['paid_amount'], 19.0);
       expect(find.text('Order Paid'), findsOneWidget);
+    });
+  });
+
+  group('2b · Refund one payment from its row', () {
+    Finder pill() => find.descendant(
+        of: find.byType(PosSplitPaidRow), matching: find.text('Refund'));
+
+    Future<void> payFirstSplit(WidgetTester tester,
+        {required String amount, bool cash = false}) async {
+      await pumpPaymentScreen(tester, routed: true);
+      await tap(tester, find.text('Split by payment'));
+      if (cash) {
+        await tap(
+            tester,
+            find.descendant(
+                of: find.byType(PosSplitMethodToggle),
+                matching: find.text('Cash')));
+      }
+      await keys(tester, amount);
+      await confirmBar(tester);
+      await tap(tester, find.text('Start next payment'));
+    }
+
+    testWidgets('no payment id from the backend (today): no Refund pill',
+        (tester) async {
+      await payFirstSplit(tester, amount: '9');
+      expect(find.byType(PosSplitPaidRow), findsOneWidget);
+      expect(pill(), findsNothing);
+    });
+
+    testWidgets('card: 29 → create → 27 → confirm → 30 → back to the sale',
+        (tester) async {
+      splitRepo.withIds = true;
+      await payFirstSplit(tester, amount: '9');
+      expect(pill(), findsOneWidget);
+      await tap(tester, pill());
+
+      // Frame 29, before anything is created.
+      expect(find.text('Refund Payment 1?'), findsOneWidget);
+      expect(find.text('Refund € 9.00'), findsOneWidget);
+      expect(refundRepo.created, isEmpty);
+      await tapAndPump(tester, find.text('Refund € 9.00'));
+
+      // Only that payment: by its partial_payment_id, no items.
+      expect(refundRepo.created.single, {
+        'partial_payment_id': 101,
+        'split_group_id': null,
+        'items_json': null,
+      });
+      expect(find.text('Waiting for card on terminal...'), findsOneWidget);
+      await tapAndPump(tester, find.text('Confirm Refund'));
+      await tester.pumpAndSettle();
+      expect(refundRepo.confirmed.single, {'refund_seq': 1, 'method': 'card'});
+
+      expect(find.text('Payment 1 Refunded'), findsOneWidget);
+      expect(find.text('€ 9.00'), findsWidgets);
+      await tap(tester, find.text('Back to order'));
+
+      // The sale is still there, on the next payment.
+      expect(find.text('PAYMENT 2'), findsOneWidget);
+      expect(find.byType(PosSplitPaidRow), findsOneWidget);
+      expect(splitRepo.payments, hasLength(1));
+    });
+
+    testWidgets('cash: one tap on "Refund € X" pays it out', (tester) async {
+      splitRepo.withIds = true;
+      await payFirstSplit(tester, amount: '5', cash: true);
+      await tap(tester, pill());
+      expect(find.text('Cash · hand the refund to the customer from the drawer'),
+          findsOneWidget);
+      await tap(tester, find.text('Refund € 5.00'));
+      expect(refundRepo.created, hasLength(1));
+      expect(refundRepo.confirmed.single, {'refund_seq': 1, 'method': 'cash'});
+      expect(find.text('Payment 1 Refunded'), findsOneWidget);
+    });
+
+    testWidgets('Cancel on 29 goes back and creates nothing', (tester) async {
+      splitRepo.withIds = true;
+      await payFirstSplit(tester, amount: '9');
+      await tap(tester, pill());
+      await tap(tester, find.text('Cancel'));
+      expect(find.text('PAYMENT 2'), findsOneWidget);
+      expect(refundRepo.created, isEmpty);
+    });
+
+    testWidgets('a refunded payment quotes € 0.00 and cannot be refunded again',
+        (tester) async {
+      splitRepo.withIds = true;
+      await payFirstSplit(tester, amount: '5', cash: true);
+      await tap(tester, pill());
+      await tap(tester, find.text('Refund € 5.00'));
+      await tap(tester, find.text('Back to order'));
+      await tap(tester, pill());
+      expect(find.text('This payment has already been refunded.'),
+          findsOneWidget);
+      final PosPaymentCardButton refund = tester.widget<PosPaymentCardButton>(
+          find.widgetWithText(PosPaymentCardButton, 'Refund € 0.00'));
+      expect(refund.onTap, isNull);
+    });
+
+    testWidgets('split by item: refunds the group by split_group_id',
+        (tester) async {
+      sbiRepo.withIds = true;
+      await openChooser(tester);
+      await confirmBar(tester);
+      await tap(tester, inPane(PosSplitByItemPanel, 'Oat Milk Matcha'));
+      await tap(tester, inPane(PosSplitByItemPanel, 'Vanilla Matcha Latte'));
+      await tap(tester, inPane(PosPayWithRow, 'Cash'));
+      await confirmBar(tester);
+      await confirmBar(tester);
+      await tap(tester, find.text('Start next payment'));
+
+      await tap(tester, pill());
+      expect(find.text('Cash · Oat Milk Matcha, Vanilla Matcha Latte'),
+          findsOneWidget);
+      await tap(tester, find.text('Refund € 12.00'));
+      expect(refundRepo.created.single['split_group_id'], 201);
+      expect(refundRepo.created.single['partial_payment_id'], isNull);
+      expect(find.text('Payment 1 Refunded'), findsOneWidget);
     });
   });
 }
