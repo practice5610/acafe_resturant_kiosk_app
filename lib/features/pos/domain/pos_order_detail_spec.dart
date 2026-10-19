@@ -115,13 +115,18 @@ class PosOrderDetailSpec {
   static const double contactTextSize = 13;
   static const double contactLineGap = 4;
 
-  // Notes card
+  // Order Notes card — every note on the order in one place, under Total:
+  // the order's own and each line's instruction, labelled with its line.
   static const double noteRadius = 10;
-  static const double notePad = 14;
-  static const double noteTextSize = 13;
-  static const double noteLineHeight = 18;
+  static const double notePad = 16;
+  static const double noteTextSize = 15;
+  static const double noteLineHeight = 22;
   static const Color noteBg = Color(0xFFFFF8EE);
   static const Color noteBorder = Color(0xFFF2C94C);
+
+  /// Between two notes: half above a hairline in [noteBorder], half below.
+  static const double noteEntryGap = 12;
+  static const Color noteDivider = Color(0x80F2C94C);
 
   // Items
   static const double itemsLabelGap = 4;
@@ -137,6 +142,28 @@ class PosOrderDetailSpec {
   static const double itemDetailGap = 4;
   static const Color itemDivider = Color(0xFFB9B5A6);
   static const Color itemNoteInk = Color(0x87241F20);
+
+  // Note labels — the `NOTE` / line-name heading over each entry in the
+  // Order Notes card, in dark amber with a note icon.
+  static const double itemNoteLabelSize = 11;
+  static const double itemNoteLabelTracking = 1;
+  static const double itemNoteLabelGap = 4;
+  static const double itemNoteIconSize = 14;
+  static const double itemNoteIconGap = 6;
+
+  /// Dark amber: the label and icon on [noteBg], ~5.6:1.
+  static const Color itemNoteLabelInk = Color(0xFF8A6100);
+
+  // Item note tag — the line's own marker that it has a note. Not in Figma
+  // (its `item-note` is the add-on line). The text itself lives in the Order
+  // Notes card; the tag ties the row to it without drawing the note twice.
+  static const double itemNoteTagGap = 6;
+  static const double itemNoteTagRadius = 10;
+  static const double itemNoteTagPadH = 8;
+  static const double itemNoteTagPadV = 3;
+  static const double itemNoteTagIconSize = 12;
+  static const double itemNoteTagIconGap = 4;
+  static const double itemNoteTagTextSize = 10;
 
   // ── Per-item kitchen status ──────────────────────────────────────────
   // The chip and action live on the trailing edge of the existing item row --

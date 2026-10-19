@@ -105,18 +105,26 @@ class PosOrderDetail {
   /// Notes", which reads as a note the customer left.
   ///
   /// Only that first line is dropped, and only when it really is the carrier:
-  /// an order with a genuine note underneath keeps it.
+  /// an order with a genuine note underneath keeps it. A nameless sale's
+  /// carrier is the bare `Kiosk order` marker, which carries nothing at all.
+  ///
+  /// `kioskOrderNote()` also writes a `Tip: 10% (0.65)` line when a tip was
+  /// given. The tip already has its own row under Total, so that generated
+  /// line is dropped too (the server's `Helpers::parseOrderNote` does the
+  /// same) — but only in exactly that shape, so a customer's own line that
+  /// happens to start with "Tip:" still shows.
   String? get displayNote {
     final String raw = (orderNote ?? '').trim();
     if (raw.isEmpty) return null;
 
-    final List<String> lines = raw.split('\n');
+    final List<String> lines = raw.split(RegExp(r'\r\n|\r|\n'));
     // Mirrors the server-side regex in KioskManagerController::
     // displayCustomerName() — em dash, en dash or hyphen.
     final RegExp carrier = RegExp(
       r'^\s*Kiosk order\s*[—–-]\s*(.+)$',
       caseSensitive: false,
     );
+    final RegExp bareMarker = RegExp(r'^\s*Kiosk order\s*$', caseSensitive: false);
 
     final RegExpMatch? match = carrier.firstMatch(lines.first);
     if (match != null) {
@@ -126,7 +134,15 @@ class PosOrderDetail {
       if (carried.isNotEmpty && carried == customerName.trim()) {
         lines.removeAt(0);
       }
+    } else if (bareMarker.hasMatch(lines.first)) {
+      lines.removeAt(0);
     }
+
+    final RegExp generatedTip = RegExp(
+      r'^\s*Tip:\s*\d+(?:\.\d+)?\s*%\s*\(\d+(?:\.\d+)?\)\s*$',
+      caseSensitive: false,
+    );
+    lines.removeWhere(generatedTip.hasMatch);
 
     final String rest = lines.join('\n').trim();
     return rest.isEmpty ? null : rest;
@@ -243,7 +259,14 @@ class PosOrderDetailItem {
   /// Whether this line has anything to draw under its price row. Figma always
   /// shows an `item-note`, but a line with no add-ons and no instruction has
   /// nothing to put there, so the row is omitted rather than left blank.
-  bool get hasNotes => addons.isNotEmpty || (instruction?.trim().isNotEmpty ?? false);
+  bool get hasNotes => addons.isNotEmpty || note != null;
+
+  /// The customer's note for this line, trimmed; null when there is none.
+  /// Drawn as its own callout, never as one more add-on line.
+  String? get note {
+    final String trimmed = (instruction ?? '').trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
 
   /// Only a line the server can address is actionable.
   bool get isActionable => id != null;

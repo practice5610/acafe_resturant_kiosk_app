@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_menu_anchor.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -32,129 +33,126 @@ class PosOrderMoreButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: enabled ? 1 : PosOrderDetailSpec.itemActionDisabledOpacity,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? () => _open(context) : null,
-          borderRadius:
-              BorderRadius.circular(PosOrderDetailSpec.moreButtonRadius),
-          child: Container(
-            width: PosOrderDetailSpec.moreButtonSize,
-            height: PosOrderDetailSpec.moreButtonSize,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius:
-                  BorderRadius.circular(PosOrderDetailSpec.moreButtonRadius),
-              border: Border.all(color: PosOrderDetailSpec.ink, width: 1.5),
-            ),
-            child: const Icon(
-              Icons.more_horiz_rounded,
-              size: PosOrderDetailSpec.moreButtonIconSize,
-              color: PosOrderDetailSpec.ink,
+    return PosOrderMoreMenu(
+      enabled: enabled,
+      isHeld: isHeld,
+      onSelected: onSelected,
+      triggerBuilder: (context, isOpen, toggle) => Opacity(
+        opacity: enabled ? 1 : PosOrderDetailSpec.itemActionDisabledOpacity,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: enabled ? toggle : null,
+            borderRadius:
+                BorderRadius.circular(PosOrderDetailSpec.moreButtonRadius),
+            child: Container(
+              width: PosOrderDetailSpec.moreButtonSize,
+              height: PosOrderDetailSpec.moreButtonSize,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(PosOrderDetailSpec.moreButtonRadius),
+                border: Border.all(color: PosOrderDetailSpec.ink, width: 1.5),
+              ),
+              child: const Icon(
+                Icons.more_horiz_rounded,
+                size: PosOrderDetailSpec.moreButtonIconSize,
+                color: PosOrderDetailSpec.ink,
+              ),
             ),
           ),
         ),
       ),
     );
   }
-
-  Future<void> _open(BuildContext context) async {
-    final RenderBox? box = context.findRenderObject() as RenderBox?;
-    if (box == null) return;
-
-    final Offset origin = box.localToGlobal(Offset.zero);
-    final PosOrderMenuAction? action = await showPosOrderMoreMenu(
-      context,
-      anchor: origin,
-      buttonSize: box.size,
-      isHeld: isHeld,
-    );
-
-    if (action == null) return;
-    await onSelected(action);
-  }
 }
 
-/// Opens the compact menu above the ⋯ button.
+/// The order's compact action menu, hung off the button [triggerBuilder]
+/// draws.
 ///
-/// Positioned rather than centred: the button lives in the sticky bar at the
-/// bottom of the modal, so the menu opens upward and stays clear of the screen
-/// edge on a narrow terminal.
+/// It opens through [PosMenuAnchor], the same root-overlay mechanism as every
+/// POS dropdown, so it stays glued to its button wherever that button lives —
+/// the board under the shell's nav bar, or the detail modal on top of it.
+///
+/// By default it opens above the button, left-aligned to it: the detail
+/// modal's ⋯ lives in the sticky bar at its bottom. [openBelow] is for a
+/// button at the top of its surface — the card's ⋮ — so the menu drops under
+/// it, right-aligned to it. Either way it takes the other side when there is
+/// no room.
 ///
 /// [advanceLabel] adds the forward rung as the first row (the board card's
 /// menu); [sideExits] false leaves Pause / Resume / Cancel out (an order that
-/// can only be advanced). [openBelow] is for a button at the top of its
-/// surface — the card's ⋮ — so the menu drops under it, right-aligned to it.
-Future<PosOrderMenuAction?> showPosOrderMoreMenu(
-  BuildContext context, {
-  required Offset anchor,
-  required Size buttonSize,
-  required bool isHeld,
-  String? advanceLabel,
-  bool sideExits = true,
-  bool openBelow = false,
-}) {
-  final Size screen = MediaQuery.sizeOf(context);
+/// can only be advanced).
+class PosOrderMoreMenu extends StatelessWidget {
+  final bool isHeld;
+  final String? advanceLabel;
+  final bool sideExits;
+  final bool openBelow;
+  final bool enabled;
+  final ValueChanged<PosOrderMenuAction> onSelected;
+  final PosMenuTriggerBuilder triggerBuilder;
 
-  const double width = PosOrderDetailSpec.moreMenuWidth;
-  final int rows = (advanceLabel == null ? 0 : 1) + (sideExits ? 2 : 0);
-  final double height = rows * PosOrderDetailSpec.moreMenuRowHeight +
-      PosOrderDetailSpec.moreMenuPadV * 2;
+  const PosOrderMoreMenu({
+    super.key,
+    required this.isHeld,
+    required this.onSelected,
+    required this.triggerBuilder,
+    this.advanceLabel,
+    this.sideExits = true,
+    this.openBelow = false,
+    this.enabled = true,
+  });
 
-  double left = openBelow ? anchor.dx + buttonSize.width - width : anchor.dx;
-  left = left.clamp(12.0, (screen.width - width - 12).clamp(12.0, screen.width));
+  /// Key of the open menu panel (for tests).
+  static const Key menuKey = Key('pos-order-more-menu');
 
-  final double above = anchor.dy - height - PosOrderDetailSpec.moreMenuGap;
-  final double below =
-      anchor.dy + buttonSize.height + PosOrderDetailSpec.moreMenuGap;
+  int get _rows => (advanceLabel == null ? 0 : 1) + (sideExits ? 2 : 0);
 
-  // The preferred side first; the other one if there is no room there.
-  double top;
-  if (openBelow) {
-    top = below + height > screen.height - 12 && above >= 12 ? above : below;
-  } else {
-    top = above < 12 ? below : above;
+  @override
+  Widget build(BuildContext context) {
+    final double height = _rows * PosOrderDetailSpec.moreMenuRowHeight +
+        PosOrderDetailSpec.moreMenuPadV * 2;
+
+    return PosMenuAnchor(
+      enabled: enabled && _rows > 0,
+      menuHeight: height,
+      // Three rows at most: never squeezed into a scroll.
+      menuMinHeight: height,
+      menuMinWidth: PosOrderDetailSpec.moreMenuWidth,
+      gap: PosOrderDetailSpec.moreMenuGap,
+      side: openBelow ? PosMenuSide.below : PosMenuSide.above,
+      align: openBelow ? PosMenuAlign.end : PosMenuAlign.start,
+      triggerBuilder: triggerBuilder,
+      menuBuilder: (context, layout, close) => _MoreMenuPanel(
+        isHeld: isHeld,
+        advanceLabel: advanceLabel,
+        sideExits: sideExits,
+        onSelect: (PosOrderMenuAction action) {
+          close();
+          onSelected(action);
+        },
+      ),
+    );
   }
-
-  return showGeneralDialog<PosOrderMenuAction>(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: 'Dismiss',
-    barrierColor: Colors.transparent,
-    useRootNavigator: false,
-    pageBuilder: (_, __, ___) => Stack(
-      children: [
-        Positioned(
-          left: left,
-          top: top,
-          width: width,
-          child: _MoreMenuPanel(
-            isHeld: isHeld,
-            advanceLabel: advanceLabel,
-            sideExits: sideExits,
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _MoreMenuPanel extends StatelessWidget {
   final bool isHeld;
   final String? advanceLabel;
   final bool sideExits;
+  final ValueChanged<PosOrderMenuAction> onSelect;
 
   const _MoreMenuPanel({
     required this.isHeld,
     required this.advanceLabel,
     required this.sideExits,
+    required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
+      key: PosOrderMoreMenu.menuKey,
       color: Colors.transparent,
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -175,28 +173,32 @@ class _MoreMenuPanel extends StatelessWidget {
                 action: PosOrderMenuAction.advance,
                 label: advanceLabel!,
                 icon: Icons.check_circle_outline_rounded,
+                onSelect: onSelect,
               ),
             if (sideExits) ...[
               // Resume rather than Pause while held — the same swap the
               // kitchen menu makes, so the one row always offers the move that
               // applies.
               if (isHeld)
-                const _MoreMenuRow(
+                _MoreMenuRow(
                   action: PosOrderMenuAction.resume,
                   label: 'Resume order',
                   icon: Icons.play_arrow_rounded,
+                  onSelect: onSelect,
                 )
               else
-                const _MoreMenuRow(
+                _MoreMenuRow(
                   action: PosOrderMenuAction.hold,
                   label: 'Mark on hold',
                   icon: Icons.pause_circle_outlined,
+                  onSelect: onSelect,
                 ),
-              const _MoreMenuRow(
+              _MoreMenuRow(
                 action: PosOrderMenuAction.cancel,
                 label: 'Cancel order',
                 icon: Icons.cancel_outlined,
                 danger: true,
+                onSelect: onSelect,
               ),
             ],
           ],
@@ -211,11 +213,13 @@ class _MoreMenuRow extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool danger;
+  final ValueChanged<PosOrderMenuAction> onSelect;
 
   const _MoreMenuRow({
     required this.action,
     required this.label,
     required this.icon,
+    required this.onSelect,
     this.danger = false,
   });
 
@@ -227,7 +231,7 @@ class _MoreMenuRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => Navigator.of(context).pop(action),
+        onTap: () => onSelect(action),
         child: SizedBox(
           height: PosOrderDetailSpec.moreMenuRowHeight,
           child: Padding(

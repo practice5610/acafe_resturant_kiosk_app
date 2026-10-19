@@ -7,6 +7,7 @@ import 'package:acafe_customer/features/pos/domain/pos_order_timer.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_item_status_widgets.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -36,10 +37,15 @@ class PosOrderCardTile extends StatelessWidget {
   /// A write for this order is in flight: the ⋮ shows a spinner and is inert.
   final bool pending;
 
-  /// Opens the card's ⋮ menu, handed the ⋮ button's own context so the menu
-  /// anchors on the button, not the whole card. Null when the order has
+  /// The ⋮ menu's forward rung ("Accept order", "Mark as ready", …), if any.
+  final String? menuAdvanceLabel;
+
+  /// Whether the ⋮ menu offers Hold / Resume and Cancel.
+  final bool menuSideExits;
+
+  /// Runs the row picked in the card's ⋮ menu. Null when the order has
   /// nothing left to do; the ⋮ is then drawn dimmed.
-  final ValueChanged<BuildContext>? onMenu;
+  final ValueChanged<PosOrderMenuAction>? onMenuAction;
 
   /// Opens the order detail overlay. A tap anywhere on the card outside the ⋮
   /// (which claims its own tap first) opens the detail.
@@ -50,13 +56,19 @@ class PosOrderCardTile extends StatelessWidget {
     required this.order,
     required this.now,
     this.pending = false,
-    this.onMenu,
+    this.menuAdvanceLabel,
+    this.menuSideExits = false,
+    this.onMenuAction,
     this.onTap,
   });
 
   /// The ⋮ of order [orderId], for tests and for anchoring.
   static Key menuKeyFor(int orderId) =>
       ValueKey<String>('pos-order-menu-$orderId');
+
+  /// The amber note strip of order [orderId], for tests.
+  static Key notePreviewKeyFor(int orderId) =>
+      ValueKey<String>('pos-order-note-preview-$orderId');
 
   static final DateFormat _clock = DateFormat('HH:mm');
 
@@ -157,6 +169,13 @@ class PosOrderCardTile extends StatelessWidget {
               _topRow(urgent),
               const SizedBox(height: PosOrdersSpec.cardBlockGap),
               _customerBlock(),
+              if (order.hasNotes) ...[
+                const SizedBox(height: PosOrdersSpec.cardBlockGap),
+                _NotePreview(
+                  key: notePreviewKeyFor(order.id),
+                  notes: order.notes,
+                ),
+              ],
               // IN PROGRESS: `customer-info` is flex-1, so the timer and the
               // footer sit on the card's bottom edge (1915:15986). NEW and
               // finished cards stack from the top and keep the slack below.
@@ -195,7 +214,10 @@ class PosOrderCardTile extends StatelessWidget {
             key: menuKeyFor(order.id),
             pending: pending,
             finished: finished,
-            onMenu: onMenu,
+            isHeld: order.orderStatus == 'on_hold',
+            advanceLabel: menuAdvanceLabel,
+            sideExits: menuSideExits,
+            onMenuAction: onMenuAction,
           ),
         ),
       ],
@@ -389,20 +411,117 @@ class PosOrderCardTile extends StatelessWidget {
   }
 }
 
+/// `note-preview` — the amber strip that says "this order has notes".
+///
+/// Previews the first note (the order's own, else the first line's, prefixed
+/// with that line's name) and counts the rest, so a note is seen on the board
+/// before anyone opens the order. The full text is in the detail overlay.
+class _NotePreview extends StatelessWidget {
+  final List<PosOrderCardNote> notes;
+
+  const _NotePreview({super.key, required this.notes});
+
+  @override
+  Widget build(BuildContext context) {
+    final PosOrderCardNote first = notes.first;
+    final String? item = first.itemLabel;
+    // A typed line break is a sentence break on two preview lines, not a
+    // wasted second line.
+    final String text = first.text.replaceAll(RegExp(r'\s*[\r\n]+\s*'), ' ');
+    final int more = notes.length - 1;
+
+    const double height =
+        PosOrdersSpec.notePreviewLineHeight / PosOrdersSpec.notePreviewTextSize;
+    final TextStyle base = loewMedium.copyWith(
+      fontSize: PosOrdersSpec.notePreviewTextSize,
+      height: height,
+      color: PosHomeSpec.ink,
+    );
+    // The line name and the count, in the label amber. Sized here too: the
+    // Loew styles carry a size of their own that would outgrow the text.
+    final TextStyle strong = loewBold.copyWith(
+      fontSize: PosOrdersSpec.notePreviewTextSize,
+      height: height,
+      color: PosOrderDetailSpec.itemNoteLabelInk,
+    );
+
+    return Semantics(
+      label: notes.length == 1 ? 'Order note' : '${notes.length} order notes',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+          horizontal: PosOrdersSpec.notePreviewPadH,
+          vertical: PosOrdersSpec.notePreviewPadV,
+        ),
+        decoration: BoxDecoration(
+          color: PosOrderDetailSpec.noteBg,
+          borderRadius: BorderRadius.circular(PosOrdersSpec.notePreviewRadius),
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(PosOrdersSpec.notePreviewRadius),
+          border: Border.all(color: PosOrderDetailSpec.noteBorder),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              // Centre the icon on the first line, not on the whole strip.
+              padding: EdgeInsets.only(
+                top: (PosOrdersSpec.notePreviewLineHeight -
+                        PosOrdersSpec.notePreviewIconSize) /
+                    2,
+              ),
+              child: Icon(
+                Icons.sticky_note_2_outlined,
+                size: PosOrdersSpec.notePreviewIconSize,
+                color: PosOrderDetailSpec.itemNoteLabelInk,
+              ),
+            ),
+            const SizedBox(width: PosOrdersSpec.notePreviewIconGap),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    if (item != null) TextSpan(text: '$item: ', style: strong),
+                    TextSpan(text: text),
+                  ],
+                ),
+                style: base,
+                maxLines: PosOrdersSpec.notePreviewMaxLines,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (more > 0) ...[
+              const SizedBox(width: PosOrdersSpec.notePreviewCountGap),
+              Text('+$more', style: strong),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// `card-actions` — the card's ⋮.
 ///
-/// Its own [Builder], so the tap hands [PosOrderCardTile.onMenu] the button's
-/// context: the menu then opens snug under the ⋮ rather than under the card.
+/// The menu hangs off the ⋮ itself ([PosOrderMoreMenu], root overlay), so it
+/// opens snug under the button wherever the board is mounted.
 class _MenuButton extends StatelessWidget {
   final bool pending;
   final bool finished;
-  final ValueChanged<BuildContext>? onMenu;
+  final bool isHeld;
+  final String? advanceLabel;
+  final bool sideExits;
+  final ValueChanged<PosOrderMenuAction>? onMenuAction;
 
   const _MenuButton({
     super.key,
     required this.pending,
     required this.finished,
-    required this.onMenu,
+    required this.isHeld,
+    required this.advanceLabel,
+    required this.sideExits,
+    required this.onMenuAction,
   });
 
   @override
@@ -424,19 +543,26 @@ class _MenuButton extends StatelessWidget {
       );
     }
 
-    final ValueChanged<BuildContext>? open = onMenu;
+    final ValueChanged<PosOrderMenuAction>? onAction = onMenuAction;
+    final bool live = onAction != null;
 
-    return Tooltip(
-      message: 'Order actions',
-      child: Opacity(
-        opacity: open == null ? PosOrdersSpec.menuDisabledOpacity : 1,
-        child: Builder(
+    return PosOrderMoreMenu(
+      enabled: live,
+      isHeld: isHeld,
+      advanceLabel: advanceLabel,
+      sideExits: sideExits,
+      openBelow: true,
+      onSelected: (PosOrderMenuAction action) => onAction?.call(action),
+      triggerBuilder: (context, isOpen, toggle) => Tooltip(
+        message: 'Order actions',
+        child: Opacity(
+          opacity: live ? 1 : PosOrdersSpec.menuDisabledOpacity,
           // A dimmed ⋮ still claims its tap, with no ripple: tapping a dead
           // control must not fall through and open the order underneath.
-          builder: (buttonContext) => InkWell(
-            onTap: open == null ? () {} : () => open(buttonContext),
-            splashFactory: open == null ? NoSplash.splashFactory : null,
-            highlightColor: open == null ? Colors.transparent : null,
+          child: InkWell(
+            onTap: live ? toggle : () {},
+            splashFactory: live ? null : NoSplash.splashFactory,
+            highlightColor: live ? null : Colors.transparent,
             customBorder: const CircleBorder(),
             child: SizedBox(
               width: PosOrdersSpec.menuHitSize,

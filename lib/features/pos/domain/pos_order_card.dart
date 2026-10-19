@@ -32,6 +32,11 @@ class PosOrderCard {
   /// card's footer pills. Empty when no line has a station.
   final List<PosStationStatus> stations;
 
+  /// The order's notes, from the feed's `notes`: its own note first, then
+  /// each line's instruction. Empty when it has none — or when the backend
+  /// predates the field, in which case the card simply flags nothing.
+  final List<PosOrderCardNote> notes;
+
   const PosOrderCard({
     required this.id,
     required this.createdAt,
@@ -45,6 +50,7 @@ class PosOrderCard {
     this.branchName,
     this.itemStates = const <PrepStatus>[],
     this.stations = const <PosStationStatus>[],
+    this.notes = const <PosOrderCardNote>[],
   });
 
   PosOrderSection get section => PosOrderGrouping.sectionOf(orderStatus);
@@ -57,6 +63,8 @@ class PosOrderCard {
   static String numberLabelFor(int id) => '#$id';
 
   String get numberLabel => numberLabelFor(id);
+
+  bool get hasNotes => notes.isNotEmpty;
 
   /// "2 of 3 ready" for the card's progress line.
   PrepProgress get progress => PrepProgress.fromStatuses(itemStates);
@@ -115,6 +123,7 @@ class PosOrderCard {
         branchName: branchName,
         itemStates: itemStates,
         stations: stations,
+        notes: notes,
       );
 
   factory PosOrderCard.fromJson(Map<String, dynamic> json) {
@@ -141,6 +150,48 @@ class PosOrderCard {
               .toList(growable: false)
           : const <PrepStatus>[],
       stations: PosStationStatus.listFromJson(json['stations']),
+      notes: PosOrderCardNote.listFromJson(json['notes']),
     );
+  }
+}
+
+/// One note a board card previews: the order's own ([item] null) or one
+/// line's instruction. The server cuts long ones short; the detail overlay
+/// shows them in full.
+class PosOrderCardNote {
+  /// The line's product name; null for a note on the whole order.
+  final String? item;
+  final int quantity;
+  final String text;
+
+  const PosOrderCardNote({
+    required this.item,
+    required this.text,
+    this.quantity = 1,
+  });
+
+  /// `2× Latte` — the line this note belongs to; null for the order's own.
+  String? get itemLabel {
+    final String? name = item;
+    if (name == null) return null;
+    return quantity > 1 ? '$quantity× $name' : name;
+  }
+
+  static List<PosOrderCardNote> listFromJson(dynamic raw) {
+    if (raw is! List) return const <PosOrderCardNote>[];
+
+    final List<PosOrderCardNote> notes = <PosOrderCardNote>[];
+    for (final dynamic entry in raw) {
+      if (entry is! Map) continue;
+      final String text = '${entry['text'] ?? ''}'.trim();
+      if (text.isEmpty) continue;
+      final String item = '${entry['item'] ?? ''}'.trim();
+      notes.add(PosOrderCardNote(
+        item: item.isEmpty ? null : item,
+        quantity: int.tryParse('${entry['quantity']}') ?? 1,
+        text: text,
+      ));
+    }
+    return List<PosOrderCardNote>.unmodifiable(notes);
   }
 }

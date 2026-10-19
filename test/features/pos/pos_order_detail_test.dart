@@ -104,6 +104,45 @@ void main() {
       expect(
           PosOrderDetail.fromJson(_payload(note: '   ')).displayNote, isNull);
     });
+
+    test('the bare "Kiosk order" marker of a nameless sale is dropped', () {
+      // kioskOrderNote() writes just "Kiosk order" when no name was typed —
+      // every counter sale without a name. It is not a note anyone left.
+      final d = PosOrderDetail.fromJson(
+        _payload(customerName: 'Walk-in', note: 'Kiosk order'),
+      );
+      expect(d.displayNote, isNull);
+    });
+
+    test('a real note under the bare marker survives', () {
+      final d = PosOrderDetail.fromJson(
+        _payload(customerName: 'Walk-in', note: 'Kiosk order\nNo onions'),
+      );
+      expect(d.displayNote, 'No onions');
+    });
+
+    test('the generated tip line is dropped — Totals already shows the tip',
+        () {
+      final d = PosOrderDetail.fromJson(
+        _payload(
+          note: 'Kiosk order — Sanne de Vries\nTip: 10% (0.65)\nExtra hot',
+        ),
+      );
+      expect(d.displayNote, 'Extra hot');
+      expect(
+        PosOrderDetail.fromJson(
+          _payload(customerName: 'Walk-in', note: 'Kiosk order\nTip: 5% (0.20)'),
+        ).displayNote,
+        isNull,
+      );
+    });
+
+    test('a customer line that merely starts with "Tip:" is kept', () {
+      final d = PosOrderDetail.fromJson(
+        _payload(note: 'Tip: leave it at the counter'),
+      );
+      expect(d.displayNote, 'Tip: leave it at the counter');
+    });
   });
 
   group('Item notes only appear where the line has them', () {
@@ -152,6 +191,24 @@ void main() {
         },
       ]));
       expect(d.items.single.hasNotes, isTrue);
+    });
+
+    test('the line note is the trimmed instruction, null when blank', () {
+      PosOrderDetailItem line(String? instruction) =>
+          PosOrderDetail.fromJson(_payload(items: [
+            {
+              'name': 'Latte',
+              'quantity': 1,
+              'unit_price': 4.0,
+              'instruction': instruction,
+              'addons': [],
+              'variations': []
+            },
+          ])).items.single;
+
+      expect(line('  less sugar  ').note, 'less sugar');
+      expect(line('   ').note, isNull);
+      expect(line(null).note, isNull);
     });
 
     test('variation labels flatten for the meta line', () {

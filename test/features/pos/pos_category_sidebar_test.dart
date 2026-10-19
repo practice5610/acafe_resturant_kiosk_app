@@ -10,10 +10,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// The real rail font, so label widths are the ones a device measures.
 Future<void> _loadLoew() async {
-  final loader = FontLoader('Loew')
-    ..addFont(File('assets/fonts/Loew-Bold.ttf')
+  final loader = FontLoader('Loew');
+  for (final String weight in ['Medium', 'Bold']) {
+    loader.addFont(File('assets/fonts/Loew-$weight.ttf')
         .readAsBytes()
         .then((bytes) => ByteData.view(Uint8List.fromList(bytes).buffer)));
+  }
   await loader.load();
 }
 
@@ -53,7 +55,7 @@ void main() {
     await _pump(tester, onPunch: () {});
 
     expect(find.byKey(const Key('pos-sidebar-punch')), findsOneWidget);
-    expect(find.text('PUNCH IN / OUT'), findsOneWidget);
+    expect(find.text('Punch In / Out'), findsOneWidget);
   });
 
   testWidgets('tapping the action fires the handler', (tester) async {
@@ -84,7 +86,7 @@ void main() {
     expect(tester.widget<Text>(find.text('COFFEE')).style!.fontSize,
         PosHomeSpec.sidebarLabelSize);
     expect(tester.getSize(find.byKey(const Key('pos-sidebar-punch'))).height,
-        PosHomeSpec.sidebarItemHeight);
+        PosHomeSpec.punchHeight);
   });
 
   testWidgets('a one-word label too wide for the rail shrinks, never splits',
@@ -148,7 +150,32 @@ void main() {
     expect(tester.widget<Text>(find.text('COFFEE')).style!.fontSize,
         closeTo(PosHomeSpec.sidebarLabelSize * scale, 0.01));
     expect(tester.getSize(find.byKey(const Key('pos-sidebar-punch'))).height,
-        closeTo(PosHomeSpec.sidebarItemHeight * scale, 0.01));
+        closeTo(PosHomeSpec.punchHeight * scale, 0.01));
     expect(tester.takeException(), isNull);
   });
+
+  // The rail's scale range: the 1024 floor (0.75), the 1366 frame (1) and the
+  // 1.30 cap. The pane and the pill scale together, so the label must sit at
+  // its full size at every one of them — never squeezed by its FittedBox.
+  for (final double scale in [0.75, 1.0, 1.30]) {
+    testWidgets('punch pill spans the category column with its label '
+        'unshrunk at scale $scale', (tester) async {
+      final double width = PosHomeSpec.sidebarWidth * scale;
+      await _pump(tester, onPunch: () {}, width: width, scale: scale);
+
+      final Rect pill =
+          tester.getRect(find.byKey(const Key('pos-sidebar-punch')));
+      final double edge = PosHomeSpec.punchFooterPadding.left * scale;
+      expect(pill.left, closeTo(edge, 0.01));
+      expect(pill.right,
+          closeTo(width - PosHomeSpec.paneBorder - edge, 0.01));
+
+      final Finder label = find.text('Punch In / Out');
+      expect(tester.getRect(label).width,
+          closeTo(tester.getSize(label).width, 0.01),
+          reason: 'label was scaled down to fit the pill');
+      expect(tester.getRect(label).right, lessThanOrEqualTo(pill.right));
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

@@ -37,7 +37,7 @@ class PosSearchFieldStyle {
   final Color? iconColor;
 
   /// Text tracking. Null inherits the theme's (M3 bodyLarge 0.5), which keeps
-  /// the product grid and Orders board unchanged.
+  /// the product grid unchanged.
   final double? letterSpacing;
 
   const PosSearchFieldStyle({
@@ -127,6 +127,8 @@ class PosSearchFieldStyle {
     hintAlpha: PosOrdersSpec.searchHintAlpha,
     fillColor: Colors.transparent,
     iconAsset: Images.posOrdersSearchSvg,
+    // Figma's search text has no tracking; null would inherit M3's 0.5.
+    letterSpacing: 0,
   );
 }
 

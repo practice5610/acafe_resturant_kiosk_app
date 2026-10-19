@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
@@ -246,6 +247,14 @@ class KioskManagerProvider extends ChangeNotifier {
   /// and appending unrelated rows to the list on screen.
   int _transactionsRequestId = 0;
 
+  /// The in-flight [refreshTransactions], and whether another one was asked
+  /// for while it (or a page load) was running. See [refreshTransactions].
+  Future<void>? _transactionsRefresh;
+  bool _transactionsRefreshQueued = false;
+
+  /// The endpoint's own `limit` ceiling.
+  static const int _transactionsMaxWindow = 100;
+
   bool get hasMoreTransactions => _transactions.length < _transactionsTotal;
 
   /// [replaceFilters] lets the Receipts screen overwrite every filter field
@@ -296,6 +305,11 @@ class KioskManagerProvider extends ChangeNotifier {
         _transactionsAmountMin = null;
         _transactionsAmountMax = null;
       }
+    } else if (_transactionsRefresh != null) {
+      // The next page is counted from the refreshed window, so it has to wait
+      // for that window to land -- asked for now, it would be superseded by
+      // the refresh or append a page the refresh is about to re-number.
+      await _transactionsRefresh;
     }
     final int requestId = ++_transactionsRequestId;
     _transactionsLoading = true;
@@ -334,6 +348,82 @@ class KioskManagerProvider extends ChangeNotifier {
 
     _transactionsLoading = false;
     notifyListeners();
+
+    if (_transactionsRefreshQueued) {
+      _transactionsRefreshQueued = false;
+      refreshTransactions();
+    }
+  }
+
+  /// Re-pulls the rows already on screen and swaps them in with one notify.
+  ///
+  /// For live updates -- a socket `order.changed`, a save on this till -- not
+  /// for a new query. [loadTransactions] empties the list first, which is right
+  /// when the filter changed but turns every live update into a table that
+  /// blanks to a spinner and loses its scroll. This keeps the old rows painted
+  /// until the new ones land, and re-pulls every page already loaded in one
+  /// request so a refresh never shortens a list the operator scrolled down.
+  ///
+  /// Asked for while a load or another refresh is running, it runs once more
+  /// after that finishes: the running one may have read the rows before the
+  /// change it is being told about landed.
+  Future<void> refreshTransactions() {
+    if (_transactionsLoading || _transactionsRefresh != null) {
+      _transactionsRefreshQueued = true;
+      return _transactionsRefresh ?? Future<void>.value();
+    }
+    final Future<void> run = _runTransactionsRefresh();
+    _transactionsRefresh = run;
+    return run;
+  }
+
+  Future<void> _runTransactionsRefresh() async {
+    // Whole pages, so paging carries on from the end of the window with the
+    // normal page size: a 50-row window is pages 1-2, the next page is 3.
+    final int pages = math.min(
+      math.max(1, (_transactions.length / _transactionsLimit).ceil()),
+      _transactionsMaxWindow ~/ _transactionsLimit,
+    );
+    final int window = pages * _transactionsLimit;
+    final int requestId = ++_transactionsRequestId;
+
+    try {
+      final apiResponse = await kioskManagerRepo.getTransactions(
+        reportDate: _transactionsReportDate,
+        dateFrom: _transactionsDateFrom,
+        dateTo: _transactionsDateTo,
+        search: _transactionsSearch,
+        status: _transactionsStatus,
+        channel: _transactionsChannel,
+        amountMin: _transactionsAmountMin,
+        amountMax: _transactionsAmountMax,
+        limit: window,
+        offset: 1,
+      );
+
+      // A new query started meanwhile; its rows own the list.
+      if (requestId != _transactionsRequestId) return;
+
+      // A failed refresh keeps the rows already painted -- the next event or
+      // the reconnect resync tries again. No error toast: the operator did not
+      // ask for this request.
+      if (apiResponse.response != null &&
+          apiResponse.response!.statusCode == 200) {
+        final data = apiResponse.response!.data;
+        final List orders = data['orders'] ?? [];
+        _transactionsTotal = data['total_size'] ?? 0;
+        _transactions =
+            orders.map((o) => Map<String, dynamic>.from(o)).toList();
+        _transactionsOffset = window ~/ _transactionsLimit + 1;
+        notifyListeners();
+      }
+    } finally {
+      _transactionsRefresh = null;
+      if (_transactionsRefreshQueued && !_transactionsLoading) {
+        _transactionsRefreshQueued = false;
+        refreshTransactions();
+      }
+    }
   }
 
   /// Re-runs transaction history for [query] from page one. Passing the same
@@ -412,6 +502,35 @@ class KioskManagerProvider extends ChangeNotifier {
 
     _receiptDetailLoading = false;
     notifyListeners();
+  }
+
+  /// Re-pulls the open receipt without taking it off screen.
+  ///
+  /// [loadReceiptDetail] nulls the detail first so a new selection never shows
+  /// the previous one -- right for a row tap, wrong for a live update of the
+  /// same receipt: the pane would flash its spinner, and the edit sidebar
+  /// would read the null as a different receipt and throw away unsaved edits.
+  /// Ignored when [id] is no longer the open receipt.
+  Future<void> refreshReceiptDetail(int id) async {
+    if (_receiptDetailId != id) return;
+    if (_receiptDetail == null) {
+      // Nothing painted to keep; a normal load (superseding any in flight,
+      // which may predate the change) is the refresh.
+      return loadReceiptDetail(id, force: true);
+    }
+
+    final int requestId = ++_receiptDetailRequestId;
+    final apiResponse = await kioskManagerRepo.getTransactionDetail(id);
+    if (requestId != _receiptDetailRequestId) return;
+
+    // A failed refresh keeps what is on screen; see refreshTransactions.
+    if (apiResponse.response != null &&
+        apiResponse.response!.statusCode == 200) {
+      _receiptDetail =
+          Map<String, dynamic>.from(apiResponse.response!.data as Map);
+      _receiptDetailLoading = false;
+      notifyListeners();
+    }
   }
 
   void clearReceiptDetail() {

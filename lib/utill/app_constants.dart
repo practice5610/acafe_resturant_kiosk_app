@@ -205,7 +205,9 @@ class AppConstants {
   static const String kioskOrderingExperience = 'kiosk_ordering_experience';
   static const String kioskAllergenTagEnabled = 'kiosk_allergen_tag_enabled';
   static const String kioskShowImages = 'kiosk_show_images';
-  static const String kioskMenuCacheKey = 'kiosk_menu_cache_v3';
+  // v4: cached products now carry note_suggestions (POS Quick Add); v3 caches
+  // lack them, so they're dropped rather than served.
+  static const String kioskMenuCacheKey = 'kiosk_menu_cache_v4';
   static const String kioskDealsCacheKey = 'kiosk_deals_cache_v1';
   static const String kioskManagerStockCacheKey = 'kiosk_manager_stock_cache_v2';
   static const String kioskManagerUnlockExpiryKey = 'kiosk_manager_unlock_expiry_v1';

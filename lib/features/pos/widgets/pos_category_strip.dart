@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/category/domain/category_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_horizontal_scroller.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_punch_actions.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -66,7 +67,9 @@ class PosCategoryStrip extends StatelessWidget {
                 Padding(
                   padding:
                       const EdgeInsets.only(right: PosHomeSpec.compactGutter),
-                  child: _StripPunchAction(
+                  // The rail's pill, at tab height; icon-only once the strip
+                  // is too narrow to spare the label's width.
+                  child: PosPunchEntryButton(
                     onTap: onPunch!,
                     showLabel: punchLabel,
                   ),
@@ -119,67 +122,6 @@ class PosCategoryTab extends StatelessWidget {
                   height: PosHomeSpec.stripLabelHeight,
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The rail's outlined Punch action, at strip height. Icon-only (with a
-/// tooltip) once the strip is too narrow to spare the label's width from
-/// the categories.
-class _StripPunchAction extends StatelessWidget {
-  final VoidCallback onTap;
-  final bool showLabel;
-
-  const _StripPunchAction({required this.onTap, required this.showLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    final BorderRadius radius =
-        BorderRadius.circular(PosHomeSpec.sidebarItemRadius);
-    return Tooltip(
-      message: 'Punch In / Out',
-      child: Material(
-        // Same key as the rail's action: one Punch control, whichever
-        // composition is on screen.
-        key: const Key('pos-sidebar-punch'),
-        color: Colors.transparent,
-        borderRadius: radius,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radius,
-          child: Container(
-            height: PosHomeSpec.stripTabHeight,
-            constraints:
-                const BoxConstraints(minWidth: PosHomeSpec.stripTabHeight),
-            padding: EdgeInsets.symmetric(horizontal: showLabel ? 12 : 0),
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              border: Border.all(color: PosHomeSpec.ink, width: 1.5),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.schedule_rounded,
-                    size: PosHomeSpec.stripPunchIconSize,
-                    color: PosHomeSpec.ink),
-                if (showLabel) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    'PUNCH IN / OUT',
-                    maxLines: 1,
-                    style: loewBold.copyWith(
-                      fontSize: PosHomeSpec.stripPunchLabelSize,
-                      color: PosHomeSpec.ink,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ],
             ),
           ),
         ),

@@ -254,20 +254,11 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
   /// overlay's own More-menu actions. Nothing new happens behind any row —
   /// advancing is [_advance] exactly as the face button ran it, and the side
   /// exits carry the overlay's permission checks and cancel confirmation.
-  Future<void> _openCardMenu(PosOrderCard order, BuildContext anchor) async {
-    final RenderBox? box = anchor.findRenderObject() as RenderBox?;
-    if (box == null) return;
-
-    final PosOrderMenuAction? action = await showPosOrderMoreMenu(
-      context,
-      anchor: box.localToGlobal(Offset.zero),
-      buttonSize: box.size,
-      isHeld: order.orderStatus == 'on_hold',
-      advanceLabel: _advanceLabelFor(order),
-      sideExits: _hasSideExits(order),
-      openBelow: true,
-    );
-    if (action == null || !mounted) return;
+  Future<void> _onCardMenuAction(
+    PosOrderCard order,
+    PosOrderMenuAction action,
+  ) async {
+    if (!mounted) return;
 
     switch (action) {
       case PosOrderMenuAction.advance:
@@ -649,8 +640,10 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
                     order: order,
                     now: _now,
                     pending: provider.isPending(order.id),
-                    onMenu: _cardHasActions(order)
-                        ? (anchor) => _openCardMenu(order, anchor)
+                    menuAdvanceLabel: _advanceLabelFor(order),
+                    menuSideExits: _hasSideExits(order),
+                    onMenuAction: _cardHasActions(order)
+                        ? (action) => _onCardMenuAction(order, action)
                         : null,
                     onTap: () => _openDetail(order),
                   ),

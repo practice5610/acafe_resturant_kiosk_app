@@ -49,8 +49,9 @@ class PosReceiptDetailPanel extends StatefulWidget {
   /// layout pins Figma's 400px.
   final double? width;
 
-  /// Called after a successful "Change payment method" so the screen can reload
-  /// the receipt detail and show the updated method.
+  /// Called when this till has just changed the receipt on the server (a saved
+  /// edit, a closed method-change dialog) so the screen re-pulls the receipt
+  /// and its list row at once instead of waiting on the socket echo.
   final VoidCallback? onRefresh;
 
   const PosReceiptDetailPanel({
@@ -85,6 +86,11 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
   /// Empty outside edit mode. Updated by [showPosReceiptEditLineDialog].
   final ValueNotifier<List<CartModel>> _editLines = ValueNotifier(const []);
 
+  /// True while save-changes is in flight. The confirm dialog closes before
+  /// the request goes out, so without this the sidebar's Save stays live and a
+  /// second tap re-submits a receipt the first one already closed.
+  final ValueNotifier<bool> _saving = ValueNotifier(false);
+
   @override
   void initState() {
     super.initState();
@@ -118,7 +124,47 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
     _table.dispose();
     _sidebarMode.dispose();
     _editLines.dispose();
+    _saving.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveChanges(PosReceiptDetail receipt, double estimate) async {
+    if (_saving.value) return;
+    _saving.value = true;
+    final result = await sl<PosReceiptSaveChangesRepo>().saveChanges(
+      orderId: receipt.id,
+      editLines: _editLines.value,
+    );
+    if (!mounted) return;
+    _saving.value = false;
+
+    if (!result.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.error?.toString() ?? 'Failed to save changes'),
+        ),
+      );
+      return;
+    }
+
+    // Re-pull now, while the success card is up: by the time the operator
+    // taps back, the list row and the receipt already carry the new total.
+    widget.onRefresh?.call();
+    showPosReceiptChangesSavedDialog(
+      context: context,
+      receipt: receipt,
+      // The server re-prices the order; the sidebar's figure is an estimate.
+      newTotal: _savedTotal(result.response?.data) ?? estimate,
+      onDone: () {
+        _editLines.value = const [];
+        _sidebarMode.value = _ReceiptSidebarMode.view;
+      },
+    );
+  }
+
+  static double? _savedTotal(Object? body) {
+    if (body is! Map) return null;
+    return double.tryParse('${body['new_total']}');
   }
 
   @override
@@ -141,6 +187,7 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
             return _EditModeSidebar(
               receipt: receipt,
               editLinesNotifier: _editLines,
+              savingNotifier: _saving,
               imageBaseUrl: widget.imageBaseUrl,
               nameController: _name,
               tableController: _table,
@@ -156,38 +203,7 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
                   receipt: receipt,
                   newTotal: newTotal,
                   delta: delta,
-                  onConfirm: () async {
-                    final editLines = _editLines.value;
-                    final result =
-                        await sl<PosReceiptSaveChangesRepo>().saveChanges(
-                      orderId: receipt.id,
-                      editLines: editLines,
-                    );
-                    if (!mounted) return;
-                    if (result.isSuccess) {
-                      showPosReceiptChangesSavedDialog(
-                        context: context,
-                        receipt: receipt,
-                        newTotal: newTotal,
-                        onDone: () {
-                          _editLines.value = const [];
-                          _sidebarMode.value = _ReceiptSidebarMode.view;
-                          // Pull the saved receipt now rather than waiting on
-                          // the socket echo, so the totals and lines are fresh.
-                          widget.onRefresh?.call();
-                        },
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            result.error?.toString() ??
-                                'Failed to save changes',
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                  onConfirm: () => _saveChanges(receipt, newTotal),
                 );
               },
               onEditLine: (index) {
@@ -619,6 +635,9 @@ const _editHeaderLabel = Color(0xFFF7F1DE);
 class _EditModeSidebar extends StatelessWidget {
   final PosReceiptDetail receipt;
   final ValueNotifier<List<CartModel>> editLinesNotifier;
+
+  /// While true, Save and both Discards are inert — see the panel's `_saving`.
+  final ValueNotifier<bool> savingNotifier;
   final String? imageBaseUrl;
   final TextEditingController nameController;
   final TextEditingController tableController;
@@ -633,6 +652,7 @@ class _EditModeSidebar extends StatelessWidget {
   const _EditModeSidebar({
     required this.receipt,
     required this.editLinesNotifier,
+    required this.savingNotifier,
     required this.imageBaseUrl,
     required this.nameController,
     required this.tableController,
@@ -646,9 +666,12 @@ class _EditModeSidebar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _EditModeHeader(
-          receiptNumber: receipt.receiptNumber,
-          onDiscard: onDiscard,
+        ValueListenableBuilder<bool>(
+          valueListenable: savingNotifier,
+          builder: (context, saving, _) => _EditModeHeader(
+            receiptNumber: receipt.receiptNumber,
+            onDiscard: saving ? null : onDiscard,
+          ),
         ),
         const _EditModeWarningBanner(),
         PosReceiptCustomerInfo(
@@ -684,9 +707,13 @@ class _EditModeSidebar extends StatelessWidget {
             );
           },
         ),
-        _EditModeFooter(
-          onDiscard: onDiscard,
-          onSaveChanges: onSaveChanges,
+        ValueListenableBuilder<bool>(
+          valueListenable: savingNotifier,
+          builder: (context, saving, _) => _EditModeFooter(
+            saving: saving,
+            onDiscard: saving ? null : onDiscard,
+            onSaveChanges: saving ? null : onSaveChanges,
+          ),
         ),
       ],
     );
@@ -695,7 +722,7 @@ class _EditModeSidebar extends StatelessWidget {
 
 class _EditModeHeader extends StatelessWidget {
   final String receiptNumber;
-  final VoidCallback onDiscard;
+  final VoidCallback? onDiscard;
 
   const _EditModeHeader({
     required this.receiptNumber,
@@ -704,9 +731,11 @@ class _EditModeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Background lives in the decoration only: a Container given both `color`
+    // and `decoration` fails its constructor assert, which in a debug build
+    // swapped this whole header for the "Something went wrong" error box.
     return Container(
       height: PosHomeSpec.headerHeight,
-      color: PosHomeSpec.panelBg,
       padding: const EdgeInsets.symmetric(
         horizontal: PosHomeSpec.panelPaddingH,
       ),
@@ -768,6 +797,12 @@ class _EditModeHeader extends StatelessWidget {
             onTap: onDiscard,
             child: Container(
               height: 32,
+              foregroundDecoration: onDiscard == null
+                  ? BoxDecoration(
+                      color: PosHomeSpec.panelBg.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(8),
+                    )
+                  : null,
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
@@ -981,10 +1016,12 @@ class _EditableLineRow extends StatelessWidget {
 }
 
 class _EditModeFooter extends StatelessWidget {
-  final VoidCallback onDiscard;
+  final bool saving;
+  final VoidCallback? onDiscard;
   final VoidCallback? onSaveChanges;
 
   const _EditModeFooter({
+    required this.saving,
     required this.onDiscard,
     required this.onSaveChanges,
   });
@@ -1008,7 +1045,7 @@ class _EditModeFooter extends StatelessWidget {
           ),
           const SizedBox(width: PosReceiptsSpec.payActionsGap),
           Expanded(
-            child: _EditSaveButton(onTap: onSaveChanges),
+            child: _EditSaveButton(saving: saving, onTap: onSaveChanges),
           ),
         ],
       ),
@@ -1017,13 +1054,16 @@ class _EditModeFooter extends StatelessWidget {
 }
 
 class _EditSaveButton extends StatelessWidget {
+  final bool saving;
   final VoidCallback? onTap;
 
-  const _EditSaveButton({required this.onTap});
+  const _EditSaveButton({required this.saving, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final bool enabled = onTap != null;
+    // Saving keeps full ink: the spinner says "working", a faded button
+    // would say "unavailable".
+    final bool enabled = onTap != null || saving;
     return Opacity(
       opacity: enabled ? 1.0 : 0.35,
       child: Material(
@@ -1036,14 +1076,23 @@ class _EditSaveButton extends StatelessWidget {
           child: SizedBox(
             height: PosReceiptsSpec.printButtonHeight,
             child: Center(
-              child: Text(
-                'Save changes',
-                style: loewBold.copyWith(
-                  fontSize: PosReceiptsSpec.printLabelSize,
-                  color: _editHeaderLabel,
-                  height: 19 / 16,
-                ),
-              ),
+              child: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _editHeaderLabel,
+                      ),
+                    )
+                  : Text(
+                      'Save changes',
+                      style: loewBold.copyWith(
+                        fontSize: PosReceiptsSpec.printLabelSize,
+                        color: _editHeaderLabel,
+                        height: 19 / 16,
+                      ),
+                    ),
             ),
           ),
         ),

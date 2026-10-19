@@ -9,7 +9,9 @@ import 'package:flutter/material.dart';
 /// Kept here, free of any navigation or data wiring, so the two places that
 /// punch — the full-screen [PosPunchScreen] reached from the POS sidebar, and
 /// the inline flow on the staff lock screen — draw the same tiles and the same
-/// result banner rather than two look-alikes that drift apart.
+/// result banner rather than two look-alikes that drift apart. The till's
+/// entry button ([PosPunchEntryButton]) lives here for the same reason: the
+/// rail and the compact strip draw the one control.
 
 /// One of the two big punch actions.
 class PosPunchActionTile extends StatelessWidget {
@@ -149,5 +151,109 @@ class PosPunchResultBanner extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The till's way into the punch flow, at the foot of the category rail and at
+/// the end of the compact category strip — one control, whichever composition
+/// is on screen (both carry the key `pos-sidebar-punch`).
+///
+/// A white, fully-rounded pill from the nav bar's Orders / Receipts /
+/// Attendance family, with the staff chip's hairline outline and an ink disc
+/// carrying the clock. That keeps it a quiet utility action: it is neither a
+/// category (an ink-filled tile when selected) nor a tag filter (an outlined
+/// pill).
+class PosPunchEntryButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  /// False draws the disc alone in its white ring, for a strip too narrow to
+  /// spare the label; the label moves to a tooltip.
+  final bool showLabel;
+
+  /// True fills the parent's width (the rail column); false hugs the content.
+  final bool expand;
+
+  /// Rail density, see `PosCategorySidebar.scale`. The outline stays 1px.
+  final double scale;
+
+  static const String label = 'Punch In / Out';
+
+  const PosPunchEntryButton({
+    super.key,
+    required this.onTap,
+    this.showLabel = true,
+    this.expand = false,
+    this.scale = 1,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double pillHeight = PosHomeSpec.punchHeight * scale;
+    final double inset = PosHomeSpec.punchDiscInset * scale;
+    final double disc = pillHeight - inset * 2;
+    const ShapeBorder shape = StadiumBorder();
+
+    final Widget button = Material(
+      key: const Key('pos-sidebar-punch'),
+      color: PosHomeSpec.tileBg,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: PosHomeSpec.inkAlpha(PosHomeSpec.punchOutlineAlpha),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: shape,
+        child: Container(
+          height: pillHeight,
+          width: expand ? double.infinity : null,
+          padding: EdgeInsetsDirectional.only(
+            start: inset,
+            end: showLabel ? PosHomeSpec.punchPaddingEnd * scale : inset,
+          ),
+          child: Row(
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              Container(
+                width: disc,
+                height: disc,
+                decoration: const BoxDecoration(
+                  color: PosHomeSpec.ink,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.schedule_rounded,
+                  size: disc * PosHomeSpec.punchIconRatio,
+                  color: PosHomeSpec.pageBg,
+                ),
+              ),
+              if (showLabel) ...[
+                SizedBox(width: PosHomeSpec.punchLabelGap * scale),
+                // Shrinks rather than ellipsising if a large system text
+                // size outgrows the rail; at 1x it fits at full size.
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: loewMedium.copyWith(
+                        fontSize: PosHomeSpec.punchLabelSize * scale,
+                        height: PosHomeSpec.punchLabelHeight,
+                        color: PosHomeSpec.ink,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return showLabel ? button : Tooltip(message: label, child: button);
   }
 }

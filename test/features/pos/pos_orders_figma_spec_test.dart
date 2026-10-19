@@ -350,6 +350,16 @@ void main() {
     _expectFigma('search-field right', 24 + 1318, search.right);
     _expectFigma('search hint dx', 30, hint.left - search.left);
     _expectFigma('search hint height', 14, hint.height);
+    // Figma sets no tracking; M3's bodyLarge would otherwise add 0.5.
+    _expectFigma(
+        'search hint tracking',
+        0,
+        tester
+                .widget<Text>(find.text('SEARCH IN ORDERS...'))
+                .style
+                ?.letterSpacing ??
+            0,
+        tolerance: 0.01);
     _expectFigma('close-btn width', 22, clear.width);
     _expectFigma('close-btn height', 16, clear.height);
     _expectFigma('close-btn right inset', 10, search.right - clear.right);
@@ -540,11 +550,22 @@ void main() {
     final Rect mail = rectOf(tester, find.text('max.mustermann@example.com'));
     _expectFigma('mail dy', 66 + 24 + 24 + 63, mail.top - modal.top);
 
+    // Order Notes moved under Total on request (2026-10-19) and gathers every
+    // note on the order, each headed with its line or "Whole order", in 15/22
+    // so a kitchen instruction reads at a glance. Figma's place above Total
+    // and its 13/18 text are reported, not enforced.
     final Rect notesLabel = rectOf(tester, find.text('ORDER NOTES'));
-    _expectFigma('notes label dy', 66 + 24 + 143, notesLabel.top - modal.top);
+    _expectFigma('notes label dy', 66 + 24 + 143, notesLabel.top - modal.top,
+        strict: false);
     final Rect note = rectOf(tester, find.textContaining('Please make'));
-    _expectFigma('note text dy', 66 + 24 + 143 + 22 + 14, note.top - modal.top);
-    _expectFigma('note text height (2 lines)', 36, note.height);
+    _expectFigma('note text dy', 66 + 24 + 143 + 22 + 14, note.top - modal.top,
+        strict: false);
+    _expectFigma('note text height (2 lines)', 36, note.height, strict: false);
+    expect(notesLabel.top,
+        greaterThan(rectOf(tester, find.text('TOTAL')).bottom),
+        reason: 'Order Notes sits under Total');
+    expect(notesLabel.left, custLabel.left,
+        reason: 'and stays in the left column');
 
     final Rect itemsLabel = rectOf(tester, find.text('ORDER ITEMS'));
     _expectFigma('items label dx', 24 + 620 + 32, itemsLabel.left - modal.left);

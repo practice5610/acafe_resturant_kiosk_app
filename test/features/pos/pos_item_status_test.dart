@@ -709,6 +709,12 @@ void main() {
 
       await tester.tap(find.byType(PosOrderMoreButton));
       await tester.pumpAndSettle();
+      // The item thumbnails decode through real async I/O. This golden used to
+      // get them for free from the old menu route's longer transition; wait
+      // for them explicitly so it never depends on an animation's frame count.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pumpAndSettle();
 
       expect(find.text('Mark on hold'), findsOneWidget);
       expect(find.text('Cancel order'), findsOneWidget);

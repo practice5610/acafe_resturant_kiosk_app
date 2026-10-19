@@ -155,10 +155,29 @@ class PosHomeSpec {
   static const double stripTabGap = 8;
   static const double stripLabelSize = 14;
   static const double stripLabelHeight = 17 / 14;
-  static const double stripPunchIconSize = 18;
-  static const double stripPunchLabelSize = 12;
   /// Below this strip width the Punch action drops its label for a tooltip.
   static const double stripPunchLabelMinWidth = 560;
+
+  // ── Punch In / Out entry (rail footer, strip end) ────────────────────
+  // Not in the 1366 frame. Drawn in the nav bar's white pill family (its
+  // fill, full rounding, ~40px height and Loew Medium) with the staff chip's
+  // 12% ink outline, and led by an ink disc the way that chip leads with its
+  // avatar. Label at the tag pills' 13px: at the nav's 14 it is 109px wide,
+  // more than the 192 rail can give it beside the disc.
+  /// Also the strip's tab height, so the pill lines up with the tabs there.
+  static const double punchHeight = stripTabHeight;
+  /// Disc -> pill edge, on every side the disc touches.
+  static const double punchDiscInset = 5;
+  static const double punchIconRatio = 0.55;
+  static const double punchLabelGap = 8;
+  static const double punchPaddingEnd = 12;
+  static const double punchLabelSize = pillLabelSize;
+  static const double punchLabelHeight = 16 / 13;
+  static const double punchOutlineAlpha = 0.12;
+  /// Rail footer: the hairline above it spans the pane, the pill sits on the
+  /// category column's 16px edges, and the bottom matches the rail's 24.
+  static const EdgeInsets punchFooterPadding =
+      EdgeInsets.fromLTRB(16, 16, 16, 24);
 
   // ── Receipt panel ────────────────────────────────────────────────────
   static const double panelPaddingH = 24;

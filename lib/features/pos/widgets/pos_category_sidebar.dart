@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/category/domain/category_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_punch_actions.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -88,10 +89,9 @@ class PosCategorySidebar extends StatelessWidget {
   }
 }
 
-/// The Punch In / Out entry, pinned below the categories. Styled from the same
-/// sidebar tokens so it reads as part of the rail, but outlined rather than
-/// filled so it is clearly an action, not another category (a filled tile is
-/// how the rail draws the *selected* category).
+/// The Punch In / Out entry, pinned below the categories as the rail's footer:
+/// a hairline across the pane (so a long, scrolled list ends cleanly against
+/// it), then the shared [PosPunchEntryButton] on the category column's edges.
 class _PosSidebarPunchAction extends StatelessWidget {
   final VoidCallback onTap;
   final double scale;
@@ -100,63 +100,17 @@ class _PosSidebarPunchAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final BorderRadius radius =
-        BorderRadius.circular(PosHomeSpec.sidebarItemRadius * scale);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24) * scale,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Opacity(
-            opacity: PosHomeSpec.sidebarRuleOpacity,
-            child: SizedBox(
-              height: PosHomeSpec.sidebarRuleHeight,
-              width: double.infinity,
-              child: ColoredBox(color: PosHomeSpec.ink),
-            ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: PosHomeSpec.inkAlpha(PosHomeSpec.punchOutlineAlpha),
           ),
-          SizedBox(height: 16 * scale),
-          Material(
-            key: const Key('pos-sidebar-punch'),
-            color: Colors.transparent,
-            borderRadius: radius,
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: radius,
-              child: Container(
-                height: PosHomeSpec.sidebarItemHeight * scale,
-                decoration: BoxDecoration(
-                  borderRadius: radius,
-                  border: Border.all(
-                    color: PosHomeSpec.ink,
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.schedule_rounded,
-                        size: 20 * scale, color: PosHomeSpec.ink),
-                    SizedBox(width: 10 * scale),
-                    Flexible(
-                      child: Text(
-                        'Punch In / Out'.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: loewBold.copyWith(
-                          fontSize: 13 * scale,
-                          color: PosHomeSpec.ink,
-                          letterSpacing: 0.5 * scale,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
+      ),
+      child: Padding(
+        padding: PosHomeSpec.punchFooterPadding * scale,
+        child: PosPunchEntryButton(onTap: onTap, expand: true, scale: scale),
       ),
     );
   }

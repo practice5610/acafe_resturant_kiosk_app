@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
@@ -14,6 +16,13 @@ const _ctaLabel = Color(0xFFF7F1DE);
 const _hintColor = Color(0xFF78706E);
 const _errorColor = Color(0xFFD32F2F);
 const _sentGreen = Color(0xFF2A8456);
+
+// ── motion ────────────────────────────────────────────────────────────────────
+// Form → success cross-fade.
+const _swapDuration = Duration(milliseconds: 260);
+// How long the success card stays up before the dialog fades itself out.
+// Long enough to read the "Sent to" address, short enough not to block the till.
+const _sentHold = Duration(milliseconds: 1800);
 
 // ── inline SVGs ───────────────────────────────────────────────────────────────
 const _svgX =
@@ -48,6 +57,7 @@ Future<void> showPosReceiptEmailDialog({
     barrierDismissible: true,
     barrierLabel: 'Dismiss',
     barrierColor: PosHomeSpec.contextMenuBackdrop,
+    transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (dialogContext, _, __) => Material(
       type: MaterialType.transparency,
       child: Center(
@@ -57,6 +67,22 @@ Future<void> showPosReceiptEmailDialog({
         ),
       ),
     ),
+    // Same fade + settle as the other POS modals. The reverse curve is what the
+    // success card's auto-dismiss rides out on, together with the backdrop.
+    transitionBuilder: (context, animation, _, child) {
+      final Animation<double> curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.97, end: 1).animate(curved),
+          child: child,
+        ),
+      );
+    },
   );
 }
 
@@ -77,11 +103,23 @@ class _EmailDialogState extends State<_EmailDialog> {
   String? _error;
   bool _loading = false;
   bool _sent = false;
+  Timer? _autoClose;
 
   @override
   void dispose() {
+    _autoClose?.cancel();
     _ctrl.dispose();
     super.dispose();
+  }
+
+  /// Pops the dialog only while it is still the top route. A backdrop tap can
+  /// close it first; without this guard the timer would then pop the
+  /// Receipts screen underneath.
+  void _closeIfCurrent() {
+    _autoClose?.cancel();
+    if (!mounted) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    Navigator.of(context).pop();
   }
 
   bool _isValidEmail(String v) {
@@ -128,20 +166,39 @@ class _EmailDialogState extends State<_EmailDialog> {
       _sent = true;
       _sentEmail = _ctrl.text.trim();
     });
+    // Hold time runs from the moment the success card starts to swap in.
+    _autoClose = Timer(_sentHold, _closeIfCurrent);
   }
 
   String _sentEmail = '';
 
   @override
   Widget build(BuildContext context) {
-    if (_sent) {
-      return _SentView(
-        receipt: widget.receipt,
-        sentEmail: _sentEmail,
-        onClose: () => Navigator.of(context).pop(),
-      );
-    }
+    return AnimatedSwitcher(
+      duration: _swapDuration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
+          child: child,
+        ),
+      ),
+      child: _sent
+          ? _SentView(
+              key: const ValueKey('sent'),
+              receipt: widget.receipt,
+              sentEmail: _sentEmail,
+              onDismiss: _closeIfCurrent,
+            )
+          : _buildForm(context),
+    );
+  }
+
+  Widget _buildForm(BuildContext context) {
     return Container(
+      key: const ValueKey('form'),
       width: 560,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -308,15 +365,18 @@ class _EmailField extends StatelessWidget {
 
 // ── Sent view (State 07) — Figma 1915:20355 ──────────────────────────────────
 
+/// Self-dismissing confirmation: no button. It fades out after [_sentHold];
+/// a tap on the card or the backdrop closes it sooner.
 class _SentView extends StatelessWidget {
   final PosReceiptDetail receipt;
   final String sentEmail;
-  final VoidCallback onClose;
+  final VoidCallback onDismiss;
 
   const _SentView({
+    super.key,
     required this.receipt,
     required this.sentEmail,
-    required this.onClose,
+    required this.onDismiss,
   });
 
   @override
@@ -324,80 +384,64 @@ class _SentView extends StatelessWidget {
     final String customer =
         receipt.customerName.isEmpty ? '—' : receipt.customerName;
 
-    return SizedBox(
-      width: 520,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── success card ────────────────────────────────────────────────
-          Container(
-            width: 520,
-            padding: const EdgeInsets.all(40),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: PosHomeSpec.ink, width: 2),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: PosHomeSpec.ink.withValues(alpha: 0.07),
-                  blurRadius: 12,
-                  offset: const Offset(0, 12),
-                ),
-              ],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onDismiss,
+      child: Container(
+        width: 520,
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: PosHomeSpec.ink, width: 2),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: PosHomeSpec.ink.withValues(alpha: 0.07),
+              blurRadius: 12,
+              offset: const Offset(0, 12),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // mail-check icon
-                SvgPicture.string(_svgMailCheck, width: 48, height: 48),
-                const SizedBox(height: 20),
-                // title
-                Text(
-                  'Email Sent Successfully',
-                  textAlign: TextAlign.center,
-                  style: loewExtraBold.copyWith(
-                    fontSize: 28,
-                    color: PosHomeSpec.ink,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // divider
-                const Divider(
-                  color: Color(0xFFEEE9D8),
-                  thickness: 1,
-                  height: 1,
-                ),
-                const SizedBox(height: 20),
-                // receipt summary
-                _SummarySection(
-                  receipt: receipt,
-                  customer: customer,
-                  sentEmail: sentEmail,
-                ),
-              ],
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // mail-check icon — pops in just behind the card's own fade
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 520),
+              curve: const Interval(0.2, 1, curve: Curves.easeOutBack),
+              builder: (_, t, child) => Opacity(
+                opacity: t.clamp(0.0, 1.0),
+                child: Transform.scale(scale: 0.6 + 0.4 * t, child: child),
+              ),
+              child: SvgPicture.string(_svgMailCheck, width: 48, height: 48),
             ),
-          ),
-          const SizedBox(height: 20),
-          // ── BACK button ─────────────────────────────────────────────────
-          GestureDetector(
-            onTap: onClose,
-            child: Container(
-              height: 64,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
+            const SizedBox(height: 20),
+            // title
+            Text(
+              'Email Sent Successfully',
+              textAlign: TextAlign.center,
+              style: loewExtraBold.copyWith(
+                fontSize: 28,
                 color: PosHomeSpec.ink,
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Text(
-                'BACK',
-                style: loewBold.copyWith(
-                  fontSize: 16,
-                  color: Colors.white,
-                ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            // divider
+            const Divider(
+              color: Color(0xFFEEE9D8),
+              thickness: 1,
+              height: 1,
+            ),
+            const SizedBox(height: 20),
+            // receipt summary
+            _SummarySection(
+              receipt: receipt,
+              customer: customer,
+              sentEmail: sentEmail,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -709,18 +709,21 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
   Widget _leftColumn(PosOrderDetail detail) {
     final List<Widget> sections = <Widget>[];
 
-    // Both sections are conditional: a guest order has no contact row, and most
-    // notes are the name-carrier string already shown in the header.
+    // Customer and notes are conditional: a guest order has no contact row, and
+    // most orders carry no note — a counter sale's `order_note` is only the
+    // name carrier already shown in the header.
     if (detail.hasContact) {
       sections.add(_customerSection(detail));
     }
 
-    final String? note = detail.displayNote;
-    if (note != null) {
-      sections.add(_notesSection(note));
-    }
-
     sections.add(_totalsSection(detail));
+
+    // Under Total, where the column has room: every note on the order in one
+    // place, so none hides inside a narrow item row.
+    final List<_NoteEntry> notes = _NoteEntry.allOf(detail);
+    if (notes.isNotEmpty) {
+      sections.add(_notesSection(notes));
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -779,11 +782,12 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
     );
   }
 
-  Widget _notesSection(String note) {
+  Widget _notesSection(List<_NoteEntry> notes) {
     return _Section(
       label: 'Order Notes',
       gap: PosOrderDetailSpec.customerCardGap,
       child: Container(
+        key: const ValueKey<String>('pos-order-notes'),
         width: double.infinity,
         padding: const EdgeInsets.all(PosOrderDetailSpec.notePad),
         decoration: BoxDecoration(
@@ -794,14 +798,24 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
           borderRadius: BorderRadius.circular(PosOrderDetailSpec.noteRadius),
           border: Border.all(color: PosOrderDetailSpec.noteBorder),
         ),
-        child: Text(
-          note,
-          style: loewRegular.copyWith(
-            fontSize: PosOrderDetailSpec.noteTextSize,
-            height: PosOrderDetailSpec.noteLineHeight /
-                PosOrderDetailSpec.noteTextSize,
-            color: PosOrderDetailSpec.ink,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int i = 0; i < notes.length; i++) ...[
+              if (i > 0)
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    vertical: PosOrderDetailSpec.noteEntryGap / 2,
+                  ),
+                  child: Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: PosOrderDetailSpec.noteDivider,
+                  ),
+                ),
+              _NoteEntryView(entry: notes[i]),
+            ],
+          ],
         ),
       ),
     );
@@ -1483,15 +1497,14 @@ class _ItemRow extends StatelessWidget {
     return '$price · ${item.variationLabels.join(' · ')}';
   }
 
-  /// One line per add-on plus the line's own instruction. Figma shows a single
-  /// `+ Oat Milk`; a real line can carry several add-ons and a free-text note,
-  /// and dropping them would hide what the kitchen was actually told.
+  /// One `+` line per add-on. Figma shows a single `+ Oat Milk`; a real line
+  /// can carry several, and dropping them would hide what the kitchen was
+  /// actually told. The customer's own note is NOT one of these — drawn in the
+  /// same grey 11px it read as one more add-on — see [_ItemNoteTag].
   List<String> get _notes {
     return <String>[
       for (final PosOrderDetailAddon addon in item.addons)
         addon.quantity > 1 ? '${addon.quantity}× ${addon.name}' : addon.name,
-      if (item.instruction != null && item.instruction!.trim().isNotEmpty)
-        item.instruction!.trim(),
     ];
   }
 
@@ -1680,6 +1693,17 @@ class _ItemRow extends StatelessWidget {
                                   ],
                                 ),
                               ],
+                              // The note's text is in the Order Notes card;
+                              // this marks which line it belongs to.
+                              if (item.note != null) ...[
+                                const SizedBox(
+                                    height: PosOrderDetailSpec.itemNoteTagGap),
+                                _ItemNoteTag(
+                                  key: ValueKey<String>(
+                                      'pos-item-note-${item.id}'),
+                                  done: done,
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -1740,6 +1764,146 @@ class _ItemRow extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// One note in the Order Notes card: the order's own, or one line's.
+class _NoteEntry {
+  /// `2× Latte` for a line's note; null for the order's own.
+  final String? itemLabel;
+
+  /// The line it belongs to, for keys; null for the order's own.
+  final int? itemId;
+  final String text;
+
+  const _NoteEntry({this.itemLabel, this.itemId, required this.text});
+
+  /// Every note on [detail]: the order's own first (it applies to all of
+  /// it), then each line's in line order.
+  static List<_NoteEntry> allOf(PosOrderDetail detail) {
+    final String? orderNote = detail.displayNote;
+    return <_NoteEntry>[
+      if (orderNote != null) _NoteEntry(text: orderNote),
+      for (final PosOrderDetailItem item in detail.items)
+        if (item.note != null)
+          _NoteEntry(
+            itemLabel: item.quantity > 1
+                ? '${item.quantity}× ${item.name}'
+                : item.name,
+            itemId: item.id,
+            text: item.note!,
+          ),
+    ];
+  }
+}
+
+/// One entry in the Order Notes card: a dark-amber heading saying what the
+/// note is about — the line's name, or "Whole order" — over the text as typed.
+class _NoteEntryView extends StatelessWidget {
+  final _NoteEntry entry;
+
+  const _NoteEntryView({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final String heading = entry.itemLabel ?? 'Whole order';
+
+    return Column(
+      key: ValueKey<String>(
+        entry.itemId == null
+            ? 'pos-order-note-order'
+            : 'pos-order-note-item-${entry.itemId}',
+      ),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.sticky_note_2_outlined,
+              size: PosOrderDetailSpec.itemNoteIconSize,
+              color: PosOrderDetailSpec.itemNoteLabelInk,
+            ),
+            const SizedBox(width: PosOrderDetailSpec.itemNoteIconGap),
+            Expanded(
+              child: Text(
+                heading.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: loewBold.copyWith(
+                  fontSize: PosOrderDetailSpec.itemNoteLabelSize,
+                  letterSpacing: PosOrderDetailSpec.itemNoteLabelTracking,
+                  color: PosOrderDetailSpec.itemNoteLabelInk,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: PosOrderDetailSpec.itemNoteLabelGap),
+        Text(
+          entry.text,
+          style: loewMedium.copyWith(
+            fontSize: PosOrderDetailSpec.noteTextSize,
+            height: PosOrderDetailSpec.noteLineHeight /
+                PosOrderDetailSpec.noteTextSize,
+            color: PosOrderDetailSpec.ink,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The line's marker that it carries a note — a small amber `NOTE` tag under
+/// its add-ons. The text is in the Order Notes card, headed with this line's
+/// name; the tag is how staff scanning the items see which line it is.
+///
+/// Dims with a finished line but is never struck through.
+class _ItemNoteTag extends StatelessWidget {
+  final bool done;
+
+  const _ItemNoteTag({super.key, required this.done});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      duration: PosOrderDetailSpec.itemStateAnimation,
+      opacity: done ? 0.55 : 1,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: PosOrderDetailSpec.itemNoteTagPadH,
+          vertical: PosOrderDetailSpec.itemNoteTagPadV,
+        ),
+        decoration: BoxDecoration(
+          color: PosOrderDetailSpec.noteBg,
+          borderRadius:
+              BorderRadius.circular(PosOrderDetailSpec.itemNoteTagRadius),
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(PosOrderDetailSpec.itemNoteTagRadius),
+          border: Border.all(color: PosOrderDetailSpec.noteBorder),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.sticky_note_2_outlined,
+              size: PosOrderDetailSpec.itemNoteTagIconSize,
+              color: PosOrderDetailSpec.itemNoteLabelInk,
+            ),
+            const SizedBox(width: PosOrderDetailSpec.itemNoteTagIconGap),
+            Text(
+              'NOTE',
+              style: loewBold.copyWith(
+                fontSize: PosOrderDetailSpec.itemNoteTagTextSize,
+                letterSpacing: PosOrderDetailSpec.itemNoteLabelTracking,
+                color: PosOrderDetailSpec.itemNoteLabelInk,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

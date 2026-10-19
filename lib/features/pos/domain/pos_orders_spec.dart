@@ -177,6 +177,20 @@ class PosOrdersSpec {
   static const double stationPillTextSize = 10;
   static const double stationPillGap = 4;
 
+  /// `note-preview` — not in Figma. A card whose order carries a note gets an
+  /// amber strip under the customer block, tinted like the detail overlay's
+  /// Order Notes so the two read as the same thing. Two lines at most: enough
+  /// to read "LESS SUGAR" off the board, while the overlay has the rest.
+  static const double notePreviewRadius = 6;
+  static const double notePreviewPadH = 8;
+  static const double notePreviewPadV = 6;
+  static const double notePreviewIconSize = 12;
+  static const double notePreviewIconGap = 6;
+  static const double notePreviewTextSize = 11;
+  static const double notePreviewLineHeight = 15;
+  static const int notePreviewMaxLines = 2;
+  static const double notePreviewCountGap = 6;
+
   // ── Card colours ─────────────────────────────────────────────────────
   /// The `time-row` dot is coloured by **section**. Figma's layer names say so
   /// (`status-dot-yellow` / `-blue` / `-green`); its NEW and IN PROGRESS fills

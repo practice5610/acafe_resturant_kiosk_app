@@ -373,6 +373,9 @@ class Product {
     if (tags != null) {
       data['tags'] = tags!.map((t) => t.toJson()).toList();
     }
+    // The menu disk cache round-trips through toJson/fromJson; without this
+    // the POS Add Note dialog loses its Quick Add chips after any reload.
+    data['note_suggestions'] = noteSuggestions ?? const <String>[];
     return data;
   }
 }

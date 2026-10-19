@@ -9,6 +9,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_di
 import 'package:acafe_customer/features/pos/widgets/pos_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_card_tile.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_detail_overlay.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -214,6 +215,35 @@ Widget _board(_StubOrdersRepo repo) => MaterialApp(
       ),
     );
 
+/// Height of the stand-in nav bar in [_shellBoard].
+const double _shellHeaderHeight = 100;
+
+/// The board as the app really hosts it: the go_router `ShellRoute` mounts the
+/// nav bar once and gives the tab its own nested [Navigator] *below* it, so
+/// that navigator's overlay does not start at the top of the screen. [_board]
+/// hides this — its only navigator starts at (0, 0) — which is how the ⋮ menu
+/// could open a whole nav-bar height under its button and still pass.
+Widget _shellBoard(_StubOrdersRepo repo) => MaterialApp(
+      home: Scaffold(
+        backgroundColor: const Color(0xFFF7F1DE),
+        body: Column(
+          children: [
+            const SizedBox(height: _shellHeaderHeight),
+            Expanded(
+              child: Navigator(
+                onGenerateRoute: (_) => MaterialPageRoute<void>(
+                  builder: (_) => Scaffold(
+                    backgroundColor: const Color(0xFFF7F1DE),
+                    body: PosOrdersListScreen(key: ValueKey(repo), repo: repo),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
 void main() {
   setUp(() {
     if (!di.sl.isRegistered<KioskManagerRepo>()) {
@@ -236,12 +266,12 @@ void main() {
   });
 
   Future<void> pumpBoard(WidgetTester tester, _StubOrdersRepo repo,
-      {Size size = const Size(1366, 944)}) async {
+      {Size size = const Size(1366, 944), bool inShell = false}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_board(repo));
+    await tester.pumpWidget(inShell ? _shellBoard(repo) : _board(repo));
     await tester.pump();
     await tester.pump();
   }
@@ -325,6 +355,44 @@ void main() {
       expect(row.top - button.bottom, inInclusiveRange(0, 60));
       expect(find.text('Mark on hold'), findsOneWidget);
       expect(find.text('Cancel order'), findsOneWidget);
+    });
+
+    // Regression: under the real nav bar the menu opened ~a nav-bar height
+    // below the ⋮, over the next section, because it was placed with screen
+    // coordinates inside the shell's nested navigator.
+    testWidgets('under the POS nav bar the ⋮ menu still opens snug under it',
+        (tester) async {
+      await pumpBoard(tester, _StubOrdersRepo(),
+          size: const Size(1366, 1500), inShell: true);
+
+      final Rect button =
+          tester.getRect(find.byKey(PosOrderCardTile.menuKeyFor(27363)));
+      await openMenu(tester, 27363);
+
+      final Rect menu = tester.getRect(find.byKey(PosOrderMoreMenu.menuKey));
+      expect(menu.top - button.bottom, inInclusiveRange(0, 16));
+      // Right-aligned to the ⋮, so it hangs over its own card.
+      expect(menu.right, closeTo(button.right, 0.5));
+      expect(find.text('Mark as ready'), findsOneWidget);
+    });
+
+    testWidgets('under the POS nav bar the detail ⋯ menu opens just above it',
+        (tester) async {
+      await pumpBoard(tester, _StubOrdersRepo(),
+          size: const Size(1366, 1500), inShell: true);
+
+      await tester.tap(find.text('Max Mustermann').first);
+      await tester.pumpAndSettle();
+      expect(find.byType(PosOrderDetailOverlay), findsOneWidget);
+
+      final Rect button = tester.getRect(find.byType(PosOrderMoreButton));
+      await tester.tap(find.byType(PosOrderMoreButton));
+      await tester.pumpAndSettle();
+
+      final Rect menu = tester.getRect(find.byKey(PosOrderMoreMenu.menuKey));
+      expect(button.top - menu.bottom, inInclusiveRange(0, 16));
+      expect(menu.left, closeTo(button.left, 0.5));
+      expect(find.text('Mark on hold'), findsOneWidget);
     });
 
     testWidgets('cancelling from the ⋮ is confirmed before it is sent',
