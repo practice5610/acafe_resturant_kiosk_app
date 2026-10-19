@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_close_day_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_close_day_close_button.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_step2.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
@@ -108,6 +111,14 @@ class _PosCloseDayDialogState extends State<PosCloseDayDialog> {
 
   void _onBackspace() {
     setState(() => _entry = _entry.backspace());
+  }
+
+  /// ⌘/Ctrl+Backspace: start the count over, table included.
+  void _onClear() {
+    setState(() {
+      _entry = _entry.clear();
+      _qty = List<int>.filled(PosCloseDaySpec.denominationCents.length, 0);
+    });
   }
 
   void _setDenomQty(int index, int value) {
@@ -281,6 +292,8 @@ class _PosCloseDayDialogState extends State<PosCloseDayDialog> {
           showKeypad: !_denomExpanded,
           onKey: _onKey,
           onBackspace: _onBackspace,
+          onClear: _onClear,
+          onSubmit: _goToStep2,
         ),
         gap,
         _DenominationToggle(
@@ -314,13 +327,15 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final String dateLabel = PosReportDateHeader.formatLong(date);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // The close button centres on the title + step block, not the title
+    // line, so it sits inside the block's height and moves nothing below.
+    return Row(
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
                 'Close Day  $dateLabel',
                 style: PosCloseDaySpec.text(
                     loewExtraBold, PosCloseDaySpec.titleSize,
@@ -328,39 +343,17 @@ class _Header extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(width: PosCloseDaySpec.closeIconGap),
-            Semantics(
-              button: true,
-              label: 'Close',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onClose,
-                child: SizedBox(
-                  width: PosCloseDaySpec.closeIconSize,
-                  height: PosCloseDaySpec.closeIconSize,
-                  child: SvgPicture.asset(
-                    Images.posXCircleSvg,
-                    width: PosCloseDaySpec.closeIconSize,
-                    height: PosCloseDaySpec.closeIconSize,
-                    fit: BoxFit.contain,
-                    placeholderBuilder: (_) => const Icon(
-                      Icons.cancel_outlined,
-                      size: PosCloseDaySpec.closeIconSize,
-                      color: PosCloseDaySpec.ink,
-                    ),
-                  ),
-                ),
+              const SizedBox(height: PosCloseDaySpec.headerGap),
+              Text(
+                'Step 1 of 2  Count Cash Drawer',
+                style: PosCloseDaySpec.text(loewBold, PosCloseDaySpec.stepSize,
+                    color: PosCloseDaySpec.stepColor),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: PosCloseDaySpec.headerGap),
-        Text(
-          'Step 1 of 2  Count Cash Drawer',
-          style: PosCloseDaySpec.text(loewBold, PosCloseDaySpec.stepSize,
-              color: PosCloseDaySpec.stepColor),
-        ),
+        const SizedBox(width: PosCloseDaySpec.closeButtonGap),
+        PosCloseDayCloseButton(onPressed: onClose),
       ],
     );
   }
@@ -444,12 +437,16 @@ class _ActualAmountBlock extends StatelessWidget {
   final bool showKeypad;
   final ValueChanged<String> onKey;
   final VoidCallback onBackspace;
+  final VoidCallback onClear;
+  final VoidCallback onSubmit;
 
   const _ActualAmountBlock({
     required this.entry,
     required this.showKeypad,
     required this.onKey,
     required this.onBackspace,
+    required this.onClear,
+    required this.onSubmit,
   });
 
   @override
@@ -465,7 +462,14 @@ class _ActualAmountBlock extends StatelessWidget {
         const SizedBox(height: PosCloseDaySpec.inputGroupGap),
         // With the keypad folded away the table drives the figure, and the
         // field turns into a filled read-out (Figma 1915:18955).
-        _AmountField(entry: entry, filled: !showKeypad),
+        _AmountField(
+          entry: entry,
+          filled: !showKeypad,
+          onKey: onKey,
+          onBackspace: onBackspace,
+          onClear: onClear,
+          onSubmit: onSubmit,
+        ),
         if (showKeypad) ...<Widget>[
           const SizedBox(height: PosCloseDaySpec.inputGroupGap),
           PosKeypad(
@@ -482,11 +486,116 @@ class _ActualAmountBlock extends StatelessWidget {
   }
 }
 
-class _AmountField extends StatelessWidget {
+/// The counted-amount input. It takes keyboard focus as Step 1 opens (and on a
+/// tap), so a hardware keyboard types straight into it — digits, `,` / `.`,
+/// Backspace, Enter to continue — through the same [PosCashEntry] rules as the
+/// keypad, which never takes the focus away from it.
+///
+/// Not a [TextField]: it holds no text of its own and summons no on-screen
+/// keyboard to cover the keypad on a tablet. While the denomination table
+/// drives the figure ([filled]) it is a read-out and takes no focus or keys.
+class _AmountField extends StatefulWidget {
   final PosCashEntry entry;
   final bool filled;
+  final ValueChanged<String> onKey;
+  final VoidCallback onBackspace;
+  final VoidCallback onClear;
+  final VoidCallback onSubmit;
 
-  const _AmountField({required this.entry, this.filled = false});
+  const _AmountField({
+    required this.entry,
+    required this.onKey,
+    required this.onBackspace,
+    required this.onClear,
+    required this.onSubmit,
+    this.filled = false,
+  });
+
+  @override
+  State<_AmountField> createState() => _AmountFieldState();
+}
+
+class _AmountFieldState extends State<_AmountField> {
+  final FocusNode _focus = FocusNode(debugLabel: 'Actual counted amount');
+  static final RegExp _amountChar = RegExp(r'^[0-9.,]$');
+
+  /// A plain [Timer], like EditableText's own cursor: it runs only while the
+  /// field is focused and never keeps a frame scheduled between blinks.
+  Timer? _blink;
+  bool _caretOn = true;
+
+  bool get _focused => _focus.hasFocus && !widget.filled;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AmountField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Folding the table away hands the figure back to the keyboard. After the
+    // frame: until it rebuilds, the Focus below still refuses focus.
+    if (oldWidget.filled && !widget.filled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.filled) _focus.requestFocus();
+      });
+    }
+    // The caret holds steady while keys land, as a real text field's does.
+    if (oldWidget.entry != widget.entry) _restartBlink();
+  }
+
+  @override
+  void dispose() {
+    _blink?.cancel();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() => setState(_restartBlink);
+
+  void _restartBlink() {
+    _blink?.cancel();
+    _blink = null;
+    _caretOn = true;
+    if (!_focus.hasFocus) return;
+    _blink = Timer.periodic(PosCloseDaySpec.caretBlink, (_) {
+      if (mounted) setState(() => _caretOn = !_caretOn);
+    });
+  }
+
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (widget.filled) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final LogicalKeyboardKey key = event.logicalKey;
+    final HardwareKeyboard keyboard = HardwareKeyboard.instance;
+    final bool command = keyboard.isMetaPressed || keyboard.isControlPressed;
+
+    if (key == LogicalKeyboardKey.backspace ||
+        key == LogicalKeyboardKey.delete) {
+      command ? widget.onClear() : widget.onBackspace();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      // Key-down only: a held Enter must not run on into Step 2.
+      if (event is KeyDownEvent) widget.onSubmit();
+      return KeyEventResult.handled;
+    }
+    // ⌘R, Ctrl+1 and the like belong to the browser and the OS.
+    if (command || keyboard.isAltPressed) return KeyEventResult.ignored;
+
+    final String? ch = event.character;
+    if (ch != null && _amountChar.hasMatch(ch)) {
+      widget.onKey(ch);
+      return KeyEventResult.handled;
+    }
+    // Esc and Tab carry on to the dialog: dismiss and focus traversal.
+    return KeyEventResult.ignored;
+  }
 
   /// Formatted like every other price, except that once the decimal key has
   /// been pressed the fraction shows exactly what was typed: `62.`, `62.5`,
@@ -507,35 +616,117 @@ class _AmountField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final PosCashEntry entry = widget.entry;
+    final bool filled = widget.filled;
     final bool empty = entry.isEmpty;
+    final bool focused = _focused;
+    final String display = empty ? '' : _display(entry);
     final BorderRadius radius =
         BorderRadius.circular(PosCloseDaySpec.inputRadius);
 
-    return Container(
-      width: double.infinity,
-      padding: filled
-          ? PosCloseDaySpec.inputFilledPadding
-          : PosCloseDaySpec.inputPadding,
-      decoration: BoxDecoration(
-        color: filled ? PosCloseDaySpec.pageBg : PosCloseDaySpec.surface,
-        borderRadius: radius,
-      ),
-      foregroundDecoration: BoxDecoration(
-        borderRadius: radius,
-        border: Border.all(
-          color: PosCloseDaySpec.inputBorderColor,
-          width: PosCloseDaySpec.inputBorder,
+    final Widget text = Text(
+      empty ? 'Enter counted amount' : display,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: PosCloseDaySpec.text(
+          (filled && !empty ? loewExtraBold : loewRegular),
+          PosCloseDaySpec.inputTextSize,
+          color:
+              empty ? PosCloseDaySpec.inputPlaceholder : PosCloseDaySpec.ink),
+    );
+    final Widget caret = _Caret(visible: _caretOn);
+
+    // The caret sits after the figure; on an empty field it hangs just left
+    // of the placeholder, in the padding, so neither ever shifts.
+    final Widget content = !focused
+        ? text
+        : empty
+            ? Stack(
+                clipBehavior: Clip.none,
+                alignment: AlignmentDirectional.centerStart,
+                children: <Widget>[
+                  text,
+                  PositionedDirectional(
+                    start: -(PosCloseDaySpec.caretWidth +
+                        PosCloseDaySpec.caretGap),
+                    top: 0,
+                    bottom: 0,
+                    child: Center(child: caret),
+                  ),
+                ],
+              )
+            : Row(
+                children: <Widget>[
+                  Flexible(child: text),
+                  const SizedBox(width: PosCloseDaySpec.caretGap),
+                  caret,
+                ],
+              );
+
+    return Semantics(
+      textField: true,
+      readOnly: filled,
+      focused: focused,
+      label: 'Actual counted amount',
+      hint: 'Enter counted amount',
+      value: display,
+      excludeSemantics: true,
+      child: Focus(
+        focusNode: _focus,
+        autofocus: !filled,
+        canRequestFocus: !filled,
+        onKeyEvent: _onKeyEvent,
+        child: MouseRegion(
+          cursor: filled ? MouseCursor.defer : SystemMouseCursors.text,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: filled ? null : _focus.requestFocus,
+            child: AnimatedContainer(
+              duration: PosCloseDaySpec.inputFocusDuration,
+              curve: Curves.easeOut,
+              width: double.infinity,
+              padding: filled
+                  ? PosCloseDaySpec.inputFilledPadding
+                  : PosCloseDaySpec.inputPadding,
+              decoration: BoxDecoration(
+                color:
+                    filled ? PosCloseDaySpec.pageBg : PosCloseDaySpec.surface,
+                borderRadius: radius,
+              ),
+              foregroundDecoration: BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(
+                  color: focused
+                      ? PosCloseDaySpec.inputFocusBorderColor
+                      : PosCloseDaySpec.inputBorderColor,
+                  width: PosCloseDaySpec.inputBorder,
+                ),
+              ),
+              child: content,
+            ),
+          ),
         ),
       ),
-      child: Text(
-        empty ? 'Enter counted amount' : _display(entry),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: PosCloseDaySpec.text(
-            (filled && !empty ? loewExtraBold : loewRegular),
-            PosCloseDaySpec.inputTextSize,
-            color:
-                empty ? PosCloseDaySpec.inputPlaceholder : PosCloseDaySpec.ink),
+    );
+  }
+}
+
+class _Caret extends StatelessWidget {
+  final bool visible;
+
+  const _Caret({required this.visible});
+
+  @override
+  Widget build(BuildContext context) {
+    // Blinks by colour, not by leaving the tree, so the row never reflows.
+    return SizedBox(
+      width: PosCloseDaySpec.caretWidth,
+      height: PosCloseDaySpec.caretHeight,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: visible ? PosCloseDaySpec.ink : Colors.transparent,
+          borderRadius: BorderRadius.circular(PosCloseDaySpec.caretWidth / 2),
+        ),
       ),
     );
   }

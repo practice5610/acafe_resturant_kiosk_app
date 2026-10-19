@@ -226,6 +226,9 @@ CartModel? _lineFromOrderDetail(Map<String, dynamic> detail) {
   final double price = _asDouble(detail['price']) ?? 0;
   final double lineDiscount = _asDouble(detail['discount_on_product']) ?? 0;
 
+  // The kitchen note typed for this line at the till (order_details.instruction).
+  final String note = '${detail['instruction'] ?? ''}'.trim();
+
   return CartModel(
     price,
     price - lineDiscount,
@@ -236,7 +239,27 @@ CartModel? _lineFromOrderDetail(Map<String, dynamic> detail) {
     selectedAddOns,
     product,
     flags,
+    instruction: note.isEmpty ? null : note,
   );
+}
+
+/// What a line's option picks add to its unit price (Large `+ €10`, Oat
+/// `+ €0.50`), read off the same product variations the picks index into.
+///
+/// A stored line's `price` already includes this; the receipt editor uses the
+/// difference between two pick sets to move that price when a pick changes.
+double posLineVariationSurcharge(CartModel line) {
+  final List<Variation> variations = line.product?.variations ?? const [];
+  final List<List<bool?>> picks = line.variations ?? const [];
+  double surcharge = 0;
+  for (int i = 0; i < variations.length && i < picks.length; i++) {
+    final List<VariationValue> values =
+        variations[i].variationValues ?? const <VariationValue>[];
+    for (int j = 0; j < values.length && j < picks[i].length; j++) {
+      if (picks[i][j] == true) surcharge += values[j].optionPrice ?? 0;
+    }
+  }
+  return surcharge;
 }
 
 int? _asInt(dynamic value) =>

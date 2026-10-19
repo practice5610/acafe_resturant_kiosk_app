@@ -147,8 +147,8 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
       return;
     }
 
-    // Re-pull now, while the success card is up: by the time the operator
-    // taps back, the list row and the receipt already carry the new total.
+    // Re-pull now, while the success card is up: by the time it fades itself
+    // out, the list row and the receipt already carry the new total.
     widget.onRefresh?.call();
     showPosReceiptChangesSavedDialog(
       context: context,
@@ -156,6 +156,8 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
       // The server re-prices the order; the sidebar's figure is an estimate.
       newTotal: _savedTotal(result.response?.data) ?? estimate,
       onDone: () {
+        // The card closes on its own clock; the panel may be gone by then.
+        if (!mounted) return;
         _editLines.value = const [];
         _sidebarMode.value = _ReceiptSidebarMode.view;
       },
@@ -214,20 +216,8 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
                   receiptNumber: receipt.receiptNumber,
                   line: lines[index],
                   onConfirm: (edits) {
-                    final original = lines[index];
                     final updated = List<CartModel>.from(_editLines.value);
-                    updated[index] = CartModel(
-                      original.price,
-                      original.discountedPrice,
-                      original.variation ?? const [],
-                      original.discountAmount,
-                      original.quantity,
-                      original.taxAmount,
-                      edits.addOnIds,
-                      original.product,
-                      edits.flags,
-                      instruction: original.instruction,
-                    );
+                    updated[index] = posApplyLineEdits(lines[index], edits);
                     _editLines.value = updated;
                   },
                 );
@@ -401,6 +391,7 @@ class _Body extends StatelessWidget {
             ),
             // A record, not a control: no stepper, no EDIT.
             quantityOnly: true,
+            showInstruction: true,
           );
         },
       ),
@@ -603,6 +594,10 @@ double _computeEditDelta(PosReceiptDetail receipt, List<CartModel> editLines) {
         if (a.id != null) a.id!
     };
     final qty = (editLines[i].quantity ?? 1).toDouble();
+    // A changed size/milk/extra moves the unit price by its surcharge.
+    delta += (posLineVariationSurcharge(editLines[i]) -
+            posLineVariationSurcharge(orig[i])) *
+        qty;
     for (final group
         in editLines[i].product?.effectiveAddOnGroups ?? const []) {
       for (final addon in group.addons) {
@@ -983,6 +978,7 @@ class _EditableLineRow extends StatelessWidget {
           line: line,
           imageUrl: imageUrl ?? '',
           quantityOnly: true,
+          showInstruction: true,
         ),
         Positioned(
           right: PosHomeSpec.panelPaddingH,

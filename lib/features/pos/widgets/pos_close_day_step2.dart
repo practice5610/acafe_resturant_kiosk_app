@@ -3,6 +3,7 @@ import 'package:acafe_customer/features/pos/domain/pos_close_day_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_close_day_close_button.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_date_header.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_widgets.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -227,13 +228,14 @@ class _Step2Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Same layout as Step 1's header: the button centres on the whole block.
+    return Row(
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
                 'Close Day  $dateLabel',
                 style: PosCloseDaySpec.text(
                     loewExtraBold, PosCloseDaySpec.titleSize,
@@ -241,30 +243,17 @@ class _Step2Header extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(width: PosCloseDaySpec.closeIconGap),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onClose,
-              child: SizedBox(
-                width: PosCloseDaySpec.closeIconSize,
-                height: PosCloseDaySpec.closeIconSize,
-                child: SvgPicture.asset(
-                  Images.posXCircleSvg,
-                  width: PosCloseDaySpec.closeIconSize,
-                  height: PosCloseDaySpec.closeIconSize,
-                  fit: BoxFit.contain,
-                ),
+              const SizedBox(height: PosCloseDaySpec.headerGap),
+              Text(
+                'Step 2 of 2  Review & Confirm',
+                style: PosCloseDaySpec.text(loewBold, PosCloseDaySpec.stepSize,
+                    color: PosCloseDaySpec.stepColor),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: PosCloseDaySpec.headerGap),
-        Text(
-          'Step 2 of 2  Review & Confirm',
-          style: PosCloseDaySpec.text(loewBold, PosCloseDaySpec.stepSize,
-              color: PosCloseDaySpec.stepColor),
-        ),
+        const SizedBox(width: PosCloseDaySpec.closeButtonGap),
+        PosCloseDayCloseButton(onPressed: onClose),
       ],
     );
   }

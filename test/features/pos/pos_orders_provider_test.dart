@@ -415,6 +415,10 @@ void main() {
   });
 
   test('a burst of socket pushes coalesces into one refetch', () async {
+    // On screen: the board answers at the visible pace. (A hidden board uses
+    // the slower one; see pos_orders_live_store_test.)
+    provider.setVisible(true);
+    addTearDown(() => provider.setVisible(false));
     await provider.load();
     final int before = repo.getCalls;
 

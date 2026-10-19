@@ -168,14 +168,12 @@ Future<KioskPlaceResult> placeKioskOrder(
   return completer.future;
 }
 
-Cart _kioskOrderCartFromLine(CartModel cart, {int? dealId}) {
-  final List<int?> addOnIdList = [];
-  final List<int?> addOnQtyList = [];
-  for (final addOn in cart.addOnIds ?? []) {
-    addOnIdList.add(addOn.id);
-    addOnQtyList.add(addOn.quantity);
-  }
-
+/// A line's picks as the backend reads them (`cart.*.variations`, resolved by
+/// `Helpers::get_varient`): one entry per group with something picked.
+///
+/// Shared with the receipt editor's save-changes so an edited line is sent in
+/// exactly the shape it was placed in.
+List<OrderVariation> kioskOrderVariations(CartModel cart) {
   final List<OrderVariation> variations = [];
   final productVariations = cart.product?.variations;
   final selected = cart.variations;
@@ -194,6 +192,18 @@ Cart _kioskOrderCartFromLine(CartModel cart, {int? dealId}) {
       }
     }
   }
+  return variations;
+}
+
+Cart _kioskOrderCartFromLine(CartModel cart, {int? dealId}) {
+  final List<int?> addOnIdList = [];
+  final List<int?> addOnQtyList = [];
+  for (final addOn in cart.addOnIds ?? []) {
+    addOnIdList.add(addOn.id);
+    addOnQtyList.add(addOn.quantity);
+  }
+
+  final List<OrderVariation> variations = kioskOrderVariations(cart);
 
   return Cart(
     cart.product!.id.toString(),

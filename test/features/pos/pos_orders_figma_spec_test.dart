@@ -413,7 +413,10 @@ void main() {
     final Rect c4 = rectOf(tester, cards.at(4));
     _expectFigma('first card top', 144 + 20 + 30, c0.top);
     _expectFigma('card width', 288, c0.width);
-    _expectFigma('card height', 155, c0.height);
+    // Every card keeps a two-line note's room and the grid gives a section
+    // one height (user request 2026-10-19), so cards outgrow Figma's 155 and
+    // the timer + footer sit on the bottom edge in every section.
+    _expectFigma('card height', 155, c0.height, strict: false);
     _expectFigma('card gap x', 12, c1.left - c0.right);
     _expectFigma('card gap y', 12, c4.top - c0.bottom);
 
@@ -429,6 +432,15 @@ void main() {
     _expectFigma('source-badge dx', 252, src0.left - c0.left);
     _expectFigma('source-badge dy', 12, src0.top - c0.top);
     _expectFigma('source-badge size', 24, src0.width);
+    // The order number (not in Figma; user request 2026-10-19) is a tag on
+    // `card-top`, right of the clock and as tall as the row, so nothing
+    // below it moves off Figma.
+    final Rect number = rectOf(tester,
+        inCard(0, find.byKey(PosOrderCardTile.numberKeyFor(27364))));
+    _expectFigma('order number dy (on card-top)', 12, number.top - c0.top);
+    _expectFigma('order number height', 16, number.height);
+    _expectFigma('order number gap from clock', PosOrdersSpec.orderNumberGap,
+        number.left - clock.right);
     final Rect name =
         rectOf(tester, inCard(0, find.text('Max Mustermann (Alias 123)')));
     _expectFigma('customer name dy', 36, name.top - c0.top);
@@ -437,13 +449,15 @@ void main() {
     final Rect a1 = rectOf(tester, inCard(0, find.text('Potsdamer Str. 33')));
     final Rect a2 = rectOf(tester, inCard(0, find.text('14974 Ludwigsfelde')));
     _expectFigma('address line 1 dy', 36 + 19, a1.top - c0.top);
+    _expectFigma('address line 1 to name', 19, a1.top - name.top);
     _expectFigma('address line height', 13, a1.height);
     _expectFigma('address line 2 dy', 36 + 34, a2.top - c0.top);
+    _expectFigma('address line 2 to name', 34, a2.top - name.top);
     final Rect timer = rectOf(tester, inCard(0, find.text('1:00')));
-    _expectFigma('timer dy', 91, timer.top - c0.top);
+    _expectFigma('timer dy', 91, timer.top - c0.top, strict: false);
     _expectFigma('timer height', 13, timer.height);
     final Rect price = rectOf(tester, inCard(0, find.textContaining('11')));
-    _expectFigma('price dy', 112, price.top - c0.top);
+    _expectFigma('price dy', 112, price.top - c0.top, strict: false);
     _expectFigma('price height', 17, price.height);
 
     // Urgent card (1915:15946): content inset by the 4px bar.
@@ -455,7 +469,7 @@ void main() {
 
     // IN PROGRESS card (1915:15974): footer pinned to the bottom.
     final Rect p = rectOf(tester, cards.at(6));
-    _expectFigma('in-progress card height', 155, p.height);
+    _expectFigma('in-progress card height', 155, p.height, strict: false);
     final Rect pill = rectOf(tester,
         find.ancestor(of: find.text('Bar · Ready').first,
             matching: find.byType(AnimatedContainer)).first);
@@ -463,9 +477,16 @@ void main() {
     _expectFigma('station pill height', 18, pill.height);
     _expectFigma('station pill text dx', 8, pillT.left - pill.left);
     _expectFigma('station pill text height', 12, pillT.height);
-    _expectFigma('station pill dy in card', 125, pill.top - p.top);
+    _expectFigma('station pill dy in card', 125, pill.top - p.top,
+        strict: false);
     final Rect pTimer = rectOf(tester, inCard(6, find.text('3:00')));
-    _expectFigma('in-progress timer dy', 104, pTimer.top - p.top);
+    _expectFigma('in-progress timer dy', 104, pTimer.top - p.top,
+        strict: false);
+    // The pinned bottom group itself is still Figma's (1915:15986): footer 12
+    // off the bottom edge, timer 21 above the pills.
+    _expectFigma('station pill bottom inset', 155 - 125 - 18,
+        p.bottom - pill.bottom);
+    _expectFigma('in-progress timer to pill', 125 - 104, pill.top - pTimer.top);
 
     _printReport('board');
     expect(tester.takeException(), isNull);

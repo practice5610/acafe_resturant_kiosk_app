@@ -1,10 +1,14 @@
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
-import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
 import 'package:acafe_customer/features/pos/domain/pos_customize_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/features/pos/domain/pos_receipt_line_copy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_add_note_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -25,7 +29,48 @@ class PosReceiptLineEdits {
   final List<List<bool?>> flags;
   final List<AddOn> addOnIds;
 
-  const PosReceiptLineEdits({required this.flags, required this.addOnIds});
+  /// The line's kitchen note; null when there is none (or it was cleared).
+  final String? instruction;
+
+  const PosReceiptLineEdits({
+    required this.flags,
+    required this.addOnIds,
+    this.instruction,
+  });
+}
+
+/// [line] with [edits] applied.
+///
+/// A stored line's price already includes its option surcharges, so the unit
+/// price moves by the surcharge difference: the row and the to-charge
+/// estimate follow a Small → Large edit. The server re-prices for real on
+/// save; this is the till's estimate of it.
+CartModel posApplyLineEdits(CartModel line, PosReceiptLineEdits edits) {
+  final CartModel picked = CartModel(
+    line.price,
+    line.discountedPrice,
+    line.variation ?? const [],
+    line.discountAmount,
+    line.quantity,
+    line.taxAmount,
+    edits.addOnIds,
+    line.product,
+    edits.flags,
+  );
+  final double move =
+      posLineVariationSurcharge(picked) - posLineVariationSurcharge(line);
+  return CartModel(
+    (line.price ?? 0) + move,
+    (line.discountedPrice ?? line.price ?? 0) + move,
+    line.variation ?? const [],
+    line.discountAmount,
+    line.quantity,
+    line.taxAmount,
+    edits.addOnIds,
+    line.product,
+    edits.flags,
+    instruction: edits.instruction,
+  );
 }
 
 /// Opens the full-screen line-item editor — Figma **1915:21366** —
@@ -77,6 +122,7 @@ class _EditLineScreenState extends State<_EditLineScreen> {
   late Set<int> _selectedAddonIds;
   late Set<int> _origAddonIds;
   late Map<int, AddOns> _addOnById;
+  String? _note;
 
   @override
   void initState() {
@@ -90,6 +136,7 @@ class _EditLineScreenState extends State<_EditLineScreen> {
         if (a.id != null) a.id!,
     };
     _selectedAddonIds = Set<int>.from(_origAddonIds);
+    _note = widget.line.instruction;
 
     // Index add-ons by ID for quick lookup (price delta, label).
     _addOnById = {};
@@ -100,6 +147,17 @@ class _EditLineScreenState extends State<_EditLineScreen> {
       }
     }
   }
+
+  PosReceiptLineEdits get _edits => PosReceiptLineEdits(
+        flags: _flags,
+        addOnIds: [
+          for (final id in _selectedAddonIds) AddOn(id: id, quantity: 1),
+        ],
+        instruction: _note,
+      );
+
+  /// The line as it will read after UPDATE ITEM — what the sidebar shows.
+  CartModel get _preview => posApplyLineEdits(widget.line, _edits);
 
   double get _addonDelta {
     double origTotal = 0;
@@ -112,17 +170,34 @@ class _EditLineScreenState extends State<_EditLineScreen> {
     return newTotal - origTotal;
   }
 
-  void _toggleVariation(int groupIdx, int valueIdx, bool isMultiSelect) {
+  /// Add-ons plus option surcharges, per unit.
+  double get _priceDelta =>
+      _addonDelta +
+      posLineVariationSurcharge(_preview) -
+      posLineVariationSurcharge(widget.line);
+
+  /// Same rules as the customize screen (ProductProvider.setCartVariationIndex):
+  /// a required single choice always holds exactly one pick, an optional one
+  /// clears when its pick is tapped again, and a multi choice stops at its max.
+  void _toggleVariation(int groupIdx, int valueIdx, Variation variation) {
     setState(() {
       if (groupIdx >= _flags.length) return;
       final row = _flags[groupIdx];
-      if (!isMultiSelect) {
+      if (valueIdx >= row.length) return;
+      if (!(variation.isMultiSelect ?? false)) {
+        final bool clear =
+            !(variation.isRequired ?? false) && row[valueIdx] == true;
         for (int i = 0; i < row.length; i++) {
-          row[i] = i == valueIdx ? true : false;
+          row[i] = !clear && i == valueIdx;
         }
-      } else {
-        if (valueIdx < row.length) row[valueIdx] = !(row[valueIdx] ?? false);
+        return;
       }
+      final bool picking = row[valueIdx] != true;
+      final int max = variation.max ?? 0;
+      if (picking && max > 0 && row.where((f) => f == true).length >= max) {
+        return;
+      }
+      row[valueIdx] = picking;
     });
   }
 
@@ -136,13 +211,20 @@ class _EditLineScreenState extends State<_EditLineScreen> {
     });
   }
 
-  void _confirm() {
-    final edits = PosReceiptLineEdits(
-      flags: _flags,
-      addOnIds: [
-        for (final id in _selectedAddonIds) AddOn(id: id, quantity: 1),
-      ],
+  /// The same "Add Note" modal the customize screen opens (Figma 1915:14827),
+  /// seeded with the line's note and its product's quick-add phrases.
+  Future<void> _editNote() async {
+    final String? result = await showPosAddNoteDialog(
+      context: context,
+      initialNote: _note,
+      quickAdd: widget.line.product?.noteSuggestions ?? const [],
     );
+    if (result == null || !mounted) return;
+    setState(() => _note = result.isEmpty ? null : result);
+  }
+
+  void _confirm() {
+    final edits = _edits;
     Navigator.of(context).pop();
     widget.onConfirm(edits);
   }
@@ -163,23 +245,22 @@ class _EditLineScreenState extends State<_EditLineScreen> {
                     line: widget.line,
                     flags: _flags,
                     selectedAddonIds: _selectedAddonIds,
+                    hasNote: _note != null,
                     onToggleVariation: _toggleVariation,
                     onToggleAddon: _toggleAddon,
+                    onEditNote: _editNote,
                     onBack: () => Navigator.of(context).pop(),
                   ),
                 ),
                 _RightSidebar(
                   receiptNumber: widget.receiptNumber,
-                  line: widget.line,
-                  flags: _flags,
-                  selectedAddonIds: _selectedAddonIds,
-                  addOnById: _addOnById,
+                  preview: _preview,
                 ),
               ],
             ),
           ),
           _Footer(
-            addonDelta: _addonDelta,
+            delta: _priceDelta,
             onConfirm: _confirm,
           ),
         ],
@@ -194,17 +275,21 @@ class _LeftPanel extends StatelessWidget {
   final CartModel line;
   final List<List<bool?>> flags;
   final Set<int> selectedAddonIds;
-  final void Function(int groupIdx, int valueIdx, bool isMultiSelect)
+  final bool hasNote;
+  final void Function(int groupIdx, int valueIdx, Variation variation)
       onToggleVariation;
   final void Function(int id) onToggleAddon;
+  final VoidCallback onEditNote;
   final VoidCallback onBack;
 
   const _LeftPanel({
     required this.line,
     required this.flags,
     required this.selectedAddonIds,
+    required this.hasNote,
     required this.onToggleVariation,
     required this.onToggleAddon,
+    required this.onEditNote,
     required this.onBack,
   });
 
@@ -224,7 +309,12 @@ class _LeftPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header row: back + title + ADD NOTE
-            _LeftHeader(name: name, onBack: onBack),
+            _LeftHeader(
+              name: name,
+              hasNote: hasNote,
+              onEditNote: onEditNote,
+              onBack: onBack,
+            ),
             const SizedBox(height: 24),
 
             // Variation sections (dietary → size → cup/can)
@@ -239,8 +329,6 @@ class _LeftPanel extends StatelessWidget {
                     variation: entry.value,
                     groupIdx: entry.key,
                     flags: flags,
-                    isMultiSelect:
-                        entry.value.isMultiSelect ?? false,
                     onToggle: onToggleVariation,
                   ),
                   const SizedBox(height: 24),
@@ -265,12 +353,20 @@ class _LeftPanel extends StatelessWidget {
 
 class _LeftHeader extends StatelessWidget {
   final String name;
+  final bool hasNote;
+  final VoidCallback onEditNote;
   final VoidCallback onBack;
 
-  const _LeftHeader({required this.name, required this.onBack});
+  const _LeftHeader({
+    required this.name,
+    required this.hasNote,
+    required this.onEditNote,
+    required this.onBack,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius noteRadius = BorderRadius.circular(14);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -303,17 +399,28 @@ class _LeftHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black, width: 1),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Text(
-            'ADD NOTE',
-            style: loewExtraBold.copyWith(
-              fontSize: 14,
-              color: PosHomeSpec.ink,
+        // "EDIT NOTE" once the line has a note, else "ADD NOTE" — the same
+        // switch the customize header makes (Figma 1915:15205).
+        Material(
+          color: Colors.transparent,
+          borderRadius: noteRadius,
+          child: InkWell(
+            key: const Key('pos-edit-line-note'),
+            onTap: onEditNote,
+            borderRadius: noteRadius,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black, width: 1),
+                borderRadius: noteRadius,
+              ),
+              child: Text(
+                hasNote ? 'EDIT NOTE' : 'ADD NOTE',
+                style: loewExtraBold.copyWith(
+                  fontSize: 14,
+                  color: PosHomeSpec.ink,
+                ),
+              ),
             ),
           ),
         ),
@@ -326,14 +433,12 @@ class _VariationSection extends StatelessWidget {
   final Variation variation;
   final int groupIdx;
   final List<List<bool?>> flags;
-  final bool isMultiSelect;
-  final void Function(int groupIdx, int valueIdx, bool isMultiSelect) onToggle;
+  final void Function(int groupIdx, int valueIdx, Variation variation) onToggle;
 
   const _VariationSection({
     required this.variation,
     required this.groupIdx,
     required this.flags,
-    required this.isMultiSelect,
     required this.onToggle,
   });
 
@@ -342,10 +447,21 @@ class _VariationSection extends StatelessWidget {
     final values = variation.variationValues ?? const [];
     if (values.isEmpty) return const SizedBox.shrink();
     final rowFlags = groupIdx < flags.length ? flags[groupIdx] : const <bool?>[];
+    final int max = variation.max ?? 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SectionTitle(variation.name ?? ''),
+        if ((variation.isMultiSelect ?? false) && max > 0) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Choose up to $max',
+            style: swiss721Light.copyWith(
+              fontSize: 13,
+              color: PosHomeSpec.inkAlpha(0.6),
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         Wrap(
           spacing: PosCustomizeSpec.optionGridGap,
@@ -356,7 +472,7 @@ class _VariationSection extends StatelessWidget {
                 name: values[i].level?.trim() ?? '',
                 price: values[i].optionPrice ?? 0,
                 selected: i < rowFlags.length && rowFlags[i] == true,
-                onTap: () => onToggle(groupIdx, i, isMultiSelect),
+                onTap: () => onToggle(groupIdx, i, variation),
               ),
           ],
         ),
@@ -507,50 +623,24 @@ class _OptionTile extends StatelessWidget {
 
 class _RightSidebar extends StatelessWidget {
   final String receiptNumber;
-  final CartModel line;
-  final List<List<bool?>> flags;
-  final Set<int> selectedAddonIds;
-  final Map<int, AddOns> addOnById;
+
+  /// The line with the editor's current picks applied, read through the same
+  /// copy helpers as the receipt row so the two always describe it alike.
+  final CartModel preview;
 
   const _RightSidebar({
     required this.receiptNumber,
-    required this.line,
-    required this.flags,
-    required this.selectedAddonIds,
-    required this.addOnById,
+    required this.preview,
   });
-
-  /// Cup/Can label derived from the LOCAL flags, not from the (immutable) line.
-  String? _unit() {
-    final variations = line.product?.variations ?? const <Variation>[];
-    for (int i = 0; i < variations.length; i++) {
-      if (!kioskCupCanPattern.hasMatch(variations[i].name ?? '')) continue;
-      final values = variations[i].variationValues ?? const [];
-      final row = i < flags.length ? flags[i] : const <bool?>[];
-      for (int j = 0; j < values.length && j < row.length; j++) {
-        if (row[j] == true) {
-          final label = values[j].level ?? '';
-          if (label.isNotEmpty) return label;
-        }
-      }
-    }
-    return null;
-  }
 
   @override
   Widget build(BuildContext context) {
-    final String productName = line.product?.name ?? '';
-    final double basePrice = line.discountedPrice ?? line.price ?? 0;
-    final String? unit = _unit();
-    final String priceLine =
-        unit == null ? PosHomeSpec.formatPrice(basePrice) : '${PosHomeSpec.formatPrice(basePrice)} · $unit';
-
-    // Collect selected non-default add-on labels.
-    final List<String> addOnLabels = [
-      for (final id in selectedAddonIds)
-        if (addOnById.containsKey(id) && !addOnById[id]!.isDefault)
-          addOnById[id]!.name ?? '',
-    ].where((s) => s.isNotEmpty).toList();
+    final String productName = preview.product?.name ?? '';
+    final String price = PosHomeSpec.formatPrice(kioskLineUnitPrice(preview));
+    final String? unit = posReceiptUnit(preview);
+    final String priceLine = unit == null ? price : '$price · $unit';
+    final List<PosReceiptNote> picks = posReceiptNotes(preview);
+    final String? note = preview.instruction;
 
     return Container(
       width: PosReceiptsSpec.sidebarWidth - 42, // 358px (Figma) ≈ 400 - 42
@@ -579,49 +669,39 @@ class _RightSidebar extends StatelessWidget {
           ),
           // Item row
           Container(
+            key: const Key('pos-edit-line-summary'),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: const BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: _kFooterBorder),
               ),
             ),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        productName,
-                        style: loewExtraBold.copyWith(
-                          fontSize: 14,
-                          color: PosHomeSpec.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        priceLine,
-                        style: swiss721Light.copyWith(
-                          fontSize: 12,
-                          color: PosHomeSpec.inkAlpha(0.6),
-                        ),
-                      ),
-                      if (addOnLabels.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          '+ ${addOnLabels.join(', ')}',
-                          style: swiss721Light.copyWith(
-                            fontSize: 11,
-                            color: PosHomeSpec.inkAlpha(0.53),
-                          ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
+                Text(
+                  productName,
+                  style: loewExtraBold.copyWith(
+                    fontSize: 14,
+                    color: PosHomeSpec.ink,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  priceLine,
+                  style: swiss721Light.copyWith(
+                    fontSize: 12,
+                    color: PosHomeSpec.inkAlpha(0.6),
+                  ),
+                ),
+                for (final PosReceiptNote pick in picks) ...[
+                  const SizedBox(height: 4),
+                  _PickRow(pick: pick),
+                ],
+                if (note != null) ...[
+                  const SizedBox(height: 6),
+                  PosLineInstruction(text: note),
+                ],
               ],
             ),
           ),
@@ -631,18 +711,48 @@ class _RightSidebar extends StatelessWidget {
   }
 }
 
+/// `+ Large` / `+ Blueberry` / `− Whipped cream` under the item, as on the
+/// receipt row.
+class _PickRow extends StatelessWidget {
+  final PosReceiptNote pick;
+
+  const _PickRow({required this.pick});
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle style = swiss721Light.copyWith(
+      fontSize: 12,
+      color: PosHomeSpec.inkAlpha(0.53),
+    );
+    return Row(
+      children: [
+        SizedBox(width: 12, child: Text(pick.included ? '+' : '−', style: style)),
+        Expanded(
+          child: Text(
+            pick.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ── Footer ────────────────────────────────────────────────────────────────────
 
 class _Footer extends StatelessWidget {
-  final double addonDelta;
+  /// Per-unit price change: add-ons plus option surcharges.
+  final double delta;
   final VoidCallback onConfirm;
 
-  const _Footer({required this.addonDelta, required this.onConfirm});
+  const _Footer({required this.delta, required this.onConfirm});
 
   String _ctaLabel() {
-    if (addonDelta == 0) return 'UPDATE ITEM';
-    final String formatted = PriceConverterHelper.convertPrice(addonDelta.abs());
-    final String sign = addonDelta > 0 ? '+' : '-';
+    if (delta.abs() < 0.005) return 'UPDATE ITEM';
+    final String formatted = PriceConverterHelper.convertPrice(delta.abs());
+    final String sign = delta > 0 ? '+' : '-';
     return 'UPDATE ITEM  •  $sign $formatted';
   }
 

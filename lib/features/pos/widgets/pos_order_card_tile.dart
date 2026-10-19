@@ -66,6 +66,10 @@ class PosOrderCardTile extends StatelessWidget {
   static Key menuKeyFor(int orderId) =>
       ValueKey<String>('pos-order-menu-$orderId');
 
+  /// The order-number headline of order [orderId], for tests.
+  static Key numberKeyFor(int orderId) =>
+      ValueKey<String>('pos-order-number-$orderId');
+
   /// The amber note strip of order [orderId], for tests.
   static Key notePreviewKeyFor(int orderId) =>
       ValueKey<String>('pos-order-note-preview-$orderId');
@@ -169,17 +173,30 @@ class PosOrderCardTile extends StatelessWidget {
               _topRow(urgent),
               const SizedBox(height: PosOrdersSpec.cardBlockGap),
               _customerBlock(),
-              if (order.hasNotes) ...[
-                const SizedBox(height: PosOrdersSpec.cardBlockGap),
-                _NotePreview(
-                  key: notePreviewKeyFor(order.id),
-                  notes: order.notes,
+              const SizedBox(height: PosOrdersSpec.cardBlockGap),
+              // `note-slot`: every card keeps room for a two-line note, note
+              // or not, so a card with no note, a one-line note and a
+              // two-line note are one size. The strip itself stays as tall as
+              // its text.
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: PosOrdersSpec.notePreviewSlotHeight,
                 ),
-              ],
-              // IN PROGRESS: `customer-info` is flex-1, so the timer and the
-              // footer sit on the card's bottom edge (1915:15986). NEW and
-              // finished cards stack from the top and keep the slack below.
-              if (_inProgress) const Spacer(),
+                child: order.hasNotes
+                    ? Align(
+                        alignment: Alignment.topLeft,
+                        child: _NotePreview(
+                          key: notePreviewKeyFor(order.id),
+                          notes: order.notes,
+                        ),
+                      )
+                    : null,
+              ),
+              // The timer and the footer sit on the card's bottom edge in
+              // every section, as on Figma's IN PROGRESS card (1915:15986):
+              // [PosOrderCardGrid] gives a row one height, and pinning keeps
+              // the prices on one line across it.
+              const Spacer(),
               const SizedBox(height: PosOrdersSpec.cardBlockGap),
               _timerRow(urgency),
               if (_showProgress) ...[
@@ -224,7 +241,7 @@ class PosOrderCardTile extends StatelessWidget {
     );
   }
 
-  /// `card-top`: the dot and the clock, 16 tall.
+  /// `card-top`: the dot, the clock and the order number, 16 tall.
   Widget _topRow(bool urgent) {
     final Color accent = urgent ? PosOrdersSpec.urgentAccent : PosHomeSpec.ink;
 
@@ -253,7 +270,72 @@ class PosOrderCardTile extends StatelessWidget {
               color: accent,
             ),
           ),
+          // An unparseable id comes through as 0; a made-up "#0" would send
+          // someone looking for an order that does not exist.
+          if (order.id > 0) ...[
+            const SizedBox(width: PosOrdersSpec.orderNumberGap),
+            Flexible(child: _orderNumber()),
+            // Keeps a long number off the ⋮ and badge drawn over this row.
+            // Flexible, not fixed: on a card too narrow for both it shrinks
+            // with the tag instead of overflowing.
+            const Flexible(
+              child: SizedBox(width: PosOrdersSpec.cardTopRightReserve),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  /// `order-number`: `#100014` in a cream tag the row's height. Ink on a late
+  /// card too — lateness is the red bar, dot and clock, and a red number would
+  /// read as an error on the order itself.
+  Widget _orderNumber() {
+    final String label = order.numberLabel;
+    final bool hashed = label.startsWith('#');
+
+    return Container(
+      key: numberKeyFor(order.id),
+      height: PosOrdersSpec.cardTopHeight,
+      padding: const EdgeInsets.symmetric(
+        horizontal: PosOrdersSpec.orderNumberPadH,
+      ),
+      decoration: BoxDecoration(
+        color: PosOrdersSpec.orderNumberFill,
+        borderRadius: BorderRadius.circular(PosOrdersSpec.cardTopHeight / 2),
+      ),
+      // Not Container.alignment: that fills the Flexible's whole width. The
+      // tag hugs its text.
+      child: Align(
+        widthFactor: 1,
+        child: _numberText(label, hashed),
+      ),
+    );
+  }
+
+  Widget _numberText(String label, bool hashed) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          if (hashed)
+            TextSpan(
+              text: '#',
+              style: TextStyle(
+                color: PosHomeSpec.inkAlpha(PosOrdersSpec.orderNumberHashAlpha),
+              ),
+            ),
+          TextSpan(text: hashed ? label.substring(1) : label),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      semanticsLabel: 'Order ${order.id}',
+      // Proportional digits: Loew's tabular `1` leaves a hole (`#2736 1`).
+      style: loewBold.copyWith(
+        fontSize: PosOrdersSpec.orderNumberTextSize,
+        letterSpacing: PosOrdersSpec.orderNumberTracking,
+        height: 1,
+        color: PosHomeSpec.ink,
       ),
     );
   }
@@ -276,7 +358,8 @@ class PosOrderCardTile extends StatelessWidget {
         ),
         // Figma's three-line block is the maximum, not the assumption: the card
         // draws however many lines the order actually has. A counter sale with
-        // no address gets two; nothing is padded to hold the shape.
+        // no address gets two; nothing is padded here — [PosOrderCardGrid]
+        // evens the section's cards out instead.
         for (final String line in lines) ...[
           const SizedBox(height: PosOrdersSpec.subtitleLineGap),
           Text(

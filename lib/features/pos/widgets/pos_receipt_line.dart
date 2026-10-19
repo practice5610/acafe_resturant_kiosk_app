@@ -123,6 +123,11 @@ class PosReceiptLine extends StatelessWidget {
   /// Row fill, e.g. a line picked for refund (node 1915:11370).
   final Color? background;
 
+  /// True draws the line's kitchen note ([CartModel.instruction]) under its
+  /// picks. Receipts turn it on so a settled line shows what was asked for;
+  /// the live-sale rows keep their Figma layout, so it defaults false.
+  final bool showInstruction;
+
   const PosReceiptLine({
     super.key,
     required this.line,
@@ -134,6 +139,7 @@ class PosReceiptLine extends StatelessWidget {
     this.inset = false,
     this.trailing,
     this.background,
+    this.showInstruction = false,
   });
 
   @override
@@ -142,6 +148,7 @@ class PosReceiptLine extends StatelessWidget {
     final String? unit = posReceiptUnit(line);
     final String price = PosHomeSpec.formatPrice(kioskLineUnitPrice(line));
     final String priceLine = unit == null ? price : '$price · $unit';
+    final String? instruction = showInstruction ? line.instruction : null;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -192,6 +199,10 @@ class PosReceiptLine extends StatelessWidget {
                   for (final PosReceiptNote note in notes) ...[
                     const SizedBox(height: PosHomeSpec.lineDetailsGap),
                     _NoteRow(note: note),
+                  ],
+                  if (instruction != null && instruction.isNotEmpty) ...[
+                    const SizedBox(height: PosHomeSpec.lineDetailsGap),
+                    PosLineInstruction(text: instruction),
                   ],
                 ],
               ),
@@ -278,6 +289,45 @@ class _NoteRow extends StatelessWidget {
           child: Text(
             note.label,
             maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: swiss721Light.copyWith(
+              fontSize: PosHomeSpec.lineNoteSize,
+              color: PosHomeSpec.inkAlpha(0.53),
+              height: PosHomeSpec.lineNoteHeight,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A line's kitchen note, set in the same type as the `+ / −` pick rows above
+/// it with a note glyph in the mark slot. Shared by the receipt row and the
+/// receipt line editor's summary.
+class PosLineInstruction extends StatelessWidget {
+  final String text;
+
+  const PosLineInstruction({super.key, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(
+            Icons.sticky_note_2_outlined,
+            size: PosHomeSpec.lineNoteSize,
+            color: PosHomeSpec.inkAlpha(0.53),
+          ),
+        ),
+        const SizedBox(width: PosHomeSpec.lineNoteGap),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: swiss721Light.copyWith(
               fontSize: PosHomeSpec.lineNoteSize,

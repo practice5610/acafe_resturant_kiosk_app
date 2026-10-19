@@ -11,6 +11,7 @@ import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_close_day_close_button.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_hourly_chart.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_panels.dart';
 import 'package:acafe_customer/features/pos/screens/pos_report_screen.dart';
@@ -27,6 +28,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// date controls, Close Day and the shell chrome; Rubik is the app-wide
 /// fallback (see `light_theme.dart`). Without them every glyph in the golden is
 /// a tofu box and the file is worthless as a comparison.
+/// One hardware keypress, carrying the character a real keyboard reports.
+Future<void> _pressKey(
+  WidgetTester tester,
+  LogicalKeyboardKey key, [
+  String? character,
+]) async {
+  await tester.sendKeyDownEvent(key, character: character);
+  await tester.sendKeyUpEvent(key);
+  await tester.pump();
+}
+
+/// Types [keys] (digits, `,` and `.`) on a hardware keyboard.
+Future<void> _typeKeys(WidgetTester tester, String keys) async {
+  for (final String ch in keys.split('')) {
+    final LogicalKeyboardKey key = switch (ch) {
+      ',' => LogicalKeyboardKey.comma,
+      '.' => LogicalKeyboardKey.period,
+      _ => LogicalKeyboardKey(LogicalKeyboardKey.digit0.keyId + int.parse(ch)),
+    };
+    await _pressKey(tester, key, ch);
+  }
+}
+
 Future<void> _loadFonts() async {
   const Map<String, List<String>> families = <String, List<String>>{
     'Inter': <String>[
@@ -726,6 +750,154 @@ void main() {
       expect(find.text('€ 62.50'), findsOneWidget);
     });
 
+    testWidgets('a hardware keyboard types straight into the counted amount',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+
+      // No tap first: the field has the focus the moment Step 1 opens.
+      await _typeKeys(tester, '851,50');
+      expect(find.text('€ 851.50'), findsOneWidget);
+
+      await _pressKey(tester, LogicalKeyboardKey.backspace);
+      expect(find.text('€ 851.5'), findsOneWidget);
+      await _typeKeys(tester, '0');
+
+      // Enter is Continue.
+      await _pressKey(tester, LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Review & Confirm'), findsOneWidget);
+
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Accept difference'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm & Close Day'));
+      await tester.pumpAndSettle();
+      expect(manager.closedPayloads.single['closing_cash_counted'], 851.5);
+    });
+
+    testWidgets('keyboard and keypad feed the same figure, in any order',
+        (tester) async {
+      await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('7').first);
+      await tester.pumpAndSettle();
+      // The keypad does not take the focus away from the field.
+      await _typeKeys(tester, '5.2');
+      await tester.tap(find.text('5').first);
+      await tester.pumpAndSettle();
+      expect(find.text('€ 75.25'), findsOneWidget);
+    });
+
+    testWidgets('Enter on an empty count stays on Step 1', (tester) async {
+      await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      await _pressKey(tester, LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enter counted amount'), findsOneWidget);
+      expect(find.textContaining('Review & Confirm'), findsNothing);
+    });
+
+    testWidgets('⌘/Ctrl+Backspace clears the count; other shortcuts pass by',
+        (tester) async {
+      await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      await _typeKeys(tester, '123');
+
+      // Ctrl+1 is the browser's, not a digit.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await _pressKey(tester, LogicalKeyboardKey.digit1, '1');
+      expect(find.text('€ 123.00'), findsOneWidget);
+
+      await _pressKey(tester, LogicalKeyboardKey.backspace);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(find.text('Enter counted amount'), findsOneWidget);
+    });
+
+    testWidgets('the table-driven read-out takes no keys, then hands them back',
+        (tester) async {
+      await pumpAt(tester, const Size(1366, 1400));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Count by denomination'));
+      await tester.pumpAndSettle();
+
+      await _typeKeys(tester, '5');
+      expect(find.text('Enter counted amount'), findsOneWidget);
+
+      await tester.tap(find.text('Count by denomination'));
+      await tester.pumpAndSettle();
+      await _typeKeys(tester, '7');
+      expect(find.text('€ 7.00'), findsOneWidget);
+    });
+
+    testWidgets('Recount comes back to a field that still takes the keyboard',
+        (tester) async {
+      await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      await _typeKeys(tester, '800');
+      await _pressKey(tester, LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close anyway'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Recount'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('€ 800.00'), findsOneWidget);
+      await _pressKey(tester, LogicalKeyboardKey.backspace);
+      expect(find.text('€ 80.00'), findsOneWidget);
+    });
+
+    testWidgets('Esc still dismisses Step 1', (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      await _typeKeys(tester, '12');
+      await _pressKey(tester, LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enter counted amount'), findsNothing);
+      expect(find.text('€ 12.00'), findsNothing);
+      expect(manager.closedDates, isEmpty);
+    });
+
+    testWidgets('focus and the caret never resize the field', (tester) async {
+      await pumpAt(tester, const Size(1366, 1133));
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+
+      Size field(String text) => tester.getSize(find.ancestor(
+            of: find.text(text),
+            matching: find.byType(AnimatedContainer),
+          ));
+
+      final Size emptyFocused = field('Enter counted amount');
+      await _typeKeys(tester, '842');
+      final Size typedFocused = field('€ 842.00');
+
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      expect(field('€ 842.00'), typedFocused);
+      expect(typedFocused, emptyFocused);
+    });
+
     testWidgets('a wrong manager PIN blocks the close and says so',
         (tester) async {
       final _StubManager manager = await pumpAt(tester, const Size(1366, 1133));
@@ -823,6 +995,35 @@ void main() {
 
       expect(manager.closedDates, isEmpty);
       expect(find.text('Enter counted amount'), findsNothing);
+    });
+
+    testWidgets('the close button is touch-sized and dismisses either step',
+        (tester) async {
+      final _StubManager manager = await pumpAt(tester, const Size(1366, 926));
+      final Finder close = find.byType(PosCloseDayCloseButton);
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(close), const Size(44, 44));
+
+      await tester.tap(close);
+      await tester.pumpAndSettle();
+      expect(find.text('Enter counted amount'), findsNothing);
+
+      await tester.tap(find.text('Close Day'));
+      await tester.pumpAndSettle();
+      for (final String key in <String>['8', '4', '0']) {
+        await tester.tap(find.text(key).first);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(find.text('Confirm & Close Day'), findsOneWidget);
+
+      await tester.tap(close);
+      await tester.pumpAndSettle();
+      expect(find.text('Confirm & Close Day'), findsNothing);
+      expect(manager.closedDates, isEmpty);
     });
 
     testWidgets('Close Day Step 1 shows expected from opening float formula',

@@ -3,6 +3,11 @@ import 'dart:math' as math;
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+/// `order_details.instruction` is a varchar(255): a longer note would be
+/// refused by checkout and by receipt save-changes alike.
+const int kPosNoteMaxLength = 255;
 
 /// POS "Add Note" modal — Figma `Note – Add note to item` (1915:14827).
 ///
@@ -76,7 +81,13 @@ class _AddNoteModalState extends State<_AddNoteModal> {
     _note.selection = TextSelection.collapsed(offset: next.length);
   }
 
-  void _save() => Navigator.of(context).pop(_note.text.trim());
+  void _save() {
+    final String note = _note.text.trim();
+    // Quick Add writes the controller directly, past the input formatter.
+    Navigator.of(context).pop(note.length > kPosNoteMaxLength
+        ? note.substring(0, kPosNoteMaxLength).trim()
+        : note);
+  }
 
   /// Lays the product's quick-add suggestions out two per row (Figma shows a
   /// 2-column grid), handling any count including an odd last item.
@@ -198,6 +209,9 @@ class _AddNoteModalState extends State<_AddNoteModal> {
                 expands: true,
                 textAlignVertical: TextAlignVertical.top,
                 textCapitalization: TextCapitalization.sentences,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(kPosNoteMaxLength),
+                ],
                 cursorColor: PosHomeSpec.ink,
                 style: loewRegular.copyWith(
                   fontSize: 14,

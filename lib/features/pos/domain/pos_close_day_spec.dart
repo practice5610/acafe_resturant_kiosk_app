@@ -63,11 +63,27 @@ class PosCloseDaySpec {
   static const double titleSize = 20;
   static const double stepSize = 13;
   static const double headerGap = 8;
-  static const double closeIconSize = 14;
-
-  /// Title → close icon.
-  static const double closeIconGap = 8;
   static const Color stepColor = Color(0x99241F20); // 60% ink
+
+  // ── Close button ─────────────────────────────────────────────────────
+  /// Figma draws a bare 14px x-circle here — too small to find or hit on a
+  /// touch till. The button is a cream disc in the Expected box's palette,
+  /// centred on the title + step block, which at ~45px is tall enough to
+  /// hold [closeHitSize] without pushing anything below it down.
+  static const double closeButtonSize = 40;
+  static const double closeHitSize = 44;
+  static const double closeGlyphSize = 12;
+  static const double closeGlyphStroke = 2;
+
+  /// Title block → close button.
+  static const double closeButtonGap = 16;
+  static const Color closeFill = pageBg;
+  static const Color closeFillHover = Color(0xFFF0E8D0);
+  static const Color closeFillPressed = Color(0xFFE6DDC1);
+  static const Color closeBorder = cardBorderColor;
+  static const double closeFocusBorder = 2;
+  static const double closePressedScale = 0.92;
+  static const Duration closeStateDuration = Duration(milliseconds: 120);
 
   /// Figma's `rgba(36,31,32,0.6)` for labels and hints.
   static const Color inkMuted = Color(0x99241F20);
@@ -104,6 +120,20 @@ class PosCloseDaySpec {
   static const double inputTextSize = 14;
   static const Color inputPlaceholder = Color(0x66241F20); // 40% ink
   static const Color inputBorderColor = Color(0xFFE1DBC4);
+
+  /// Keyboard focus: the stroke goes ink, as the denomination quantity boxes
+  /// do, easing over [inputFocusDuration] rather than snapping.
+  static const Color inputFocusBorderColor = ink;
+  static const Duration inputFocusDuration = Duration(milliseconds: 120);
+
+  /// The caret after the typed figure while the field has keyboard focus —
+  /// Flutter's own text-field metrics: 2px wide, blinking every 500ms.
+  static const double caretWidth = 2;
+
+  /// Kept inside the 14px figure's line box, so focusing never moves the card.
+  static const double caretHeight = 16;
+  static const double caretGap = 1;
+  static const Duration caretBlink = Duration(milliseconds: 500);
 
   /// Material 3 adds an `OutlineInputBorder`'s gap padding (4 by default) as
   /// horizontal padding inside the field; Figma's fields have none, and these

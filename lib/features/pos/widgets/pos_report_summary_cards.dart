@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 /// The `kpi-row` of Figma **1915:18091** — Total Revenue, Total Orders, Average
 /// Order Value, Tips Received.
 ///
-/// The four cards are siblings in an IntrinsicHeight row so the Total Revenue
+/// The four cards are siblings in a PosEqualHeightRow so the Total Revenue
 /// card's VAT table sets a common height and the other three do not float at
 /// different depths.
 

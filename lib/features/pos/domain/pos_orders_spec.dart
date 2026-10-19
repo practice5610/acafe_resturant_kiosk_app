@@ -130,7 +130,10 @@ class PosOrdersSpec {
   /// inside the card like Figma's stroke — it does not move the content.
   static const double cardBorder = 1.5;
 
-  /// `card-*` is 155 tall in every section. A card with more to say grows.
+  /// `card-*` is 155 tall in every section — the floor. Every card also holds
+  /// the [notePreviewSlotHeight] room, so in practice a card is that much
+  /// taller than Figma's, and [PosOrderCardGrid] gives a section's cards the
+  /// tallest one's height so none stands out.
   static const double cardMinHeight = 155;
 
   /// `urgent-border`: the 4px bar down the left edge of a late card.
@@ -157,6 +160,28 @@ class PosOrdersSpec {
   static const double menuGap = 6;
   static const double menuDisabledOpacity = 0.35;
   static const double pendingSpinnerSize = 14;
+
+  /// `order-number` — not in Figma. The order's public number is a small cream
+  /// tag on the `card-top` row, right of the clock, so the counter can match a
+  /// card to a receipt, a ticket or a customer's screen at a glance (user
+  /// request 2026-10-19). It was a 20px headline under that row first; the
+  /// user found it too loud and off-design, so it now lives inside the 16px
+  /// row: the customer block keeps Figma's 36 and the card its height. Cream
+  /// like the source badge's disc, no ring, so it sits below the badge. The
+  /// `#` is muted so the digits carry it.
+  static const double orderNumberTextSize = 11;
+  static const double orderNumberTracking = 0.4;
+  static const double orderNumberHashAlpha = 0.4;
+  static const double orderNumberPadH = 7;
+  static const Color orderNumberFill = Color(0xFFF7F1DE); // PosHomeSpec.pageBg
+
+  /// Clock → tag.
+  static const double orderNumberGap = 8;
+
+  /// What `card-top` leaves free on its right for the ⋮ and the badge, which
+  /// are drawn over the row: a long number ellipsizes before reaching them.
+  static const double cardTopRightReserve =
+      sourceBadgeSize + menuGap + menuHitSize + menuGap;
 
   static const double nameTextSize = 14;
   static const double subtitleTextSize = 11;
@@ -190,6 +215,12 @@ class PosOrdersSpec {
   static const double notePreviewLineHeight = 15;
   static const int notePreviewMaxLines = 2;
   static const double notePreviewCountGap = 6;
+
+  /// `note-slot`: the strip at its two-line maximum (42). Every card keeps
+  /// this room, with a note or without, so the board's cards are one size
+  /// whatever their notes say (user request 2026-10-19).
+  static const double notePreviewSlotHeight =
+      notePreviewPadV * 2 + notePreviewLineHeight * notePreviewMaxLines;
 
   // ── Card colours ─────────────────────────────────────────────────────
   /// The `time-row` dot is coloured by **section**. Figma's layer names say so

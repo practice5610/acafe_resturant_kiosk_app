@@ -10,6 +10,7 @@ import 'package:acafe_customer/features/pos/domain/pos_staff_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_z_report_print.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_step2.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_equal_height_row.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_date_header.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_hourly_chart.dart';
@@ -464,9 +465,10 @@ class _Unavailable extends StatelessWidget {
 ///  * `>= stackWidth`    — 2 columns everywhere else
 ///  * below that         — one column
 ///
-/// Each row is an [IntrinsicHeight] so cards in a row share a height and their
-/// bottom edges line up, as drawn. That is bounded work: at most four fixed
-/// cards per row, never a list.
+/// Each row is a [PosEqualHeightRow] so cards in a row share a height and their
+/// bottom edges line up, as drawn. Not an IntrinsicHeight: on web that row kept
+/// a stale height when a fallback font landed after the first frame, and the
+/// tallest card (Staff Shifts & Tips) overflowed — see [PosEqualHeightRow].
 class _Dashboard extends StatelessWidget {
   final PosReportData data;
   final PosStaffRoster staffRoster;
@@ -550,9 +552,9 @@ class _Dashboard extends StatelessWidget {
   }
 }
 
-/// Lays [children] out in rows of [columns], padding the final row with empty
-/// flex so a trailing card keeps its column width instead of stretching across
-/// the gap left by its missing siblings.
+/// Lays [children] out in rows of [columns]. A short final row leaves its
+/// trailing columns empty, so a lone card keeps its column width instead of
+/// stretching across the gap left by its missing siblings.
 class _Grid extends StatelessWidget {
   final int columns;
   final double gap;
@@ -569,24 +571,13 @@ class _Grid extends StatelessWidget {
     final List<Widget> rows = <Widget>[];
 
     for (int start = 0; start < children.length; start += columns) {
-      final List<Widget> slice =
-          children.sublist(start, (start + columns).clamp(0, children.length));
-
-      final List<Widget> cells = <Widget>[];
-      for (int i = 0; i < columns; i++) {
-        if (i > 0) cells.add(SizedBox(width: gap));
-        cells.add(
-          Expanded(child: i < slice.length ? slice[i] : const SizedBox.shrink()),
-        );
-      }
-
       if (rows.isNotEmpty) rows.add(SizedBox(height: gap));
       rows.add(
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: cells,
-          ),
+        PosEqualHeightRow(
+          columns: columns,
+          spacing: gap,
+          children: children.sublist(
+              start, (start + columns).clamp(0, children.length)),
         ),
       );
     }

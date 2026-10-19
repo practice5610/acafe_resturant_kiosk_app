@@ -120,14 +120,31 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
     _refreshFromRealtime();
   }
 
+  /// In place, never through [_reload]: that empties the table to a spinner
+  /// and loses its scroll, and a busy branch sends a ping on every sale. The
+  /// open receipt likewise stays on screen while it re-pulls -- if it were
+  /// blanked, an open edit sidebar would lose its unsaved edits.
   void _refreshFromRealtime() {
     if (!mounted) return;
-    _reload();
+    final KioskManagerProvider manager = context.read<KioskManagerProvider>();
+    manager.refreshTransactions();
     final int? selected = _selectedId;
     if (_detailStale && selected != null) {
-      context.read<KioskManagerProvider>().loadReceiptDetail(selected);
+      manager.refreshReceiptDetail(selected);
     }
     _detailStale = false;
+  }
+
+  /// This till just changed the open receipt (a saved edit, say). Re-pull the
+  /// row and the receipt now rather than waiting on the socket echo: the echo
+  /// still comes and is harmless, but a till whose socket is down must not
+  /// show a stale total for its own sale.
+  void _refreshAfterLocalChange() {
+    if (!mounted) return;
+    final KioskManagerProvider manager = context.read<KioskManagerProvider>();
+    manager.refreshTransactions();
+    final int? selected = _selectedId;
+    if (selected != null) manager.refreshReceiptDetail(selected);
   }
 
   void _onQueryChanged() {
@@ -338,11 +355,7 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
                 imageBaseUrl: splash.baseUrls?.productImageUrl,
                 onPrint: detail == null ? null : () => _print(detail),
                 onEmail: detail == null ? null : () => _email(detail),
-                onRefresh: _selectedId == null
-                    ? null
-                    : () => context
-                        .read<KioskManagerProvider>()
-                        .loadReceiptDetail(_selectedId!),
+                onRefresh: _selectedId == null ? null : _refreshAfterLocalChange,
               ),
             ],
           ),
@@ -375,7 +388,7 @@ class _PosReceiptsScreenState extends State<PosReceiptsScreen> {
                   imageBaseUrl: splash.baseUrls?.productImageUrl,
                   onPrint: detail == null ? null : () => _print(detail),
                   onEmail: detail == null ? null : () => _email(detail),
-                  onRefresh: () => manager.loadReceiptDetail(row.id),
+                  onRefresh: _refreshAfterLocalChange,
                   width: null,
                 );
               },

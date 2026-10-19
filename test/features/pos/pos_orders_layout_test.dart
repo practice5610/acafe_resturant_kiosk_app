@@ -424,7 +424,11 @@ void main() {
 
   testWidgets('the board stacks the five kitchen sections, not side by side',
       (tester) async {
-    await pumpBoard(tester, _StubOrdersRepo());
+    // Tall enough that the lazy board builds every section at once. On a
+    // short one, a header is "found" while still in the cache area below the
+    // viewport and the list then re-estimates its extent, so screen y +
+    // scroll offset stops being a position.
+    await pumpBoard(tester, _StubOrdersRepo(), size: const Size(1366, 2400));
 
     // Each card now carries its own status chip ("NEW" etc. in white, at the
     // chip's smaller size), so a bare find.text('NEW') would also catch
@@ -465,7 +469,9 @@ void main() {
   });
 
   testWidgets('cards hold the Figma 288px width and 12px gap', (tester) async {
-    await pumpBoard(tester, _StubOrdersRepo());
+    // Every card built at once — the lazy board leaves the lower sections'
+    // cards unbuilt on a 944-tall screen now that cards carry their number.
+    await pumpBoard(tester, _StubOrdersRepo(), size: const Size(1366, 2400));
 
     final Finder cards = find.byType(PosOrderCardTile);
     expect(cards, findsNWidgets(5));
@@ -480,14 +486,27 @@ void main() {
     expect(secondLeft - firstRight, closeTo(PosOrdersSpec.cardGap, 0.5));
   });
 
-  testWidgets('the card face carries no order number or status chip',
+  testWidgets('every card leads with its own order number, no status chip',
       (tester) async {
-    await pumpBoard(tester, _StubOrdersRepo());
+    await pumpBoard(tester, _StubOrdersRepo(), size: const Size(1366, 2400));
 
-    // Figma 1915:15837: clock, ⋮ and source badge only. The number lives in
-    // the modal header.
+    // Not in Figma 1915:15837 (clock, ⋮ and source badge only): the number is
+    // a small tag beside the clock on request (2026-10-19), so a card can be
+    // matched to its receipt or ticket without opening it. Still no status
+    // chip — the section says that.
+    final Finder cards = find.byType(PosOrderCardTile);
     for (final int id in [27364, 27365, 27363, 27359, 27358]) {
-      expect(find.text('#$id'), findsNothing, reason: 'order $id');
+      final Finder number = find.byKey(PosOrderCardTile.numberKeyFor(id));
+      expect(number, findsOneWidget, reason: 'order $id');
+      expect(find.ancestor(of: number, matching: cards), findsOneWidget,
+          reason: 'order $id is drawn on its card');
+      expect(
+        find.descendant(
+            of: find.ancestor(of: number, matching: cards),
+            matching: find.text('NEW')),
+        findsNothing,
+        reason: 'order $id carries no status chip',
+      );
     }
   });
 

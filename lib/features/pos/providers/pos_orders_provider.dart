@@ -2,16 +2,19 @@ import 'dart:async';
 
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
+import 'package:acafe_customer/features/pos/domain/pos_live_cache.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_card.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_grouping.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_repo.dart';
+import 'package:acafe_customer/features/realtime/order_changed_event.dart';
+import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 /// State behind the POS Orders board.
 ///
-/// Two things here are load-bearing and worth reading before changing:
+/// Things here that are load-bearing and worth reading before changing:
 ///
 ///  * **the request-id staleness guard** — the same one
 ///    `KioskManagerProvider.loadTransactions` uses. A socket push and a typed
@@ -21,12 +24,65 @@ import 'package:intl/intl.dart';
 ///    refetch can reorder or drop rows underneath an in-flight action, and a
 ///    rollback that restored "whatever is at index 4" would corrupt an
 ///    unrelated card.
+///  * **it outlives the screen.** Production registers ONE instance for the
+///    app (see di_container), so switching tabs away and back finds the board,
+///    its filters and its scroll-worthy data exactly as they were — no spinner,
+///    no refetch-then-repaint. Two things keep that honest:
+///     - it keeps following `order.changed` while the screen is hidden
+///       ([attachRealtime]), on a slower debounce, so the board is already
+///       current when the tab opens again;
+///     - the default view (NOW, no filters) is written to [PosLiveCache], so a
+///       cold start or a browser reload paints the last known board on its
+///       first frame ([restore]) and refreshes silently behind it.
+///    Filters live for the session only: a reload starts from the defaults, the
+///    way a mobile app restarts.
+///  * **it is scoped to the device session.** A different branch or device
+///    ([scope]) drops everything — board, filters, snapshot — so one branch's
+///    queue can never show on another's till.
 class PosOrdersProvider extends ChangeNotifier {
   final PosOrdersRepo posOrdersRepo;
 
-  PosOrdersProvider({required this.posOrdersRepo});
+  PosOrdersProvider({
+    required this.posOrdersRepo,
+    PosLiveCache? cache,
+    String? Function()? scope,
+    bool Function()? realtimeConnected,
+    DateTime Function()? clock,
+  })  : _cache = cache,
+        _scopeOf = scope,
+        _realtimeConnected = realtimeConnected,
+        _clock = clock ?? DateTime.now;
+
+  final PosLiveCache? _cache;
+
+  /// The device session this board belongs to ([PosLiveCache.scopeFor]); null
+  /// while no branch is bound, and then nothing is written to disk.
+  final String? Function()? _scopeOf;
+
+  /// Whether the order socket is up right now. Null (a screen-scoped test
+  /// provider) reads as "not live": the board then re-checks on every show and
+  /// polls while visible, which is the safe side.
+  final bool Function()? _realtimeConnected;
+
+  final DateTime Function() _clock;
 
   static final DateFormat _wire = DateFormat('yyyy-MM-dd HH:mm:ss');
+
+  static const String _snapshotSlot = 'orders';
+
+  /// A board snapshot older than this is not painted. Long enough to cover an
+  /// overnight terminal's first open (active orders legitimately run past
+  /// midnight on the board), short enough that a till opened after a day off
+  /// does not flash last week's queue.
+  static const Duration snapshotMaxAge = Duration(hours: 12);
+
+  /// With the socket up, a board synced this recently is current — showing it
+  /// again does not re-fetch. Pushes keep it current between syncs.
+  static const Duration liveRevalidateAfter = Duration(seconds: 15);
+
+  /// The safety net when the socket is down (or websockets are off for this
+  /// install): the visible board re-pulls on this pace instead of freezing.
+  static const Duration fallbackPoll = Duration(seconds: 20);
 
   // ── Board state ──────────────────────────────────────────────────────
   List<PosOrderCard> _orders = const <PosOrderCard>[];
@@ -55,11 +111,17 @@ class PosOrdersProvider extends ChangeNotifier {
   /// Seeded to the start of today so the From field shows a real date on first
   /// paint rather than a placeholder — the same window the endpoint defaults to
   /// when no range is sent.
-  DateTime? _from = _startOfToday();
+  late DateTime? _from = _startOfToday();
   DateTime? _to;
 
-  static DateTime _startOfToday() {
-    final DateTime now = DateTime.now();
+  /// True while From is "the start of today" by default rather than a date the
+  /// operator picked. The board outlives the screen now, so a terminal left on
+  /// overnight must roll its NOW window to the new day by itself — before, the
+  /// screen was rebuilt (and From re-seeded) on every visit.
+  bool _fromFollowsToday = true;
+
+  DateTime _startOfToday() {
+    final DateTime now = _clock();
     return DateTime(now.year, now.month, now.day);
   }
 
@@ -67,8 +129,8 @@ class PosOrdersProvider extends ChangeNotifier {
   /// as the NOW window's `date_to` so both bounds come from the device clock —
   /// otherwise the server fills `date_to` from its own clock, and a device that
   /// runs ahead of the server produces from > to and a spurious date-range 422.
-  static DateTime _endOfToday() {
-    final DateTime now = DateTime.now();
+  DateTime _endOfToday() {
+    final DateTime now = _clock();
     return DateTime(now.year, now.month, now.day, 23, 59, 59);
   }
   DateTime? get from => _from;
@@ -117,7 +179,26 @@ class PosOrdersProvider extends ChangeNotifier {
   Timer? _realtimeDebounce;
 
   static const Duration searchDebounce = Duration(milliseconds: 350);
+
+  /// Push coalescing while the board is on screen.
   static const Duration realtimeDebounce = Duration(milliseconds: 400);
+
+  /// Push coalescing while another tab is up. Nobody is watching, so a
+  /// kitchen working a ticket item by item (one push per item) costs one
+  /// refetch instead of one per item — and the board is still current well
+  /// before anyone could switch back to it.
+  static const Duration hiddenRealtimeDebounce = Duration(seconds: 2);
+
+  // ── Session / visibility ─────────────────────────────────────────────
+  String? _activeScope;
+  bool _restoreAttempted = false;
+  bool _visible = false;
+  bool get visible => _visible;
+
+  DateTime? _lastSyncAt;
+  int _inFlight = 0;
+  Timer? _poll;
+  ProductRealtimeController? _realtime;
 
   // ── Counts ───────────────────────────────────────────────────────────
   int countOf(PosOrderSection section) => _counts[section] ?? 0;
@@ -131,6 +212,9 @@ class PosOrdersProvider extends ChangeNotifier {
 
   // ── Loading ──────────────────────────────────────────────────────────
   Future<void> load({bool silent = false}) async {
+    _syncScope();
+    if (_now && _fromFollowsToday) _from = _startOfToday();
+
     final int requestId = ++_requestId;
 
     if (!silent) {
@@ -138,58 +222,46 @@ class PosOrdersProvider extends ChangeNotifier {
       notifyListeners();
     }
 
-    final ApiResponseModel apiResponse = await posOrdersRepo.getOrders(
-      dateFrom: _from == null ? null : _wire.format(_from!),
-      // In NOW mode the end of the window is resolved at request time, not when
-      // the toggle was pressed — otherwise a terminal left open over lunch stops
-      // showing anything placed after the operator last touched the filter. It is
-      // sent as the device's end-of-today rather than omitted so both bounds share
-      // the device clock; letting the server fill it from its own clock gives
-      // from > to (a date-range 422) whenever the device runs ahead of the server.
-      dateTo: _now ? _wire.format(_endOfToday()) : (_to == null ? null : _wire.format(_to!)),
-      search: _search.isEmpty ? null : _search,
-      section: _section == null
-          ? null
-          : _serverKnowsKitchenSections
-              ? PosOrderGrouping.queryValueFor(_section!)
-              : PosOrderGrouping.legacyQueryValueFor(_section!),
-      status: _status,
-      source: _source,
-      type: _type,
-      method: _method,
-    );
+    _inFlight++;
+    final ApiResponseModel apiResponse;
+    try {
+      apiResponse = await posOrdersRepo.getOrders(
+        dateFrom: _from == null ? null : _wire.format(_from!),
+        // In NOW mode the end of the window is resolved at request time, not
+        // when the toggle was pressed — otherwise a terminal left open over
+        // lunch stops showing anything placed after the operator last touched
+        // the filter. It is sent as the device's end-of-today rather than
+        // omitted so both bounds share the device clock; letting the server fill
+        // it from its own clock gives from > to (a date-range 422) whenever the
+        // device runs ahead of the server.
+        dateTo: _now
+            ? _wire.format(_endOfToday())
+            : (_to == null ? null : _wire.format(_to!)),
+        search: _search.isEmpty ? null : _search,
+        section: _section == null
+            ? null
+            : _serverKnowsKitchenSections
+                ? PosOrderGrouping.queryValueFor(_section!)
+                : PosOrderGrouping.legacyQueryValueFor(_section!),
+        status: _status,
+        source: _source,
+        type: _type,
+        method: _method,
+      );
+    } finally {
+      _inFlight--;
+    }
 
     if (requestId != _requestId) return;
 
     final response = apiResponse.response;
     if (response != null && response.statusCode == 200) {
       final data = Map<String, dynamic>.from(response.data as Map);
-      final List raw = data['orders'] as List? ?? const [];
-
-      _orders = raw
-          .map((e) => PosOrderCard.fromJson(Map<String, dynamic>.from(e as Map)))
-          // The endpoint already excludes off-board statuses; this is the
-          // belt-and-braces so an unknown future status can never render as an
-          // untitled section.
-          .where((o) => o.section != PosOrderSection.excluded)
-          .toList(growable: false);
-
-      final counts = Map<String, dynamic>.from(data['counts'] as Map? ?? {});
-      _serverKnowsKitchenSections = counts.containsKey(
-          PosOrderGrouping.queryValueFor(PosOrderSection.preparing));
-      // A backend that predates the kitchen sections only sends new /
-      // in_progress / finished; its sections then count the cards it returned
-      // rather than reading 0 above a row of orders.
-      _counts = <PosOrderSection, int>{
-        for (final PosOrderSection section in PosOrderGrouping.boardSections)
-          section: counts.containsKey(PosOrderGrouping.queryValueFor(section))
-              ? int.tryParse(
-                      '${counts[PosOrderGrouping.queryValueFor(section)]}') ??
-                  0
-              : _orders.where((o) => o.section == section).length,
-      };
+      _applyBoard(data);
       _error = null;
       _loaded = true;
+      _lastSyncAt = _clock();
+      _saveSnapshot(data);
     } else {
       _error = apiResponse.error?.toString() ?? 'Could not load orders';
       // The previous board is deliberately left on screen. A failed refresh
@@ -200,11 +272,71 @@ class PosOrdersProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// One board answer — off the wire or off disk — into cards and counts.
+  void _applyBoard(Map<String, dynamic> data) {
+    final List raw = data['orders'] as List? ?? const [];
+
+    _orders = raw
+        .map((e) => PosOrderCard.fromJson(Map<String, dynamic>.from(e as Map)))
+        // The endpoint already excludes off-board statuses; this is the
+        // belt-and-braces so an unknown future status can never render as an
+        // untitled section.
+        .where((o) => o.section != PosOrderSection.excluded)
+        .toList(growable: false);
+
+    final counts = Map<String, dynamic>.from(data['counts'] as Map? ?? {});
+    _serverKnowsKitchenSections = counts.containsKey(
+        PosOrderGrouping.queryValueFor(PosOrderSection.preparing));
+    // A backend that predates the kitchen sections only sends new /
+    // in_progress / finished; its sections then count the cards it returned
+    // rather than reading 0 above a row of orders.
+    _counts = <PosOrderSection, int>{
+      for (final PosOrderSection section in PosOrderGrouping.boardSections)
+        section: counts.containsKey(PosOrderGrouping.queryValueFor(section))
+            ? int.tryParse(
+                    '${counts[PosOrderGrouping.queryValueFor(section)]}') ??
+                0
+            : _orders.where((o) => o.section == section).length,
+    };
+  }
+
+  /// Only the view a fresh session opens on is worth a disk snapshot: it is
+  /// the one [restore] can paint. A filtered board is the operator's own
+  /// question and is re-asked over the network.
+  bool get _isDefaultView =>
+      _now &&
+      _fromFollowsToday &&
+      _datePreset == PosOrderDateRangePreset.custom &&
+      _search.isEmpty &&
+      _section == null &&
+      _status == null &&
+      _source == null &&
+      _type == null &&
+      _method == null;
+
+  void _saveSnapshot(Map<String, dynamic> data) {
+    final PosLiveCache? cache = _cache;
+    final String? scope = _activeScope;
+    if (cache == null || scope == null || !_isDefaultView) return;
+    unawaited(cache.write(
+      _snapshotSlot,
+      scope: scope,
+      data: <String, dynamic>{
+        'orders': data['orders'] ?? const [],
+        'counts': data['counts'] ?? const {},
+      },
+    ));
+  }
+
   /// Refetch triggered by an `order.changed` push. Silent and debounced: the
-  /// board updates under the operator without a spinner.
+  /// board updates under the operator without a spinner — and keeps updating
+  /// while another tab is up, so it is current when the operator comes back.
   void onRealtimeChange() {
     _realtimeDebounce?.cancel();
-    _realtimeDebounce = Timer(realtimeDebounce, () => load(silent: true));
+    _realtimeDebounce = Timer(
+      _visible ? realtimeDebounce : hiddenRealtimeDebounce,
+      () => load(silent: true),
+    );
   }
 
   /// A dropped socket cannot be reconciled from the events themselves — the
@@ -212,6 +344,134 @@ class PosOrdersProvider extends ChangeNotifier {
   void onRealtimeReconnect() {
     _realtimeDebounce?.cancel();
     unawaited(load(silent: true));
+  }
+
+  // ── Session, visibility, realtime ────────────────────────────────────
+
+  /// Paints the last known board without a request: what is in memory, else
+  /// the disk snapshot for this device session. Returns whether anything
+  /// changed.
+  ///
+  /// Does NOT notify — it is meant to run before the first frame that reads
+  /// the board (a screen's initState), where a notify would mark an ancestor
+  /// dirty mid-build. Callers outside a build notify on a true result.
+  bool restore() {
+    bool changed = _syncScope();
+    if (_loaded || _restoreAttempted) return changed;
+    _restoreAttempted = true;
+
+    final PosLiveCache? cache = _cache;
+    final String? scope = _activeScope;
+    if (cache == null || scope == null || !_isDefaultView) return changed;
+
+    final PosLiveSnapshot? snapshot =
+        cache.read(_snapshotSlot, scope: scope, maxAge: snapshotMaxAge);
+    if (snapshot == null) return changed;
+
+    try {
+      _applyBoard(snapshot.data);
+      _loaded = true;
+      changed = true;
+    } catch (_) {
+      // A snapshot this build cannot read is no snapshot; the network load
+      // that follows paints the board.
+      _orders = const <PosOrderCard>[];
+      _counts = const <PosOrderSection, int>{};
+    }
+    return changed;
+  }
+
+  /// The screen is (or stops being) on screen.
+  ///
+  /// Showing it paints what is already known at once and re-checks the server
+  /// behind it only when that knowledge could be stale. While shown with the
+  /// socket down, it polls ([fallbackPoll]) rather than freezing.
+  void setVisible(bool visible) {
+    if (visible == _visible) return;
+    _visible = visible;
+
+    _poll?.cancel();
+    _poll = null;
+    if (!visible) return;
+
+    if (restore()) notifyListeners();
+    if (_needsRevalidate) unawaited(load(silent: _loaded));
+
+    _poll = Timer.periodic(fallbackPoll, (_) {
+      if (!_isLive && _inFlight == 0) unawaited(load(silent: true));
+    });
+  }
+
+  /// Gets the board ready before anyone opens it (the POS shell calls this on
+  /// mount), so the first visit to the tab is as instant as every later one.
+  Future<void> warm() async {
+    if (restore()) notifyListeners();
+    if (_needsRevalidate) await load(silent: true);
+  }
+
+  /// Follow the branch order channel for as long as this store lives — not
+  /// just while the screen is up. Idempotent.
+  void attachRealtime(ProductRealtimeController controller) {
+    if (identical(_realtime, controller)) return;
+    _detachRealtime();
+    _realtime = controller;
+    controller.addOrderListener(_onOrderEvent);
+    controller.addReconnectListener(onRealtimeReconnect);
+  }
+
+  void _detachRealtime() {
+    _realtime?.removeOrderListener(_onOrderEvent);
+    _realtime?.removeReconnectListener(onRealtimeReconnect);
+    _realtime = null;
+  }
+
+  void _onOrderEvent(OrderChangedEvent event) => onRealtimeChange();
+
+  bool get _isLive => _realtimeConnected?.call() ?? false;
+
+  bool get _needsRevalidate {
+    if (_inFlight > 0) return false;
+    final DateTime? last = _lastSyncAt;
+    if (last == null || !_isLive) return true;
+    return _clock().difference(last) > liveRevalidateAfter;
+  }
+
+  /// Adopts the current device session, dropping everything that belonged to
+  /// a different one. Returns whether state was dropped.
+  bool _syncScope() {
+    final String? scope = _scopeOf?.call();
+    if (scope == _activeScope) return false;
+
+    final bool hadSession = _activeScope != null;
+    _activeScope = scope;
+    if (!hadSession) return false;
+
+    // Another branch or device: its board, filters and in-flight answers are
+    // not this session's.
+    _requestId++;
+    _orders = const <PosOrderCard>[];
+    _counts = const <PosOrderSection, int>{};
+    _loaded = false;
+    _loading = false;
+    _error = null;
+    _pending.clear();
+    _lastSyncAt = null;
+    _restoreAttempted = false;
+    _serverKnowsKitchenSections = false;
+    _searchDebounce?.cancel();
+    _realtimeDebounce?.cancel();
+    _from = _startOfToday();
+    _fromFollowsToday = true;
+    _to = null;
+    _now = true;
+    _datePreset = PosOrderDateRangePreset.custom;
+    _search = '';
+    _source = null;
+    _type = null;
+    _method = null;
+    _status = null;
+    _section = null;
+    return true;
   }
 
   // ── Filter setters ───────────────────────────────────────────────────
@@ -226,6 +486,7 @@ class PosOrdersProvider extends ChangeNotifier {
 
   void setRange({DateTime? from, DateTime? to, bool? now}) {
     _from = from;
+    _fromFollowsToday = false;
     _to = to;
     if (now != null) _now = now;
     _datePreset = PosOrderDateRangePreset.custom;
@@ -237,6 +498,7 @@ class PosOrdersProvider extends ChangeNotifier {
     _now = value;
     if (value) {
       _from = _startOfToday();
+      _fromFollowsToday = true;
       _to = null;
     }
     _datePreset = PosOrderDateRangePreset.custom;
@@ -256,6 +518,7 @@ class PosOrdersProvider extends ChangeNotifier {
     }
 
     _from = preset.from;
+    _fromFollowsToday = false;
     _to = preset.to;
     _now = preset.liveNow;
     unawaited(load());
@@ -434,6 +697,8 @@ class PosOrdersProvider extends ChangeNotifier {
   void dispose() {
     _searchDebounce?.cancel();
     _realtimeDebounce?.cancel();
+    _poll?.cancel();
+    _detachRealtime();
     super.dispose();
   }
 }

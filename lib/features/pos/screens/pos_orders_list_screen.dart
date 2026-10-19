@@ -14,6 +14,7 @@ import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/pos/providers/pos_orders_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_order_card_grid.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_card_tile.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_date_range_bar.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
@@ -35,13 +36,14 @@ import 'package:provider/provider.dart';
 /// count and a wrapping grid of cards — *not* three side-by-side columns. The
 /// Figma frame draws every section at the full 1318px content width.
 ///
-/// The provider is scoped to this screen rather than registered globally, in
-/// the same way the POS Settings tabs scope theirs: the board's filters are
-/// screen state, and the realtime subscription should not outlive the screen.
+/// The board's state is the app-wide [PosOrdersProvider], not this screen's:
+/// switching to another tab and back finds the cards, counts and filters
+/// exactly as they were, painted on the first frame, while the store keeps
+/// following the order socket in between. See the provider's class doc.
 class PosOrdersListScreen extends StatelessWidget {
   /// Injectable for tests, which build the POS tree without a populated
-  /// service locator. Production leaves it null and resolves the registered
-  /// singleton.
+  /// service locator. Given a repo, the screen runs a board of its own,
+  /// disposed with it. Production leaves it null and uses the app-wide store.
   final PosOrdersRepo? repo;
 
   /// Time source for the elapsed labels. Injectable so a screenshot test can
@@ -53,9 +55,17 @@ class PosOrdersListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final PosOrdersRepo? ownRepo = repo;
+    if (ownRepo == null && di.sl.isRegistered<PosOrdersProvider>()) {
+      // .value: the store outlives this screen and must not be disposed by it.
+      return ChangeNotifierProvider<PosOrdersProvider>.value(
+        value: di.sl<PosOrdersProvider>(),
+        child: _PosOrdersBoard(clock: clock),
+      );
+    }
     return ChangeNotifierProvider<PosOrdersProvider>(
       create: (_) => PosOrdersProvider(
-        posOrdersRepo: repo ?? di.sl<PosOrdersRepo>(),
+        posOrdersRepo: ownRepo ?? di.sl<PosOrdersRepo>(),
       ),
       child: _PosOrdersBoard(clock: clock),
     );
@@ -93,13 +103,19 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     super.initState();
     _provider = context.read<PosOrdersProvider>();
 
-    // Deferred past the first frame so the initial notifyListeners() does not
-    // land during build. load(), not setNow(true): the provider already starts
-    // in NOW mode, and setNow would early-return on the unchanged value and
-    // leave the board empty.
+    // Whatever the store already knows (memory, else the disk snapshot) is on
+    // this very first frame — no spinner, no blank board while the network
+    // answers. restore() does not notify, so it is safe mid-build.
+    _provider.restore();
+    // The search is a store filter now and survives the tab switch; the field
+    // has to open showing it, or it would read empty over filtered results.
+    _searchController.text = _provider.search;
+
+    // Deferred past the first frame: a show may start a (spinner) load, whose
+    // notifyListeners() must not land during build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(_provider.load());
+      _provider.setVisible(true);
     });
 
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -108,17 +124,18 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     });
 
     // Live board. The socket, its reconnect handling and its lifecycle already
-    // exist and are already mounted app-wide by ProductRealtimeScope; this
-    // screen only registers interest in the branch order channel while it is
-    // on screen.
+    // exist and are already mounted app-wide by ProductRealtimeScope. The STORE
+    // follows the branch order channel (and stays on it after this screen is
+    // gone, so it is current when the tab opens again); this screen only
+    // listens to hand an open detail overlay its own order's pushes.
     //
     // Guarded: a widget test builds the POS tree without a populated service
     // locator, and the board is still worth exercising there — it just does not
     // receive pushes.
     if (di.sl.isRegistered<ProductRealtimeController>()) {
       _realtime = di.sl<ProductRealtimeController>();
+      _provider.attachRealtime(_realtime!);
       _realtime?.addOrderListener(_onOrderEvent);
-      _realtime?.addReconnectListener(_onRealtimeReconnect);
     }
   }
 
@@ -127,10 +144,10 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
   final Set<VoidCallback> _detailListeners = <VoidCallback>{};
   int? _openDetailOrderId;
 
+  /// The board's own refetch is the store's ([PosOrdersProvider.attachRealtime]);
+  /// this only forwards a push to the overlay showing that order.
   void _onOrderEvent(OrderChangedEvent event) {
     if (!mounted) return;
-    _provider.onRealtimeChange();
-
     if (event.orderId == _openDetailOrderId) {
       for (final VoidCallback listener in _detailListeners.toList()) {
         listener();
@@ -138,15 +155,10 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
     }
   }
 
-  void _onRealtimeReconnect() {
-    if (!mounted) return;
-    _provider.onRealtimeReconnect();
-  }
-
   @override
   void dispose() {
+    _provider.setVisible(false);
     _realtime?.removeOrderListener(_onOrderEvent);
-    _realtime?.removeReconnectListener(_onRealtimeReconnect);
     _clock?.cancel();
     _searchController.dispose();
     super.dispose();
@@ -358,7 +370,29 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _filters(provider),
-              Expanded(child: _board(provider)),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _board(provider)),
+                    // A filter change keeps the current cards painted until
+                    // the new answer lands; this hairline is the only sign a
+                    // request is out. Overlaid, so nothing below it moves.
+                    if (provider.loading && !provider.initialLoading)
+                      const Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: LinearProgressIndicator(
+                          key: ValueKey('pos-orders-refresh-bar'),
+                          minHeight: 2,
+                          backgroundColor: Colors.transparent,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(PosHomeSpec.ink),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
           );
         },
@@ -629,24 +663,24 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
             ),
           )
         else
-          Wrap(
+          // One height for every card in the section, whatever its notes,
+          // address or progress line — see [PosOrderCardGrid].
+          PosOrderCardGrid(
+            itemWidth: cardWidth,
             spacing: PosOrdersSpec.cardGap,
             runSpacing: PosOrdersSpec.cardGap,
             children: [
               for (final PosOrderCard order in cards)
-                SizedBox(
-                  width: cardWidth,
-                  child: PosOrderCardTile(
-                    order: order,
-                    now: _now,
-                    pending: provider.isPending(order.id),
-                    menuAdvanceLabel: _advanceLabelFor(order),
-                    menuSideExits: _hasSideExits(order),
-                    onMenuAction: _cardHasActions(order)
-                        ? (action) => _onCardMenuAction(order, action)
-                        : null,
-                    onTap: () => _openDetail(order),
-                  ),
+                PosOrderCardTile(
+                  order: order,
+                  now: _now,
+                  pending: provider.isPending(order.id),
+                  menuAdvanceLabel: _advanceLabelFor(order),
+                  menuSideExits: _hasSideExits(order),
+                  onMenuAction: _cardHasActions(order)
+                      ? (action) => _onCardMenuAction(order, action)
+                      : null,
+                  onTap: () => _openDetail(order),
                 ),
             ],
           ),

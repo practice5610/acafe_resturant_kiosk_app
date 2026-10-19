@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
@@ -7,72 +9,118 @@ import 'package:acafe_customer/utill/styles.dart';
 const _kCardBg = Color(0xFFFBF8EF);
 const _kBorder = Color(0xFFF0EBD8);
 const _kInk = PosHomeSpec.ink;
-const _kCream = Color(0xFFF7F1DE);
 const _kSuccessGreen = Color(0xFF3DAA72);
 const _kWidth = 520.0;
 const _kRadius = 16.0;
 
+// ─── Motion ───────────────────────────────────────────────────────────────────
+// Same fade + settle as the email receipt's "Sent" card.
+const _kTransition = Duration(milliseconds: 220);
+// How long the card stays up before it fades itself out. Long enough to read
+// the new total, short enough not to hold up the till.
+const _kHold = Duration(milliseconds: 1800);
+
 /// Shows the "Changes saved" confirmation overlay (State 14).
 ///
+/// No button: the card fades in, holds for a moment, then fades itself out.
+/// A tap on the card or the backdrop closes it early.
+///
 /// [newTotal] is the confirmed new order amount after save.
-/// [onDone] is called when the user dismisses — the caller resets edit mode
-/// and optionally refreshes the receipt detail.
+/// [onDone] runs as the card starts to close, however it was closed — the
+/// caller leaves edit mode, so the receipt is back in view as the card fades.
 Future<void> showPosReceiptChangesSavedDialog({
   required BuildContext context,
   required PosReceiptDetail receipt,
   required double newTotal,
   required VoidCallback onDone,
-}) {
-  return showGeneralDialog<void>(
+}) async {
+  await showGeneralDialog<void>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     barrierLabel: 'ChangesSaved',
     barrierColor: PosHomeSpec.contextMenuBackdrop,
-    pageBuilder: (dialogContext, _, __) => Material(
+    transitionDuration: _kTransition,
+    pageBuilder: (_, __, ___) => Material(
       type: MaterialType.transparency,
       child: Center(
-        child: _ChangesSavedCard(
-          receipt: receipt,
-          newTotal: newTotal,
-          onDone: () {
-            Navigator.of(dialogContext).pop();
-            onDone();
-          },
-        ),
+        child: _ChangesSavedCard(receipt: receipt, newTotal: newTotal),
       ),
     ),
+    // The reverse curve is what the auto-dismiss rides out on, together with
+    // the backdrop.
+    transitionBuilder: (context, animation, _, child) {
+      final Animation<double> curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.97, end: 1).animate(curved),
+          child: child,
+        ),
+      );
+    },
   );
+  onDone();
 }
 
-class _ChangesSavedCard extends StatelessWidget {
+class _ChangesSavedCard extends StatefulWidget {
   final PosReceiptDetail receipt;
   final double newTotal;
-  final VoidCallback onDone;
 
-  const _ChangesSavedCard({
-    required this.receipt,
-    required this.newTotal,
-    required this.onDone,
-  });
+  const _ChangesSavedCard({required this.receipt, required this.newTotal});
+
+  @override
+  State<_ChangesSavedCard> createState() => _ChangesSavedCardState();
+}
+
+class _ChangesSavedCardState extends State<_ChangesSavedCard> {
+  Timer? _autoClose;
+
+  @override
+  void initState() {
+    super.initState();
+    // Hold time runs from the moment the card starts to fade in.
+    _autoClose = Timer(_kHold, _closeIfCurrent);
+  }
+
+  @override
+  void dispose() {
+    _autoClose?.cancel();
+    super.dispose();
+  }
+
+  /// Pops the card only while it is still the top route. A tap can close it
+  /// first; without this guard the timer would then pop the Receipts screen
+  /// underneath.
+  void _closeIfCurrent() {
+    _autoClose?.cancel();
+    if (!mounted) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: _kWidth,
-      decoration: BoxDecoration(
-        color: _kCardBg,
-        borderRadius: BorderRadius.circular(_kRadius),
-        border: Border.all(color: _kBorder, width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x26000000),
-            blurRadius: 16,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(_kRadius),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _closeIfCurrent,
+      child: Container(
+        width: _kWidth,
+        decoration: BoxDecoration(
+          color: _kCardBg,
+          borderRadius: BorderRadius.circular(_kRadius),
+          border: Border.all(color: _kBorder, width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x26000000),
+              blurRadius: 16,
+              offset: Offset(0, 12),
+            ),
+          ],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -80,11 +128,9 @@ class _ChangesSavedCard extends StatelessWidget {
             const _SuccessHeader(),
             const _Divider(),
             _ReceiptSummarySection(
-              receipt: receipt,
-              newTotal: newTotal,
+              receipt: widget.receipt,
+              newTotal: widget.newTotal,
             ),
-            const _Divider(),
-            _BackBar(onTap: onDone),
           ],
         ),
       ),
@@ -103,14 +149,24 @@ class _SuccessHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              color: _kSuccessGreen,
-              shape: BoxShape.circle,
+          // Check pops in just behind the card's own fade.
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 520),
+            curve: const Interval(0.2, 1, curve: Curves.easeOutBack),
+            builder: (_, t, child) => Opacity(
+              opacity: t.clamp(0.0, 1.0),
+              child: Transform.scale(scale: 0.6 + 0.4 * t, child: child),
             ),
-            child: const Icon(Icons.check, color: Colors.white, size: 20),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: _kSuccessGreen,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check, color: Colors.white, size: 20),
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -157,7 +213,7 @@ class _ReceiptSummarySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -261,37 +317,6 @@ class _TotalRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ─── Back bar ─────────────────────────────────────────────────────────────────
-
-class _BackBar extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _BackBar({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: _kInk,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          height: 56,
-          child: Center(
-            child: Text(
-              'BACK TO RECEIPTS',
-              style: loewExtraBold.copyWith(
-                fontSize: 14,
-                color: _kCream,
-                letterSpacing: 0.6,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

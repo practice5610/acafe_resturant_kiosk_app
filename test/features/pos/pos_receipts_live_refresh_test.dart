@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
@@ -15,6 +16,7 @@ import 'package:acafe_customer/features/pos/domain/pos_receipt_save_changes_repo
 import 'package:acafe_customer/features/pos/screens/pos_receipts_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_detail_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_receipts_table.dart';
 import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_gateway.dart';
@@ -23,6 +25,7 @@ import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -210,8 +213,33 @@ double? _detailTotal(KioskManagerProvider p) => p.receiptDetail == null
     ? null
     : PosReceiptDetail.fromJson(p.receiptDetail!).total;
 
+/// The real faces: the test font's wide glyphs overflow the filter row at a
+/// width the shipped Loew fits comfortably.
+Future<void> _loadFonts() async {
+  const Map<String, List<String>> families = {
+    'Loew': [
+      'assets/fonts/Loew-Regular.ttf',
+      'assets/fonts/Loew-Medium.ttf',
+      'assets/fonts/Loew-Bold.ttf',
+      'assets/fonts/Loew-ExtraBold.ttf',
+    ],
+    'Swiss721': ['assets/fonts/Swiss721-Light.ttf'],
+  };
+  for (final entry in families.entries) {
+    final loader = FontLoader(entry.key);
+    for (final path in entry.value) {
+      loader.addFont(File(path)
+          .readAsBytes()
+          .then((bytes) => ByteData.view(Uint8List.fromList(bytes).buffer)));
+    }
+    await loader.load();
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(_loadFonts);
 
   group('provider: live refresh swaps data in place', () {
     test('the list keeps its rows painted until the fresh window lands',
@@ -414,13 +442,28 @@ void main() {
       expect(_rowAmount(manager, _orderId), 14.5);
       expect(_detailTotal(manager), 14.5);
 
-      await tester.tap(find.text('BACK TO RECEIPTS'));
+      // No button: the card fades itself out and the receipt is back in view.
+      expect(find.text('BACK TO RECEIPTS'), findsNothing);
+      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
 
+      expect(find.text('Changes saved'), findsNothing);
       expect(find.text('Editing receipt'), findsNothing);
       expect(find.text('Purchase Receipt'), findsOneWidget);
-      expect(find.textContaining('14.50'), findsWidgets);
-      expect(find.textContaining('11.00'), findsNothing);
+      // The row's amount (the line's unit price, €11.00, rightly stays).
+      final Finder table = find.byType(PosReceiptsTable);
+      expect(find.descendant(of: table, matching: find.textContaining('14.50')),
+          findsOneWidget);
+      expect(find.descendant(of: table, matching: find.textContaining('11.00')),
+          findsNothing);
+      // ...and the receipt's total.
+      expect(
+        find.descendant(
+          of: find.byType(PosReceiptSummary),
+          matching: find.textContaining('14.50'),
+        ),
+        findsWidgets,
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -434,14 +477,21 @@ void main() {
       await tester.tap(find.text('Save changes'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Save changes').last);
+      // Through the confirm dialog's close transition (the first frame only
+      // starts its clock) and the frame that removes its route. Not
+      // pumpAndSettle: the in-flight spinner never settles.
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(find.text('Save changes?'), findsNothing);
 
-      // Request in flight: the sidebar's Save is inert.
-      final Finder saveButton = find.text('Save changes');
-      if (saveButton.evaluate().isNotEmpty) {
-        await tester.tap(saveButton, warnIfMissed: false);
-        await tester.pump();
-      }
+      // Request in flight: Save shows a spinner and a tap on it does nothing.
+      expect(find.text('Save changes'), findsNothing);
+      final Finder spinner = find.byType(CircularProgressIndicator);
+      expect(spinner, findsOneWidget);
+      await tester.tap(spinner, warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Save changes?'), findsNothing);
 
       save.hold!.complete();
