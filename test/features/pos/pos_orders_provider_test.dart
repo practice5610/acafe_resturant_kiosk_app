@@ -468,6 +468,52 @@ void main() {
     expect(provider.totalCount, 19);
   });
 
+  test('an older backend: a kitchen pill asks for the coarse section it knows',
+      () async {
+    // Old backend: no kitchen keys in counts, and a 422 for `on_hold` itself.
+    repo.counts = <String, dynamic>{'new': 1, 'in_progress': 2, 'finished': 0};
+    repo.rows = [
+      ...repo.rows,
+      {
+        'id': 5,
+        'created_at': '2026-09-05T10:07:00.000Z',
+        'order_status': 'on_hold',
+        'order_type': 'pos',
+        'channel_key': 'counter_pos',
+        'order_amount': 8.0,
+        'customer_name': 'Eve',
+        'address_lines': <String>[],
+        'display_method': 'cash',
+        'branch_name': 'Main',
+      },
+    ];
+    await provider.load();
+
+    provider.setSection(PosOrderSection.onHold);
+    await Future<void>.delayed(Duration.zero);
+
+    // ON HOLD lives inside the old IN PROGRESS, so that is what is asked for…
+    expect(repo.lastSection, 'in_progress');
+    // …and the section still shows only its own cards, with their own count.
+    expect(provider.ordersIn(PosOrderSection.onHold).map((o) => o.id), [5]);
+    expect(provider.countOf(PosOrderSection.onHold), 1);
+    expect(provider.countOf(PosOrderSection.preparing), 1);
+
+    provider.setSection(PosOrderSection.completed);
+    await Future<void>.delayed(Duration.zero);
+    expect(repo.lastSection, 'finished');
+  });
+
+  test('a backend that knows the kitchen sections gets the exact one',
+      () async {
+    await provider.load();
+
+    provider.setSection(PosOrderSection.onHold);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(repo.lastSection, 'on_hold');
+  });
+
   test('a backend without the kitchen keys counts the cards it returned',
       () async {
     // Old backend: only new / in_progress / finished. Reading the missing

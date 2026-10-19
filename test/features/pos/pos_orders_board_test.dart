@@ -65,6 +65,29 @@ void main() {
       expect(PosOrderGrouping.queryValueFor(PosOrderSection.excluded), isNull);
     });
 
+    test('each kitchen section sits wholly inside one old backend section', () {
+      // KioskManagerController's BOARD_NEW / BOARD_IN_PROGRESS / BOARD_FINISHED
+      // before the kitchen sections existed — what an older backend accepts.
+      const Map<String, Set<String>> old = {
+        'new': {'new', 'pending'},
+        'in_progress': {'preparing', 'confirmed', 'processing', 'cooking', 'on_hold'},
+        'finished': {'item_to_collect', 'completed', 'delivered'},
+      };
+      const Map<PosOrderSection, Set<String>> kitchen = {
+        PosOrderSection.newOrders: PosOrderGrouping.newStatuses,
+        PosOrderSection.preparing: PosOrderGrouping.preparingStatuses,
+        PosOrderSection.readyToCollect: PosOrderGrouping.readyToCollectStatuses,
+        PosOrderSection.onHold: PosOrderGrouping.onHoldStatuses,
+        PosOrderSection.completed: PosOrderGrouping.completedStatuses,
+      };
+      for (final MapEntry<PosOrderSection, Set<String>> e in kitchen.entries) {
+        final String? coarse = PosOrderGrouping.legacyQueryValueFor(e.key);
+        expect(old[coarse]!.containsAll(e.value), isTrue, reason: '${e.key}');
+      }
+      expect(
+          PosOrderGrouping.legacyQueryValueFor(PosOrderSection.excluded), isNull);
+    });
+
     test('Figma card variants: in-kitchen vs out-of-kitchen', () {
       expect(
         PosOrderGrouping.boardSections

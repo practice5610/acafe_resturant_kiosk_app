@@ -160,6 +160,26 @@ class PosOrderGrouping {
     }
   }
 
+  /// The coarser `section` an older backend understands (new / in_progress /
+  /// finished): each kitchen section sits wholly inside one, so the board asks
+  /// for that and keeps only its own cards. Used until the server shows it
+  /// knows the kitchen sections, so a terminal updated before its backend
+  /// still filters instead of failing with a 422.
+  static String? legacyQueryValueFor(PosOrderSection section) {
+    switch (section) {
+      case PosOrderSection.newOrders:
+        return 'new';
+      case PosOrderSection.preparing:
+      case PosOrderSection.onHold:
+        return 'in_progress';
+      case PosOrderSection.readyToCollect:
+      case PosOrderSection.completed:
+        return 'finished';
+      case PosOrderSection.excluded:
+        return null;
+    }
+  }
+
   /// Wire value for the endpoint's `section` parameter — also the key of that
   /// section's total in its `counts`.
   static String? queryValueFor(PosOrderSection section) {

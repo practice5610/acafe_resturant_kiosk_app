@@ -104,6 +104,12 @@ class PosOrdersProvider extends ChangeNotifier {
   int _requestId = 0;
   Timer? _searchDebounce;
 
+  /// Whether the server filters by the kitchen sections itself, learnt from
+  /// the `counts` keys of its last answer. Until it has said so the board asks
+  /// for the coarser section every backend accepts and splits it locally (see
+  /// [PosOrderGrouping.legacyQueryValueFor]).
+  bool _serverKnowsKitchenSections = false;
+
   /// Coalesces a burst of socket pushes into one refetch. A busy lunch service
   /// can land several `order.changed` frames in the same second (one order
   /// placed, two advanced from the kitchen); refetching per frame would put
@@ -144,7 +150,9 @@ class PosOrdersProvider extends ChangeNotifier {
       search: _search.isEmpty ? null : _search,
       section: _section == null
           ? null
-          : PosOrderGrouping.queryValueFor(_section!),
+          : _serverKnowsKitchenSections
+              ? PosOrderGrouping.queryValueFor(_section!)
+              : PosOrderGrouping.legacyQueryValueFor(_section!),
       status: _status,
       source: _source,
       type: _type,
@@ -167,6 +175,8 @@ class PosOrdersProvider extends ChangeNotifier {
           .toList(growable: false);
 
       final counts = Map<String, dynamic>.from(data['counts'] as Map? ?? {});
+      _serverKnowsKitchenSections = counts.containsKey(
+          PosOrderGrouping.queryValueFor(PosOrderSection.preparing));
       // A backend that predates the kitchen sections only sends new /
       // in_progress / finished; its sections then count the cards it returned
       // rather than reading 0 above a row of orders.
