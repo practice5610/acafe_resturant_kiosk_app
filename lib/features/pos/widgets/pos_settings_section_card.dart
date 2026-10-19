@@ -25,7 +25,6 @@ class PosSettingsSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: PosSettingsSpec.panelBg,
         borderRadius:
             BorderRadius.circular(PosSettingsSpec.sectionBlockRadius),
         border: Border.all(color: PosSettingsSpec.fieldBorder),

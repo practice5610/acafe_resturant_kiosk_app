@@ -10,28 +10,39 @@ import 'package:flutter/material.dart';
 /// live in one place so the nine panels cannot drift apart.
 
 /// [PosUI.text] in Inter, the face every Report panel is set in. Scaled by
-/// `PosMetrics` like every other POS style.
+/// `PosMetrics` like every other POS style, with Figma's tracking pinned (see
+/// [PosReportSpec.tracking]).
 TextStyle posReportText(
   BuildContext context, {
   required double size,
   FontWeight weight = FontWeight.w400,
   Color color = PosReportSpec.ink,
-  double? height,
+  double letterSpacing = PosReportSpec.tracking,
 }) =>
-    PosUI.text(context,
-            size: size, weight: weight, color: color, height: height)
-        .copyWith(fontFamily: interRegular.fontFamily);
+    PosUI.text(context, size: size, weight: weight, color: color).copyWith(
+      fontFamily: interRegular.fontFamily,
+      letterSpacing: letterSpacing,
+    );
 
-/// The 1px in-card rule (Figma `Line`).
+/// The in-card rule (Figma `Line`): a 0-height node whose 1px stroke sits just
+/// above it, so it costs no layout height — the gaps either side are the
+/// whole spacing, as drawn. Close Day uses it too.
 class PosReportDivider extends StatelessWidget {
-  const PosReportDivider({super.key});
+  final Color color;
+
+  const PosReportDivider({super.key, this.color = PosReportSpec.divider});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 1,
+    return SizedBox(
+      height: 0,
       width: double.infinity,
-      color: PosReportSpec.divider,
+      child: OverflowBox(
+        minHeight: PosReportSpec.hairlineWidth,
+        maxHeight: PosReportSpec.hairlineWidth,
+        alignment: Alignment.bottomCenter,
+        child: ColoredBox(color: color),
+      ),
     );
   }
 }
@@ -55,13 +66,20 @@ class PosReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(posPx(context, PosReportSpec.cardRadius));
+
     return Container(
       padding: EdgeInsets.all(posPx(context, PosReportSpec.cardPadding)),
-      decoration: BoxDecoration(
-        color: PosUI.surface,
-        borderRadius:
-            BorderRadius.circular(posPx(context, PosReportSpec.cardRadius)),
-        border: Border.all(color: PosReportSpec.cardBorder, width: 1),
+      decoration: BoxDecoration(color: PosUI.surface, borderRadius: radius),
+      // Inside stroke: the 16 padding is measured from the card edge, as in
+      // Figma, instead of starting 1px further in behind a border.
+      foregroundDecoration: BoxDecoration(
+        borderRadius: radius,
+        border: Border.all(
+          color: PosReportSpec.cardBorder,
+          width: PosReportSpec.hairlineWidth,
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -85,7 +103,7 @@ class PosReportCard extends StatelessWidget {
                   ),
                 ),
                 if (trailing != null) ...<Widget>[
-                  SizedBox(width: posPx(context, 8)),
+                  SizedBox(width: posPx(context, PosReportSpec.inlineGap)),
                   Flexible(child: trailing!),
                 ],
               ],
@@ -135,7 +153,10 @@ class PosReportBadge extends StatelessWidget {
           ? null
           : BoxDecoration(
               borderRadius: radius,
-              border: Border.all(color: PosReportSpec.cardBorder, width: 1),
+              border: Border.all(
+                color: PosReportSpec.cardBorder,
+                width: PosReportSpec.hairlineWidth,
+              ),
             ),
       child: Text(
         label,
@@ -192,7 +213,7 @@ class PosReportDetailRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        SizedBox(width: posPx(context, 8)),
+        SizedBox(width: posPx(context, PosReportSpec.inlineGap)),
         Text(
           value,
           style: posReportText(
@@ -294,8 +315,8 @@ class PosReportEmptyState extends StatelessWidget {
       width: double.infinity,
       constraints: BoxConstraints(minHeight: posPx(context, minHeight)),
       padding: EdgeInsets.symmetric(
-        vertical: posPx(context, 16),
-        horizontal: posPx(context, 12),
+        vertical: posPx(context, PosReportSpec.emptyPaddingV),
+        horizontal: posPx(context, PosReportSpec.emptyPaddingH),
       ),
       decoration: BoxDecoration(
         color: PosReportSpec.rowFill,
@@ -317,7 +338,7 @@ class PosReportEmptyState extends StatelessWidget {
             ),
           ),
           if (detail != null) ...<Widget>[
-            SizedBox(height: posPx(context, 4)),
+            SizedBox(height: posPx(context, PosReportSpec.emptyTextGap)),
             Text(
               detail!,
               style: posReportText(
@@ -325,7 +346,6 @@ class PosReportEmptyState extends StatelessWidget {
                 size: PosReportSpec.paymentSubSize,
                 weight: FontWeight.w400,
                 color: PosReportSpec.inkMuted,
-                height: 1.35,
               ),
             ),
           ],

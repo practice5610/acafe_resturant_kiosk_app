@@ -451,6 +451,10 @@ class PosReceiptEmptyState extends StatelessWidget {
 class PosReceiptSummary extends StatelessWidget {
   final double subtotal;
   final double discount;
+
+  /// A saved sale's tip, already inside [total]; drawn as its own row when
+  /// above zero. The live cart never has one, so it stays three rows there.
+  final double tip;
   final double total;
 
   /// Footer variant: fixed height and a hairline above. False sizes to content
@@ -465,6 +469,7 @@ class PosReceiptSummary extends StatelessWidget {
     super.key,
     required this.subtotal,
     required this.discount,
+    this.tip = 0,
     required this.total,
     this.pinned = true,
     this.density = PosPaymentDensity.full,
@@ -473,11 +478,15 @@ class PosReceiptSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool showDiscount = discount > 0;
+    final bool showTip = tip > 0;
+    // Each optional row adds what the discount variant adds to the base.
+    final int extraRows = (showDiscount ? 1 : 0) + (showTip ? 1 : 0);
     return Container(
       height: pinned
-          ? (showDiscount
-              ? PosHomeSpec.summaryHeightWithDiscount
-              : PosHomeSpec.summaryHeight)
+          ? PosHomeSpec.summaryHeight +
+              extraRows *
+                  (PosHomeSpec.summaryHeightWithDiscount -
+                      PosHomeSpec.summaryHeight)
           : null,
       padding: EdgeInsets.fromLTRB(
         PosHomeSpec.panelPaddingH,
@@ -516,6 +525,19 @@ class PosReceiptSummary extends StatelessWidget {
                 label: 'Discount',
                 value: '- ${PosHomeSpec.formatPrice(discount)}',
                 color: PosHomeSpec.discountGreen,
+                density: density,
+              ),
+            ),
+          ],
+          if (showTip) ...[
+            SizedBox(height: density.px(PosHomeSpec.summaryGap)),
+            SizedBox(
+              height: PosHomeSpec.summaryRowSize *
+                  PosHomeSpec.summaryRowHeight *
+                  density.textScale,
+              child: _SummaryRow(
+                label: 'Tip',
+                value: PosHomeSpec.formatPrice(tip),
                 density: density,
               ),
             ),

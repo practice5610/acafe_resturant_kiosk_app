@@ -89,6 +89,9 @@ class PosHomeSpec {
   static const double searchPaddingRight = 24;
   static const double gridPaddingRight = 25;
 
+  /// Column count at the Figma desktop frames. The grid derives its live
+  /// count from the width it is given (see `PosHomeLayout.gridColumns`),
+  /// which lands on this at every desktop size the design covers.
   static const int gridColumns = 3;
   static const double gridColumnGap = 16;
   static const double gridRowGap = 20;
@@ -131,6 +134,31 @@ class PosHomeSpec {
   /// tile, so the count never sits on top of the product name.
   static const double qtyBadgeGap = 8;
   static const double tileSelectedBorder = 1;
+
+  // ── Compact composition (phones, narrow windows) ─────────────────────
+  // Not in the 1366 frame, which has no narrow variant. Below
+  // `PosResponsive.compactMax` the rail becomes a strip above the search
+  // field; these are its tokens, from the same family as the rail and pills.
+  static const double compactGutter = 16;
+  static const double compactSectionGap = 12;
+  /// The desktop's 160px fade would wash out a third of a phone's grid.
+  static const double compactFadeHeight = 64;
+  static const double compactScrollbarTrackBottom = 48;
+  /// Scroll track's distance from the pane edge; tiles stop
+  /// [compactGridInsetRight] inside it.
+  static const double compactScrollbarInset = 4;
+  static const double compactGridInsetRight = 12;
+
+  static const double stripHeight = 64;
+  static const double stripTabHeight = 40;
+  static const double stripTabPaddingH = 16;
+  static const double stripTabGap = 8;
+  static const double stripLabelSize = 14;
+  static const double stripLabelHeight = 17 / 14;
+  static const double stripPunchIconSize = 18;
+  static const double stripPunchLabelSize = 12;
+  /// Below this strip width the Punch action drops its label for a tooltip.
+  static const double stripPunchLabelMinWidth = 560;
 
   // ── Receipt panel ────────────────────────────────────────────────────
   static const double panelPaddingH = 24;

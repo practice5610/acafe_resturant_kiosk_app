@@ -400,7 +400,7 @@ class _CardDivider extends StatelessWidget {
     return const Divider(
       height: 1,
       thickness: 1,
-      color: PosPaymentsSpec.cardBorder,
+      color: PosPaymentsSpec.rowDivider, // Figma 1915:17867
     );
   }
 }

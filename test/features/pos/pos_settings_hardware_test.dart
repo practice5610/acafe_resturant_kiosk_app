@@ -43,10 +43,10 @@ Future<void> _loadFonts() async {
 
   // The receipt preview is the reason this font is bundled at all — a test
   // that laid it out in a fallback face would not be measuring the real card.
-  final mono = FontLoader('RobotoMono');
+  final mono = FontLoader('JetBrainsMono');
   for (final path in const [
-    'assets/fonts/RobotoMono-Regular.ttf',
-    'assets/fonts/RobotoMono-Bold.ttf',
+    'assets/fonts/JetBrainsMono-Regular.ttf',
+    'assets/fonts/JetBrainsMono-Bold.ttf',
   ]) {
     mono.addFont(File(path)
         .readAsBytes()

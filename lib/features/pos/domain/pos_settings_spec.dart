@@ -25,7 +25,7 @@ class PosSettingsSpec {
   static const double sidebarItemPadding = 12;
   static const double sidebarItemRadius = 3;
   static const double sidebarLabelSize = 16;
-  static const double sidebarLabelTracking = 0.6;
+  static const double sidebarLabelTracking = 0;
   static const double sidebarRuleHeight = 2;
   static const double sidebarRuleWidth = 136;
 
@@ -41,10 +41,16 @@ class PosSettingsSpec {
 
   static const double titleSize = 24;
   static const double subtitleSize = 14;
-  static const double sectionTitleSize = 15;
-  static const double sectionTitleTracking = 0.2;
-  static const double labelSize = 12;
-  static const double labelTracking = 0.3;
+  // Typography below follows Figma 1915:16945 (Settings, 2nd design pass):
+  // no letter-spacing anywhere, field labels 13 (General / Profile /
+  // Payments), Staff's labels 12 ExtraBold.
+  static const double sectionTitleSize = 16;
+  static const double sectionTitleTracking = 0;
+  static const double labelSize = 13;
+  static const double labelTracking = 0;
+
+  /// Staff's field and status labels (Figma 1915:17256).
+  static const double compactLabelSize = 12;
   static const double fieldTextSize = 14;
 
   /// Muted trailing label inside a field (Payments' "VAT Standard").

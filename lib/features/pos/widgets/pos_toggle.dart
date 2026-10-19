@@ -24,7 +24,7 @@ class PosToggle extends StatelessWidget {
   static const double trackWidth = 44;
   static const double trackHeight = 24;
   static const double _thumb = 16;
-  static const Color _trackOff = Color(0xFFE3DFD3);
+  static const Color _trackOff = Color(0xFFE1DBC4); // Figma 1915:17605
   static const Duration _duration = Duration(milliseconds: 180);
 
   @override

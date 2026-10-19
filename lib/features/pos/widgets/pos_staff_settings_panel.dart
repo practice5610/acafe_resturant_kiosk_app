@@ -10,6 +10,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+/// Field and dropdown labels on this panel: ExtraBold 12, no tracking
+/// (Figma 1915:17256 / 1915:17260).
+final TextStyle _staffLabelStyle = loewExtraBold.copyWith(
+  fontSize: PosSettingsSpec.compactLabelSize,
+  letterSpacing: 0,
+  color: PosSettingsSpec.ink,
+);
+
 /// Settings → STAFF (Figma **1641:8484**).
 ///
 /// Chrome is pixel-faithful to Figma; the data behind it is live. The roster,
@@ -148,6 +156,7 @@ class _PosStaffSettingsPanelState extends State<PosStaffSettingsPanel> {
     final PosStaffProvider provider = context.read<PosStaffProvider>();
     await showDialog<void>(
       context: context,
+      barrierColor: const Color(0x33241F20),
       builder: (_) => ChangeNotifierProvider<PosStaffProvider>.value(
         value: provider,
         child: _ShiftRosterDialog(shiftId: shiftId),
@@ -848,6 +857,7 @@ class _MemberDetailsCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             PosSettingsTextField(
+              labelStyle: _staffLabelStyle,
               label: 'Name',
               controller: nameController,
               onChanged: onNameChanged,
@@ -855,6 +865,7 @@ class _MemberDetailsCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             PosSettingsDropdown(
+              labelStyle: _staffLabelStyle,
               label: 'Role',
               // A role the branch no longer offers still shows as itself
               // rather than silently snapping to another.
@@ -870,7 +881,7 @@ class _MemberDetailsCard extends StatelessWidget {
                 Text(
                   'STAFF STATUS',
                   style: loewExtraBold.copyWith(
-                    fontSize: PosSettingsSpec.labelSize,
+                    fontSize: PosSettingsSpec.compactLabelSize,
                     letterSpacing: PosSettingsSpec.labelTracking,
                     color: PosSettingsSpec.ink,
                   ),
@@ -938,7 +949,6 @@ class _PermissionsCard extends StatelessWidget {
               style: loewExtraBold.copyWith(
                 fontSize: 12,
                 color: PosSettingsSpec.ink,
-                letterSpacing: 0.3,
               ),
             ),
             const SizedBox(height: 16),
@@ -1217,6 +1227,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
       confirmLabel: 'Add Member',
       children: [
         PosSettingsTextField(
+          labelStyle: _staffLabelStyle,
           label: widget.plandayEnabled ? 'First name' : 'Name',
           controller: _name,
           errorText: _error,
@@ -1228,6 +1239,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
         const SizedBox(height: 12),
         if (widget.plandayEnabled) ...[
           PosSettingsTextField(
+            labelStyle: _staffLabelStyle,
             label: 'Surname',
             controller: _surname,
             textInputAction: TextInputAction.next,
@@ -1237,6 +1249,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           ),
           const SizedBox(height: 12),
           PosSettingsTextField(
+            labelStyle: _staffLabelStyle,
             label: 'Email (Username)',
             controller: _email,
             keyboardType: TextInputType.emailAddress,
@@ -1247,6 +1260,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           ),
           const SizedBox(height: 12),
           PosSettingsDropdown(
+            labelStyle: _staffLabelStyle,
             label: 'Gender',
             value: _gender ?? '',
             options: const [
@@ -1260,6 +1274,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           ),
           const SizedBox(height: 12),
           PosSettingsDropdown(
+            labelStyle: _staffLabelStyle,
             label: 'Planday branch',
             value: _departmentId,
             options: widget.plandayDepartmentOptions.isEmpty
@@ -1269,6 +1284,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           ),
           const SizedBox(height: 12),
           PosSettingsDropdown(
+            labelStyle: _staffLabelStyle,
             label: 'Planday employee group',
             value: _groupId,
             options: widget.plandayGroupOptions.isEmpty
@@ -1284,6 +1300,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           const SizedBox(height: 12),
         ],
         PosSettingsTextField(
+          labelStyle: _staffLabelStyle,
           label: 'Phone',
           optionalLabel: 'optional',
           controller: _phone,
@@ -1295,6 +1312,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           _NoRolesNotice(loadError: widget.loadError)
         else
           PosSettingsDropdown(
+            labelStyle: _staffLabelStyle,
             label: 'Role',
             value: _role,
             options: widget.roleOptions,
@@ -1307,6 +1325,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
         ),
         const SizedBox(height: 12),
         PosSettingsTextField(
+          labelStyle: _staffLabelStyle,
           label: 'PIN',
           optionalLabel: 'optional',
           controller: _pin,
@@ -1335,7 +1354,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
         Text(
           'SHIFTS',
           style: loewExtraBold.copyWith(
-            fontSize: PosSettingsSpec.labelSize,
+            fontSize: PosSettingsSpec.compactLabelSize,
             letterSpacing: PosSettingsSpec.labelTracking,
             color: PosSettingsSpec.ink,
           ),
@@ -1388,7 +1407,7 @@ class _NoRolesNotice extends StatelessWidget {
         Text(
           'ROLE',
           style: loewExtraBold.copyWith(
-            fontSize: PosSettingsSpec.labelSize,
+            fontSize: PosSettingsSpec.compactLabelSize,
             letterSpacing: PosSettingsSpec.labelTracking,
             color: PosSettingsSpec.ink,
           ),
@@ -1431,7 +1450,7 @@ class _ActiveToggleRow extends StatelessWidget {
         Text(
           'STATUS',
           style: loewExtraBold.copyWith(
-            fontSize: PosSettingsSpec.labelSize,
+            fontSize: PosSettingsSpec.compactLabelSize,
             letterSpacing: PosSettingsSpec.labelTracking,
             color: PosSettingsSpec.ink,
           ),
@@ -1618,7 +1637,7 @@ class _ShiftRosterDialog extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: loewBold.copyWith(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: PosSettingsSpec.ink,
                       ),
                     ),
@@ -1657,62 +1676,67 @@ class _DialogFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: PosSettingsSpec.panelBg,
+      backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: PosSettingsSpec.fieldBorder),
+        side: const BorderSide(color: Color(0xFFF0EBD8)),
       ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 700),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                title,
-                style: loewExtraBold.copyWith(
-                  fontSize: 18,
-                  color: PosSettingsSpec.ink,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: loewRegular.copyWith(
-                  fontSize: 13,
-                  color: PosSettingsSpec.inkMuted(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: children,
+      // Dialogs sit in the root overlay, outside the Settings screen's
+      // tracking reset, so they pin Figma's 0 themselves.
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(letterSpacing: 0),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440, maxHeight: 700),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  title,
+                  style: loewExtraBold.copyWith(
+                    fontSize: 16,
+                    color: PosSettingsSpec.ink,
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _DialogButton(
-                    label: 'Cancel',
-                    filled: false,
-                    onPressed: () => Navigator.of(context).pop(),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: loewRegular.copyWith(
+                    fontSize: 13,
+                    color: PosSettingsSpec.inkMuted(),
                   ),
-                  const SizedBox(width: 8),
-                  _DialogButton(
-                    label: confirmLabel,
-                    filled: true,
-                    onPressed: onConfirm,
+                ),
+                const SizedBox(height: 20),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: children,
+                    ),
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _DialogButton(
+                      label: 'Cancel',
+                      filled: false,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(width: 8),
+                    _DialogButton(
+                      label: confirmLabel,
+                      filled: true,
+                      onPressed: onConfirm,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1829,7 +1853,6 @@ class _TableHeader extends StatelessWidget {
                     style: loewExtraBold.copyWith(
                       fontSize: 12,
                       color: PosSettingsSpec.inkMuted(),
-                      letterSpacing: 0.3,
                     ),
                   ),
                 )
@@ -1841,7 +1864,6 @@ class _TableHeader extends StatelessWidget {
                     style: loewExtraBold.copyWith(
                       fontSize: 12,
                       color: PosSettingsSpec.inkMuted(),
-                      letterSpacing: 0.3,
                     ),
                   ),
                 ),
@@ -2077,7 +2099,7 @@ class _StatusDot extends StatelessWidget {
           width: 8,
           height: 8,
           decoration: BoxDecoration(
-            color: active ? const Color(0xFF3D9A5F) : const Color(0xFFB7B2A3),
+            color: active ? const Color(0xFF22C55E) : const Color(0xFF999999),
             shape: BoxShape.circle,
           ),
         ),
@@ -2122,7 +2144,7 @@ class _PosToggle extends StatelessWidget {
           height: height,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: value ? PosSettingsSpec.ink : const Color(0xFFE3DFD3),
+            color: value ? PosSettingsSpec.ink : PosSettingsSpec.fieldBorder,
             borderRadius: BorderRadius.circular(height / 2),
           ),
           child: AnimatedAlign(
@@ -2207,7 +2229,7 @@ class _PinRow extends StatelessWidget {
         Text(
           'PIN',
           style: loewExtraBold.copyWith(
-            fontSize: PosSettingsSpec.labelSize,
+            fontSize: PosSettingsSpec.compactLabelSize,
             letterSpacing: PosSettingsSpec.labelTracking,
             color: PosSettingsSpec.ink,
           ),
@@ -2217,8 +2239,7 @@ class _PinRow extends StatelessWidget {
           child: Text(
             hasPin ? '\u2022\u2022\u2022\u2022' : 'Not set',
             style: (hasPin ? loewBold : loewRegular).copyWith(
-              fontSize: hasPin ? 18 : 13,
-              letterSpacing: hasPin ? 4 : 0,
+              fontSize: hasPin ? 14 : 13,
               color: hasPin
                   ? PosSettingsSpec.ink
                   : const Color(0xFFB54708),
@@ -2297,6 +2318,7 @@ class _SetPinDialogState extends State<_SetPinDialog> {
         ValueListenableBuilder<String?>(
           valueListenable: _error,
           builder: (context, error, _) => PosSettingsTextField(
+   labelStyle: _staffLabelStyle,
             label: 'New PIN',
             controller: _pin,
             errorText: error,

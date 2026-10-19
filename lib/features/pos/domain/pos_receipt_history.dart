@@ -85,6 +85,10 @@ class PosReceiptDetail {
   final String method;
   final double subtotal;
   final double discount;
+
+  /// The tip, already inside [total] (`order_amount` is what was charged);
+  /// shown as its own line so the subtotal no longer absorbs it.
+  final double tip;
   final double total;
   final String orderStatus;
   final String paymentStatus;
@@ -112,6 +116,7 @@ class PosReceiptDetail {
     required this.method,
     required this.subtotal,
     required this.discount,
+    this.tip = 0,
     required this.total,
     required this.orderStatus,
     required this.paymentStatus,
@@ -151,6 +156,7 @@ class PosReceiptDetail {
       method: '${json['display_method'] ?? 'cash'}',
       subtotal: _asDouble(json['subtotal']) ?? 0,
       discount: _asDouble(json['discount']) ?? 0,
+      tip: _asDouble(json['tip_amount']) ?? 0,
       total: _asDouble(json['total']) ?? 0,
       orderStatus: '${json['order_status'] ?? ''}',
       paymentStatus: '${json['payment_status'] ?? ''}',

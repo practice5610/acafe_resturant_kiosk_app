@@ -15,8 +15,8 @@ import 'package:acafe_customer/features/pos/widgets/pos_report_date_header.dart'
 import 'package:acafe_customer/features/pos/widgets/pos_report_hourly_chart.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_panels.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_summary_cards.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_report_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
+import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -198,7 +198,7 @@ class _PosReportScreenState extends State<PosReportScreen> {
               ),
               style: PosUI.text(
                 context,
-                size: 14,
+                size: PosUI.captionSize,
                 weight: FontWeight.w700,
                 color: PosUI.pageBg,
               ),
@@ -424,12 +424,13 @@ class _Unavailable extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            // Outside the cards, so Loew rather than the panels' Inter.
             Text(
               "Couldn't load the day's report",
-              style: posReportText(
-                context,
-                size: PosReportSpec.panelTitleSize,
-                weight: FontWeight.w800,
+              style: loewExtraBold.copyWith(
+                fontSize: posPx(context, PosReportSpec.panelTitleSize),
+                color: PosReportSpec.ink,
+                letterSpacing: PosReportSpec.tracking,
               ),
             ),
             SizedBox(height: posPx(context, PosReportSpec.cardInnerGap)),
@@ -437,10 +438,10 @@ class _Unavailable extends StatelessWidget {
               onPressed: onRetry,
               child: Text(
                 'Try again',
-                style: posReportText(
-                  context,
-                  size: PosReportSpec.ctaTextSize,
-                  weight: FontWeight.w700,
+                style: loewBold.copyWith(
+                  fontSize: posPx(context, PosReportSpec.ctaTextSize),
+                  color: PosReportSpec.ink,
+                  letterSpacing: PosReportSpec.tracking,
                 ),
               ),
             ),

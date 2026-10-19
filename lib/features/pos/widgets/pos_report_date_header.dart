@@ -173,6 +173,7 @@ class _DatePickerButton extends StatelessWidget {
             style: loewBold.copyWith(
               fontSize: posPx(context, PosReportSpec.dateTextSize),
               color: PosReportSpec.ink,
+              letterSpacing: PosReportSpec.tracking,
             ),
             maxLines: 1,
           ),
@@ -214,7 +215,7 @@ class _StepButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color color = onTap != null
         ? PosReportSpec.ink
-        : PosReportSpec.ink.withValues(alpha: 0.25);
+        : PosReportSpec.ink.withValues(alpha: PosReportSpec.stepDisabledAlpha);
     final double size = posPx(context, PosReportSpec.navIconSize);
 
     return Tooltip(
@@ -277,7 +278,10 @@ class _Control extends StatelessWidget {
           // the content and grow the date field from 37 to 39.
           foregroundDecoration: BoxDecoration(
             borderRadius: radius,
-            border: Border.all(color: PosReportSpec.cardBorder, width: 1),
+            border: Border.all(
+              color: PosReportSpec.cardBorder,
+              width: PosReportSpec.hairlineWidth,
+            ),
           ),
           child: child,
         ),
@@ -304,7 +308,7 @@ class _CloseDayButton extends StatelessWidget {
     final bool enabled = onTap != null && !closing && !closed;
     final Color fill = enabled
         ? PosReportSpec.ink
-        : PosReportSpec.ink.withValues(alpha: 0.35);
+        : PosReportSpec.ink.withValues(alpha: PosReportSpec.ctaDisabledAlpha);
     final double icon = posPx(context, PosReportSpec.ctaIconSize);
 
     return Material(
@@ -326,7 +330,7 @@ class _CloseDayButton extends StatelessWidget {
                   width: icon,
                   height: icon,
                   child: CircularProgressIndicator(
-                    strokeWidth: posPx(context, 2),
+                    strokeWidth: posPx(context, PosReportSpec.ctaSpinnerStroke),
                     valueColor:
                         const AlwaysStoppedAnimation<Color>(PosUI.pageBg),
                   ),
@@ -350,6 +354,7 @@ class _CloseDayButton extends StatelessWidget {
                 style: loewExtraBold.copyWith(
                   fontSize: posPx(context, PosReportSpec.ctaTextSize),
                   color: PosUI.pageBg,
+                  letterSpacing: PosReportSpec.tracking,
                 ),
                 maxLines: 1,
               ),

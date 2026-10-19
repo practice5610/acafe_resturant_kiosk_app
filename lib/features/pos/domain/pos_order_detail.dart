@@ -48,6 +48,9 @@ class PosOrderDetail {
 
   final double subtotal;
   final double discount;
+
+  /// Already inside [total] (`order_amount` is what was charged).
+  final double tip;
   final double total;
 
   const PosOrderDetail({
@@ -69,6 +72,7 @@ class PosOrderDetail {
     this.stations = const <PosStationStatus>[],
     required this.subtotal,
     required this.discount,
+    this.tip = 0,
     required this.total,
   });
 
@@ -157,6 +161,7 @@ class PosOrderDetail {
         stations: stations ?? this.stations,
         subtotal: subtotal,
         discount: discount,
+        tip: tip,
         total: total,
       );
 
@@ -183,6 +188,7 @@ class PosOrderDetail {
       stations: PosStationStatus.listFromJson(json['stations']),
       subtotal: _asDouble(json['subtotal']) ?? 0,
       discount: _asDouble(json['discount']) ?? 0,
+      tip: _asDouble(json['tip_amount']) ?? 0,
       total: _asDouble(json['total']) ?? 0,
     );
   }

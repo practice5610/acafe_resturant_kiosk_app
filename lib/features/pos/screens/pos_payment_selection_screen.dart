@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' as ui;
+
 import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/di_container.dart' as di;
@@ -55,6 +58,7 @@ import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -246,6 +250,14 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// did before tips existed).
   final ValueNotifier<double> _tip = ValueNotifier<double>(0);
 
+  /// Around everything the screen paints, so [_holdLastFrame] can capture it.
+  final GlobalKey _frameKey = GlobalKey();
+
+  /// Set once the sale is over and the screen is on its way home: the last
+  /// frame it painted, shown in place of the live screen while home slides
+  /// in over it.
+  ui.Image? _exitFrame;
+
   /// Which tenders Settings → Payments leaves available on this terminal.
   ///
   /// Read once as the screen opens rather than watched: an operator cannot
@@ -294,6 +306,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   @override
   void dispose() {
+    _exitFrame?.dispose();
     _tip.dispose();
     _split.dispose();
     _splitByItem.dispose();
@@ -552,8 +565,17 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
               _splitEntry = _splitEntry.clear();
               _splitDenomination = null;
             });
-            if (next.fullyPaid) await _autoPrintIfEnabled('$orderId');
-            if (mounted) _showSplitSuccessCard(next);
+            // "Order Paid" card disabled for now: a settled order goes
+            // straight home (printing finishes in the background). Restore by
+            // awaiting the print, then always calling _showSplitSuccessCard.
+            // if (next.fullyPaid) await _autoPrintIfEnabled('$orderId');
+            // if (mounted) _showSplitSuccessCard(next);
+            if (next.fullyPaid) {
+              unawaited(_autoPrintIfEnabled('$orderId'));
+              _endSale();
+            } else {
+              _showSplitSuccessCard(next);
+            }
             return;
           }
           error = r.error;
@@ -581,8 +603,18 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
               _sbiTender = null;
               _sbiDenomination = null;
             });
-            if (next.fullyPaid) await _autoPrintIfEnabled('$orderId');
-            if (mounted) _showSplitByItemSuccessCard(next);
+            // "Order Paid" card disabled for now: a settled order goes
+            // straight home (printing finishes in the background). Restore by
+            // awaiting the print, then always calling
+            // _showSplitByItemSuccessCard.
+            // if (next.fullyPaid) await _autoPrintIfEnabled('$orderId');
+            // if (mounted) _showSplitByItemSuccessCard(next);
+            if (next.fullyPaid) {
+              unawaited(_autoPrintIfEnabled('$orderId'));
+              _endSale();
+            } else {
+              _showSplitByItemSuccessCard(next);
+            }
             return;
           }
           error = r.error;
@@ -886,6 +918,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         title: 'Order Paid',
         amount: total,
         amountLabel: 'TOTAL PAID',
+        // The tip went onto the order with its first payment and is locked
+        // from then on, so this is the tip inside [total].
+        tip: _tip.value,
         secondaryLabel: 'Receipt',
         onSecondary: () => _showReceiptDialog(
           orderId: orderId,
@@ -906,6 +941,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// clearing the cart and the ticket (the order already holds them) and
   /// going home.
   void _endSale() {
+    _holdLastFrame();
     final CartProvider cart = context.read<CartProvider>();
     final CouponProvider coupon = context.read<CouponProvider>();
     endKioskCustomerSession(
@@ -921,6 +957,27 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     _invoiceActive = false;
     _standaloneActive = false;
     if (context.mounted) context.go(PosRoutes.home);
+  }
+
+  /// Keeps the screen on the frame it last painted while it leaves for home.
+  ///
+  /// Ending a sale clears the cart, the coupon and the ticket's name / table
+  /// fields at once — fields home shows too, so they must be clear when it
+  /// slides in. Without this the screen would visibly empty to € 0.00 as it
+  /// goes. Call it before the teardown, while that frame is still current;
+  /// if it can't be captured the screen just leaves unfrozen.
+  void _holdLastFrame() {
+    if (_exitFrame != null) return;
+    final RenderObject? boundary =
+        _frameKey.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary) return;
+    try {
+      final ui.Image frame = boundary.toImageSync(
+          pixelRatio: MediaQuery.devicePixelRatioOf(context));
+      setState(() => _exitFrame = frame);
+    } catch (_) {
+      // Not painted yet, or the renderer can't capture: leave unfrozen.
+    }
   }
 
   // ── Refund one payment (pill on frames 09–12 / 16 → 29 → 27 → 30) ───────
@@ -1300,6 +1357,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
           title: 'Invoice created',
           amount: _saleTotal,
           amountLabel: 'AMOUNT INVOICED',
+          tip: _tip.value,
           secondaryLabel: 'Receipt',
           onSecondary: () => _showReceiptDialog(
             orderId: orderId,
@@ -1386,6 +1444,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
           title: 'Payment confirmed',
           amount: _saleTotal,
           amountLabel: 'TOTAL PAID',
+          tip: _tip.value,
           secondaryLabel: 'Receipt',
           onSecondary: () => _showReceiptDialog(
             orderId: orderId,
@@ -1441,11 +1500,15 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// Shows the success card for a single card / cash payment — frame 18
   /// ("Order Paid", 1915:12227): "Receipt" (outline → receipt dialog → home)
   /// above "Next order" (ink → home).
-  void _showSinglePaymentSuccessCard(double total, int orderId) {
+  ///
+  /// Not shown for now — see the commented call in [_confirm].
+  // ignore: unused_element
+  void _showSinglePaymentSuccessCard(double total, int orderId, double tip) {
     _showSuccessCard((dialogContext) => PosPaymentSuccessCard(
           title: 'Order Paid',
           amount: total,
           amountLabel: 'TOTAL PAID',
+          tip: tip,
           secondaryLabel: 'Receipt',
           onSecondary: () => _showReceiptDialog(
             orderId: orderId,
@@ -1651,14 +1714,21 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
     switch (result.status) {
       case PosCheckoutStatus.placed:
+        // posConfirmPayment has already cleared the sale, but nothing has
+        // repainted since: hold that frame before anything does.
+        _holdLastFrame();
         _cash = _cash.clear();
         _denomination = null;
-        await _autoPrintIfEnabled(result.orderId);
-        if (!mounted) return;
-        _showSinglePaymentSuccessCard(
-          total,
-          int.tryParse((result.orderId ?? '').trim()) ?? 0,
-        );
+        // "Order Paid" card disabled for now: straight home, as its
+        // "Next order" did, with printing finishing in the background.
+        // Restore by awaiting the print, then:
+        // _showSinglePaymentSuccessCard(
+        //   total,
+        //   int.tryParse((result.orderId ?? '').trim()) ?? 0,
+        //   tip,
+        // );
+        unawaited(_autoPrintIfEnabled(result.orderId));
+        context.go(PosRoutes.home);
       case PosCheckoutStatus.paymentFailed:
         // Figma 1641:4218 takes over the content area, rather than a snackbar
         // the operator can miss while looking at the customer.
@@ -1701,9 +1771,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     if (!settings.hardware.autoPrintReceipts) return;
 
     final KioskManagerProvider manager = context.read<KioskManagerProvider>();
+    // The screen goes home without waiting for this, so past here nothing
+    // may depend on it still being mounted.
     try {
       await manager.loadReceiptDetail(orderId);
-      if (!mounted) return;
       final Map<String, dynamic>? json = manager.receiptDetail;
       if (json == null || manager.receiptDetailId != orderId) return;
       posPrintReceipt(
@@ -1712,7 +1783,6 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         general: settings.general,
       );
     } catch (_) {
-      if (!mounted) return;
       showCustomSnackBarHelper(
         'Order placed, but the receipt could not be printed automatically.',
       );
@@ -1721,6 +1791,21 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ui.Image? exitFrame = _exitFrame;
+    if (exitFrame != null) {
+      return ColoredBox(
+        color: PosHomeSpec.pageBg,
+        child: RawImage(
+          image: exitFrame,
+          scale: MediaQuery.devicePixelRatioOf(context),
+          fit: BoxFit.fill,
+        ),
+      );
+    }
+    return RepaintBoundary(key: _frameKey, child: _buildLive(context));
+  }
+
+  Widget _buildLive(BuildContext context) {
     final CartProvider cart = context.watch<CartProvider>();
     final CouponProvider coupon = context.watch<CouponProvider>();
     final SplashProvider splash = context.read<SplashProvider>();

@@ -24,6 +24,33 @@ class PosCloseDaySpec {
 
   /// The rules under the header and above the footer (Figma `Line`).
   static const Color dividerColor = PosHomeSpec.hairline;
+
+  /// Figma 1915:18940 widens the card while the denomination table is open;
+  /// the width eases over [cardResizeDuration] rather than jumping.
+  static const double cardWidthDenomination = 580;
+  static const Duration cardResizeDuration = Duration(milliseconds: 150);
+
+  /// Card, fields and the quantity boxes.
+  static const Color surface = Colors.white;
+
+  /// Label on the filled secondary buttons (`Accept difference`) and the
+  /// checkbox tick — Figma's `text-white`, not the page cream.
+  static const Color onInk = Colors.white;
+
+  // ── Type ─────────────────────────────────────────────────────────────
+  /// Figma sets no letter-spacing. Pinned explicitly because the Material 3
+  /// theme would lend every un-tracked line 0.25px (0.5 inside text fields).
+  static const double tracking = 0;
+
+  /// [face] (one of the app's Loew styles) at [size] in [color], with
+  /// Figma's tracking pinned — see [tracking].
+  static TextStyle text(
+    TextStyle face,
+    double size, {
+    Color color = ink,
+    double letterSpacing = tracking,
+  }) =>
+      face.copyWith(fontSize: size, color: color, letterSpacing: letterSpacing);
   static const List<BoxShadow> cardShadow = <BoxShadow>[
     BoxShadow(
       color: Color(0x26000000), // 15% black
@@ -37,7 +64,13 @@ class PosCloseDaySpec {
   static const double stepSize = 13;
   static const double headerGap = 8;
   static const double closeIconSize = 14;
+
+  /// Title → close icon.
+  static const double closeIconGap = 8;
   static const Color stepColor = Color(0x99241F20); // 60% ink
+
+  /// Figma's `rgba(36,31,32,0.6)` for labels and hints.
+  static const Color inkMuted = Color(0x99241F20);
 
   // ── Body copy ────────────────────────────────────────────────────────
   static const double sectionTitleSize = 16;
@@ -53,6 +86,7 @@ class PosCloseDaySpec {
   static const double expectedHintSize = 12;
   static const Color expectedHintColor = Color(0x66241F20); // 40% ink
   static const Color expectedBorder = Color(0xFFE1DBC4);
+  static const double hairlineWidth = 1;
 
   /// With the denomination table open the box drops its formula line and
   /// shrinks to one row.
@@ -70,6 +104,11 @@ class PosCloseDaySpec {
   static const double inputTextSize = 14;
   static const Color inputPlaceholder = Color(0x66241F20); // 40% ink
   static const Color inputBorderColor = Color(0xFFE1DBC4);
+
+  /// Material 3 adds an `OutlineInputBorder`'s gap padding (4 by default) as
+  /// horizontal padding inside the field; Figma's fields have none, and these
+  /// carry no floating label that would need the notch.
+  static const double fieldGapPadding = 0;
 
   /// The amount field while the table drives it: page-coloured, 10 top and
   /// bottom, the figure in ExtraBold.
@@ -102,6 +141,7 @@ class PosCloseDaySpec {
   static const double denomQtyWidth = 80;
   static const double denomQtyHeight = 22;
   static const double denomQtyRadius = 6;
+  static const double denomQtyPaddingV = 4;
   static const double denomSubtotalWidth = 100;
   static const double denomValueSize = 13;
   static const double denomQtySize = 12;
@@ -149,6 +189,7 @@ class PosCloseDaySpec {
   static const EdgeInsets warningBannerPadding =
       EdgeInsets.symmetric(horizontal: 16, vertical: 12);
   static const double warningIconSize = 16;
+  static const double warningIconGap = 10;
   static const double warningTextSize = 13;
 
   static const double checkboxSize = 20;
@@ -161,6 +202,7 @@ class PosCloseDaySpec {
   static const double actionsListGap = 12;
 
   static const double pinLabelSize = 12;
+  static const double pinLabelTracking = 0.5;
   static const double pinFieldRadius = 10;
   static const EdgeInsets pinFieldPadding =
       EdgeInsets.symmetric(horizontal: 14, vertical: 10);

@@ -132,8 +132,8 @@ class PosReceiptPreviewCard extends StatelessWidget {
           PosHardwareSpec.previewCaption,
           style: loewBold.copyWith(
             fontSize: PosHardwareSpec.captionSize,
-            letterSpacing: PosHardwareSpec.captionTracking,
-            color: PosSettingsSpec.inkMuted(0.55),
+            letterSpacing: 0,
+            color: PosHardwareSpec.mutedText,
           ),
         ),
         const SizedBox(height: 12),
@@ -158,12 +158,15 @@ class PosReceiptPreviewCard extends StatelessWidget {
                 ),
                 if (address.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  _Centered(address, size: PosHardwareSpec.receiptSmallSize),
+                  _Centered(address,
+                      size: PosHardwareSpec.receiptAddressSize,
+                      color: PosHardwareSpec.previewMuted),
                 ],
                 if (phone.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   _Centered('Tel: $phone',
-                      size: PosHardwareSpec.receiptSmallSize),
+                      size: PosHardwareSpec.receiptAddressSize,
+                      color: PosHardwareSpec.previewMuted),
                 ],
 
                 const _DashedRule(),
@@ -172,12 +175,16 @@ class PosReceiptPreviewCard extends StatelessWidget {
                 _Row(
                   'Bon: ${PosOrderNumber.preview(settings.orderNumberPrefix)}',
                   '',
+                  size: PosHardwareSpec.receiptMetaSize,
                 ),
-                _Row('Datum: $stamp', ''),
+                _Row('Datum: $stamp', '',
+                    size: PosHardwareSpec.receiptMetaSize),
                 const _Row(
                   'Kassa: ${PosReceiptSample.register} / '
                   'Medewerker: ${PosReceiptSample.operatorName}',
                   '',
+                  size: PosHardwareSpec.receiptKassaSize,
+                  color: PosHardwareSpec.previewGrey,
                 ),
 
                 const _DashedRule(),
@@ -188,20 +195,22 @@ class PosReceiptPreviewCard extends StatelessWidget {
                   _Row(
                     '${line.quantity}x ${line.name}',
                     _money(line.amount),
-                    bold: true,
+                    size: PosHardwareSpec.receiptItemSize,
                   ),
                   for (final addon in line.addons)
                     _Row(
                       '  + ${addon.label}',
                       _money(addon.amount),
-                      muted: true,
-                      size: PosHardwareSpec.receiptSmallSize,
+                      size: PosHardwareSpec.receiptAddonSize,
+                      color: PosHardwareSpec.previewGrey,
                     ),
                 ],
 
                 const _DashedRule(),
 
-                _Row('Subtotaal', _money(PosReceiptSample.subtotal)),
+                _Row('Subtotaal', _money(PosReceiptSample.subtotal),
+                    size: PosHardwareSpec.receiptItemSize,
+                    color: PosHardwareSpec.previewDark),
                 const SizedBox(height: 4),
                 _Row(
                   'TOTAAL',
@@ -213,56 +222,70 @@ class PosReceiptPreviewCard extends StatelessWidget {
                 _Row(
                   'Waarvan BTW ${PosReceiptSample.taxPercent}%',
                   _money(PosReceiptSample.taxAmount),
+                  size: PosHardwareSpec.receiptItemSize,
+                  color: PosHardwareSpec.previewDark,
                 ),
 
                 const SizedBox(height: PosHardwareSpec.receiptBlockGap),
 
                 // ── Card terminal block (illustrative — see class doc) ───
                 const _Row('BETAALD MET:', '', bold: true,
-                    size: PosHardwareSpec.receiptSmallSize),
-                _Row('PINNEN', _money(PosReceiptSample.total)),
+                    size: PosHardwareSpec.receiptPaySize),
+                _Row('PINNEN', _money(PosReceiptSample.total),
+                    size: PosHardwareSpec.receiptPaySize,
+                    color: PosHardwareSpec.previewDark),
 
                 const SizedBox(height: PosHardwareSpec.receiptBlockGap),
 
                 const _Row('Kopie', 'Kaarthouder',
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 const _Row('Terminal   ${PosReceiptSample.terminalId}',
                     'Merchant   ${PosReceiptSample.merchantId}',
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 const _Row('Periode   ${PosReceiptSample.periodNumber}',
                     'Transactie   ${PosReceiptSample.transactionNumber}',
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 const _Row('Token', PosReceiptSample.token,
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 const _Row('Contactloze betaling', PosReceiptSample.cardScheme,
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 const _Row('[${PosReceiptSample.cardAid}]',
                     'Kaart   ${PosReceiptSample.cardPan}',
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 const _Row('Kaartnr', '00 BETALING',
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 _Row('Datum   $stamp',
                     'Auth. code   ${PosReceiptSample.authCode}',
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 _Row('Totaal',
                     '${_money(PosReceiptSample.total)} ${general.currency}',
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 const _Row('Met consumentenapparaat', 'gevalideerd',
-                    muted: true, size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize,
+                    color: PosHardwareSpec.previewGrey),
                 const _Row('AKKOORD', '', bold: true,
-                    size: PosHardwareSpec.receiptSmallSize),
+                    size: PosHardwareSpec.receiptTerminalSize),
 
                 const _DashedRule(),
 
                 const _Centered(
                   'KVK: ${PosReceiptSample.kvk} | BTW: ${PosReceiptSample.btw}',
-                  size: PosHardwareSpec.receiptSmallSize,
-                  muted: true,
+                  size: PosHardwareSpec.receiptKvkSize,
+                  color: PosHardwareSpec.previewGrey,
                 ),
                 if (footer.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   // ── Footer (live) ─────────────────────────────────────
-                  _Centered(footer, size: PosHardwareSpec.receiptBodySize),
+                  _Centered(footer, size: PosHardwareSpec.receiptFooterSize),
                 ],
               ],
             ),
@@ -274,7 +297,7 @@ class PosReceiptPreviewCard extends StatelessWidget {
           'Sample transaction — items and card details are illustrative. '
           'Store name, address, order number and footer are live.',
           style: loewRegular.copyWith(
-            fontSize: PosHardwareSpec.helperSize,
+            fontSize: PosHardwareSpec.noteSize,
             color: PosSettingsSpec.inkMuted(0.5),
             height: 1.35,
           ),
@@ -290,26 +313,25 @@ class _Row extends StatelessWidget {
   final String left;
   final String right;
   final bool bold;
-  final bool muted;
+  final Color color;
   final double size;
 
   const _Row(
     this.left,
     this.right, {
     this.bold = false,
-    this.muted = false,
-    this.size = PosHardwareSpec.receiptBodySize,
+    this.color = PosHardwareSpec.previewInk,
+    required this.size,
   });
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle style = (bold ? robotoMonoBold : robotoMonoRegular)
+    final TextStyle style = (bold ? jetBrainsMonoBold : jetBrainsMonoRegular)
         .copyWith(
       fontSize: size,
       height: 1.45,
-      color: muted
-          ? PosHardwareSpec.previewInk.withValues(alpha: 0.62)
-          : PosHardwareSpec.previewInk,
+      letterSpacing: 0,
+      color: color,
     );
 
     return Padding(
@@ -334,14 +356,14 @@ class _Row extends StatelessWidget {
 class _Centered extends StatelessWidget {
   final String text;
   final bool bold;
-  final bool muted;
+  final Color color;
   final double size;
 
   const _Centered(
     this.text, {
     this.bold = false,
-    this.muted = false,
-    this.size = PosHardwareSpec.receiptBodySize,
+    this.color = PosHardwareSpec.previewInk,
+    required this.size,
   });
 
   @override
@@ -349,13 +371,11 @@ class _Centered extends StatelessWidget {
     return Text(
       text,
       textAlign: TextAlign.center,
-      style: (bold ? robotoMonoBold : robotoMonoRegular).copyWith(
+      style: (bold ? loewBold : loewRegular).copyWith(
         fontSize: size,
         height: 1.4,
-        letterSpacing: bold ? 0.4 : 0,
-        color: muted
-            ? PosHardwareSpec.previewInk.withValues(alpha: 0.62)
-            : PosHardwareSpec.previewInk,
+        letterSpacing: 0,
+        color: color,
       ),
     );
   }

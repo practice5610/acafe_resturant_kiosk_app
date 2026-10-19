@@ -13,6 +13,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_send_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_refund_session.dart';
+import 'package:acafe_customer/features/pos/screens/pos_payment_selection_screen.dart';
 import 'package:acafe_customer/features/pos/screens/pos_refund_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
@@ -582,7 +583,7 @@ void main() {
       }
     }
 
-    testWidgets('two guests, card: one order, two payments, then Order Paid',
+    testWidgets('two guests, card: one order, two payments, then home',
         (tester) async {
       await openChooser(tester);
       await confirmBar(tester);
@@ -609,9 +610,9 @@ void main() {
       expect(placed, [19], reason: 'never placed twice');
       expect(terminal.charged, [12, 7]);
       expect(sbiRepo.pays.last, ('2', 'card', 7.0));
-      expect(find.text('Order Paid'), findsOneWidget);
-
-      await tap(tester, find.text('Next order'));
+      // The "Order Paid" card is disabled for now: a settled order goes
+      // straight home.
+      expect(find.text('Order Paid'), findsNothing);
       expect(find.text('ROUTE /pos-home'), findsOneWidget);
     });
 
@@ -643,10 +644,13 @@ void main() {
         ('2', 'card', 7.0),
       ]);
       expect(placed, [19]);
-      expect(find.text('Order Paid'), findsOneWidget);
+      // The "Order Paid" card is disabled for now: a settled order goes
+      // straight home.
+      expect(find.text('Order Paid'), findsNothing);
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
     });
 
-    testWidgets('every item in one payment: the whole total, Order Paid',
+    testWidgets('every item in one payment: the whole total, then home',
         (tester) async {
       await openChooser(tester);
       await confirmBar(tester);
@@ -654,7 +658,10 @@ void main() {
       expect(bar(tester), ('Start Payment 1 · € 19.00', true));
       await confirmBar(tester);
       expect(sbiRepo.pays.single, ('0,1,2', 'card', 19.0));
-      expect(find.text('Order Paid'), findsOneWidget);
+      // The "Order Paid" card is disabled for now: a settled order goes
+      // straight home.
+      expect(find.text('Order Paid'), findsNothing);
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
     });
 
     testWidgets('a declined card places nothing; Try Again pays once',
@@ -783,7 +790,7 @@ void main() {
       expect(bar(tester), ('Start Payment 1 · € 8.50', true));
     });
 
-    testWidgets('two guests, card then cash with change, then Order Paid',
+    testWidgets('two guests, card then cash with change, then home',
         (tester) async {
       await openCustom(tester);
       await keys(tester, '8,5');
@@ -809,7 +816,10 @@ void main() {
       expect(splitRepo.rejected, isEmpty);
       expect(splitRepo.payments.last['paid_amount'], 10.5);
       expect(placed, [19]);
-      expect(find.text('Order Paid'), findsOneWidget);
+      // The "Order Paid" card is disabled for now: a settled order goes
+      // straight home.
+      expect(find.text('Order Paid'), findsNothing);
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
     });
   });
 
@@ -825,7 +835,7 @@ void main() {
             of: find.byType(PosSplitMethodToggle),
             matching: find.text('Cash')));
 
-    testWidgets('€ 19: € 12 on card, the rest in cash — one order, Order Paid',
+    testWidgets('€ 19: € 12 on card, the rest in cash — one order, then home',
         (tester) async {
       await openSplit(tester);
       expect(placed, isEmpty, reason: 'entering the mode places nothing');
@@ -846,8 +856,9 @@ void main() {
       expect(splitRepo.payments.last['paid_with'], 'cash');
       expect(splitRepo.payments.last['paid_amount'], 7.0);
       expect(placed, [19], reason: 'never placed twice');
-      expect(find.text('Order Paid'), findsOneWidget);
-      await tap(tester, find.text('Next order'));
+      // The "Order Paid" card is disabled for now: a settled order goes
+      // straight home.
+      expect(find.text('Order Paid'), findsNothing);
       expect(find.text('ROUTE /pos-home'), findsOneWidget);
     });
 
@@ -872,7 +883,10 @@ void main() {
       await confirmBar(tester);
       expect(splitRepo.rejected, isEmpty);
       expect(splitRepo.payments.single['paid_amount'], 19.0);
-      expect(find.text('Order Paid'), findsOneWidget);
+      // The "Order Paid" card is disabled for now: a settled order goes
+      // straight home.
+      expect(find.text('Order Paid'), findsNothing);
+      expect(find.text('ROUTE /pos-home'), findsOneWidget);
     });
 
     testWidgets('switching away before paying leaves no order behind',
@@ -1243,28 +1257,20 @@ void main() {
         tester.getTopLeft(find.text('Receipt')).dy,
         lessThan(tester.getTopLeft(find.text('Next order')).dy));
 
-    testWidgets('card: charged once → Order Paid → Receipt (email) → counter',
+    testWidgets('card: charged once → straight to the counter',
         (tester) async {
       await pumpPaymentScreen(tester, routed: true);
       expect(bar(tester), ('Confirm Payment', true));
       await confirmBar(tester);
       expect(terminal.charged, [19]);
       expect(placed, [19]);
-      expect(find.text('Order Paid'), findsOneWidget);
-      receiptAboveNext(tester);
-
-      await tap(tester, find.text('Receipt'));
-      await tester.enterText(
-          find.descendant(
-              of: find.byType(PosReceiptDialog),
-              matching: find.byType(TextField)),
-          'dylan@example.com');
-      await tap(tester, find.text('Send email receipt'));
-      expect(receiptRepo.sent, [(27362, 'email')]);
+      // The "Order Paid" card is disabled for now: a settled order goes
+      // straight home.
+      expect(find.text('Order Paid'), findsNothing);
       expect(find.text('ROUTE /pos-home'), findsOneWidget);
     });
 
-    testWidgets('cash with change: € 20 on € 19 → € 1.00 → Next order',
+    testWidgets('cash with change: € 20 on € 19 → € 1.00 → counter',
         (tester) async {
       await pumpPaymentScreen(tester,
           routed: true, method: PosPaymentMethod.cash);
@@ -1277,10 +1283,34 @@ void main() {
       await confirmBar(tester);
       expect(terminal.charged, isEmpty);
       expect(placed, [19]);
-      expect(find.text('Order Paid'), findsOneWidget);
-      receiptAboveNext(tester);
-      await tap(tester, find.text('Next order'));
+      // The "Order Paid" card is disabled for now: a settled order goes
+      // straight home.
+      expect(find.text('Order Paid'), findsNothing);
       expect(find.text('ROUTE /pos-home'), findsOneWidget);
+    });
+
+    testWidgets('going home holds the last frame: the ticket never empties',
+        (tester) async {
+      await pumpPaymentScreen(tester, routed: true);
+      tester.widget<PosPayPillBar>(find.byType(PosPayPillBar)).onConfirm!();
+      final Finder home = find.text('ROUTE /pos-home');
+      for (int i = 0; i < 20 && home.evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(home, findsOneWidget);
+
+      // Mid-slide: the cart is already cleared, but the payment screen is
+      // still the picture it last painted, not a live (empty) ticket.
+      final Finder pay = find.byType(PosPaymentSelectionScreen);
+      expect(pay, findsOneWidget);
+      expect(find.descendant(of: pay, matching: find.byType(RawImage)),
+          findsOneWidget);
+      expect(find.descendant(of: pay, matching: find.byType(PosPayReceiptCard)),
+          findsNothing);
+
+      await tester.pumpAndSettle();
+      expect(pay, findsNothing);
+      expect(home, findsOneWidget);
     });
 
     testWidgets('cash short of the total cannot be confirmed', (tester) async {

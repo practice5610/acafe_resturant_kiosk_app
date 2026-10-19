@@ -32,6 +32,14 @@ class PosSearchFieldStyle {
   /// Search glyph. The Orders board uses its own 14px Figma export.
   final String iconAsset;
 
+  /// Tint for [iconAsset]. Null draws the SVG in its own colours, so the
+  /// product grid and Orders board are unchanged.
+  final Color? iconColor;
+
+  /// Text tracking. Null inherits the theme's (M3 bodyLarge 0.5), which keeps
+  /// the product grid and Orders board unchanged.
+  final double? letterSpacing;
+
   const PosSearchFieldStyle({
     required this.height,
     required this.radius,
@@ -45,7 +53,32 @@ class PosSearchFieldStyle {
     this.textHeight,
     this.fillColor = Colors.white,
     this.iconAsset = Images.posSearchSvg,
+    this.iconColor,
+    this.letterSpacing,
   });
+
+  /// This style with its geometry and type multiplied by [factor]; strokes,
+  /// colours and the icon stay as they are. The home screen passes
+  /// [PosResponsive.homeScale] so the field grows and shrinks with its pane.
+  PosSearchFieldStyle scaled(double factor) {
+    if (factor == 1) return this;
+    return PosSearchFieldStyle(
+      height: height * factor,
+      radius: radius * factor,
+      borderColor: borderColor,
+      borderWidth: borderWidth,
+      paddingH: paddingH * factor,
+      gap: gap * factor,
+      iconSize: iconSize * factor,
+      textSize: textSize * factor,
+      textHeight: textHeight,
+      hintAlpha: hintAlpha,
+      fillColor: fillColor,
+      iconAsset: iconAsset,
+      iconColor: iconColor,
+      letterSpacing: letterSpacing == null ? null : letterSpacing! * factor,
+    );
+  }
 
   /// Product grid / receipts (Figma home frames).
   static const PosSearchFieldStyle pill = PosSearchFieldStyle(
@@ -74,6 +107,9 @@ class PosSearchFieldStyle {
     // Match the icon box so hint + glyph share one vertical center on web.
     textHeight: 18 / 14,
     hintAlpha: 0.6,
+    // Figma 1915:17573: the glyph is ink at 60%, same as the hint.
+    iconColor: Color(0x99241F20),
+    letterSpacing: 0,
   );
 
   /// Orders board filter row (Figma **1915:15790**): the same outlined r20
@@ -128,6 +164,7 @@ class PosSearchField extends StatelessWidget {
       fontSize: style.textSize,
       color: PosHomeSpec.ink,
       height: style.textHeight,
+      letterSpacing: style.letterSpacing,
     );
 
     return SizedBox(
@@ -151,6 +188,9 @@ class PosSearchField extends StatelessWidget {
               height: style.iconSize,
               fit: BoxFit.contain,
               alignment: Alignment.center,
+              colorFilter: style.iconColor == null
+                  ? null
+                  : ColorFilter.mode(style.iconColor!, BlendMode.srcIn),
             ),
           ),
           prefixIconConstraints: BoxConstraints(

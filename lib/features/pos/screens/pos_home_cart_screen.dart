@@ -10,14 +10,16 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_home_layout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
-import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_menu_actions.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/screens/pos_product_customize_screen.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_category_sidebar.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_category_strip.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_filter_pill.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_horizontal_scroller.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_product_grid.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
@@ -411,7 +413,8 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
 
   Future<void> _openReceiptOptions(BuildContext anchorContext) async {
     final CouponProvider coupon = context.read<CouponProvider>();
-    final bool hasDiscount = (coupon.discount ?? 0) > 0 || coupon.coupon != null;
+    final bool hasDiscount =
+        (coupon.discount ?? 0) > 0 || coupon.coupon != null;
     final PosReceiptMenuAction? action = await showPosReceiptContextMenu(
       context: context,
       anchorContext: anchorContext,
@@ -505,23 +508,9 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     final cart = context.watch<CartProvider>();
     final coupon = context.watch<CouponProvider>();
     final splash = context.read<SplashProvider>();
-    final PosMetrics? metrics = PosMetrics.maybeOf(context);
-    final bool sideReceipt = metrics?.showsSideReceipt ?? true;
-
-    // `metrics.window.width` when a PosShell ancestor published one;
-    // MediaQuery otherwise (e.g. widget tests that mount this screen bare) —
-    // the same fallback Customize already uses for its own receipt width.
-    final double windowWidth =
-        metrics?.window.width ?? MediaQuery.sizeOf(context).width;
-
-    // Below the desktop floor both panes keep the flat design pixels they
-    // always have; at/above it they scale as a continuous proportion of the
-    // window instead of holding still while only the product grid resizes.
-    // See PosResponsive.desktopFloor.
-    final double sidebarWidth = PosResponsive.sidebarWidth(windowWidth);
-    final double receiptWidth = windowWidth >= PosResponsive.desktopFloor
-        ? PosResponsive.receiptWidth(windowWidth)
-        : PosHomeSpec.receiptWidth;
+    // Every pane width, inset and the composition itself (rail vs strip,
+    // pinned vs docked receipt) come from one place; see PosHomeLayout.
+    final PosHomeLayout layout = PosHomeLayout.of(context);
 
     final categories = category.categoryList ?? const <CategoryModel>[];
     final selectedId = category.selectedSubCategoryId;
@@ -531,14 +520,25 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     final double subtotal = kioskCartTotal(cart.cartList);
     final double total = kioskPayableTotal(cart.cartList, discount);
 
-    final PosReceiptPanel receipt = _receiptPanel(
-      cartList: cart.cartList,
+    // push (not go) so the till screen stays mounted underneath: returning
+    // restores the exact POS state -- cart, category, search text and tag
+    // filter -- not just the provider-backed parts. See
+    // PosPunchScreen._backToPos.
+    void openPunch() => context.push(PosRoutes.punch);
+
+    final Widget content = _ContentArea(
+      layout: layout,
+      searchController: _search,
+      onSearchChanged: (value) => setState(() => _query = value),
+      selectedTag: _selectedTag,
+      onTagSelected: (label) =>
+          setState(() => _selectedTag = _selectedTag == label ? null : label),
+      products: products,
+      isLoading: !_menuReady &&
+          (category.isKioskMenuPrefetching || categories.isEmpty),
       imageBaseUrl: splash.baseUrls?.productImageUrl,
-      dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
-      subtotal: subtotal,
-      discount: discount,
-      total: total,
-      width: receiptWidth,
+      cartQuantityOf: cart.getCartProductQuantityCount,
+      onProductTap: _addToCart,
     );
 
     return ColoredBox(
@@ -549,39 +549,53 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                PosCategorySidebar(
-                  categories: categories,
-                  selectedId: selectedId,
-                  onSelect: _selectCategory,
-                  // push (not go) so the till screen stays mounted underneath:
-                  // returning restores the exact POS state -- cart, category,
-                  // search text and tag filter -- not just the provider-backed
-                  // parts. See PosPunchScreen._backToPos.
-                  onPunch: () => context.push(PosRoutes.punch),
-                  width: sidebarWidth,
-                ),
-                Expanded(
-                  child: _ContentArea(
-                    searchController: _search,
-                    onSearchChanged: (value) => setState(() => _query = value),
-                    selectedTag: _selectedTag,
-                    onTagSelected: (label) => setState(() =>
-                        _selectedTag = _selectedTag == label ? null : label),
-                    products: products,
-                    isLoading: !_menuReady &&
-                        (category.isKioskMenuPrefetching || categories.isEmpty),
-                    imageBaseUrl: splash.baseUrls?.productImageUrl,
-                    cartQuantityOf: cart.getCartProductQuantityCount,
-                    onProductTap: _addToCart,
+                if (layout.compact)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        PosCategoryStrip(
+                          categories: categories,
+                          selectedId: selectedId,
+                          onSelect: _selectCategory,
+                          onPunch: openPunch,
+                        ),
+                        Expanded(child: content),
+                      ],
+                    ),
+                  )
+                else ...[
+                  PosCategorySidebar(
+                    categories: categories,
+                    selectedId: selectedId,
+                    onSelect: _selectCategory,
+                    onPunch: openPunch,
+                    width: layout.sidebarWidth,
+                    scale: layout.scale,
                   ),
-                ),
-                if (sideReceipt) ClipRect(child: receipt),
+                  Expanded(child: content),
+                ],
+                if (layout.sideReceipt)
+                  ClipRect(
+                    child: _receiptPanel(
+                      cartList: cart.cartList,
+                      imageBaseUrl: splash.baseUrls?.productImageUrl,
+                      dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
+                      subtotal: subtotal,
+                      discount: discount,
+                      total: total,
+                      width: layout.receiptWidth,
+                    ),
+                  ),
               ],
             ),
           ),
-          if (!sideReceipt)
+          if (!layout.sideReceipt)
             _CompactReceiptBar(
               total: total,
+              itemCount: cart.cartList
+                  .fold<int>(0, (sum, line) => sum + (line?.quantity ?? 0)),
+              compact: layout.compact,
               onTap: () => _openReceiptSheet(
                 subtotal: subtotal,
                 discount: discount,
@@ -595,6 +609,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
 }
 
 class _ContentArea extends StatelessWidget {
+  final PosHomeLayout layout;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final String? selectedTag;
@@ -606,6 +621,7 @@ class _ContentArea extends StatelessWidget {
   final ValueChanged<Product> onProductTap;
 
   const _ContentArea({
+    required this.layout,
     required this.searchController,
     required this.onSearchChanged,
     required this.selectedTag,
@@ -617,64 +633,63 @@ class _ContentArea extends StatelessWidget {
     required this.onProductTap,
   });
 
+  List<Widget> get _pills => [
+        for (final String label in PosHomeSpec.filterPillLabels)
+          PosFilterPill(
+            label: label,
+            active: selectedTag == label,
+            onTap: () => onTagSelected(label),
+            scale: layout.scale,
+          ),
+      ];
+
   @override
   Widget build(BuildContext context) {
+    final EdgeInsets toolbarInset =
+        EdgeInsets.only(right: layout.toolbarInsetRight);
+    final double pillGap = PosHomeSpec.pillGap * layout.scale;
+
     return ClipRect(
       child: Stack(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              PosHomeSpec.contentPaddingLeft,
-              PosHomeSpec.contentPaddingTop,
-              PosHomeSpec.scrollbarInset,
+            padding: EdgeInsets.fromLTRB(
+              layout.contentInsetLeft,
+              layout.contentInsetTop,
+              layout.contentInsetRight,
               0,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(
-                      right: PosHomeSpec.searchPaddingRight -
-                          PosHomeSpec.scrollbarInset),
+                  padding: toolbarInset,
                   child: PosSearchField(
                     controller: searchController,
                     onChanged: onSearchChanged,
+                    style: PosSearchFieldStyle.pill.scaled(layout.scale),
                   ),
                 ),
-                const SizedBox(height: PosHomeSpec.sectionGap),
+                SizedBox(height: layout.sectionGap),
                 Padding(
-                  padding: const EdgeInsets.only(
-                      right: PosHomeSpec.searchPaddingRight -
-                          PosHomeSpec.scrollbarInset),
-                  child: SizedBox(
-                    height: PosHomeSpec.pillHeight,
-                    child: ScrollConfiguration(
-                      behavior: ScrollConfiguration.of(context)
-                          .copyWith(scrollbars: false),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            for (int i = 0;
-                                i < PosHomeSpec.filterPillLabels.length;
-                                i++) ...[
-                              if (i > 0)
-                                const SizedBox(width: PosHomeSpec.pillGap),
-                              PosFilterPill(
-                                label: PosHomeSpec.filterPillLabels[i],
-                                active: selectedTag ==
-                                    PosHomeSpec.filterPillLabels[i],
-                                onTap: () => onTagSelected(
-                                    PosHomeSpec.filterPillLabels[i]),
-                              ),
-                            ],
-                          ],
+                  padding: toolbarInset,
+                  // Compact: one swipeable row — on a phone, wrapping six
+                  // pills costs three rows of grid. Otherwise a Wrap: the
+                  // scaled row fits on one line at every desktop size, and a
+                  // narrow pane wraps it rather than hiding any pill behind a
+                  // scroll a mouse cannot drag.
+                  child: layout.compact
+                      ? PosHorizontalScroller(
+                          spacing: pillGap,
+                          children: _pills,
+                        )
+                      : Wrap(
+                          spacing: pillGap,
+                          runSpacing: pillGap,
+                          children: _pills,
                         ),
-                      ),
-                    ),
-                  ),
                 ),
-                const SizedBox(height: PosHomeSpec.sectionGap),
+                SizedBox(height: layout.sectionGap),
                 Expanded(
                   child: isLoading
                       ? const Center(
@@ -688,17 +703,18 @@ class _ContentArea extends StatelessWidget {
                           onProductTap: onProductTap,
                           showImages:
                               context.watch<KioskAuthProvider>().showImages,
+                          layout: layout,
                         ),
                 ),
               ],
             ),
           ),
-          const Positioned(
+          Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            height: PosHomeSpec.contentFadeHeight,
-            child: IgnorePointer(
+            height: layout.fadeHeight,
+            child: const IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -719,24 +735,40 @@ class _ContentArea extends StatelessWidget {
   }
 }
 
-/// Compact-band stand-in for the pinned receipt. Not in the 1366 Figma frame;
-/// `PosMetrics.showsSideReceipt` drops the side panel below 900px / portrait.
+/// Stand-in for the pinned receipt when there is no room for it (compact
+/// band, or a portrait window below the desktop floor). Not in the 1366
+/// Figma frame. Tapping opens the full receipt as a sheet; the count and the
+/// chevron say there is something to open.
 class _CompactReceiptBar extends StatelessWidget {
   final double total;
+  final int itemCount;
+  final bool compact;
   final VoidCallback onTap;
 
-  const _CompactReceiptBar({required this.total, required this.onTap});
+  const _CompactReceiptBar({
+    required this.total,
+    required this.itemCount,
+    required this.compact,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final TextStyle strong = loewExtraBold.copyWith(
+      fontSize: PosHomeSpec.headerTitleSize,
+      color: PosHomeSpec.ink,
+    );
+
     return Material(
       color: PosHomeSpec.panelBg,
       child: InkWell(
         onTap: onTap,
         child: Container(
           height: 56,
-          padding:
-              const EdgeInsets.symmetric(horizontal: PosHomeSpec.panelPaddingH),
+          padding: EdgeInsets.symmetric(
+            horizontal:
+                compact ? PosHomeSpec.compactGutter : PosHomeSpec.panelPaddingH,
+          ),
           decoration: const BoxDecoration(
             border: Border(
               top: BorderSide(
@@ -745,21 +777,37 @@ class _CompactReceiptBar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Text(
-                'Purchase Receipt',
-                style: loewExtraBold.copyWith(
-                  fontSize: PosHomeSpec.headerTitleSize,
-                  color: PosHomeSpec.ink,
+              // The title gives way (ellipsis) before the total ever does.
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'Purchase Receipt',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: strong,
+                      ),
+                    ),
+                    if (itemCount > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        itemCount == 1 ? '1 item' : '$itemCount items',
+                        maxLines: 1,
+                        style: loewRegular.copyWith(
+                          fontSize: PosHomeSpec.headerNumberSize,
+                          color: PosHomeSpec.inkAlpha(0.6),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const Spacer(),
-              Text(
-                PosHomeSpec.formatPrice(total),
-                style: loewExtraBold.copyWith(
-                  fontSize: PosHomeSpec.headerTitleSize,
-                  color: PosHomeSpec.ink,
-                ),
-              ),
+              const SizedBox(width: 12),
+              Text(PosHomeSpec.formatPrice(total), maxLines: 1, style: strong),
+              const SizedBox(width: 8),
+              const Icon(Icons.keyboard_arrow_up_rounded,
+                  size: 24, color: PosHomeSpec.ink),
             ],
           ),
         ),

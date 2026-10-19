@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/features/pos/domain/pos_route_policy.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
@@ -82,6 +83,20 @@ class PosNavBarSpec {
   /// Report is 18/10 in the frame; every other pill is 20/12.
   static const EdgeInsets reportPadding =
       EdgeInsets.symmetric(horizontal: 18, vertical: 10);
+
+  // ── Compact arrangement ──────────────────────────────────────────────
+  // The frame has no narrow variant. Below [compactBelow] the date, the
+  // wordmark-to-date offset and the staff name stop fitting beside the
+  // icons, so the bar drops them and tightens its spacing; see
+  // _PosTopNavBarState._compactBar for the order things give way in.
+
+  /// Same breakpoint the screens use for their compact layout.
+  static const double compactBelow = PosResponsive.compactMax;
+  static const double compactHorizontalPadding = 16;
+  static const double compactGap = 8;
+
+  /// Narrowest the wordmark is squeezed to before it is dropped outright.
+  static const double wordmarkMinWidth = 32;
 }
 
 /// One tab in the POS top navigation.
@@ -269,7 +284,8 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
     // it down. This no longer punches anyone out of Planday -- attendance is a
     // deliberate action on the Punch screen. Fire-and-forget inside; never
     // blocks the logout.
-    await Provider.of<PosStaffSessionProvider?>(context, listen: false)?.signOut();
+    await Provider.of<PosStaffSessionProvider?>(context, listen: false)
+        ?.signOut();
     if (!mounted) return;
     await context.read<KioskAuthProvider>().logout();
     if (!mounted) return;
@@ -295,112 +311,240 @@ class _PosTopNavBarState extends State<PosTopNavBar> {
         );
     final PosStaffSession? signedIn = staff?.session;
 
-    return Container(
-      height: PosNavBarSpec.height,
-      padding: const EdgeInsets.symmetric(
-          horizontal: PosNavBarSpec.horizontalPadding),
-      decoration: const BoxDecoration(
-        color: PosUI.pageBg,
-        border: Border(
-          bottom: BorderSide(
-            color: PosUI.ink,
-            width: PosNavBarSpec.borderWidth,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool compact = constraints.maxWidth < PosNavBarSpec.compactBelow;
+        return Container(
+          height: PosNavBarSpec.height,
+          padding: EdgeInsets.symmetric(
+            horizontal: compact
+                ? PosNavBarSpec.compactHorizontalPadding
+                : PosNavBarSpec.horizontalPadding,
+          ),
+          decoration: const BoxDecoration(
+            color: PosUI.pageBg,
+            border: Border(
+              bottom: BorderSide(
+                color: PosUI.ink,
+                width: PosNavBarSpec.borderWidth,
+              ),
+            ),
+          ),
+          child: compact
+              ? _compactBar(
+                  width: constraints.maxWidth,
+                  auth: auth,
+                  session: session,
+                  access: access,
+                  signedIn: signedIn,
+                )
+              : _fullBar(
+                  auth: auth,
+                  session: session,
+                  access: access,
+                  signedIn: signedIn,
+                ),
+        );
+      },
+    );
+  }
+
+  /// A phone or narrow window. Things give way in this order, so the bar
+  /// can never overflow down to a ~330px window with every icon present:
+  ///
+  ///  1. The date, its offset from the wordmark, and the staff name go.
+  ///  2. Tabs tuck into "More", as on the full bar.
+  ///  3. "More" itself becomes a 40px icon menu holding every tab.
+  ///  4. Only then does the wordmark shrink, and below a legible size drop.
+  ///
+  /// The icons and the account menu keep their full 40px targets throughout.
+  Widget _compactBar({
+    required double width,
+    required KioskAuthProvider auth,
+    required PosSessionProvider session,
+    required PosAccess access,
+    required PosStaffSession? signedIn,
+  }) {
+    const double gap = PosNavBarSpec.compactGap;
+
+    // Each trailing control with the width it occupies, so the wordmark's
+    // room can be worked out before layout rather than discovered by an
+    // overflow.
+    final List<(Widget, double)> trailing = [
+      if (auth.allergenTagEnabled)
+        (const _AllergenNavButton(), PosNavBarSpec.iconButtonSize),
+      (const _ScanButton(), PosNavBarSpec.iconButtonSize),
+      if (!access.loginRequired)
+        (
+          _PosLockButton(
+            unlocked: session.canAccessManagerTabs,
+            onTap: widget.interactive ? _onLockTap : null,
+          ),
+          PosNavBarSpec.iconButtonSize,
+        ),
+      if (signedIn != null)
+        (
+          _PosStaffMenuButton(
+            staff: signedIn,
+            interactive: widget.interactive,
+            onSwitchUser: _onSwitchUser,
+            onLogoutTerminal: _onAvatarLogout,
+            showName: false,
+          ),
+          _PosStaffMenuButton.compactWidth,
+        )
+      else
+        (
+          _PosAvatarMenuButton(
+            initial: _initialFor(auth),
+            interactive: widget.interactive,
+            onLogout: _onAvatarLogout,
+          ),
+          PosNavBarSpec.avatarSize,
+        ),
+    ];
+
+    final double trailingWidth =
+        trailing.fold(0, (sum, slot) => sum + gap + slot.$2);
+    final double inner = width - 2 * PosNavBarSpec.compactHorizontalPadding;
+    // Leave the tabs at least their icon-only menu.
+    final double wordmarkRoom =
+        inner - trailingWidth - PosNavBarSpec.iconButtonSize - gap;
+    final double wordmarkWidth = wordmarkRoom.clamp(
+        0.0, PosNavBarSpec.wordmarkHeight * PosWordmark.aspectRatio);
+    final bool showWordmark = wordmarkWidth >= PosNavBarSpec.wordmarkMinWidth;
+
+    return Row(
+      children: [
+        if (showWordmark) ...[
+          SizedBox(
+            width: wordmarkWidth,
+            child: const FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: PosWordmark(height: PosNavBarSpec.wordmarkHeight),
+            ),
+          ),
+          const SizedBox(width: gap),
+        ],
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: _PosNavPillRow(
+              items: visiblePosNavItemsFor(access),
+              currentPath: widget.currentPath,
+              interactive: widget.interactive,
+              onSelect: (path) => context.go(path),
+            ),
           ),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Left cluster. Flexible so a window narrower than the design does
-          // not overflow: the date is the only element here with slack, so it
-          // ellipsises rather than the bar throwing. flex: 1 against the
-          // right cluster's flex: 3 (not an even split) -- this side only
-          // ever needs ~300-400px (wordmark + date), so an even split capped
-          // it at half the window and starved the pill row of width the
-          // window actually had free, tipping tabs into "More" well before
-          // the bar was actually full. See the right cluster's own comment.
-          Flexible(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const PosWordmark(height: PosNavBarSpec.wordmarkHeight),
-                const SizedBox(width: PosNavBarSpec.kNavDateOffset),
-                SvgPicture.asset(
-                  Images.posCalendarSvg,
-                  width: PosNavBarSpec.dateIconSize,
-                  height: PosNavBarSpec.dateIconSize,
-                ),
-                const SizedBox(width: PosNavBarSpec.dateIconGap),
-                Flexible(
-                  child: Text(
-                    _formattedDate,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: loewMedium.copyWith(
-                      fontSize: PosNavBarSpec.dateSize,
-                      color: PosUI.ink,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: PosNavBarSpec.groupGap),
-          // Right cluster. Flexible, with the pill row giving way inside it:
-          // five pills plus scan and avatar need roughly a 1000px window, so
-          // below that the tabs have to give way somehow. Whatever doesn't fit
-          // collapses into the "More" pill rather than scrolling off with no
-          // indication it exists — that silently hid Settings on a narrow
-          // staff tablet before this. At the design width nothing collapses.
-          // flex: 2 -- see the left cluster's comment for why this is not an
-          // even split with it.
-          Flexible(
-            flex: 2,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: _PosNavPillRow(
-                    items: visiblePosNavItemsFor(access),
-                    currentPath: widget.currentPath,
-                    interactive: widget.interactive,
-                    onSelect: (path) => context.go(path),
-                  ),
-                ),
-                const SizedBox(width: PosNavBarSpec.groupGap),
-                const _AllergenNavButton(),
-                const SizedBox(width: PosNavBarSpec.groupGap),
-                const _ScanButton(),
-                const SizedBox(width: PosNavBarSpec.groupGap),
-                // D4: the device manager code is the override for a branch
-                // that has NOT switched staff sign-in on. Once it has, what a
-                // person can open follows their own permissions, so the
-                // step-up lock would only be a second, contradicting answer.
-                if (!access.loginRequired) ...[
-                  _PosLockButton(
-                    unlocked: session.canAccessManagerTabs,
-                    onTap: widget.interactive ? _onLockTap : null,
-                  ),
-                  const SizedBox(width: PosNavBarSpec.groupGap),
-                ],
-                if (signedIn != null)
-                  _PosStaffMenuButton(
-                    staff: signedIn,
-                    interactive: widget.interactive,
-                    onSwitchUser: _onSwitchUser,
-                    onLogoutTerminal: _onAvatarLogout,
-                  )
-                else
-                  _PosAvatarMenuButton(
-                    initial: _initialFor(auth),
-                    interactive: widget.interactive,
-                    onLogout: _onAvatarLogout,
-                  ),
-              ],
-            ),
-          ),
+        for (final (Widget control, double _) in trailing) ...[
+          const SizedBox(width: gap),
+          control,
         ],
-      ),
+      ],
+    );
+  }
+
+  /// The Figma `MAIN_NAV_BAR` arrangement.
+  Widget _fullBar({
+    required KioskAuthProvider auth,
+    required PosSessionProvider session,
+    required PosAccess access,
+    required PosStaffSession? signedIn,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Left cluster. Flexible so a window narrower than the design does
+        // not overflow: the date is the only element here with slack, so it
+        // ellipsises rather than the bar throwing. flex: 1 against the
+        // right cluster's flex: 3 (not an even split) -- this side only
+        // ever needs ~300-400px (wordmark + date), so an even split capped
+        // it at half the window and starved the pill row of width the
+        // window actually had free, tipping tabs into "More" well before
+        // the bar was actually full. See the right cluster's own comment.
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const PosWordmark(height: PosNavBarSpec.wordmarkHeight),
+              const SizedBox(width: PosNavBarSpec.kNavDateOffset),
+              SvgPicture.asset(
+                Images.posCalendarSvg,
+                width: PosNavBarSpec.dateIconSize,
+                height: PosNavBarSpec.dateIconSize,
+              ),
+              const SizedBox(width: PosNavBarSpec.dateIconGap),
+              Flexible(
+                child: Text(
+                  _formattedDate,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewMedium.copyWith(
+                    fontSize: PosNavBarSpec.dateSize,
+                    color: PosUI.ink,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: PosNavBarSpec.groupGap),
+        // Right cluster. Flexible, with the pill row giving way inside it:
+        // five pills plus scan and avatar need roughly a 1000px window, so
+        // below that the tabs have to give way somehow. Whatever doesn't fit
+        // collapses into the "More" pill rather than scrolling off with no
+        // indication it exists — that silently hid Settings on a narrow
+        // staff tablet before this. At the design width nothing collapses.
+        // flex: 2 -- see the left cluster's comment for why this is not an
+        // even split with it.
+        Flexible(
+          flex: 2,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: _PosNavPillRow(
+                  items: visiblePosNavItemsFor(access),
+                  currentPath: widget.currentPath,
+                  interactive: widget.interactive,
+                  onSelect: (path) => context.go(path),
+                ),
+              ),
+              const SizedBox(width: PosNavBarSpec.groupGap),
+              const _AllergenNavButton(),
+              const SizedBox(width: PosNavBarSpec.groupGap),
+              const _ScanButton(),
+              const SizedBox(width: PosNavBarSpec.groupGap),
+              // D4: the device manager code is the override for a branch
+              // that has NOT switched staff sign-in on. Once it has, what a
+              // person can open follows their own permissions, so the
+              // step-up lock would only be a second, contradicting answer.
+              if (!access.loginRequired) ...[
+                _PosLockButton(
+                  unlocked: session.canAccessManagerTabs,
+                  onTap: widget.interactive ? _onLockTap : null,
+                ),
+                const SizedBox(width: PosNavBarSpec.groupGap),
+              ],
+              if (signedIn != null)
+                _PosStaffMenuButton(
+                  staff: signedIn,
+                  interactive: widget.interactive,
+                  onSwitchUser: _onSwitchUser,
+                  onLogoutTerminal: _onAvatarLogout,
+                )
+              else
+                _PosAvatarMenuButton(
+                  initial: _initialFor(auth),
+                  interactive: widget.interactive,
+                  onLogout: _onAvatarLogout,
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -441,10 +585,9 @@ class _PosNavPillRow extends StatefulWidget {
     required this.onSelect,
   });
 
-  static EdgeInsets _padding(PosNavItem item) =>
-      item.path == PosRoutes.report
-          ? PosNavBarSpec.reportPadding
-          : PosNavPill.defaultPadding;
+  static EdgeInsets _padding(PosNavItem item) => item.path == PosRoutes.report
+      ? PosNavBarSpec.reportPadding
+      : PosNavPill.defaultPadding;
 
   static TextStyle _labelStyle(PosNavItem item) {
     final bool bold = item.path == PosRoutes.report;
@@ -531,6 +674,18 @@ class _PosNavPillRowState extends State<_PosNavPillRow> {
             final double budget = constraints.maxWidth - decisionMargin;
             final double moreWidth = _widths[_moreKey]!;
 
+            // Not even the "More" pill fits (a phone): every tab moves into
+            // one icon-only menu rather than the pill overflowing the bar.
+            if (moreWidth > budget) {
+              return _PosNavMoreButton(
+                items: widget.items,
+                currentPath: widget.currentPath,
+                interactive: widget.interactive,
+                onSelect: widget.onSelect,
+                iconOnly: true,
+              );
+            }
+
             double widthOf(Iterable<PosNavItem> subset) {
               double total = 0;
               bool first = true;
@@ -607,8 +762,7 @@ class _PosNavPillRowState extends State<_PosNavPillRow> {
             active: PosTopNavBar.isSelected(item, widget.currentPath),
             bold: item.path == PosRoutes.report,
             padding: _PosNavPillRow._padding(item),
-            onTap:
-                widget.interactive ? () => widget.onSelect(item.path) : null,
+            onTap: widget.interactive ? () => widget.onSelect(item.path) : null,
           ),
         ],
         if (hidden.isNotEmpty) ...[
@@ -690,6 +844,31 @@ class _MorePillVisual extends StatelessWidget {
   }
 }
 
+/// [_MorePillVisual]'s phone form: a 40px circle, the size of every other
+/// icon in the bar, for when not even the pill fits.
+class _MoreIconVisual extends StatelessWidget {
+  final bool active;
+
+  const _MoreIconVisual({required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: PosNavBarSpec.iconButtonSize,
+      height: PosNavBarSpec.iconButtonSize,
+      decoration: BoxDecoration(
+        color: active ? PosUI.ink : Colors.white,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.menu_rounded,
+        size: PosNavBarSpec.iconSize,
+        color: active ? PosUI.pageBg : PosUI.ink,
+      ),
+    );
+  }
+}
+
 /// The pill any tabs that don't fit collapse into. Its own tap surface (not
 /// [PosNavPill]'s) since [PopupMenuButton] already provides one.
 class _PosNavMoreButton extends StatelessWidget {
@@ -698,11 +877,15 @@ class _PosNavMoreButton extends StatelessWidget {
   final bool interactive;
   final ValueChanged<String> onSelect;
 
+  /// Draw the trigger as [_MoreIconVisual] instead of the "More" pill.
+  final bool iconOnly;
+
   const _PosNavMoreButton({
     required this.items,
     required this.currentPath,
     required this.interactive,
     required this.onSelect,
+    this.iconOnly = false,
   });
 
   bool get _active =>
@@ -713,7 +896,7 @@ class _PosNavMoreButton extends StatelessWidget {
     return PopupMenuButton<String>(
       key: PosNavBarSpec.moreButtonKey,
       enabled: interactive,
-      tooltip: 'More',
+      tooltip: iconOnly ? 'Menu' : 'More',
       // Without this, PopupMenuButton's default anchor is the button's own
       // top-left, which opens the menu overlapping the pill instead of below
       // it — same fix as the avatar menu.
@@ -730,10 +913,23 @@ class _PosNavMoreButton extends StatelessWidget {
         for (final item in items)
           PopupMenuItem<String>(
             value: item.path,
-            child: Text(item.label, style: _PosNavPillRow._labelStyle(item)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(item.label, style: _PosNavPillRow._labelStyle(item)),
+                // The tab you are on, once it is folded in here and no
+                // longer lit in the bar itself.
+                if (PosTopNavBar.isSelected(item, currentPath)) ...[
+                  const SizedBox(width: 12),
+                  const Icon(Icons.check_rounded, size: 18, color: PosUI.ink),
+                ],
+              ],
+            ),
           ),
       ],
-      child: _MorePillVisual(active: _active),
+      child: iconOnly
+          ? _MoreIconVisual(active: _active)
+          : _MorePillVisual(active: _active),
     );
   }
 }
@@ -940,14 +1136,30 @@ class _PosStaffMenuButton extends StatelessWidget {
   final Future<void> Function() onSwitchUser;
   final Future<void> Function() onLogoutTerminal;
 
+  /// False on the compact bar: just the initials and the chevron. The full
+  /// name is still the first line of the menu, and the tooltip.
+  final bool showName;
+
   const _PosStaffMenuButton({
     required this.staff,
     required this.interactive,
     required this.onSwitchUser,
     required this.onLogoutTerminal,
+    this.showName = true,
   });
 
   static const Key buttonKey = Key('pos-staff-menu-button');
+
+  static const double _padLeft = 4;
+  static const double _padRight = 14;
+  static const double _padRightCompact = 8;
+  static const double _chevronGap = 4;
+  static const double _chevronSize = 18;
+  static const double _avatarSize = PosNavBarSpec.avatarSize - 8;
+
+  /// Width of the chip with [showName] false.
+  static const double compactWidth =
+      _padLeft + _avatarSize + _chevronGap + _chevronSize + _padRightCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -974,10 +1186,12 @@ class _PosStaffMenuButton extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(staff.name, style: loewBold.copyWith(fontSize: 14, color: PosUI.ink)),
+              Text(staff.name,
+                  style: loewBold.copyWith(fontSize: 14, color: PosUI.ink)),
               if (staff.role.isNotEmpty)
                 Text(staff.role,
-                    style: loewRegular.copyWith(fontSize: 12, color: PosUI.inkMuted)),
+                    style: loewRegular.copyWith(
+                        fontSize: 12, color: PosUI.inkMuted)),
             ],
           ),
         ),
@@ -994,7 +1208,10 @@ class _PosStaffMenuButton extends StatelessWidget {
       ],
       child: Container(
         height: PosNavBarSpec.avatarSize,
-        padding: const EdgeInsets.only(left: 4, right: 14),
+        padding: EdgeInsets.only(
+          left: _padLeft,
+          right: showName ? _padRight : _padRightCompact,
+        ),
         decoration: BoxDecoration(
           color: PosUI.surface,
           borderRadius: BorderRadius.circular(999),
@@ -1003,22 +1220,22 @@ class _PosStaffMenuButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            PosAvatar(
-              initial: staff.initials,
-              size: PosNavBarSpec.avatarSize - 8,
-            ),
-            const SizedBox(width: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 140),
-              child: Text(
-                staff.name.split(' ').first,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: loewBold.copyWith(fontSize: 14, color: PosUI.ink),
+            PosAvatar(initial: staff.initials, size: _avatarSize),
+            if (showName) ...[
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 140),
+                child: Text(
+                  staff.name.split(' ').first,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewBold.copyWith(fontSize: 14, color: PosUI.ink),
+                ),
               ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.expand_more_rounded, size: 18, color: PosUI.ink),
+            ],
+            const SizedBox(width: _chevronGap),
+            const Icon(Icons.expand_more_rounded,
+                size: _chevronSize, color: PosUI.ink),
           ],
         ),
       ),

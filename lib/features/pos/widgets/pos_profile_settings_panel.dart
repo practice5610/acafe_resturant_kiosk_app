@@ -169,7 +169,6 @@ class _PosProfileSettingsPanelState extends State<PosProfileSettingsPanel> {
           style: loewExtraBold.copyWith(
             fontSize: PosSettingsSpec.titleSize,
             color: PosSettingsSpec.ink,
-            letterSpacing: 0.4,
             height: 1.1,
           ),
         ),
@@ -335,17 +334,16 @@ class _AvatarBlock extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: loewBold.copyWith(
-                  fontSize: 16,
-                  letterSpacing: 0.4,
+                  fontSize: 13,
                   color: PosSettingsSpec.ink,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 role,
-                style: loewRegular.copyWith(
-                  fontSize: 13,
-                  color: PosSettingsSpec.inkMuted(),
+                style: loewBold.copyWith(
+                  fontSize: 11,
+                  color: const Color(0xFF737373),
                 ),
               ),
               const SizedBox(height: 6),
@@ -353,11 +351,11 @@ class _AvatarBlock extends StatelessWidget {
                 onTap: onChangePhoto,
                 child: Text(
                   'Change photo',
-                  style: loewMedium.copyWith(
+                  style: loewBold.copyWith(
                     fontSize: 13,
-                    color: PosSettingsSpec.inkMuted(0.75),
+                    color: PosSettingsSpec.ink,
                     decoration: TextDecoration.underline,
-                    decorationColor: PosSettingsSpec.inkMuted(0.75),
+                    decorationColor: PosSettingsSpec.ink,
                   ),
                 ),
               ),
@@ -383,8 +381,8 @@ class _LabeledCard extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: loewBold.copyWith(
-            fontSize: PosSettingsSpec.labelSize,
-            letterSpacing: PosSettingsSpec.labelTracking,
+            fontSize: PosSettingsSpec.sectionTitleSize,
+            letterSpacing: PosSettingsSpec.sectionTitleTracking,
             color: PosSettingsSpec.ink,
           ),
         ),
@@ -436,7 +434,7 @@ class _SecureRow extends StatelessWidget {
             Expanded(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: PosSettingsSpec.panelBg,
+                  color: PosSettingsSpec.fieldFill,
                   borderRadius:
                       BorderRadius.circular(PosSettingsSpec.fieldRadius),
                   border: Border.all(color: PosSettingsSpec.fieldBorder),
@@ -448,7 +446,6 @@ class _SecureRow extends StatelessWidget {
                     style: loewBold.copyWith(
                       fontSize: PosSettingsSpec.fieldTextSize,
                       color: PosSettingsSpec.ink,
-                      letterSpacing: 2,
                     ),
                   ),
                 ),
@@ -470,7 +467,7 @@ class _SecureRow extends StatelessWidget {
                     borderRadius:
                         BorderRadius.circular(PosSettingsSpec.fieldRadius),
                     border: Border.all(
-                      color: PosSettingsSpec.ink,
+                      color: PosSettingsSpec.fieldBorder,
                       width: 1.25,
                     ),
                   ),

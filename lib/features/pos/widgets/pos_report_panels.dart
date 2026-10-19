@@ -66,7 +66,6 @@ class PosReportDeviceBreakdownPanel extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: PosReportBadge(
                 'Total ${PosHomeSpec.formatPrice(total, padZero: false)}',
-                textSize: PosReportSpec.tableHeaderSize,
               ),
             )
           : null,
@@ -93,6 +92,10 @@ class PosReportDeviceBreakdownPanel extends StatelessWidget {
   }
 }
 
+/// One terminal, drawn with the payment-row tokens (`#F7F1DE`, 1px
+/// `#E1DBC4`, r12, 10 padding, dark 32px icon box) so the panel reads as part
+/// of the Figma set it was added to. The per-type accent survives on the share
+/// bar, where it carries meaning.
 class _DeviceCard extends StatelessWidget {
   final PosReportDeviceRow row;
 
@@ -100,18 +103,24 @@ class _DeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color accent =
-        PosReportDeviceBreakdownPanel._accentFor(row.category);
+    final Color accent = PosReportDeviceBreakdownPanel._accentFor(row.category);
+    final BorderRadius radius =
+        BorderRadius.circular(posPx(context, PosReportSpec.paymentRowRadius));
+    final double iconSize = posPx(context, PosReportSpec.paymentIconSize);
 
     return Container(
       width: posPx(context, PosReportSpec.deviceCardWidth),
-      padding: EdgeInsets.all(posPx(context, PosReportSpec.deviceCardPadding)),
+      padding: EdgeInsets.all(posPx(context, PosReportSpec.paymentRowPadding)),
       decoration: BoxDecoration(
         color: PosReportSpec.rowFill,
-        borderRadius: BorderRadius.circular(
-          posPx(context, PosReportSpec.featuredRowRadius),
+        borderRadius: radius,
+      ),
+      foregroundDecoration: BoxDecoration(
+        borderRadius: radius,
+        border: Border.all(
+          color: PosReportSpec.cardBorder,
+          width: PosReportSpec.hairlineWidth,
         ),
-        border: Border(left: BorderSide(color: accent, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,20 +128,30 @@ class _DeviceCard extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(
-                PosReportDeviceBreakdownPanel._iconFor(row.category),
-                size: posPx(context, PosReportSpec.paymentIconSize),
-                color: accent,
+              Container(
+                width: posPx(context, PosReportSpec.paymentIconBox),
+                height: posPx(context, PosReportSpec.paymentIconBox),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: PosReportSpec.ink,
+                  borderRadius: BorderRadius.circular(
+                    posPx(context, PosReportSpec.paymentIconBoxRadius),
+                  ),
+                ),
+                child: Icon(
+                  PosReportDeviceBreakdownPanel._iconFor(row.category),
+                  size: iconSize,
+                  color: PosReportSpec.solidBadgeText,
+                ),
               ),
-              SizedBox(width: posPx(context, 6)),
+              SizedBox(width: posPx(context, PosReportSpec.inlineGap)),
               Expanded(
                 child: Text(
                   row.name,
                   style: posReportText(
                     context,
                     size: PosReportSpec.paymentNameSize,
-                    weight: FontWeight.w700,
-                    color: PosReportSpec.ink,
+                    weight: FontWeight.w800,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -140,40 +159,50 @@ class _DeviceCard extends StatelessWidget {
               ),
             ],
           ),
-          Text(
-            PosHomeSpec.formatPrice(row.amount, padZero: false),
-            style: posReportText(
-              context,
-              size: PosReportSpec.kpiValueSize * 0.77,
-              weight: FontWeight.w800,
-              color: PosReportSpec.ink,
-            ),
-            maxLines: 1,
-          ),
-          Text(
-            '${row.orderCount} order${row.orderCount == 1 ? '' : 's'}'
-            ' · avg ${PosHomeSpec.formatPrice(row.averageOrderValue, padZero: false)}',
-            style: posReportText(
-              context,
-              size: PosReportSpec.paymentSubSize,
-              weight: FontWeight.w400,
-              color: PosReportSpec.inkMuted,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                PosHomeSpec.formatPrice(row.amount, padZero: false),
+                style: posReportText(
+                  context,
+                  size: PosReportSpec.paymentAmountSize,
+                  weight: FontWeight.w800,
+                ),
+                maxLines: 1,
+              ),
+              SizedBox(height: posPx(context, PosReportSpec.paymentTextGap)),
+              Text(
+                '${row.orderCount} order${row.orderCount == 1 ? '' : 's'}'
+                ' · avg ${PosHomeSpec.formatPrice(row.averageOrderValue, padZero: false)}',
+                style: posReportText(
+                  context,
+                  size: PosReportSpec.paymentSubSize,
+                  color: PosReportSpec.inkMuted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
           ClipRRect(
             borderRadius: BorderRadius.circular(
-              posPx(context, PosReportSpec.stackedBarRadius),
+              posPx(context, PosReportSpec.deviceShareBarHeight),
             ),
             child: SizedBox(
-              height: posPx(context, PosReportSpec.stackedBarHeight) * 0.6,
+              height: posPx(context, PosReportSpec.deviceShareBarHeight),
               child: Stack(
                 children: <Widget>[
-                  Container(color: PosReportSpec.cardBorder),
+                  const ColoredBox(
+                    color: PosReportSpec.barIdle,
+                    child: SizedBox.expand(),
+                  ),
                   FractionallySizedBox(
                     widthFactor: (row.percentage / 100).clamp(0, 1),
-                    child: Container(color: accent),
+                    child: ColoredBox(
+                      color: accent,
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ],
               ),
@@ -290,9 +319,16 @@ class _PaymentRow extends StatelessWidget {
       padding: EdgeInsets.all(posPx(context, PosReportSpec.paymentRowPadding)),
       decoration: BoxDecoration(
         color: PosReportSpec.rowFill,
-        borderRadius:
-            BorderRadius.circular(posPx(context, PosReportSpec.paymentRowRadius)),
-        border: Border.all(color: PosReportSpec.cardBorder, width: 1),
+        borderRadius: BorderRadius.circular(
+            posPx(context, PosReportSpec.paymentRowRadius)),
+      ),
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(
+            posPx(context, PosReportSpec.paymentRowRadius)),
+        border: Border.all(
+          color: PosReportSpec.cardBorder,
+          width: PosReportSpec.hairlineWidth,
+        ),
       ),
       child: Row(
         children: <Widget>[
@@ -335,7 +371,7 @@ class _PaymentRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: posPx(context, 2)),
+                SizedBox(height: posPx(context, PosReportSpec.paymentTextGap)),
                 Text(
                   '${row.orderCount} transaction${row.orderCount == 1 ? '' : 's'}',
                   style: posReportText(
@@ -404,9 +440,12 @@ class PosReportTopProductsPanel extends StatelessWidget {
                       secondWidth: PosReportSpec.qtyColumnWidth,
                       thirdWidth: PosReportSpec.revenueColumnWidth,
                       padding: EdgeInsets.only(
-                        left: posPx(context, 8),
-                        right: posPx(context, 8),
-                        bottom: posPx(context, 4),
+                        left:
+                            posPx(context, PosReportSpec.productHeaderPaddingH),
+                        right:
+                            posPx(context, PosReportSpec.productHeaderPaddingH),
+                        bottom: posPx(
+                            context, PosReportSpec.productHeaderPaddingBottom),
                       ),
                     ),
                     for (int i = 0; i < rows.length; i++) ...<Widget>[
@@ -527,7 +566,7 @@ class _Thumb extends StatelessWidget {
         ),
         child: Icon(
           Icons.local_cafe_outlined,
-          size: posPx(context, 20),
+          size: posPx(context, PosReportSpec.thumbIconSize),
           color: PosReportSpec.inkMuted,
         ),
       );
@@ -591,7 +630,7 @@ class PosReportCashDrawerPanel extends StatelessWidget {
                 PosReportDetailRow(
                   label: 'Cash Out (${data.cashRefundsCount} refunds)',
                   value:
-                      '−${PosHomeSpec.formatPrice(data.cashRefunds, padZero: false)}',
+                      '${PosReportSpec.minusSign}${PosHomeSpec.formatPrice(data.cashRefunds, padZero: false)}',
                 ),
                 SizedBox(height: posPx(context, PosReportSpec.detailRowGap)),
                 const PosReportDivider(),
@@ -639,7 +678,7 @@ class _DifferenceRow extends StatelessWidget {
       valueWeight: off ? FontWeight.w800 : FontWeight.w700,
       valueColor: off ? PosReportSpec.negativeText : null,
       value: difference < 0
-          ? '−${PosHomeSpec.formatPrice(difference.abs(), padZero: false)}'
+          ? '${PosReportSpec.minusSign}${PosHomeSpec.formatPrice(difference.abs(), padZero: false)}'
           : PosHomeSpec.formatPrice(difference, padZero: false),
     );
     if (!off) return row;
@@ -784,7 +823,7 @@ class _LegendRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        SizedBox(width: posPx(context, 8)),
+        SizedBox(width: posPx(context, PosReportSpec.inlineGap)),
         Text(
           '${PosHomeSpec.formatPrice(row.amount, padZero: false)} (${row.percentage.toStringAsFixed(0)}%)',
           style: posReportText(
@@ -842,9 +881,9 @@ class PosReportStaffTipsPanel extends StatelessWidget {
             secondWidth: PosReportSpec.staffColumnWidth,
             thirdWidth: PosReportSpec.staffColumnWidth,
             padding: EdgeInsets.only(
-              left: posPx(context, 4),
-              right: posPx(context, 4),
-              bottom: posPx(context, 2),
+              left: posPx(context, PosReportSpec.staffHeaderPaddingH),
+              right: posPx(context, PosReportSpec.staffHeaderPaddingH),
+              bottom: posPx(context, PosReportSpec.staffHeaderPaddingBottom),
             ),
           ),
           SizedBox(height: posPx(context, PosReportSpec.tableGap)),
@@ -864,7 +903,7 @@ class PosReportStaffTipsPanel extends StatelessWidget {
               "tips can't be split per staff member yet.",
               style: posReportText(
                 context,
-                size: 11,
+                size: PosReportSpec.footnoteSize,
                 weight: FontWeight.w500,
                 color: PosReportSpec.inkMuted,
               ),
@@ -986,7 +1025,8 @@ class PosReportRefundsPanel extends StatelessWidget {
       title: 'Refunds & Discounts',
       compactTitle: true,
       child: Padding(
-        padding: EdgeInsets.only(top: posPx(context, 4)),
+        padding: EdgeInsets.only(
+            top: posPx(context, PosReportSpec.refundsPaddingTop)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

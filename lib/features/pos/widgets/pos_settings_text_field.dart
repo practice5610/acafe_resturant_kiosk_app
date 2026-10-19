@@ -33,6 +33,11 @@ class PosSettingsTextField extends StatefulWidget {
   /// Placeholder shown while empty. Null by default for the same reason.
   final String? hintText;
 
+  /// Label / value type for sections whose Figma frame sets its own (Staff,
+  /// Hardware). Null keeps the shared Loew Bold 13 label and Bold 14 value.
+  final TextStyle? labelStyle;
+  final TextStyle? valueStyle;
+
   const PosSettingsTextField({
     super.key,
     required this.label,
@@ -49,6 +54,8 @@ class PosSettingsTextField extends StatefulWidget {
     this.trailing,
     this.obscureText = false,
     this.hintText,
+    this.labelStyle,
+    this.valueStyle,
   });
 
   @override
@@ -109,20 +116,21 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
                 widget.label.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: loewBold.copyWith(
-                  fontSize: PosSettingsSpec.labelSize,
-                  letterSpacing: PosSettingsSpec.labelTracking,
-                  color: PosSettingsSpec.ink,
-                ),
+                style: widget.labelStyle ??
+                    loewBold.copyWith(
+                      fontSize: PosSettingsSpec.labelSize,
+                      letterSpacing: PosSettingsSpec.labelTracking,
+                      color: PosSettingsSpec.ink,
+                    ),
               ),
             ),
             if (widget.optionalLabel != null) ...[
               const SizedBox(width: 6),
               Text(
                 widget.optionalLabel!,
-                style: loewMedium.copyWith(
+                style: loewBold.copyWith(
                   fontSize: PosSettingsSpec.labelSize,
-                  color: PosSettingsSpec.inkMuted(0.45),
+                  color: PosSettingsSpec.inkMuted(),
                 ),
               ),
             ],
@@ -166,12 +174,16 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
               obscureText: widget.obscureText,
               enableInteractiveSelection: !widget.readOnly,
               cursorColor: PosSettingsSpec.ink,
-              style: loewBold.copyWith(
-                fontSize: PosSettingsSpec.fieldTextSize,
-                color: PosSettingsSpec.ink.withValues(
-                  alpha: widget.readOnly ? 0.72 : 1,
-                ),
+              // TextField merges onto the theme's bodyLarge, which carries
+              // M3's 0.5 tracking — pinned to Figma's 0 here.
+              style: (widget.valueStyle ??
+                      loewBold.copyWith(
+                        fontSize: PosSettingsSpec.fieldTextSize,
+                      ))
+                  .copyWith(
+                color: PosSettingsSpec.ink,
                 height: 1.2,
+                letterSpacing: 0,
               ),
               decoration: InputDecoration(
                 isCollapsed: true,
@@ -180,9 +192,11 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
                 hintStyle: widget.hintText == null
                     ? null
                     : loewRegular.copyWith(
-                        fontSize: PosSettingsSpec.fieldTextSize,
+                        fontSize: widget.valueStyle?.fontSize ??
+                            PosSettingsSpec.fieldTextSize,
                         color: PosSettingsSpec.inkMuted(0.45),
                         height: 1.2,
+                        letterSpacing: 0,
                       ),
               ),
             )),

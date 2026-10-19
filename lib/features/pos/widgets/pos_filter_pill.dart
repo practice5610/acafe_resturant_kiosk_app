@@ -14,28 +14,38 @@ class PosFilterPill extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
+  /// Multiplier on height, padding, radius and label size so the pill grows
+  /// and shrinks with its pane; the outline stroke stays fixed. Defaults to 1
+  /// (the flat Figma pill, as the Orders board draws it); the home screen
+  /// passes [PosResponsive.homeScale].
+  final double scale;
+
   const PosFilterPill({
     super.key,
     required this.label,
     required this.active,
     required this.onTap,
+    this.scale = 1,
   });
 
   @override
   Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosHomeSpec.pillRadius * scale);
+
     return Material(
       color: active ? PosHomeSpec.ink : Colors.transparent,
-      borderRadius: BorderRadius.circular(PosHomeSpec.pillRadius),
+      borderRadius: radius,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(PosHomeSpec.pillRadius),
+        borderRadius: radius,
         child: Container(
-          height: PosHomeSpec.pillHeight,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
+          height: PosHomeSpec.pillHeight * scale,
+          padding: EdgeInsets.symmetric(
+              horizontal: PosHomeSpec.pillPadding.left * scale),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(PosHomeSpec.pillRadius),
+            borderRadius: radius,
             border: active
                 ? null
                 : Border.all(
@@ -43,12 +53,18 @@ class PosFilterPill extends StatelessWidget {
                     width: PosHomeSpec.pillBorder,
                   ),
           ),
-          child: Text(
-            label.toUpperCase(),
-            style: (active ? loewBold : loewMedium).copyWith(
-              fontSize: PosHomeSpec.pillLabelSize,
-              color: active ? PosHomeSpec.pageBg : PosHomeSpec.ink,
-              height: 16 / 13,
+          // widthFactor 1 shrink-wraps the label while still centring it
+          // vertically. Container.alignment would instead stretch the pill to
+          // any bounded width it is handed — a Wrap's full row, say.
+          child: Align(
+            widthFactor: 1,
+            child: Text(
+              label.toUpperCase(),
+              style: (active ? loewBold : loewMedium).copyWith(
+                fontSize: PosHomeSpec.pillLabelSize * scale,
+                color: active ? PosHomeSpec.pageBg : PosHomeSpec.ink,
+                height: 16 / 13,
+              ),
             ),
           ),
         ),

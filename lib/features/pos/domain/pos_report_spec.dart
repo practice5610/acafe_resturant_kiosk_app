@@ -72,10 +72,27 @@ class PosReportSpec {
   /// `body` auto-layout gap, wider than the in-row gap.
   static const double rowGap = 16;
 
+  // ── Type ─────────────────────────────────────────────────────────────
+  /// Figma sets no letter-spacing. Pinned explicitly because the Material 3
+  /// theme would otherwise lend every un-tracked line 0.25px per glyph.
+  static const double tracking = 0;
+
+  /// `VAT / BTW BREAKDOWN`.
+  static const double sectionLabelTracking = 0.5;
+
+  /// Figma writes negatives with a hyphen (`-€ 32.00`), not U+2212.
+  static const String minusSign = '-';
+
+  /// Card strokes and in-card rules.
+  static const double hairlineWidth = 1;
+
   // ── Card ─────────────────────────────────────────────────────────────
   static const double cardRadius = 16;
   static const double cardPadding = 16;
   static const double cardInnerGap = 12;
+
+  /// Title → header chip, and label → value on a detail row.
+  static const double inlineGap = 8;
 
   /// Panel titles: 16 in the middle row, 15 in the bottom row. The title row
   /// hugs its content, as drawn: 23 with a pill and 19 without at 16px, 21
@@ -104,6 +121,9 @@ class PosReportSpec {
 
   /// `Gross Sales` sits 2 lower than the other VAT rows.
   static const double kpiTotalRowPaddingTop = 2;
+
+  /// Payment method name → transaction count.
+  static const double paymentTextGap = 2;
 
   // ── Date header ──────────────────────────────────────────────────────
   static const double controlRadius = 12;
@@ -188,13 +208,41 @@ class PosReportSpec {
   static const double staffRowRadius = 8;
   static const double staffRowPadding = 6;
   static const double staffColumnWidth = 80;
+
+  /// Table header insets: Top Products `px-8 pb-4`, Staff `px-4 pb-2`.
+  static const double productHeaderPaddingH = 8;
+  static const double productHeaderPaddingBottom = 4;
+  static const double staffHeaderPaddingH = 4;
+  static const double staffHeaderPaddingBottom = 2;
+
+  /// The small explanatory line under the staff table.
+  static const double footnoteSize = 11;
+
+  /// `refunds-rows` sit 4 below the title gap.
+  static const double refundsPaddingTop = 4;
+
+  /// Placeholder glyph in a missing product thumbnail.
+  static const double thumbIconSize = 20;
   static const double differenceRowPadding = 6;
   static const double differenceRowRadius = 8;
 
   // ── Device breakdown cards ("Revenue by Terminal") ────────────────────
+  // Not in Figma; built from the payment-row tokens above so it reads as
+  // part of the same set.
   static const double deviceCardWidth = 176;
   static const double deviceCardHeight = 116;
-  static const double deviceCardPadding = 12;
+  static const double deviceShareBarHeight = 6;
+
+  // ── Empty / unavailable states (not in Figma) ────────────────────────
+  static const double emptyPaddingV = 16;
+  static const double emptyPaddingH = 12;
+  static const double emptyTextGap = 4;
+
+  // ── Control states ───────────────────────────────────────────────────
+  /// Next-day arrow on today; Close Day once the day is closed or closing.
+  static const double stepDisabledAlpha = 0.25;
+  static const double ctaDisabledAlpha = 0.35;
+  static const double ctaSpinnerStroke = 2;
 
   // ── Responsive breakpoints (logical px of the content area) ──────────
   /// The KPI row's own `1040` and the bottom row's own `1180` seams are

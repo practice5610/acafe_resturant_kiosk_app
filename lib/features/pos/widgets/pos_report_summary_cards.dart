@@ -147,7 +147,7 @@ class PosReportRevenueCard extends StatelessWidget {
     // No baseline: yesterday took nothing, so there is no percentage to state.
     // Saying "0%" or "+100%" would both be inventions.
     if (percent == null) return null;
-    final String sign = percent >= 0 ? '+' : '−';
+    final String sign = percent >= 0 ? '+' : PosReportSpec.minusSign;
     return '$sign${percent.abs().toStringAsFixed(1)}% vs yesterday';
   }
 
@@ -170,7 +170,8 @@ class PosReportRevenueCard extends StatelessWidget {
               size: PosReportSpec.kpiSectionLabelSize,
               weight: FontWeight.w700,
               color: PosReportSpec.inkMuted,
-            ).copyWith(letterSpacing: 0.5),
+              letterSpacing: PosReportSpec.sectionLabelTracking,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

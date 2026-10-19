@@ -569,7 +569,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
       // Step 2 — still pending prep in the fixture, so Confirm stays gated
@@ -579,7 +579,7 @@ void main() {
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
@@ -612,7 +612,7 @@ void main() {
 
       expect(find.text('€ 120.00'), findsWidgets);
 
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
@@ -622,7 +622,7 @@ void main() {
           find.widgetWithText(TextField, 'Reason for difference (optional)'),
           'Short till');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       final Map<String, dynamic> payload = manager.closedPayloads.single;
@@ -650,7 +650,7 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
@@ -668,7 +668,7 @@ void main() {
         find.widgetWithText(TextField, 'Reason for difference (optional)'),
         findsOneWidget,
       );
-      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
@@ -686,7 +686,7 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
@@ -697,7 +697,7 @@ void main() {
         'Tip left in drawer',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       expect(manager.closedPayloads.single['closing_cash_counted'], 900.0);
@@ -736,14 +736,14 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
 
       await tester.enterText(
           find.widgetWithText(TextField, 'Enter PIN'), '9999');
-      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       // Checked against the device's configuration_code server-side, and a
@@ -754,7 +754,7 @@ void main() {
 
       await tester.enterText(
           find.widgetWithText(TextField, 'Enter PIN'), '1234');
-      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, hasLength(1));
@@ -770,11 +770,11 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       // Nothing in this system makes the PIN mandatory, so an untouched field
@@ -793,12 +793,12 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close anyway'));
       await tester.pumpAndSettle();
       // Ticked by default: admins get the report unless opted out.
-      await tester.tap(find.text('CONFIRM & CLOSE DAY'));
+      await tester.tap(find.text('Confirm & Close Day'));
       await tester.pumpAndSettle();
 
       expect(manager.closedPayloads.single['email_report'], isTrue);
@@ -816,9 +816,9 @@ void main() {
 
       await tester.tap(find.text('Close Day'));
       await tester.pumpAndSettle();
-      expect(find.text('CANCEL'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
 
-      await tester.tap(find.text('CANCEL'));
+      await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 
       expect(manager.closedDates, isEmpty);
@@ -924,7 +924,7 @@ void main() {
       expect(find.text('Actual count'), findsOneWidget);
       expect(find.text('€ 840.00'), findsWidgets);
       expect(find.text('Difference'), findsOneWidget);
-      expect(find.text('−€ 2.50'), findsWidgets);
+      expect(find.text('-€ 2.50'), findsWidgets);
     });
 
     testWidgets('a pre-migration closed day says so rather than showing zeros',
@@ -1362,7 +1362,7 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
       await expectLater(
@@ -1385,7 +1385,7 @@ void main() {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('CONTINUE'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
       // Both blockers cleared, both boxes ticked, PIN entered — the state
@@ -1458,7 +1458,7 @@ void main() {
           await tester.tap(find.text(key).first);
           await tester.pumpAndSettle();
         }
-        await tester.tap(find.text('CONTINUE'));
+        await tester.tap(find.text('Continue'));
         await tester.pumpAndSettle();
 
         // Discrepancy + pending-orders banners are both showing here, which is

@@ -834,6 +834,10 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
               const SizedBox(height: PosOrderDetailSpec.contactLineGap),
               _TotalRow(label: 'Discount', value: -detail.discount),
             ],
+            if (detail.tip > 0) ...[
+              const SizedBox(height: PosOrderDetailSpec.contactLineGap),
+              _TotalRow(label: 'Tip', value: detail.tip),
+            ],
             const SizedBox(height: PosOrderDetailSpec.customerCardGap),
             _TotalRow(label: 'Total', value: detail.total, emphasised: true),
           ],

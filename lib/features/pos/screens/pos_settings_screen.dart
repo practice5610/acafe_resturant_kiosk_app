@@ -66,43 +66,48 @@ class _PosSettingsScreenState extends State<PosSettingsScreen> {
     final PosSettingsSection section =
         sections.contains(_section) ? _section : sections.first;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        PosSettingsSidebar(
-          selected: section,
-          sections: sections,
-          onSelect: (PosSettingsSection next) {
-            if (next == _section) return;
-            setState(() => _section = next);
-          },
-        ),
-        Expanded(
-          child: ColoredBox(
-            color: PosSettingsSpec.pageBg,
-            child: Padding(
-              padding: PosSettingsSpec.panelPadding,
-              child: switch (section) {
-                PosSettingsSection.general => _GeneralSectionHost(
-                    sharedPreferences: widget.sharedPreferences,
-                  ),
-                PosSettingsSection.profile => const PosProfileSettingsPanel(),
-                PosSettingsSection.staff => _StaffSectionHost(
-                    sharedPreferences: widget.sharedPreferences,
-                  ),
-                PosSettingsSection.products => const PosProductsSettingsPanel(),
-                PosSettingsSection.addOns => const PosAddonsSettingsPanel(),
-                PosSettingsSection.payments => _PaymentsSectionHost(
-                    sharedPreferences: widget.sharedPreferences,
-                  ),
-                PosSettingsSection.hardware => _HardwareSectionHost(
-                    sharedPreferences: widget.sharedPreferences,
-                  ),
-              },
+    // Figma 1915:16945 sets no letter-spacing on any Settings text; without
+    // this every Text with no tracking of its own picks up M3 bodyMedium's 0.25.
+    return DefaultTextStyle.merge(
+      style: const TextStyle(letterSpacing: 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PosSettingsSidebar(
+            selected: section,
+            sections: sections,
+            onSelect: (PosSettingsSection next) {
+              if (next == _section) return;
+              setState(() => _section = next);
+            },
+          ),
+          Expanded(
+            child: ColoredBox(
+              color: PosSettingsSpec.pageBg,
+              child: Padding(
+                padding: PosSettingsSpec.panelPadding,
+                child: switch (section) {
+                  PosSettingsSection.general => _GeneralSectionHost(
+                      sharedPreferences: widget.sharedPreferences,
+                    ),
+                  PosSettingsSection.profile => const PosProfileSettingsPanel(),
+                  PosSettingsSection.staff => _StaffSectionHost(
+                      sharedPreferences: widget.sharedPreferences,
+                    ),
+                  PosSettingsSection.products => const PosProductsSettingsPanel(),
+                  PosSettingsSection.addOns => const PosAddonsSettingsPanel(),
+                  PosSettingsSection.payments => _PaymentsSectionHost(
+                      sharedPreferences: widget.sharedPreferences,
+                    ),
+                  PosSettingsSection.hardware => _HardwareSectionHost(
+                      sharedPreferences: widget.sharedPreferences,
+                    ),
+                },
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

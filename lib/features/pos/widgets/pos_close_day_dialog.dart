@@ -5,6 +5,7 @@ import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_close_day_step2.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_report_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_date_header.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -176,18 +177,30 @@ class _PosCloseDayDialogState extends State<PosCloseDayDialog> {
   Widget build(BuildContext context) {
     final Size window = MediaQuery.sizeOf(context);
     final double maxWidth = window.width - PosCloseDaySpec.screenInset * 2;
+    final double maxHeight = window.height - PosCloseDaySpec.screenInset * 2;
+
+    // Figma draws the open denomination table on a 580 card; the width eases
+    // there and back instead of jumping when the table is toggled.
+    final double designWidth = _step == 1 && _denomExpanded
+        ? PosCloseDaySpec.cardWidthDenomination
+        : PosCloseDaySpec.cardWidth;
 
     // Width-constrained and centred so the area around the card stays
     // transparent and a tap out there falls through to the dismiss barrier.
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(PosCloseDaySpec.screenInset),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: maxWidth < PosCloseDaySpec.cardWidth
-                ? maxWidth
-                : PosCloseDaySpec.cardWidth,
-            maxHeight: window.height - PosCloseDaySpec.screenInset * 2,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: designWidth),
+          duration: PosCloseDaySpec.cardResizeDuration,
+          curve: Curves.easeOut,
+          builder: (BuildContext context, double width, Widget? card) =>
+              ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: maxWidth < width ? maxWidth : width,
+              maxHeight: maxHeight,
+            ),
+            child: card,
           ),
           child: Material(
             color: Colors.transparent,
@@ -199,7 +212,7 @@ class _PosCloseDayDialogState extends State<PosCloseDayDialog> {
                 child: Container(
                   padding: const EdgeInsets.all(PosCloseDaySpec.cardPadding),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: PosCloseDaySpec.surface,
                     borderRadius:
                         BorderRadius.circular(PosCloseDaySpec.cardRadius),
                     boxShadow: PosCloseDaySpec.cardShadow,
@@ -252,14 +265,13 @@ class _PosCloseDayDialogState extends State<PosCloseDayDialog> {
           onClose: () => Navigator.of(context).pop(),
         ),
         gap,
-        const _Hairline(),
+        const PosReportDivider(color: PosCloseDaySpec.dividerColor),
         gap,
         Text(
           'Count Cash Drawer',
-          style: loewExtraBold.copyWith(
-            fontSize: PosCloseDaySpec.sectionTitleSize,
-            color: PosCloseDaySpec.ink,
-          ),
+          style: PosCloseDaySpec.text(
+              loewExtraBold, PosCloseDaySpec.sectionTitleSize,
+              color: PosCloseDaySpec.ink),
         ),
         gap,
         _ExpectedBox(amount: _expected, compact: _denomExpanded),
@@ -280,7 +292,7 @@ class _PosCloseDayDialogState extends State<PosCloseDayDialog> {
           _DenominationTable(qty: _qty, onDenomQty: _setDenomQty),
         ],
         gap,
-        const _Hairline(),
+        const PosReportDivider(color: PosCloseDaySpec.dividerColor),
         gap,
         _Footer(
           canContinue: _canContinue,
@@ -310,15 +322,14 @@ class _Header extends StatelessWidget {
             Expanded(
               child: Text(
                 'Close Day  $dateLabel',
-                style: loewExtraBold.copyWith(
-                  fontSize: PosCloseDaySpec.titleSize,
-                  color: PosCloseDaySpec.ink,
-                ),
+                style: PosCloseDaySpec.text(
+                    loewExtraBold, PosCloseDaySpec.titleSize,
+                    color: PosCloseDaySpec.ink),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: PosCloseDaySpec.closeIconGap),
             Semantics(
               button: true,
               label: 'Close',
@@ -347,10 +358,8 @@ class _Header extends StatelessWidget {
         const SizedBox(height: PosCloseDaySpec.headerGap),
         Text(
           'Step 1 of 2  Count Cash Drawer',
-          style: loewBold.copyWith(
-            fontSize: PosCloseDaySpec.stepSize,
-            color: PosCloseDaySpec.stepColor,
-          ),
+          style: PosCloseDaySpec.text(loewBold, PosCloseDaySpec.stepSize,
+              color: PosCloseDaySpec.stepColor),
         ),
       ],
     );
@@ -383,7 +392,10 @@ class _ExpectedBox extends StatelessWidget {
       ),
       foregroundDecoration: BoxDecoration(
         borderRadius: radius,
-        border: Border.all(color: PosCloseDaySpec.expectedBorder, width: 1),
+        border: Border.all(
+          color: PosCloseDaySpec.expectedBorder,
+          width: PosCloseDaySpec.hairlineWidth,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,22 +405,22 @@ class _ExpectedBox extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Expected in drawer',
-                  style: loewBold.copyWith(
-                    fontSize: compact
-                        ? PosCloseDaySpec.expectedCompactLabelSize
-                        : PosCloseDaySpec.expectedLabelSize,
-                    color: PosHomeSpec.inkAlpha(0.6),
-                  ),
+                  style: PosCloseDaySpec.text(
+                      loewBold,
+                      compact
+                          ? PosCloseDaySpec.expectedCompactLabelSize
+                          : PosCloseDaySpec.expectedLabelSize,
+                      color: PosCloseDaySpec.inkMuted),
                 ),
               ),
               Text(
                 PosHomeSpec.formatPrice(amount, padZero: false),
-                style: loewRegular.copyWith(
-                  fontSize: compact
-                      ? PosCloseDaySpec.expectedCompactAmountSize
-                      : PosCloseDaySpec.expectedAmountSize,
-                  color: PosCloseDaySpec.ink,
-                ),
+                style: PosCloseDaySpec.text(
+                    loewRegular,
+                    compact
+                        ? PosCloseDaySpec.expectedCompactAmountSize
+                        : PosCloseDaySpec.expectedAmountSize,
+                    color: PosCloseDaySpec.ink),
               ),
             ],
           ),
@@ -416,10 +428,9 @@ class _ExpectedBox extends StatelessWidget {
             const SizedBox(height: PosCloseDaySpec.expectedGap),
             Text(
               'Opening float + cash sales − cash refunds',
-              style: loewRegular.copyWith(
-                fontSize: PosCloseDaySpec.expectedHintSize,
-                color: PosCloseDaySpec.expectedHintColor,
-              ),
+              style: PosCloseDaySpec.text(
+                  loewRegular, PosCloseDaySpec.expectedHintSize,
+                  color: PosCloseDaySpec.expectedHintColor),
             ),
           ],
         ],
@@ -448,10 +459,8 @@ class _ActualAmountBlock extends StatelessWidget {
       children: <Widget>[
         Text(
           'ACTUAL COUNTED AMOUNT',
-          style: loewBold.copyWith(
-            fontSize: PosCloseDaySpec.inputLabelSize,
-            color: PosHomeSpec.inkAlpha(0.6),
-          ),
+          style: PosCloseDaySpec.text(loewBold, PosCloseDaySpec.inputLabelSize,
+              color: PosCloseDaySpec.inkMuted),
         ),
         const SizedBox(height: PosCloseDaySpec.inputGroupGap),
         // With the keypad folded away the table drives the figure, and the
@@ -508,7 +517,7 @@ class _AmountField extends StatelessWidget {
           ? PosCloseDaySpec.inputFilledPadding
           : PosCloseDaySpec.inputPadding,
       decoration: BoxDecoration(
-        color: filled ? PosCloseDaySpec.pageBg : Colors.white,
+        color: filled ? PosCloseDaySpec.pageBg : PosCloseDaySpec.surface,
         borderRadius: radius,
       ),
       foregroundDecoration: BoxDecoration(
@@ -522,11 +531,11 @@ class _AmountField extends StatelessWidget {
         empty ? 'Enter counted amount' : _display(entry),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: (filled && !empty ? loewExtraBold : loewRegular).copyWith(
-          fontSize: PosCloseDaySpec.inputTextSize,
-          color:
-              empty ? PosCloseDaySpec.inputPlaceholder : PosCloseDaySpec.ink,
-        ),
+        style: PosCloseDaySpec.text(
+            (filled && !empty ? loewExtraBold : loewRegular),
+            PosCloseDaySpec.inputTextSize,
+            color:
+                empty ? PosCloseDaySpec.inputPlaceholder : PosCloseDaySpec.ink),
       ),
     );
   }
@@ -566,10 +575,9 @@ class _DenominationToggle extends StatelessWidget {
           const SizedBox(width: PosCloseDaySpec.denomGap),
           Text(
             'Count by denomination',
-            style: loewBold.copyWith(
-              fontSize: PosCloseDaySpec.denomLabelSize,
-              color: PosCloseDaySpec.ink,
-            ),
+            style: PosCloseDaySpec.text(
+                loewBold, PosCloseDaySpec.denomLabelSize,
+                color: PosCloseDaySpec.ink),
           ),
         ],
       ),
@@ -589,10 +597,9 @@ class _DenominationTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle header = loewBold.copyWith(
-      fontSize: PosCloseDaySpec.denomHeaderSize,
-      color: PosCloseDaySpec.denomHeaderColor,
-    );
+    final TextStyle header = PosCloseDaySpec.text(
+        loewBold, PosCloseDaySpec.denomHeaderSize,
+        color: PosCloseDaySpec.denomHeaderColor);
 
     return Column(
       children: <Widget>[
@@ -699,10 +706,9 @@ class _DenomRowState extends State<_DenomRow> {
               posCentsToMoney(widget.cents),
               padZero: false,
             ),
-            style: loewBold.copyWith(
-              fontSize: PosCloseDaySpec.denomValueSize,
-              color: PosCloseDaySpec.ink,
-            ),
+            style: PosCloseDaySpec.text(
+                loewBold, PosCloseDaySpec.denomValueSize,
+                color: PosCloseDaySpec.ink),
           ),
           SizedBox(
             width: PosCloseDaySpec.denomQtyWidth,
@@ -715,37 +721,41 @@ class _DenomRowState extends State<_DenomRow> {
                 FilteringTextInputFormatter.digitsOnly,
               ],
               textAlign: TextAlign.center,
-              style: loewBold.copyWith(
-                fontSize: PosCloseDaySpec.denomQtySize,
-                color: countColor,
-              ),
+              style: PosCloseDaySpec.text(
+                  loewBold, PosCloseDaySpec.denomQtySize,
+                  color: countColor),
               decoration: InputDecoration(
                 isDense: true,
                 filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                fillColor: PosCloseDaySpec.surface,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: PosCloseDaySpec.denomQtyPaddingV,
+                ),
                 border: OutlineInputBorder(
                   borderRadius:
                       BorderRadius.circular(PosCloseDaySpec.denomQtyRadius),
+                  gapPadding: PosCloseDaySpec.fieldGapPadding,
                   borderSide: const BorderSide(
                     color: PosCloseDaySpec.inputBorderColor,
-                    width: 1,
+                    width: PosCloseDaySpec.hairlineWidth,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius:
                       BorderRadius.circular(PosCloseDaySpec.denomQtyRadius),
+                  gapPadding: PosCloseDaySpec.fieldGapPadding,
                   borderSide: const BorderSide(
                     color: PosCloseDaySpec.inputBorderColor,
-                    width: 1,
+                    width: PosCloseDaySpec.hairlineWidth,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius:
                       BorderRadius.circular(PosCloseDaySpec.denomQtyRadius),
+                  gapPadding: PosCloseDaySpec.fieldGapPadding,
                   borderSide: const BorderSide(
                     color: PosCloseDaySpec.ink,
-                    width: 1,
+                    width: PosCloseDaySpec.hairlineWidth,
                   ),
                 ),
               ),
@@ -767,10 +777,9 @@ class _DenomRowState extends State<_DenomRow> {
                 padZero: false,
               ),
               textAlign: TextAlign.right,
-              style: loewExtraBold.copyWith(
-                fontSize: PosCloseDaySpec.denomValueSize,
-                color: countColor,
-              ),
+              style: PosCloseDaySpec.text(
+                  loewExtraBold, PosCloseDaySpec.denomValueSize,
+                  color: countColor),
             ),
           ),
         ],
@@ -796,7 +805,7 @@ class _Footer extends StatelessWidget {
       children: <Widget>[
         Expanded(
           child: _ActionButton(
-            label: 'CANCEL',
+            label: 'Cancel',
             filled: false,
             onTap: onCancel,
           ),
@@ -806,7 +815,7 @@ class _Footer extends StatelessWidget {
           child: Opacity(
             opacity: canContinue ? 1 : PosCloseDaySpec.continueDisabledOpacity,
             child: _ActionButton(
-              label: 'CONTINUE',
+              label: 'Continue',
               filled: true,
               onTap: canContinue ? onContinue : null,
             ),
@@ -854,26 +863,12 @@ class _ActionButton extends StatelessWidget {
                 ),
           child: Text(
             label,
-            style: loewExtraBold.copyWith(
-              fontSize: PosCloseDaySpec.buttonTextSize,
-              color: filled ? PosCloseDaySpec.pageBg : PosCloseDaySpec.ink,
-            ),
+            style: PosCloseDaySpec.text(
+                loewExtraBold, PosCloseDaySpec.buttonTextSize,
+                color: filled ? PosCloseDaySpec.pageBg : PosCloseDaySpec.ink),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Hairline extends StatelessWidget {
-  const _Hairline();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 1,
-      width: double.infinity,
-      color: PosCloseDaySpec.dividerColor,
     );
   }
 }

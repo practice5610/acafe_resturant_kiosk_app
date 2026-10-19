@@ -30,11 +30,16 @@ class PosSettingsSaveButton extends StatefulWidget {
   final String label;
   final bool compact;
 
+  /// Settings label type. Null keeps Loew Bold 14 in page cream (General,
+  /// Figma 1915:16976); Hardware's frame sets its own (1915:17912).
+  final TextStyle? labelStyle;
+
   const PosSettingsSaveButton({
     super.key,
     required this.loading,
     required this.dirty,
     required this.onPressed,
+    this.labelStyle,
   })  : label = 'Save Changes',
         compact = false;
 
@@ -45,7 +50,8 @@ class PosSettingsSaveButton extends StatefulWidget {
     bool enabled = true,
     this.loading = false,
   })  : dirty = enabled,
-        compact = true;
+        compact = true,
+        labelStyle = null;
 
   @override
   State<PosSettingsSaveButton> createState() => _PosSettingsSaveButtonState();
@@ -95,11 +101,12 @@ class _PosSettingsSaveButtonState extends State<PosSettingsSaveButton> {
                       )
                     : Text(
                         'Save Changes',
-                        style: loewBold.copyWith(
-                          fontSize: PosSettingsSpec.saveLabelSize,
-                          color: PosSettingsSpec.pageBg,
-                          letterSpacing: 0.2,
-                        ),
+                        style: widget.labelStyle ??
+                            loewBold.copyWith(
+                              fontSize: PosSettingsSpec.saveLabelSize,
+                              color: PosSettingsSpec.pageBg,
+                              letterSpacing: 0,
+                            ),
                       ),
               ),
             ),

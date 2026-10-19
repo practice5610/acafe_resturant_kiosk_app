@@ -309,6 +309,7 @@ class _PosReceiptDetailPanelState extends State<PosReceiptDetailPanel> {
               PosReceiptSummary(
                 subtotal: receipt?.subtotal ?? 0,
                 discount: receipt?.discount ?? 0,
+                tip: receipt?.tip ?? 0,
                 total: receipt?.total ?? 0,
               ),
               _ReceiptsPayWrapper(
@@ -676,6 +677,7 @@ class _EditModeSidebar extends StatelessWidget {
             return _EditModeTotals(
               subtotal: receipt.subtotal,
               discount: receipt.discount,
+              tip: receipt.tip,
               total: receipt.total,
               delta: delta,
               methodLabel: receipt.methodLabel,
@@ -824,6 +826,7 @@ class _EditModeWarningBanner extends StatelessWidget {
 class _EditModeTotals extends StatelessWidget {
   final double subtotal;
   final double discount;
+  final double tip;
   final double total;
   final double delta;
   final String methodLabel;
@@ -831,6 +834,7 @@ class _EditModeTotals extends StatelessWidget {
   const _EditModeTotals({
     required this.subtotal,
     required this.discount,
+    required this.tip,
     required this.total,
     required this.delta,
     required this.methodLabel,
@@ -846,6 +850,7 @@ class _EditModeTotals extends StatelessWidget {
         PosReceiptSummary(
           subtotal: subtotal,
           discount: discount,
+          tip: tip,
           total: total,
         ),
         if (hasCharge)

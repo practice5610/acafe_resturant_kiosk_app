@@ -48,7 +48,8 @@ class PosRouter {
         ),
 
         // Tabs. The chrome is mounted once by the ShellRoute so switching tabs
-        // does not rebuild the nav bar or lose its state.
+        // does not rebuild the nav bar or lose its state, and a tab swaps in
+        // place ([_tab]) — only whole screens slide.
         ShellRoute(
           builder: (context, state, child) => PosScaffold(
             currentPath: state.uri.path,
@@ -57,35 +58,43 @@ class PosRouter {
           routes: [
             GoRoute(
               path: PosRoutes.home,
-              builder: (context, state) => const PosHomeCartScreen(),
+              pageBuilder: (context, state) =>
+                  _tab(state, const PosHomeCartScreen()),
             ),
             GoRoute(
               path: PosRoutes.browse,
-              builder: (context, state) => const PosBrowseProductsScreen(),
+              pageBuilder: (context, state) =>
+                  _tab(state, const PosBrowseProductsScreen()),
             ),
             GoRoute(
               path: PosRoutes.report,
-              builder: (context, state) => const PosReportScreen(),
+              pageBuilder: (context, state) =>
+                  _tab(state, const PosReportScreen()),
             ),
             GoRoute(
               path: PosRoutes.orders,
-              builder: (context, state) => const PosOrdersListScreen(),
+              pageBuilder: (context, state) =>
+                  _tab(state, const PosOrdersListScreen()),
             ),
             GoRoute(
               path: PosRoutes.receipts,
-              builder: (context, state) => const PosReceiptsScreen(),
+              pageBuilder: (context, state) =>
+                  _tab(state, const PosReceiptsScreen()),
             ),
             GoRoute(
               path: PosRoutes.attendance,
-              builder: (context, state) => const _PosAttendanceHost(),
+              pageBuilder: (context, state) =>
+                  _tab(state, const _PosAttendanceHost()),
             ),
             GoRoute(
               path: PosRoutes.punch,
-              builder: (context, state) => const _PosPunchHost(),
+              pageBuilder: (context, state) =>
+                  _tab(state, const _PosPunchHost()),
             ),
             GoRoute(
               path: PosRoutes.settings,
-              builder: (context, state) => const PosSettingsScreen(),
+              pageBuilder: (context, state) =>
+                  _tab(state, const PosSettingsScreen()),
             ),
           ],
         ),
@@ -114,6 +123,11 @@ class PosRouter {
           builder: (context, state) => const PosRefundScreen(),
         ),
       ];
+
+  /// A tab inside the shell: shown at once, the way a till's nav pills switch,
+  /// instead of the app-wide slide.
+  static Page<void> _tab(GoRouterState state, Widget child) =>
+      NoTransitionPage<void>(key: state.pageKey, child: child);
 }
 
 /// Scopes a [PosAttendanceProvider] to the Attendance tab and loads it, the

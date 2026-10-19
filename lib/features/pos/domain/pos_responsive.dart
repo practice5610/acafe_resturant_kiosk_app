@@ -94,6 +94,20 @@ class PosResponsive {
       ? width * _receiptRatio
       : receiptPanelWidth(width);
 
+  /// Density factor for what the home panes *hold* — category rail items,
+  /// the search field and the tag pills — for a window of [width].
+  ///
+  /// [sidebarWidth] / [receiptWidth] already move the panes with the window;
+  /// this is the sidebar's own proportion applied to their content, so the
+  /// rail labels, search field and pills grow and shrink with the pane they
+  /// sit in instead of holding the 1366 frame's literal pixels while the pane
+  /// around them changes. Exactly 1 at the 1366 reference and everywhere below
+  /// [desktopFloor] (where the panes are flat too), and capped at [maxScale]
+  /// so a 4K window does not blow type up past arm's-length reading.
+  static double homeScale(double width) =>
+      (sidebarWidth(width) / PosHomeSpec.sidebarWidth)
+          .clamp(minScale, maxScale);
+
   /// Fit factor for [width] x [height]. `min` of both axes, so a short
   /// landscape window (1366x768 laptops, the classic offender) reduces density
   /// instead of overflowing vertically.

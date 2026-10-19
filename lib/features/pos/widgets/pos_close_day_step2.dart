@@ -2,7 +2,9 @@ import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_close_day_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_report_data.dart';
+import 'package:acafe_customer/features/pos/domain/pos_report_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_report_date_header.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_report_widgets.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -204,10 +206,7 @@ class _PosCloseDayStep2PanelState extends State<PosCloseDayStep2Panel> {
           onEmailChanged: (bool v) => setState(() => _emailReport = v),
         ),
         const SizedBox(height: PosCloseDaySpec.step2Gap),
-        Container(
-          height: 1,
-          color: PosCloseDaySpec.dividerColor,
-        ),
+        const PosReportDivider(color: PosCloseDaySpec.dividerColor),
         const SizedBox(height: PosCloseDaySpec.step2Gap),
         _Step2Footer(
           canConfirm: _canConfirm,
@@ -236,15 +235,14 @@ class _Step2Header extends StatelessWidget {
             Expanded(
               child: Text(
                 'Close Day  $dateLabel',
-                style: loewExtraBold.copyWith(
-                  fontSize: PosCloseDaySpec.titleSize,
-                  color: PosCloseDaySpec.ink,
-                ),
+                style: PosCloseDaySpec.text(
+                    loewExtraBold, PosCloseDaySpec.titleSize,
+                    color: PosCloseDaySpec.ink),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: PosCloseDaySpec.closeIconGap),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: onClose,
@@ -264,10 +262,8 @@ class _Step2Header extends StatelessWidget {
         const SizedBox(height: PosCloseDaySpec.headerGap),
         Text(
           'Step 2 of 2  Review & Confirm',
-          style: loewBold.copyWith(
-            fontSize: PosCloseDaySpec.stepSize,
-            color: PosCloseDaySpec.stepColor,
-          ),
+          style: PosCloseDaySpec.text(loewBold, PosCloseDaySpec.stepSize,
+              color: PosCloseDaySpec.stepColor),
         ),
       ],
     );
@@ -329,18 +325,16 @@ class _StatCol extends StatelessWidget {
       children: <Widget>[
         Text(
           label,
-          style: loewBold.copyWith(
-            fontSize: PosCloseDaySpec.summaryLabelSize,
-            color: PosHomeSpec.inkAlpha(0.6),
-          ),
+          style: PosCloseDaySpec.text(
+              loewBold, PosCloseDaySpec.summaryLabelSize,
+              color: PosCloseDaySpec.inkMuted),
         ),
         const SizedBox(height: PosCloseDaySpec.summaryInnerGap),
         Text(
           value,
-          style: loewExtraBold.copyWith(
-            fontSize: PosCloseDaySpec.summaryValueSize,
-            color: PosCloseDaySpec.ink,
-          ),
+          style: PosCloseDaySpec.text(
+              loewExtraBold, PosCloseDaySpec.summaryValueSize,
+              color: PosCloseDaySpec.ink),
         ),
       ],
     );
@@ -366,7 +360,8 @@ class _DiscrepancySection extends StatelessWidget {
   Widget build(BuildContext context) {
     final String badge = variance >= 0
         ? '+${PosHomeSpec.formatPrice(variance, padZero: false)}'
-        : '−${PosHomeSpec.formatPrice(variance.abs(), padZero: false)}';
+        : '${PosReportSpec.minusSign}'
+            '${PosHomeSpec.formatPrice(variance.abs(), padZero: false)}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -376,10 +371,9 @@ class _DiscrepancySection extends StatelessWidget {
             Expanded(
               child: Text(
                 'Cash difference detected',
-                style: loewExtraBold.copyWith(
-                  fontSize: PosCloseDaySpec.discrepancyTitleSize,
-                  color: PosCloseDaySpec.ink,
-                ),
+                style: PosCloseDaySpec.text(
+                    loewExtraBold, PosCloseDaySpec.discrepancyTitleSize,
+                    color: PosCloseDaySpec.ink),
               ),
             ),
             Container(
@@ -392,10 +386,9 @@ class _DiscrepancySection extends StatelessWidget {
               ),
               child: Text(
                 badge,
-                style: loewExtraBold.copyWith(
-                  fontSize: PosCloseDaySpec.discrepancyBadgeSize,
-                  color: PosCloseDaySpec.discrepancyRed,
-                ),
+                style: PosCloseDaySpec.text(
+                    loewExtraBold, PosCloseDaySpec.discrepancyBadgeSize,
+                    color: PosCloseDaySpec.discrepancyRed),
               ),
             ),
           ],
@@ -427,42 +420,43 @@ class _DiscrepancySection extends StatelessWidget {
           const SizedBox(height: PosCloseDaySpec.discrepancySectionGap),
           TextField(
             controller: reasonController,
-            style: loewRegular.copyWith(
-              fontSize: PosCloseDaySpec.inputTextSize,
-              color: PosCloseDaySpec.ink,
-            ),
+            style: PosCloseDaySpec.text(
+                loewRegular, PosCloseDaySpec.inputTextSize,
+                color: PosCloseDaySpec.ink),
             decoration: InputDecoration(
               // Dense drops Material's 48px floor so the 10/14 padding sets
               // the 37 Figma draws.
               isDense: true,
               hintText: 'Reason for difference (optional)',
-              hintStyle: loewRegular.copyWith(
-                fontSize: PosCloseDaySpec.inputTextSize,
-                color: PosCloseDaySpec.inputPlaceholder,
-              ),
+              hintStyle: PosCloseDaySpec.text(
+                  loewRegular, PosCloseDaySpec.inputTextSize,
+                  color: PosCloseDaySpec.inputPlaceholder),
               contentPadding: PosCloseDaySpec.pinFieldPadding,
               border: OutlineInputBorder(
                 borderRadius:
                     BorderRadius.circular(PosCloseDaySpec.reasonFieldRadius),
+                gapPadding: PosCloseDaySpec.fieldGapPadding,
                 borderSide: const BorderSide(
                   color: PosCloseDaySpec.inputBorderColor,
-                  width: 1.5,
+                  width: PosCloseDaySpec.inputBorder,
                 ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius:
                     BorderRadius.circular(PosCloseDaySpec.reasonFieldRadius),
+                gapPadding: PosCloseDaySpec.fieldGapPadding,
                 borderSide: const BorderSide(
                   color: PosCloseDaySpec.inputBorderColor,
-                  width: 1.5,
+                  width: PosCloseDaySpec.inputBorder,
                 ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius:
                     BorderRadius.circular(PosCloseDaySpec.reasonFieldRadius),
+                gapPadding: PosCloseDaySpec.fieldGapPadding,
                 borderSide: const BorderSide(
                   color: PosCloseDaySpec.ink,
-                  width: 1.5,
+                  width: PosCloseDaySpec.inputBorder,
                 ),
               ),
             ),
@@ -471,10 +465,9 @@ class _DiscrepancySection extends StatelessWidget {
           const SizedBox(height: PosCloseDaySpec.discrepancySectionGap),
           Text(
             'Choose one of both options to continue',
-            style: loewRegular.copyWith(
-              fontSize: PosCloseDaySpec.discrepancyHintSize,
-              color: PosHomeSpec.inkAlpha(0.6),
-            ),
+            style: PosCloseDaySpec.text(
+                loewRegular, PosCloseDaySpec.discrepancyHintSize,
+                color: PosCloseDaySpec.inkMuted),
           ),
         ],
       ],
@@ -524,14 +517,13 @@ class _PendingOrdersSection extends StatelessWidget {
                   fit: BoxFit.contain,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: PosCloseDaySpec.warningIconGap),
               Expanded(
                 child: Text(
                   '$count order${count == 1 ? '' : 's'} are still in progress',
-                  style: loewBold.copyWith(
-                    fontSize: PosCloseDaySpec.warningTextSize,
-                    color: PosCloseDaySpec.ink,
-                  ),
+                  style: PosCloseDaySpec.text(
+                      loewBold, PosCloseDaySpec.warningTextSize,
+                      color: PosCloseDaySpec.ink),
                 ),
               ),
             ],
@@ -599,13 +591,11 @@ class _ActionsList extends StatelessWidget {
         const SizedBox(height: PosCloseDaySpec.actionsListGap),
         Text(
           'MANAGER PIN (IF REQUIRED)',
-          style: loewBold.copyWith(
-            fontSize: PosCloseDaySpec.pinLabelSize,
-            color: PosHomeSpec.inkAlpha(0.6),
-            letterSpacing: 0.5,
-          ),
+          style: PosCloseDaySpec.text(loewBold, PosCloseDaySpec.pinLabelSize,
+              color: PosCloseDaySpec.inkMuted,
+              letterSpacing: PosCloseDaySpec.pinLabelTracking),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: PosCloseDaySpec.inputGroupGap),
         TextField(
           controller: pinController,
           obscureText: true,
@@ -615,52 +605,52 @@ class _ActionsList extends StatelessWidget {
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(8),
           ],
-          style: loewRegular.copyWith(
-            fontSize: PosCloseDaySpec.inputTextSize,
-            color: PosCloseDaySpec.ink,
-          ),
+          style: PosCloseDaySpec.text(
+              loewRegular, PosCloseDaySpec.inputTextSize,
+              color: PosCloseDaySpec.ink),
           decoration: InputDecoration(
             isDense: true,
             hintText: 'Enter PIN',
-            hintStyle: loewRegular.copyWith(
-              fontSize: PosCloseDaySpec.inputTextSize,
-              color: PosCloseDaySpec.inputPlaceholder,
-            ),
+            hintStyle: PosCloseDaySpec.text(
+                loewRegular, PosCloseDaySpec.inputTextSize,
+                color: PosCloseDaySpec.inputPlaceholder),
             contentPadding: PosCloseDaySpec.pinFieldPadding,
             border: OutlineInputBorder(
               borderRadius:
                   BorderRadius.circular(PosCloseDaySpec.pinFieldRadius),
+              gapPadding: PosCloseDaySpec.fieldGapPadding,
               borderSide: const BorderSide(
                 color: PosCloseDaySpec.inputBorderColor,
-                width: 1.5,
+                width: PosCloseDaySpec.inputBorder,
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius:
                   BorderRadius.circular(PosCloseDaySpec.pinFieldRadius),
+              gapPadding: PosCloseDaySpec.fieldGapPadding,
               borderSide: const BorderSide(
                 color: PosCloseDaySpec.inputBorderColor,
-                width: 1.5,
+                width: PosCloseDaySpec.inputBorder,
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius:
                   BorderRadius.circular(PosCloseDaySpec.pinFieldRadius),
+              gapPadding: PosCloseDaySpec.fieldGapPadding,
               borderSide: const BorderSide(
                 color: PosCloseDaySpec.ink,
-                width: 1.5,
+                width: PosCloseDaySpec.inputBorder,
               ),
             ),
           ),
         ),
         if (pinError != null) ...<Widget>[
-          const SizedBox(height: 6),
+          const SizedBox(height: PosCloseDaySpec.inputGroupGap),
           Text(
             pinError!,
-            style: loewBold.copyWith(
-              fontSize: PosCloseDaySpec.footerHintSize,
-              color: PosCloseDaySpec.discrepancyRed,
-            ),
+            style: PosCloseDaySpec.text(
+                loewBold, PosCloseDaySpec.footerHintSize,
+                color: PosCloseDaySpec.discrepancyRed),
           ),
         ],
       ],
@@ -707,7 +697,7 @@ class _CheckboxRow extends StatelessWidget {
                     placeholderBuilder: (_) => const Icon(
                       Icons.check,
                       size: PosCloseDaySpec.checkIconWidth,
-                      color: Colors.white,
+                      color: PosCloseDaySpec.onInk,
                     ),
                   )
                 : null,
@@ -715,10 +705,9 @@ class _CheckboxRow extends StatelessWidget {
           const SizedBox(width: PosCloseDaySpec.checkboxGap),
           Text(
             label,
-            style: loewMedium.copyWith(
-              fontSize: PosCloseDaySpec.checkboxLabelSize,
-              color: PosCloseDaySpec.ink,
-            ),
+            style: PosCloseDaySpec.text(
+                loewMedium, PosCloseDaySpec.checkboxLabelSize,
+                color: PosCloseDaySpec.ink),
           ),
         ],
       ),
@@ -758,7 +747,7 @@ class _Step2Footer extends StatelessWidget {
                 opacity:
                     canConfirm ? 1 : PosCloseDaySpec.continueDisabledOpacity,
                 child: _FooterButton(
-                  label: 'CONFIRM & CLOSE DAY',
+                  label: 'Confirm & Close Day',
                   filled: true,
                   onTap: canConfirm ? onConfirm : null,
                 ),
@@ -771,10 +760,9 @@ class _Step2Footer extends StatelessWidget {
           Text(
             hint,
             textAlign: TextAlign.center,
-            style: loewBold.copyWith(
-              fontSize: PosCloseDaySpec.footerHintSize,
-              color: PosCloseDaySpec.discrepancyRed,
-            ),
+            style: PosCloseDaySpec.text(
+                loewBold, PosCloseDaySpec.footerHintSize,
+                color: PosCloseDaySpec.discrepancyRed),
           ),
         ],
       ],
@@ -827,10 +815,9 @@ class _SecondaryButton extends StatelessWidget {
                   ),
             child: Text(
               label,
-              style: loewBold.copyWith(
-                fontSize: PosCloseDaySpec.secondaryButtonTextSize,
-                color: filled ? Colors.white : PosCloseDaySpec.ink,
-              ),
+              style: PosCloseDaySpec.text(
+                  loewBold, PosCloseDaySpec.secondaryButtonTextSize,
+                  color: filled ? PosCloseDaySpec.onInk : PosCloseDaySpec.ink),
             ),
           ),
         ),
@@ -876,10 +863,9 @@ class _FooterButton extends StatelessWidget {
           child: Text(
             label,
             textAlign: TextAlign.center,
-            style: loewExtraBold.copyWith(
-              fontSize: PosCloseDaySpec.buttonTextSize,
-              color: filled ? PosCloseDaySpec.pageBg : PosCloseDaySpec.ink,
-            ),
+            style: PosCloseDaySpec.text(
+                loewExtraBold, PosCloseDaySpec.buttonTextSize,
+                color: filled ? PosCloseDaySpec.pageBg : PosCloseDaySpec.ink),
           ),
         ),
       ),

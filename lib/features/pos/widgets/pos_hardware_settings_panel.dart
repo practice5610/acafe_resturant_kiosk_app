@@ -115,8 +115,8 @@ class _PosHardwareSettingsPanelState extends State<PosHardwareSettingsPanel> {
                 children: [
                   Text(
                     'Hardware',
-                    style: loewExtraBold.copyWith(
-                      fontSize: PosSettingsSpec.titleSize,
+                    style: loewBold.copyWith(
+                      fontSize: PosHardwareSpec.titleSize,
                       color: PosSettingsSpec.ink,
                       height: 1.1,
                     ),
@@ -125,8 +125,8 @@ class _PosHardwareSettingsPanelState extends State<PosHardwareSettingsPanel> {
                   Text(
                     'Printer, receipt format, and device preferences',
                     style: loewRegular.copyWith(
-                      fontSize: PosSettingsSpec.subtitleSize,
-                      color: PosSettingsSpec.inkMuted(),
+                      fontSize: PosHardwareSpec.subtitleSize,
+                      color: PosHardwareSpec.mutedText,
                     ),
                   ),
                 ],
@@ -137,6 +137,11 @@ class _PosHardwareSettingsPanelState extends State<PosHardwareSettingsPanel> {
               loading: provider.isSaving,
               dirty: provider.isDirty,
               onPressed: _onSave,
+              labelStyle: loewBold.copyWith(
+                fontSize: PosHardwareSpec.saveLabelSize,
+                color: Colors.white,
+                letterSpacing: 0,
+              ),
             ),
           ],
         ),
@@ -264,6 +269,8 @@ class _FormColumn extends StatelessWidget {
         PosSettingsTextField(
           label: 'Order Number Prefix',
           controller: prefix,
+          labelStyle: _fieldLabelStyle,
+          valueStyle: _fieldValueStyle,
           textInputAction: TextInputAction.next,
           errorText: errors['orderNumberPrefix'],
           onChanged: provider.setOrderNumberPrefix,
@@ -279,6 +286,8 @@ class _FormColumn extends StatelessWidget {
         PosSettingsTextField(
           label: 'Receipt Header',
           controller: header,
+          labelStyle: _fieldLabelStyle,
+          valueStyle: _fieldValueStyle,
           textInputAction: TextInputAction.next,
           errorText: errors['receiptHeader'],
           readOnly: draft.useStoreName,
@@ -288,9 +297,9 @@ class _FormColumn extends StatelessWidget {
             children: [
               Text(
                 'Use store name',
-                style: loewMedium.copyWith(
-                  fontSize: PosSettingsSpec.labelSize,
-                  color: PosSettingsSpec.inkMuted(0.55),
+                style: loewRegular.copyWith(
+                  fontSize: PosHardwareSpec.helperSize,
+                  color: PosHardwareSpec.mutedText,
                 ),
               ),
               const SizedBox(width: 10),
@@ -306,6 +315,8 @@ class _FormColumn extends StatelessWidget {
         PosSettingsTextField(
           label: 'Receipt Footer',
           controller: footer,
+          labelStyle: _fieldLabelStyle,
+          valueStyle: _fieldValueStyle,
           textInputAction: TextInputAction.done,
           errorText: errors['receiptFooter'],
           onChanged: provider.setReceiptFooter,
@@ -338,11 +349,11 @@ class _KioskLanguages extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Same group heading as "Printer" / "Receipt Format" (1915:17972).
         Text(
-          'KIOSK LANGUAGES',
+          'Kiosk Languages',
           style: loewBold.copyWith(
-            fontSize: PosSettingsSpec.labelSize,
-            letterSpacing: PosSettingsSpec.labelTracking,
+            fontSize: PosHardwareSpec.groupTitleSize,
             color: PosSettingsSpec.ink,
           ),
         ),
@@ -371,6 +382,16 @@ class _KioskLanguages extends StatelessWidget {
     );
   }
 }
+
+/// Field type on this frame: Medium 14 label, Regular 15 value
+/// (Figma 1915:17932 / 1915:17934).
+final TextStyle _fieldLabelStyle = loewMedium.copyWith(
+  fontSize: PosHardwareSpec.fieldLabelSize,
+  letterSpacing: 0,
+  color: PosSettingsSpec.ink,
+);
+final TextStyle _fieldValueStyle =
+    loewRegular.copyWith(fontSize: PosHardwareSpec.fieldValueSize);
 
 class _GroupHeading extends StatelessWidget {
   final String title;
@@ -407,7 +428,7 @@ class _Helper extends StatelessWidget {
         height: 1.35,
         color: isError
             ? const Color(0xFFB4544A)
-            : PosSettingsSpec.inkMuted(0.5),
+            : PosHardwareSpec.mutedText,
       ),
     );
   }
@@ -450,7 +471,7 @@ class _ToggleRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: loewBold.copyWith(
+                    style: loewMedium.copyWith(
                       fontSize: PosHardwareSpec.toggleTitleSize,
                       color: PosSettingsSpec.ink,
                     ),
@@ -461,7 +482,7 @@ class _ToggleRow extends StatelessWidget {
                     style: loewRegular.copyWith(
                       fontSize: PosHardwareSpec.toggleSubtitleSize,
                       height: 1.35,
-                      color: PosSettingsSpec.inkMuted(0.55),
+                      color: PosHardwareSpec.mutedText,
                     ),
                   ),
                   if (note != null) ...[
@@ -469,7 +490,7 @@ class _ToggleRow extends StatelessWidget {
                     Text(
                       note!,
                       style: loewMedium.copyWith(
-                        fontSize: PosHardwareSpec.helperSize,
+                        fontSize: PosHardwareSpec.noteSize,
                         height: 1.35,
                         color: const Color(0xFF8A6A2F),
                       ),

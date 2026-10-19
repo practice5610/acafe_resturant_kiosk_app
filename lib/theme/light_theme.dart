@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/theme/app_page_transitions.dart';
 import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/theme/custom_theme_colors.dart';
 import 'package:acafe_customer/utill/dimensions.dart';
@@ -19,11 +20,7 @@ ThemeData light = ThemeData(
   highlightColor: Colors.transparent,
   hoverColor: Colors.transparent,
   focusColor: Colors.transparent,
-  pageTransitionsTheme: const PageTransitionsTheme(builders: {
-    TargetPlatform.android: ZoomPageTransitionsBuilder(),
-    TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
-    TargetPlatform.fuchsia: ZoomPageTransitionsBuilder(),
-  }),
+  pageTransitionsTheme: appPageTransitionsTheme,
 
   popupMenuTheme: const PopupMenuThemeData(color: Colors.white, surfaceTintColor: Colors.white),
   dialogTheme: const DialogThemeData(surfaceTintColor: Colors.white),

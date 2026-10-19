@@ -175,6 +175,28 @@ void main() {
       }
     });
 
+    test('home content scale follows the side panes and is bounded', () {
+      // Exactly the Figma frame at the 1366 reference, and flat below the
+      // floor where the panes themselves are flat.
+      expect(PosResponsive.homeScale(1366), closeTo(1, 0.0001));
+      for (final width in [430.0, 900.0, 1000.0, 1023.999]) {
+        expect(PosResponsive.homeScale(width), 1);
+      }
+      // Above the floor it is the panes' own proportion...
+      expect(PosResponsive.homeScale(1024),
+          closeTo(PosResponsive.sidebarWidth(1024) / PosHomeSpec.sidebarWidth,
+              0.0001));
+      // ...never shrinking as the window grows, capped on very wide screens.
+      double last = PosResponsive.homeScale(desktopWidths.first);
+      for (final width in desktopWidths.skip(1)) {
+        final double scale = PosResponsive.homeScale(width);
+        expect(scale, greaterThanOrEqualTo(last),
+            reason: 'content shrank at $width');
+        last = scale;
+      }
+      expect(PosResponsive.homeScale(large4k.width), PosResponsive.maxScale);
+    });
+
     test('the sidebar and receipt keep the 192:753:421 ratio above the floor',
         () {
       for (final width in desktopWidths) {

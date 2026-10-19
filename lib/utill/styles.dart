@@ -134,3 +134,16 @@ const robotoMonoBold = TextStyle(
   fontSize: Dimensions.fontSizeDefault,
   fontWeight: FontWeight.w700,
 );
+
+/// Receipt preview body rows (POS Settings → Hardware, Figma 1915:18000).
+const jetBrainsMonoRegular = TextStyle(
+  fontFamily: 'JetBrainsMono',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w400,
+);
+
+const jetBrainsMonoBold = TextStyle(
+  fontFamily: 'JetBrainsMono',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w700,
+);

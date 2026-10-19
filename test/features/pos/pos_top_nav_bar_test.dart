@@ -6,7 +6,10 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_session_repo.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
+import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_nav_pill.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pin_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
@@ -54,6 +57,7 @@ class _SpySessionProvider extends PosSessionProvider {
 
 late KioskAuthProvider auth;
 late _SpySessionProvider session;
+late DioClient dioClient;
 
 /// A granted step-up by default, so the existing "all five tabs" geometry
 /// tests keep their original meaning; tests for the locked state opt in
@@ -77,6 +81,7 @@ Future<void> _buildProviders({bool elevated = true}) async {
     loggingInterceptor: LoggingInterceptor(),
     sharedPreferences: prefs,
   );
+  dioClient = dio;
   auth = KioskAuthProvider(
       kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
   session = _SpySessionProvider(
@@ -96,12 +101,20 @@ Future<void> pumpBar(
   // tests use their own widths.
   double width = 1560,
   bool elevated = true,
+  PosStaffSession? staffSession,
 }) async {
   tester.view.physicalSize = Size(width, 800);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
   await _buildProviders(elevated: elevated);
+  PosStaffSessionProvider? staff;
+  if (staffSession != null) {
+    staff = PosStaffSessionProvider(
+        repo: PosStaffSessionRepo(dioClient: dioClient));
+    staff.debugSignIn(staffSession);
+    addTearDown(staff.dispose);
+  }
 
   // A real GoRouter: locking on Report/Settings navigates home, and
   // `context.go` asserts on an ancestor router.
@@ -149,6 +162,8 @@ Future<void> pumpBar(
       providers: [
         ChangeNotifierProvider<KioskAuthProvider>.value(value: auth),
         ChangeNotifierProvider<PosSessionProvider>.value(value: session),
+        if (staff != null)
+          ChangeNotifierProvider<PosStaffSessionProvider>.value(value: staff),
       ],
       child: MaterialApp.router(
         debugShowCheckedModeBanner: false,
@@ -172,7 +187,14 @@ void main() {
 
   group('active pill follows currentPath', () {
     // The pill order in the bar.
-    const labels = ['POS', 'Report', 'Orders', 'Receipts', 'Attendance', 'Settings'];
+    const labels = [
+      'POS',
+      'Report',
+      'Orders',
+      'Receipts',
+      'Attendance',
+      'Settings'
+    ];
 
     const cases = <String, int>{
       PosRoutes.home: 0,
@@ -285,8 +307,8 @@ void main() {
       // the shield was a Material glyph at 60% of that, so the scan read
       // about twice the shield's size.
       await pumpBar(tester, elevated: false);
-      final Size shield = tester
-          .getSize(find.byIcon(Icons.health_and_safety_outlined));
+      final Size shield =
+          tester.getSize(find.byIcon(Icons.health_and_safety_outlined));
       final Size lock = tester.getSize(find.byIcon(Icons.lock_outline));
       final Size scan = tester.getSize(find.descendant(
         of: find.byKey(PosNavBarSpec.scanButtonKey),
@@ -533,6 +555,99 @@ void main() {
       // it must not be the tab the operator is standing on.
       expect(find.text('Settings'), findsOneWidget);
       expect(find.byKey(PosNavBarSpec.moreButtonKey), findsOneWidget);
+    });
+  });
+
+  group('compact bar: phones and narrow windows', () {
+    const PosStaffSession amir = PosStaffSession(
+      id: 'amir',
+      staffId: 7,
+      name: 'Amir Khan',
+      initials: 'AK',
+      role: 'Branch Manager',
+      permissions: {'view_orders': true},
+    );
+    const List<String> alwaysVisible = [
+      'POS',
+      'Orders',
+      'Receipts',
+      'Attendance'
+    ];
+
+    // 507 is the narrow browser window from the bug report.
+    for (final double width in const [320, 360, 375, 414, 507, 600, 768, 899]) {
+      for (final bool signedIn in const [false, true]) {
+        final String who = signedIn ? 'staff signed in' : 'device sign-in';
+
+        testWidgets(
+            '${width.toInt()}px, $who: no overflow, every tab reachable',
+            (tester) async {
+          await pumpBar(tester,
+              width: width, staffSession: signedIn ? amir : null);
+          expect(tester.takeException(), isNull);
+
+          // The date and its offset are the first thing to go.
+          expect(find.text('Tuesday, 23 June'), findsNothing);
+
+          // Every account control is fully on screen.
+          final Finder account = signedIn
+              ? find.byKey(const Key('pos-staff-menu-button'))
+              : find.byKey(PosNavBarSpec.avatarMenuButtonKey);
+          expect(
+              tester.getRect(account).right,
+              lessThanOrEqualTo(
+                  width - PosNavBarSpec.compactHorizontalPadding + 0.01));
+
+          // A tab is either a pill on the bar or an entry in the menu.
+          final Finder more = find.byKey(PosNavBarSpec.moreButtonKey);
+          if (more.evaluate().isNotEmpty) {
+            await tester.tap(more);
+            await tester.pumpAndSettle();
+          }
+          for (final String label in alwaysVisible) {
+            expect(find.text(label), findsWidgets,
+                reason: '$label unreachable at $width');
+          }
+        });
+      }
+    }
+
+    testWidgets('the staff chip keeps the initials and drops the name',
+        (tester) async {
+      await pumpBar(tester, width: 507, staffSession: amir);
+      expect(find.text('AK'), findsOneWidget);
+      expect(find.text('Amir'), findsNothing);
+    });
+
+    testWidgets('on a phone every tab folds into one 40px menu button',
+        (tester) async {
+      await pumpBar(tester, width: 360);
+      final Finder more = find.byKey(PosNavBarSpec.moreButtonKey);
+      expect(find.byType(PosNavPill), findsNothing);
+      expect(
+          find.descendant(of: more, matching: find.byIcon(Icons.menu_rounded)),
+          findsOneWidget);
+      expect(tester.getSize(more),
+          const Size.square(PosNavBarSpec.iconButtonSize));
+
+      // The tab you are on is marked inside it.
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    });
+
+    testWidgets('a little more room brings the current tab back onto the bar',
+        (tester) async {
+      await pumpBar(tester, width: 507);
+      expect(find.widgetWithText(PosNavPill, 'POS'), findsOneWidget);
+      expect(find.byKey(PosNavBarSpec.moreButtonKey), findsOneWidget);
+    });
+
+    testWidgets('the Figma bar, date included, returns at the breakpoint',
+        (tester) async {
+      await pumpBar(tester, width: PosNavBarSpec.compactBelow);
+      expect(find.text('Tuesday, 23 June'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

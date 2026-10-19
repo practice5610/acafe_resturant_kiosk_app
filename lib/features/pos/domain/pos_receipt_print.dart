@@ -232,6 +232,10 @@ String posReceiptPrintHtml(
     out.write('<div class="pr-kv"><span>Tax</span>'
         '<span>${PosHomeSpec.formatPrice(tax)}</span></div>');
   }
+  if (receipt.tip > 0) {
+    out.write('<div class="pr-kv"><span>Tip</span>'
+        '<span>${PosHomeSpec.formatPrice(receipt.tip)}</span></div>');
+  }
   out.write('<div class="pr-total"><span>Total</span>'
       '<span>${PosHomeSpec.formatPrice(receipt.total)}</span></div>');
 

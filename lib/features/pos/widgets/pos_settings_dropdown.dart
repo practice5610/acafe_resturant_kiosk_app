@@ -14,12 +14,17 @@ class PosSettingsDropdown extends StatelessWidget {
   final List<PosSettingsOption> options;
   final ValueChanged<String> onChanged;
 
+  /// Label type for sections whose Figma frame sets its own (Staff). Null
+  /// keeps the shared Loew Bold 13.
+  final TextStyle? labelStyle;
+
   const PosSettingsDropdown({
     super.key,
     required this.label,
     required this.value,
     required this.options,
     required this.onChanged,
+    this.labelStyle,
   });
 
   @override
@@ -29,11 +34,12 @@ class PosSettingsDropdown extends StatelessWidget {
       children: [
         Text(
           label.toUpperCase(),
-          style: loewBold.copyWith(
-            fontSize: PosSettingsSpec.labelSize,
-            letterSpacing: PosSettingsSpec.labelTracking,
-            color: PosSettingsSpec.ink,
-          ),
+          style: labelStyle ??
+              loewBold.copyWith(
+                fontSize: PosSettingsSpec.labelSize,
+                letterSpacing: PosSettingsSpec.labelTracking,
+                color: PosSettingsSpec.ink,
+              ),
         ),
         const SizedBox(height: PosSettingsSpec.labelGap),
         PosDropdown<String>(

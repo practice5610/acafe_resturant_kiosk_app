@@ -17,6 +17,10 @@ class PosPaymentSuccessCard extends StatelessWidget {
   final double amount;
   final String amountLabel;
 
+  /// The tip already inside [amount]. Above zero it is named under the amount
+  /// ("incl. € 1.00 tip") so the operator can see it was added.
+  final double tip;
+
   /// The filled ink pill, last in the card.
   final String buttonLabel;
   final VoidCallback? onContinue;
@@ -33,6 +37,7 @@ class PosPaymentSuccessCard extends StatelessWidget {
     required this.buttonLabel,
     required this.onContinue,
     this.amountLabel = 'AMOUNT PAID',
+    this.tip = 0,
     this.secondaryLabel,
     this.onSecondary,
     this.busy = false,
@@ -97,7 +102,7 @@ class PosPaymentSuccessCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: gap),
-                  _AmountPaid(amount: amount, label: amountLabel),
+                  _AmountPaid(amount: amount, label: amountLabel, tip: tip),
                   if (secondaryLabel != null) ...[
                     SizedBox(height: gap),
                     // receipt-btn (1915:12236): outline pill.
@@ -180,8 +185,13 @@ class PosSuccessPill extends StatelessWidget {
 class _AmountPaid extends StatelessWidget {
   final double amount;
   final String label;
+  final double tip;
 
-  const _AmountPaid({required this.amount, required this.label});
+  const _AmountPaid({
+    required this.amount,
+    required this.label,
+    this.tip = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -222,6 +232,18 @@ class _AmountPaid extends StatelessWidget {
               ),
             ),
           ),
+          if (tip > 0) ...[
+            const SizedBox(height: PosPaymentSpec.waitAmountLabelGap), // 4
+            Text(
+              'incl. ${PosHomeSpec.formatPrice(tip, padZero: false)} tip',
+              textAlign: TextAlign.center,
+              style: loewBold.copyWith(
+                fontSize: PosPaymentSpec.waitAmountLabelSize, // 13
+                color:
+                    PosHomeSpec.inkAlpha(PosPaymentSpec.waitAmountLabelOpacity),
+              ),
+            ),
+          ],
         ],
       ),
     );

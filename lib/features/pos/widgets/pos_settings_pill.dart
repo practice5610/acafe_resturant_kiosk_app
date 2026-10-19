@@ -1,5 +1,4 @@
 import 'package:acafe_customer/features/pos/domain/pos_hardware_spec.dart';
-import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -49,13 +48,13 @@ class PosSettingsPill extends StatelessWidget {
             height: PosHardwareSpec.pillHeight,
             padding: PosHardwareSpec.pillPadding,
             decoration: BoxDecoration(
-              color: selected ? PosSettingsSpec.ink : Colors.transparent,
+              color: selected ? PosHardwareSpec.pillInk : Colors.transparent,
               borderRadius:
                   BorderRadius.circular(PosHardwareSpec.pillRadius),
               border: selected
                   ? null
                   : Border.all(
-                      color: PosSettingsSpec.ink,
+                      color: PosHardwareSpec.pillInk,
                       width: PosHardwareSpec.pillBorder,
                     ),
             ),
@@ -69,12 +68,12 @@ class PosSettingsPill extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: (selected ? loewBold : loewMedium).copyWith(
+                // Figma 1915:17974 / 17976: Medium both ways, white on the
+                // black fill, black on the outline.
+                style: loewMedium.copyWith(
                   fontSize: PosHardwareSpec.pillLabelSize,
-                  letterSpacing: 0.4,
-                  color: selected
-                      ? PosSettingsSpec.pageBg
-                      : PosSettingsSpec.ink,
+                  letterSpacing: 0,
+                  color: selected ? Colors.white : PosHardwareSpec.pillInk,
                   height: 1.1,
                 ),
               ),
