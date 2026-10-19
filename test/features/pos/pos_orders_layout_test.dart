@@ -491,9 +491,9 @@ void main() {
     await pumpBoard(tester, _StubOrdersRepo(), size: const Size(1366, 2400));
 
     // Not in Figma 1915:15837 (clock, ⋮ and source badge only): the number is
-    // a small tag beside the clock on request (2026-10-19), so a card can be
-    // matched to its receipt or ticket without opening it. Still no status
-    // chip — the section says that.
+    // a line above the name, in the name's size, on request (2026-10-19), so
+    // a card can be matched to its receipt or ticket without opening it.
+    // Still no status chip — the section says that.
     final Finder cards = find.byType(PosOrderCardTile);
     for (final int id in [27364, 27365, 27363, 27359, 27358]) {
       final Finder number = find.byKey(PosOrderCardTile.numberKeyFor(id));

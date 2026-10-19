@@ -55,20 +55,20 @@ void main() {
         reason: 'one spelling for card and detail modal');
   });
 
-  testWidgets('it is a small tag beside the clock, not a headline',
+  testWidgets('it sits above the customer name, in the name\'s size',
       (tester) async {
     await _pumpCard(tester, PosOrderCard.fromJson(_row()));
 
     final Rect number = tester.getRect(_number(100014));
-    final Rect clock = tester.getRect(find.text('06:13'));
     final Rect name = tester.getRect(find.text('Walk-in'));
-    // On the clock's row, right of it, above the customer.
-    expect(number.left, greaterThan(clock.right));
-    expect(number.center.dy, closeTo(clock.center.dy, 1));
     expect(number.bottom, lessThanOrEqualTo(name.top));
-    expect(number.height, 16, reason: 'as tall as the 16px card-top row');
-    expect(_numberText(tester, 100014).text.style!.fontSize, lessThan(13),
-        reason: 'under the 13px clock, so the 14px name stays the headline');
+    expect(number.left, name.left, reason: 'one left edge');
+    final TextStyle nameStyle =
+        tester.widget<Text>(find.text('Walk-in')).style!;
+    final TextStyle numberStyle = _numberText(tester, 100014).text.style!;
+    expect(numberStyle.fontSize, nameStyle.fontSize);
+    expect(numberStyle.fontWeight, nameStyle.fontWeight);
+    expect(number.height, name.height);
   });
 
   testWidgets('a late card keeps the number in ink, not red', (tester) async {

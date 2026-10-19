@@ -161,29 +161,19 @@ class PosOrdersSpec {
   static const double menuDisabledOpacity = 0.35;
   static const double pendingSpinnerSize = 14;
 
-  /// `order-number` — not in Figma. The order's public number is a small cream
-  /// tag on the `card-top` row, right of the clock, so the counter can match a
-  /// card to a receipt, a ticket or a customer's screen at a glance (user
-  /// request 2026-10-19). It was a 20px headline under that row first; the
-  /// user found it too loud and off-design, so it now lives inside the 16px
-  /// row: the customer block keeps Figma's 36 and the card its height. Cream
-  /// like the source badge's disc, no ring, so it sits below the badge. The
-  /// `#` is muted so the digits carry it.
-  static const double orderNumberTextSize = 11;
-  static const double orderNumberTracking = 0.4;
-  static const double orderNumberHashAlpha = 0.4;
-  static const double orderNumberPadH = 7;
-  static const Color orderNumberFill = Color(0xFFF7F1DE); // PosHomeSpec.pageBg
-
-  /// Clock → tag.
-  static const double orderNumberGap = 8;
-
-  /// What `card-top` leaves free on its right for the ⋮ and the badge, which
-  /// are drawn over the row: a long number ellipsizes before reaching them.
-  static const double cardTopRightReserve =
-      sourceBadgeSize + menuGap + menuHitSize + menuGap;
-
   static const double nameTextSize = 14;
+
+  /// `order-number` — not in Figma. The order's public number sits on its own
+  /// line above the customer name, so the counter can match a card to a
+  /// receipt, a ticket or a customer's screen at a glance (user request
+  /// 2026-10-19). Exactly the name's size and weight (the user's call: a 20px
+  /// headline was too loud); the muted `#` sets it apart from the name.
+  static const double orderNumberTextSize = nameTextSize;
+  static const double orderNumberHashAlpha = 0.35;
+
+  /// `order-number` → customer name: tight, so number and name read as one
+  /// identity block.
+  static const double orderNumberGap = 2;
   static const double subtitleTextSize = 11;
   static const double subtitleLineGap = 2;
   static const double subtitleAlpha = 0.6;

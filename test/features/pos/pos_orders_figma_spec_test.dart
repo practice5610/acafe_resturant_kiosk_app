@@ -432,26 +432,29 @@ void main() {
     _expectFigma('source-badge dx', 252, src0.left - c0.left);
     _expectFigma('source-badge dy', 12, src0.top - c0.top);
     _expectFigma('source-badge size', 24, src0.width);
-    // The order number (not in Figma; user request 2026-10-19) is a tag on
-    // `card-top`, right of the clock and as tall as the row, so nothing
-    // below it moves off Figma.
+    // The order number (not in Figma; user request 2026-10-19) takes Figma's
+    // customer-name slot in the name's own size, so the customer block below
+    // moves down by exactly its height + gap and nothing else.
     final Rect number = rectOf(tester,
         inCard(0, find.byKey(PosOrderCardTile.numberKeyFor(27364))));
-    _expectFigma('order number dy (on card-top)', 12, number.top - c0.top);
-    _expectFigma('order number height', 16, number.height);
-    _expectFigma('order number gap from clock', PosOrdersSpec.orderNumberGap,
-        number.left - clock.right);
+    _expectFigma('order number dy (Figma name slot)', 36, number.top - c0.top);
+    _expectFigma('order number dx', 12, number.left - c0.left);
+    _expectFigma('order number height (= name)', 17, number.height);
+    final double shift =
+        number.height + PosOrdersSpec.orderNumberGap; // the number row
     final Rect name =
         rectOf(tester, inCard(0, find.text('Max Mustermann (Alias 123)')));
-    _expectFigma('customer name dy', 36, name.top - c0.top);
+    _expectFigma('customer name dy', 36, name.top - c0.top, strict: false);
+    _expectFigma('customer name dy under the number', 36 + shift,
+        name.top - c0.top);
     _expectFigma('customer name dx', 12, name.left - c0.left);
     _expectFigma('customer name height', 17, name.height);
     final Rect a1 = rectOf(tester, inCard(0, find.text('Potsdamer Str. 33')));
     final Rect a2 = rectOf(tester, inCard(0, find.text('14974 Ludwigsfelde')));
-    _expectFigma('address line 1 dy', 36 + 19, a1.top - c0.top);
+    _expectFigma('address line 1 dy', 36 + 19, a1.top - c0.top, strict: false);
     _expectFigma('address line 1 to name', 19, a1.top - name.top);
     _expectFigma('address line height', 13, a1.height);
-    _expectFigma('address line 2 dy', 36 + 34, a2.top - c0.top);
+    _expectFigma('address line 2 dy', 36 + 34, a2.top - c0.top, strict: false);
     _expectFigma('address line 2 to name', 34, a2.top - name.top);
     final Rect timer = rectOf(tester, inCard(0, find.text('1:00')));
     _expectFigma('timer dy', 91, timer.top - c0.top, strict: false);
@@ -465,7 +468,9 @@ void main() {
     final Rect uName = rectOf(tester,
         inCard(5, find.text('Max Mustermann (Alias 123)')));
     _expectFigma('urgent card content dx', 4 + 12, uName.left - u.left);
-    _expectFigma('urgent card name dy', 36, uName.top - u.top);
+    _expectFigma('urgent card name dy', 36, uName.top - u.top, strict: false);
+    _expectFigma('urgent card name dy under the number', 36 + shift,
+        uName.top - u.top);
 
     // IN PROGRESS card (1915:15974): footer pinned to the bottom.
     final Rect p = rectOf(tester, cards.at(6));
