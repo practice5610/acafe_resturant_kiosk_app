@@ -9,17 +9,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:acafe_customer/common/enums/data_source_enum.dart';
 import 'package:acafe_customer/data/datasource/local/cache_response.dart';
 import 'package:acafe_customer/helper/responsive_helper.dart';
-import 'package:acafe_customer/common/responsive/kiosk_shell.dart';
+import 'package:acafe_customer/common/responsive/app_chrome.dart';
 import 'package:acafe_customer/helper/kiosk_browser_gestures.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/providers/device_mode_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
-import 'package:acafe_customer/features/pos/domain/pos_mode.dart';
-import 'package:acafe_customer/features/pos/pos_shell.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
-import 'package:acafe_customer/features/pos/widgets/pos_staff_gate.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_scope.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -274,35 +270,7 @@ class _MyAppState extends State<MyApp> {
         PointerDeviceKind.stylus,
         PointerDeviceKind.unknown
       }),
-      builder: (context, child) {
-        // Listen so the welcome-screen full-bleed exemption cannot go stale
-        // across GoRouter navigations (the WidgetsApp builder does not
-        // otherwise rebuild on route changes).
-        return ListenableBuilder(
-          listenable: RouterHelper.goRoutes.routeInformationProvider,
-          builder: (context, _) {
-            final String path =
-                RouterHelper.goRoutes.routeInformationProvider.value.uri.path;
-            final Widget content = child ?? const KioskLoginScreen();
-
-            // The one place the two interfaces diverge. POS gets its own shell
-            // because the kiosk's caps the tree at the 2572px kiosk artboard
-            // and rewrites MediaQuery.size to match — correct for a kiosk,
-            // wrong for a counter terminal that should lay out against the
-            // real window.
-            if (PosMode.of(context).isPos) {
-              // Staff PIN sign-in lives inside the POS shell only, so a kiosk
-              // can never be shown it.
-              return PosShell(child: PosStaffGate(child: content));
-            }
-
-            return KioskShell(
-              fullBleed: path == RouterHelper.kioskWelcomeScreen,
-              child: content,
-            );
-          },
-        );
-      },
+      builder: (context, child) => AppChrome(child: child),
     ),
     );
   }

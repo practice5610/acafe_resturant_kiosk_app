@@ -78,15 +78,13 @@ Future<void> openSwitchToKiosk(BuildContext context) async {
     context,
     ticketItems: items,
     onConfirmed: () async {
-      final DeviceModeSwitchResult result = await modes.switchToKiosk();
-      if (result.ok) {
+      final DeviceModeSwitchResult result = await modes.switchToKiosk(
         // Through the router helper so web history is replaced: Back cannot
         // walk a customer into the till's URLs (the guard would refuse them
-        // anyway).
-        await RouterHelper.openKioskWelcome(action: RouteAction.pushNamedAndRemoveUntil);
-        return;
-      }
-      if (result.message != null) {
+        // anyway). Runs behind the switch's curtain.
+        show: () => RouterHelper.openKioskWelcome(action: RouteAction.pushNamedAndRemoveUntil),
+      );
+      if (!result.ok && result.message != null) {
         messenger?.showSnackBar(SnackBar(content: Text(result.message!)));
       }
     },

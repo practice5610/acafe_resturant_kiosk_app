@@ -110,5 +110,10 @@ Future<void> openKioskStaffExit(BuildContext context) async {
 
   // The router has no listener on the device mode, so move explicitly; the
   // global router, because the kiosk screen's own context is about to go.
-  if (back == true) RouterHelper.goRoutes.go(PosRoutes.home);
+  // The PIN pad is closed by now, so the navigation cannot strand it. The
+  // switch's curtain is still up and lifts once the till has landed.
+  if (back == true) {
+    RouterHelper.goRoutes.go(PosRoutes.home);
+    modes.landed();
+  }
 }

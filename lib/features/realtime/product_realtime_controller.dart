@@ -38,8 +38,7 @@ class ProductRealtimeController {
   final ProductRealtimeGateway gateway;
 
   /// Brings the till in line after it entered or left kiosk mode without
-  /// asking (DeviceModeProvider.afterRemoteSwitch). This controller then moves
-  /// the screen to the other mode.
+  /// asking, and moves the screen (DeviceModeProvider.afterRemoteSwitch).
   final Future<void> Function()? onDeviceModeChanged;
 
   final Map<int, Timer> _debounce = {};
@@ -233,8 +232,14 @@ class ProductRealtimeController {
         // subscription itself.
         return;
       case KioskDeviceSettingsOutcome.modeChanged:
-        await onDeviceModeChanged?.call();
-        _showCurrentMode();
+        // The callback brings the till in line and moves the screen, behind
+        // its curtain; without one (a harness), just move the screen.
+        final Future<void> Function()? bringInLine = onDeviceModeChanged;
+        if (bringInLine != null) {
+          await bringInLine();
+        } else {
+          _showCurrentMode();
+        }
         return;
       case KioskDeviceSettingsOutcome.applied:
       case KioskDeviceSettingsOutcome.ignored:

@@ -108,6 +108,12 @@ class KioskAuthProvider extends ChangeNotifier {
   /// is a kiosk everywhere.
   bool get isPosDevice => isPosTerminal && !kioskModeActive;
 
+  /// Set while this till is switching itself. The server's push of that same
+  /// switch can land before the switch's own answer; applied then, it would
+  /// flip the mode under a screen that is still mid-transition. The switch
+  /// sets the mode itself from the answer ([applyKioskMode]).
+  bool holdKioskMode = false;
+
   /// Record a switch the server just confirmed for this till.
   Future<void> applyKioskMode(bool kioskMode) async {
     if (kioskAuthRepo.getKioskMode() == kioskMode) return;
@@ -173,6 +179,7 @@ class KioskAuthProvider extends ChangeNotifier {
     if (!kioskAuthRepo.isLoggedIn()) {
       return KioskDeviceSettingsOutcome.ignored;
     }
+    if (holdKioskMode) kioskMode = null;
 
     if (signOut) {
       await kioskAuthRepo.clearSession();

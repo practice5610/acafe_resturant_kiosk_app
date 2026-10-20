@@ -92,19 +92,23 @@ class _PosStaffGateState extends State<PosStaffGate> {
     // Until the branch switch has been read, decide nothing from the default
     // "off" roster -- that is exactly what made the PIN flash over the welcome
     // screen. Hold a neutral branded surface instead, no content and no PIN.
-    if (!session.bootstrapped) {
-      return const ColoredBox(color: PosUI.pageBg, child: SizedBox.expand());
+    final bool ready = session.bootstrapped;
+    final bool locked = ready && session.loginRequired && !session.isSignedIn;
+    final bool still = !ready || locked;
+
+    if (ready) {
+      final String? staffId = session.session?.id;
+      if (staffId != _lastStaffId) {
+        final bool becameSignedIn = staffId != null;
+        _lastStaffId = staffId;
+        if (becameSignedIn) _landOnHomeAfterSignIn(session);
+      }
     }
 
-    final bool locked = session.loginRequired && !session.isSignedIn;
-
-    final String? staffId = session.session?.id;
-    if (staffId != _lastStaffId) {
-      final bool becameSignedIn = staffId != null;
-      _lastStaffId = staffId;
-      if (becameSignedIn) _landOnHomeAfterSignIn(session);
-    }
-
+    // One shape in every state, so the screen keeps its place in the tree.
+    // Taking it out while the roster loads, or moving it when the roster
+    // arrives, would tear the app's router down and build a new one (see
+    // AppChrome) -- it stays mounted, offstage and still, under the cover.
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => session.touch(),
@@ -112,15 +116,19 @@ class _PosStaffGateState extends State<PosStaffGate> {
         fit: StackFit.expand,
         children: [
           TickerMode(
-            enabled: !locked,
+            enabled: !still,
             child: ExcludeFocus(
-              excluding: locked,
+              excluding: still,
               child: IgnorePointer(
-                ignoring: locked,
-                child: ExcludeSemantics(excluding: locked, child: widget.child),
+                ignoring: still,
+                child: ExcludeSemantics(
+                  excluding: still,
+                  child: Offstage(offstage: !ready, child: widget.child),
+                ),
               ),
             ),
           ),
+          if (!ready) const ColoredBox(color: PosUI.pageBg, child: SizedBox.expand()),
           if (locked) const PosStaffLockScreen(),
         ],
       ),
