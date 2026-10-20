@@ -59,7 +59,9 @@ Future<void> confirmSwitchToKiosk(
     heading: 'Switch this till to Kiosk?',
     subtext: 'Customers will order here by themselves. You will be signed out.'
         '$ticket A staff PIN is needed to switch back.',
-    confirmLabel: 'Switch to Kiosk',
+    // Short on purpose: the compact card's button truncates "Switch to Kiosk",
+    // and the heading already says where to.
+    confirmLabel: 'Switch',
     compact: true,
   );
   if (confirmed == true) await onConfirmed();

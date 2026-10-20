@@ -263,7 +263,7 @@ void main() {
 
       await tester.tap(find.text('Kiosk Mode'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Switch to Kiosk'));
+      await tester.tap(find.text('Switch'));
       await tester.pumpAndSettle();
       expect(switches, 1);
     });

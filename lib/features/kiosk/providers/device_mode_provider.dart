@@ -111,9 +111,7 @@ class DeviceModeProvider extends ChangeNotifier {
             DateTime.tryParse('${sessionJson?['expires_at']}'),
           );
         }
-        // Whatever a customer left in the basket is not the till's ticket.
-        cart.clearCartList();
-        await auth.applyKioskMode(false);
+        await _backToPos();
         return const DeviceModeSwitchResult.ok();
       }
 
@@ -121,13 +119,24 @@ class DeviceModeProvider extends ChangeNotifier {
         return const DeviceModeSwitchResult.refused('No connection · try again');
       }
 
-      return DeviceModeSwitchResult.refused(await _exitRefusal(response));
+      // The server already has this till as a POS (the panel brought it back
+      // while this screen missed the push). Catch up rather than refuse: the
+      // till opens on its PIN screen, where staff sign in as usual.
+      if (response.errorCode == 'not-in-kiosk-mode') {
+        await auth.refreshDeviceSettings();
+        if (!auth.kioskModeActive) {
+          await _backToPos();
+          return const DeviceModeSwitchResult.ok();
+        }
+      }
+
+      return DeviceModeSwitchResult.refused(_exitRefusal(response));
     } finally {
       _setBusy(false);
     }
   }
 
-  Future<String> _exitRefusal(DeviceModeResponse response) async {
+  String _exitRefusal(DeviceModeResponse response) {
     final Map<String, dynamic> error = response.error;
     switch (response.errorCode) {
       case 'incorrect-pin':
@@ -142,11 +151,6 @@ class DeviceModeProvider extends ChangeNotifier {
         return 'Locked · try again in $minutes min';
       case 'invalid-pin':
         return 'Enter your 4-digit PIN';
-      case 'not-in-kiosk-mode':
-        // The server already has this till as a POS (the panel brought it
-        // back while this screen missed the push). Catch up instead.
-        await auth.refreshDeviceSettings();
-        return 'This till is already a POS';
       default:
         return response.errorMessage ?? 'Something went wrong';
     }
@@ -161,8 +165,19 @@ class DeviceModeProvider extends ChangeNotifier {
     if (auth.kioskModeActive) {
       await _tearDownTill();
     } else {
-      cart.clearCartList();
+      await _backToPos();
     }
+  }
+
+  /// The till is a POS again. Whatever a customer left in the basket is not
+  /// the till's ticket, and the branch's staff-login switch has to be read
+  /// afresh: asked while the till was a kiosk, the server refused, which the
+  /// staff session reads as "no staff login" -- and a till that believed that
+  /// would skip its PIN screen.
+  Future<void> _backToPos() async {
+    cart.clearCartList();
+    await auth.applyKioskMode(false);
+    await staff.refreshRoster();
   }
 
   /// Everything a customer must not inherit. The server has already killed

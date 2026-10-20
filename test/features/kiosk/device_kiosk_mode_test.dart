@@ -74,6 +74,21 @@ class _FakeModeRepo extends DeviceModeRepo {
   }
 }
 
+/// The branch's real answer once the till is a POS again. While it was a
+/// kiosk the server refused the roster, which the app reads as "staff login
+/// off" -- the very thing that must not survive the way back.
+class _BranchWithStaffLogin extends PosStaffSessionRepo {
+  _BranchWithStaffLogin() : super(dioClient: null);
+
+  @override
+  Future<PosSignInRoster?> signInRoster() async => const PosSignInRoster(
+        staffLoginRequired: true,
+        pinLength: 4,
+        lockoutSeconds: 0,
+        members: [],
+      );
+}
+
 DeviceModeResponse _refusal(int status, String code,
         [Map<String, dynamic> extra = const {}]) =>
     DeviceModeResponse(status, {
@@ -188,7 +203,9 @@ void main() {
     Future<void> build({bool kioskMode = false}) async {
       await boot(kioskMode: kioskMode);
       repo = _FakeModeRepo();
-      staff = PosStaffSessionProvider(repo: PosStaffSessionRepo(dioClient: null));
+      staff = PosStaffSessionProvider(repo: _BranchWithStaffLogin());
+      // What the till last heard while it was a kiosk: refused, read as off.
+      staff.debugSetRoster(PosSignInRoster.off);
       posSession = PosSessionProvider(
           kioskManagerRepo: KioskManagerRepo(dioClient: dio, sharedPreferences: prefs));
       manager = KioskManagerProvider(
@@ -262,6 +279,15 @@ void main() {
         expect(cart.cartList, isEmpty, reason: "the customer's basket is not the till's ticket");
       });
 
+      test("the branch's staff login is read again, so the PIN screen comes back", () async {
+        await build(kioskMode: true);
+
+        await modes.switchToPos('4321');
+
+        expect(staff.loginRequired, isTrue);
+        expect(staff.isSignedIn, isTrue, reason: 'the member who typed the PIN stays signed in');
+      });
+
       test('a wrong PIN keeps the kiosk and counts down', () async {
         await build(kioskMode: true);
         repo.exit = _refusal(422, 'incorrect-pin', {'attempts_remaining': 3});
@@ -297,6 +323,16 @@ void main() {
         expect(result.message, 'No connection · try again');
         expect(auth.kioskModeActive, isTrue);
       });
+    });
+
+    test('a till the panel returned to POS asks for staff login again', () async {
+      await build(kioskMode: true);
+      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: false);
+
+      await modes.afterRemoteSwitch();
+
+      expect(staff.loginRequired, isTrue);
+      expect(staff.isSignedIn, isFalse);
     });
 
     test('a switch made elsewhere tears the till down the same way', () async {
