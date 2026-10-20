@@ -1,3 +1,4 @@
+import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
@@ -20,6 +21,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// The real repo keys the saved cart by the branch, which these tests have no
+/// provider for. Nothing here needs the cart to survive a restart.
+class _FakeCartRepo extends CartRepo {
+  _FakeCartRepo() : super(sharedPreferences: null);
+  @override
+  void addToCartList(List<CartModel?> cartProductList) {}
+}
 
 class _StubSplashProvider extends SplashProvider {
   _StubSplashProvider({required super.splashRepo});
@@ -158,5 +167,168 @@ void main() {
     expect(find.text('Purchase Receipt'), findsNothing);
     expect(find.textContaining('•'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  group('DUPLICATE', () {
+    late ProductProvider productProvider;
+    late CartProvider cart;
+
+    /// Pushes the screen from a launcher route, the way the POS opens it, so
+    /// the screen's own pop lands somewhere.
+    Future<void> openScreen(WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final dio = DioClient(
+        'http://localhost',
+        null,
+        loggingInterceptor: LoggingInterceptor(),
+        sharedPreferences: prefs,
+      );
+      final product = _buildProduct();
+      productProvider = ProductProvider(
+          productRepo: ProductRepo(dioClient: dio, sharedPreferences: prefs))
+        ..initData(product, null)
+        ..initProductVariationStatus(product.variations!.length);
+      cart = CartProvider(cartRepo: _FakeCartRepo());
+
+      tester.view.physicalSize = const Size(1280, 1024);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ProductProvider>.value(
+                value: productProvider),
+            ChangeNotifierProvider<SplashProvider>(
+                create: (_) => _StubSplashProvider(
+                    splashRepo:
+                        SplashRepo(dioClient: dio, sharedPreferences: prefs))),
+            ChangeNotifierProvider<CartProvider>.value(value: cart),
+            ChangeNotifierProvider<CouponProvider>(
+                create: (_) =>
+                    CouponProvider(couponRepo: CouponRepo(dioClient: dio))),
+            ChangeNotifierProvider<KioskAuthProvider>(
+                create: (_) => KioskAuthProvider(
+                    kioskAuthRepo: KioskAuthRepo(
+                        dioClient: dio, sharedPreferences: prefs))),
+          ],
+          child: MaterialApp(
+            navigatorKey: navigatorKey,
+            home: PosMetricsScope(
+              metrics: PosMetrics.resolve(const Size(1280, 1024)),
+              child: Builder(
+                builder: (context) => Scaffold(
+                  body: TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PosMetricsScope(
+                          metrics: PosMetrics.resolve(const Size(1280, 1024)),
+                          child: PosProductCustomizeScreen(product: product),
+                        ),
+                      ),
+                    ),
+                    child: const Text('OPEN'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('OPEN'));
+      await tester.pumpAndSettle();
+    }
+
+    bool anyVariationPicked() => productProvider.selectedVariations
+        .expand((row) => row)
+        .any((picked) => picked == true);
+
+    testWidgets('parks the item, clears only its picks, writes nothing',
+        (tester) async {
+      await openScreen(tester);
+
+      await tester.tap(find.text('Oat'));
+      await tester.tap(find.text('Cup'));
+      await tester.tap(find.text('Whipped Cream'));
+      await tester.pump();
+      expect(anyVariationPicked(), isTrue);
+      expect(productProvider.addOnActiveList, contains(true));
+
+      await tester.tap(find.text('DUPLICATE'));
+      await tester.pumpAndSettle();
+
+      // Nothing reached the cart and the screen is still open.
+      expect(cart.cartList, isEmpty);
+      expect(find.text('DUPLICATE'), findsOneWidget);
+
+      // The finished item is listed; the new one starts with no picks.
+      expect(find.text('ITEM 1'), findsOneWidget);
+      expect(find.text('ITEM 2'), findsOneWidget);
+      expect(anyVariationPicked(), isFalse);
+      expect(productProvider.addOnActiveList, everyElement(isFalse));
+      expect(find.textContaining('(2)'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('ADD TO CART adds every pending item, then closes',
+        (tester) async {
+      await openScreen(tester);
+
+      await tester.tap(find.text('Cup'));
+      await tester.pump();
+      await tester.tap(find.text('DUPLICATE'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Can'));
+      await tester.pump();
+
+      await tester.tap(find.textContaining('•'));
+      await tester.pumpAndSettle();
+
+      expect(cart.cartList, hasLength(2));
+      expect(cart.cartList[0]!.variations![1], [true, false],
+          reason: 'item 1 kept its Cup pick');
+      expect(cart.cartList[1]!.variations![1], [false, true],
+          reason: 'item 2 is the Can');
+      expect(find.text('OPEN'), findsOneWidget, reason: 'screen closed');
+    });
+
+    testWidgets('identical items fold into one line of quantity 2',
+        (tester) async {
+      await openScreen(tester);
+
+      await tester.tap(find.text('Cup'));
+      await tester.pump();
+      await tester.tap(find.text('DUPLICATE'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cup'));
+      await tester.pump();
+      await tester.tap(find.textContaining('•'));
+      await tester.pumpAndSettle();
+
+      expect(cart.cartList, hasLength(1));
+      expect(cart.cartList.single!.quantity, 2);
+    });
+
+    testWidgets('trash on the item being edited brings the previous one back',
+        (tester) async {
+      await openScreen(tester);
+
+      await tester.tap(find.text('Cup'));
+      await tester.pump();
+      await tester.tap(find.text('DUPLICATE'));
+      await tester.pumpAndSettle();
+      expect(find.text('ITEM 2'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.delete_outline).last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('ITEM 2'), findsNothing);
+      expect(find.text('ITEM 1'), findsOneWidget);
+      expect(productProvider.selectedVariations[1], [true, false],
+          reason: 'item 1 is back in the editor with its Cup pick');
+      expect(cart.cartList, isEmpty);
+      expect(find.text('DUPLICATE'), findsOneWidget, reason: 'still open');
+    });
   });
 }

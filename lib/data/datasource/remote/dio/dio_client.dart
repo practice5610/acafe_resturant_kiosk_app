@@ -52,7 +52,10 @@ class DioClient {
       ..options.receiveTimeout = const Duration(seconds: 30)
       ..httpClientAdapter
       ..options.headers = headers;
-    dio?.interceptors.add(loggingInterceptor);
+    // Called again on every login and language switch; add the logger once.
+    if (dio != null && !dio!.interceptors.contains(loggingInterceptor)) {
+      dio!.interceptors.add(loggingInterceptor);
+    }
   }
 
 

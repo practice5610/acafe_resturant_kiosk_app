@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 
 /// Tokens for the POS "Add tip" modal.
 ///
@@ -87,7 +88,7 @@ class PosTipSpec {
   static const double inputPaddingH = 16;
   static const double inputValueSize = 24; // Loew Bold
   static const double inputSuffixSize = 14; // Loew Bold
-  static const Color inputPlaceholder = Color(0xFFB9B5A6);
+  static const Color inputPlaceholder = TextTones.hint; // Figma #B9B5A6
 
   // ── Tip summary + preview (discount preview 1915:14464) ─────────────────
   static const double cardRadius = 12;

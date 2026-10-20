@@ -3,6 +3,7 @@ import 'package:acafe_customer/features/pos/domain/pos_punch_source.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pin_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_punch_actions.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -100,7 +101,7 @@ class _PosPunchScreenState extends State<PosPunchScreen> {
                         textAlign: TextAlign.center,
                         style: loewRegular.copyWith(
                           fontSize: 15,
-                          color: PosHomeSpec.ink.withValues(alpha: 0.6),
+                          color: TextTones.secondary,
                         ),
                       ),
                       const SizedBox(height: 40),

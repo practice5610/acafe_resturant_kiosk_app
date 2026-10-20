@@ -3,6 +3,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_list_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_toggle.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -82,7 +83,7 @@ class PosSettingsAvailabilityCard extends StatelessWidget {
             textAlign: TextAlign.center,
             style: loewRegular.copyWith(
               fontSize: PosSettingsSpec.subtitleSize,
-              color: PosSettingsSpec.inkMuted(0.45),
+              color: TextTones.hint,
             ),
           ),
         ),

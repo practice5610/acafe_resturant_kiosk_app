@@ -2,6 +2,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -9,8 +10,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 // ── palette ───────────────────────────────────────────────────────────────────
 const _bg           = Color(0xFFFBF8EF);
 const _border       = Color(0xFFF0EBD8);
-const _hintText     = Color(0xFFA6A199);
-const _helperText   = Color(0xFF78706E);
+const _hintText     = TextTones.hint; // Figma #A6A199 (2.3:1)
+const _helperText   = TextTones.secondary; // Figma #78706E (4.3:1)
 const _ctaBg        = Color(0xFF241F20);
 const _ctaLabel     = Color(0xFFF7F1DE);
 
@@ -302,7 +303,7 @@ class _ModalHeader extends StatelessWidget {
                 'Receipt #${receipt.id} · ${PosHomeSpec.formatPrice(receipt.total)} · now paid by $currentMethod',
                 style: loewBold.copyWith(
                   fontSize: 12,
-                  color: PosHomeSpec.inkAlpha(0.60),
+                  color: TextTones.secondary,
                 ),
               ),
             ],
@@ -348,7 +349,7 @@ class _ReasonGroup extends StatelessWidget {
               'REASON',
               style: loewBold.copyWith(
                 fontSize: _sectionLabelSize,
-                color: PosHomeSpec.inkAlpha(0.60),
+                color: TextTones.secondary,
                 letterSpacing: 0.5,
               ),
             ),
@@ -356,7 +357,7 @@ class _ReasonGroup extends StatelessWidget {
               ' *',
               style: loewBold.copyWith(
                 fontSize: _sectionLabelSize,
-                color: const Color(0xFFD32F2F),
+                color: TextTones.danger,
               ),
             ),
           ],
@@ -401,7 +402,7 @@ class _ReasonGroup extends StatelessWidget {
             error!,
             style: loewBold.copyWith(
               fontSize: 12,
-              color: const Color(0xFFD32F2F),
+              color: TextTones.danger,
             ),
           )
         else

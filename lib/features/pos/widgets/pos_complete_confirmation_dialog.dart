@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -139,7 +140,7 @@ class PosCompleteConfirmationDialog extends StatelessWidget {
                       bodyText,
                       style: loewMedium.copyWith(
                         fontSize: m.subtextSize,
-                        color: PosOrderDetailSpec.inkAlpha(0.6),
+                        color: TextTones.secondary,
                       ),
                     ),
                     SizedBox(height: m.blockGap),

@@ -259,23 +259,41 @@ class ProductProvider extends DataSyncProvider {
       }
     }else {
       _quantity = 1;
-      if(product!.variations != null){
-        for(int index=0; index<product.variations!.length; index++) {
-          _selectedVariations.add([]);
-          for(int i=0; i < product.variations![index].variationValues!.length; i++) {
-            _selectedVariations[index].add(false);
-          }
+      _seedBlankSelections(product!);
+    }
+  }
+
+  /// Clears the variation and add-on picks back to a fresh product's state
+  /// (nothing chosen, default add-ons on) and leaves everything else — the
+  /// quantity included — as it is. The POS "DUPLICATE" button uses this to
+  /// start the next item of a multi-item add.
+  ///
+  /// The lists are replaced, never cleared in place: a [CartModel] built
+  /// before the reset may still hold the old ones.
+  void resetSelections(Product product) {
+    _selectedVariations = [];
+    _addOnQtyList = [];
+    _addOnActiveList = [];
+    _seedBlankSelections(product);
+    notifyListeners();
+  }
+
+  void _seedBlankSelections(Product product) {
+    if(product.variations != null){
+      for(int index=0; index<product.variations!.length; index++) {
+        _selectedVariations.add([]);
+        for(int i=0; i < product.variations![index].variationValues!.length; i++) {
+          _selectedVariations[index].add(false);
         }
       }
+    }
 
-      if(product.addOns != null){
-        for (int i = 0; i < product.addOns!.length; i++) {
-          // Defaults come pre-selected — that is the whole point of the flag.
-          _addOnActiveList.add(product.addOns![i].isDefault);
-          _addOnQtyList.add(1);
-        }
+    if(product.addOns != null){
+      for (int i = 0; i < product.addOns!.length; i++) {
+        // Defaults come pre-selected — that is the whole point of the flag.
+        _addOnActiveList.add(product.addOns![i].isDefault);
+        _addOnQtyList.add(1);
       }
-
     }
   }
 

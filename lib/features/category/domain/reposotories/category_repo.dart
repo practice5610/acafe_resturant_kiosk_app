@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:acafe_customer/common/enums/data_source_enum.dart';
 import 'package:acafe_customer/common/reposotories/data_sync_repo.dart';
 import 'package:acafe_customer/data/datasource/remote/exception/api_error_handler.dart';
@@ -33,13 +34,19 @@ class CategoryRepo extends DataSyncRepo{
 
   /// Token-scoped catalog for the signed-in kiosk device. Branch comes from
   /// the device token, never from the client `branch-id` header.
+  ///
+  /// [localeCode] pins the request's language. Without it the request goes out
+  /// in whatever language the device is set to *when it is sent*, so a menu
+  /// load that spans a language switch would come back half in each.
   Future<ApiResponseModel> getKioskCategoryList({
     int offset = 1,
     int limit = 24,
+    String? localeCode,
   }) async {
     try {
       final response = await dioClient.get(
         '${AppConstants.kioskCategoriesUri}?limit=$limit&offset=$offset',
+        options: _inLanguage(localeCode),
       );
       return ApiResponseModel.withSuccess(response);
     } catch (e) {
@@ -53,6 +60,7 @@ class CategoryRepo extends DataSyncRepo{
     int limit = 10,
     String type = 'all',
     String? name,
+    String? localeCode,
   }) async {
     try {
       final buffer = StringBuffer(
@@ -64,10 +72,17 @@ class CategoryRepo extends DataSyncRepo{
       if (name != null && name.isNotEmpty) {
         buffer.write('&name=$name');
       }
-      final response = await dioClient.get(buffer.toString());
+      final response = await dioClient.get(
+        buffer.toString(),
+        options: _inLanguage(localeCode),
+      );
       return ApiResponseModel.withSuccess(response);
     } catch (e) {
       return ApiResponseModel.withError(ApiErrorHandler.getMessage(e));
     }
   }
+
+  /// Overrides the device-wide `X-localization` header for one request.
+  static Options? _inLanguage(String? localeCode) =>
+      localeCode == null ? null : Options(headers: {'X-localization': localeCode});
 }

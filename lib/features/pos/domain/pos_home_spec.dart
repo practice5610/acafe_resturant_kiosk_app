@@ -1,4 +1,5 @@
 import 'package:acafe_customer/helper/price_converter_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:flutter/material.dart';
 
 /// Design tokens for the POS home screen, read from the Figma frame
@@ -228,7 +229,9 @@ class PosHomeSpec {
 
   // ── Cart-active order lines (Figma 1641:1968) ────────────────────────
   static const Color itemDivider = Color(0xFFB9B5A6);
-  static const Color discountGreen = Color(0xFF2A8456);
+  /// Figma's `#2A8456` darkened 11 % along its own hue: the original is
+  /// 4.4:1 on the receipt panel, this is at least 4.5:1 on every surface.
+  static const Color discountGreen = Color(0xFF25754D);
   static const Color plusLabel = Color(0xFFF3F3DD);
 
   static const double lineThumbWidth = 52;
@@ -318,7 +321,7 @@ class PosHomeSpec {
 
   // ── Receipt context menu (Figma 1641:3570) ───────────────────────────
   static const Color contextMenuBorder = Color(0xFFEAE5D5);
-  static const Color contextMenuDanger = Color(0xFFD9383A);
+  static const Color contextMenuDanger = TextTones.danger; // Figma #D9383A
   static const Color contextMenuBackdrop = Color(0x45000000); // 27% black
   static const double contextMenuWidth = 240;
   static const double contextMenuRadius = 12;

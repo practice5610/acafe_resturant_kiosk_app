@@ -1,11 +1,12 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
 // ─── palette (Figma 1915:9648) ───────────────────────────────────────────────
-const _headerOpacity = 0.40;
-const _subtitleOpacity = 0.33;
+const _headerOpacity = TextTones.hintOpacity; // Figma 0.40
+const _subtitleOpacity = TextTones.hintOpacity; // Figma 0.33
 const _stepBorder = PosPaymentSpec.v2OtherRowBorder; // #E8E3D5
 const _inputBorderInactive = PosHomeSpec.tableFieldBorder; // #E0D9C8
 const _divider = PosHomeSpec.hairline; // #F0EBD8
@@ -147,7 +148,7 @@ class PosStandalonePanel extends StatelessWidget {
                     'Approval code (optional)',
                     style: loewRegular.copyWith(
                       fontSize: 12,
-                      color: PosHomeSpec.inkAlpha(0.53),
+                      color: TextTones.secondary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -261,7 +262,7 @@ class _ApprovalCodeFieldState extends State<_ApprovalCodeField> {
           hintText: 'Code from the terminal slip',
           hintStyle: loewMedium.copyWith(
             fontSize: 14,
-            color: PosHomeSpec.inkAlpha(0.33),
+            color: TextTones.hint,
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

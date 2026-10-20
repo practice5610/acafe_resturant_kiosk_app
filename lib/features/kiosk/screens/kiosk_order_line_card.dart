@@ -11,6 +11,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_deal_detail_screen.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
@@ -144,7 +145,7 @@ class _CompactLineCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: loewRegular.copyWith(
                                 fontSize: KioskUI.caption,
-                                color: Colors.black54,
+                                color: TextTones.secondary,
                               ),
                             ),
                         ],

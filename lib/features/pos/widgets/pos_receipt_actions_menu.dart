@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -106,7 +107,7 @@ class _PosReceiptActionsPanel extends StatelessWidget {
                   'RECEIPT ACTIONS',
                   style: loewBold.copyWith(
                     fontSize: PosHomeSpec.contextMenuHeaderSize,
-                    color: PosHomeSpec.inkAlpha(0.45),
+                    color: TextTones.hint,
                     letterSpacing: 0.5,
                   ),
                 ),

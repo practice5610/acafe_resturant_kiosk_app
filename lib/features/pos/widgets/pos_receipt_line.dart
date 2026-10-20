@@ -6,9 +6,21 @@ import 'package:provider/provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_line_copy.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
+/// Type for everything under a line's name: the `€ 4.00 · Can` price and
+/// variation line, the `+ / −` add-on picks and the kitchen note.
+///
+/// These used to be the Regular face at ink @ 53–60 %, about 3.4–4.2:1 on the
+/// receipt panel. Clients read them as washed out on 1× kiosk and desktop
+/// screens, where 11 px strokes anti-alias to grey. Medium weight at
+/// [TextTones.secondary] is at least 7:1, and the hierarchy still holds
+/// against the ExtraBold name above.
+final TextStyle posReceiptLineDetailStyle =
+    swiss721Medium.copyWith(color: TextTones.secondary);
 
 /// Scrollable cart lines for the cart-active receipt pane.
 class PosReceiptOrderList extends StatelessWidget {
@@ -190,9 +202,8 @@ class PosReceiptLine extends StatelessWidget {
                     priceLine,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: swiss721Light.copyWith(
+                    style: posReceiptLineDetailStyle.copyWith(
                       fontSize: PosHomeSpec.linePriceSize,
-                      color: PosHomeSpec.inkAlpha(0.6),
                       height: PosHomeSpec.linePriceHeight,
                     ),
                   ),
@@ -280,7 +291,7 @@ class _NoteRow extends StatelessWidget {
           note.included ? '+' : '-',
           style: loewRegular.copyWith(
             fontSize: PosHomeSpec.lineNoteMarkSize,
-            color: PosHomeSpec.inkAlpha(0.53),
+            color: TextTones.secondary,
             height: PosHomeSpec.lineNoteMarkHeight,
           ),
         ),
@@ -290,9 +301,8 @@ class _NoteRow extends StatelessWidget {
             note.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: swiss721Light.copyWith(
+            style: posReceiptLineDetailStyle.copyWith(
               fontSize: PosHomeSpec.lineNoteSize,
-              color: PosHomeSpec.inkAlpha(0.53),
               height: PosHomeSpec.lineNoteHeight,
             ),
           ),
@@ -315,12 +325,12 @@ class PosLineInstruction extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
           child: Icon(
             Icons.sticky_note_2_outlined,
             size: PosHomeSpec.lineNoteSize,
-            color: PosHomeSpec.inkAlpha(0.53),
+            color: TextTones.secondary,
           ),
         ),
         const SizedBox(width: PosHomeSpec.lineNoteGap),
@@ -329,9 +339,8 @@ class PosLineInstruction extends StatelessWidget {
             text,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: swiss721Light.copyWith(
+            style: posReceiptLineDetailStyle.copyWith(
               fontSize: PosHomeSpec.lineNoteSize,
-              color: PosHomeSpec.inkAlpha(0.53),
               height: PosHomeSpec.lineNoteHeight,
             ),
           ),

@@ -70,6 +70,22 @@ void main() {
     }
   });
 
+  test('the welcome prompt is translated into every kiosk language', () {
+    Map<String, dynamic> read(String code) => json.decode(
+        File('assets/language/$code.json').readAsStringSync());
+
+    final String english = read('en')['touch_to_order'] as String;
+    expect(english.trim(), isNotEmpty);
+
+    for (final code in expected.where((c) => c != 'en')) {
+      final Object? value = read(code)['touch_to_order'];
+      expect(value, isA<String>(), reason: '$code.json lacks "touch_to_order"');
+      expect((value as String).trim(), isNotEmpty);
+      expect(value, isNot(english),
+          reason: '$code.json still carries the English prompt');
+    }
+  });
+
   test('the default locale is one the kiosk actually offers', () {
     expect(
       AppConstants.languages.map((l) => l.languageCode),

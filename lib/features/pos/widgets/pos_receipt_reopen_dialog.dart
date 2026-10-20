@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -8,8 +9,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 const _bg         = Color(0xFFFBF8EF);
 const _border     = Color(0xFFF0EBD8);
 const _inputBorder = Color(0xFF241F20);
-const _hintText   = Color(0xFFA6A199);
-const _helperText = Color(0xFF78706E);
+const _hintText   = TextTones.hint; // Figma #A6A199 (2.3:1)
+const _helperText = TextTones.secondary; // Figma #78706E (4.3:1)
 const _ctaBg      = Color(0xFF241F20);
 const _ctaLabel   = Color(0xFFF7F1DE);
 
@@ -111,10 +112,11 @@ class _ReopenDialogState extends State<_ReopenDialog> {
               Text(
                 'You can change add-ons, quantities and the customer name. '
                 'If the total changes, the difference is charged or refunded on the original payment method.',
-                style: loewRegular.copyWith(
+                // 'Swiss721Light' was never a registered family, so this
+                // paragraph fell back to the platform face.
+                style: swiss721Light.copyWith(
                   fontSize: 14,
                   color: PosHomeSpec.ink,
-                  fontFamily: 'Swiss721Light',
                 ),
               ),
               const SizedBox(height: 16),
@@ -165,7 +167,7 @@ class _DialogHeader extends StatelessWidget {
                 'Receipt #${receipt.id} · ${PosHomeSpec.formatPrice(receipt.total)} · paid by $currentMethod',
                 style: loewBold.copyWith(
                   fontSize: 12,
-                  color: PosHomeSpec.inkAlpha(0.60),
+                  color: TextTones.secondary,
                 ),
               ),
             ],
@@ -201,7 +203,7 @@ class _ReasonInput extends StatelessWidget {
           'REASON',
           style: loewBold.copyWith(
             fontSize: 11,
-            color: PosHomeSpec.inkAlpha(0.60),
+            color: TextTones.secondary,
             letterSpacing: 0.5,
           ),
         ),

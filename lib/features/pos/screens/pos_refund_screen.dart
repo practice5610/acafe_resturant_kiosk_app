@@ -17,6 +17,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -722,8 +723,8 @@ String _refundToLabel(PosRefundSession s) => switch (s.refundMethod.value) {
       _ => 'Cash',
     };
 
-const _labelInk = Color(0xFF78706E);
-const _noteInk = Color(0xFFA6A199);
+const _labelInk = TextTones.secondary; // Figma #78706E (4.3:1)
+const _noteInk = TextTones.hint; // Figma #A6A199 (2.3:1)
 const _rowBorder = Color(0xFFE8E3D6);
 const _summaryRowFill = Color(0xFFF0EBD9);
 
@@ -1070,7 +1071,7 @@ class _ApprovalCodeField extends StatelessWidget {
           'Approval code (optional)',
           style: loewRegular.copyWith(
             fontSize: 12,
-            color: PosHomeSpec.inkAlpha(0.53),
+            color: TextTones.secondary,
           ),
         ),
         const SizedBox(height: 4),
@@ -1089,7 +1090,7 @@ class _ApprovalCodeField extends StatelessWidget {
               hintText: 'Code from the terminal slip',
               hintStyle: loewMedium.copyWith(
                 fontSize: 14,
-                color: PosHomeSpec.inkAlpha(0.33),
+                color: TextTones.hint,
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

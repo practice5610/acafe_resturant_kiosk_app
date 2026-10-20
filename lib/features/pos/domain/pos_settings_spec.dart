@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 
 /// Design tokens for POS Settings → General (Figma node **1641:3896**).
 class PosSettingsSpec {
@@ -13,7 +14,9 @@ class PosSettingsSpec {
   static const Color fieldFill = Colors.white;
   static const Color divider = Color(0xFFE1DBC4);
 
-  static Color inkMuted([double a = 0.6]) => ink.withValues(alpha: a);
+  /// Defaults to the secondary text tone (Figma's 0.6 is 4.2:1 on the page).
+  static Color inkMuted([double a = TextTones.secondaryOpacity]) =>
+      ink.withValues(alpha: a);
 
   // ── Sidebar ──────────────────────────────────────────────────────────
   static const double sidebarWidth = 192;

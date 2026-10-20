@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -194,7 +195,7 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
                     : loewRegular.copyWith(
                         fontSize: widget.valueStyle?.fontSize ??
                             PosSettingsSpec.fieldTextSize,
-                        color: PosSettingsSpec.inkMuted(0.45),
+                        color: TextTones.hint,
                         height: 1.2,
                         letterSpacing: 0,
                       ),
@@ -208,7 +209,7 @@ class _PosSettingsTextFieldState extends State<PosSettingsTextField> {
             widget.errorText!,
             style: loewRegular.copyWith(
               fontSize: 12,
-              color: const Color(0xFFB4544A),
+              color: TextTones.danger,
             ),
           ),
         ],

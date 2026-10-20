@@ -3,6 +3,7 @@ import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -79,7 +80,7 @@ class PosProductTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: swiss721Light.copyWith(
             fontSize: PosHomeSpec.tilePriceSize * s,
-            color: PosHomeSpec.inkAlpha(0.6),
+            color: TextTones.secondary,
             height: PosHomeSpec.tilePriceHeight,
           ),
         ),

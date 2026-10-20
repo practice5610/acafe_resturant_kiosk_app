@@ -8,6 +8,7 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
@@ -189,7 +190,7 @@ class _KioskManagerStockScreenState extends State<KioskManagerStockScreen> {
                                       : 'No products in this filter',
                               textAlign: TextAlign.center,
                               style: loewMedium.copyWith(
-                                  fontSize: 40 * s, color: Colors.black45),
+                                  fontSize: 40 * s, color: TextTones.hint),
                             ),
                           );
                         }

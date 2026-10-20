@@ -658,8 +658,9 @@ class _StepCircle extends StatelessWidget {
           style: loewExtraBold.copyWith(
             fontSize: 30 * s,
             height: 1.0,
-            // An unreached step's label sits back with its circle.
-            color: filled ? Colors.black : _kStepUpcoming,
+            // An unreached step's label sits back with its circle, but stays
+            // readable: the circle's own grey is under 2:1 as text.
+            color: filled ? Colors.black : TextTones.hint,
           ),
         ),
       ],

@@ -20,6 +20,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_item_status_widgets.dart
 import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -663,7 +664,7 @@ class _PosOrderDetailOverlayState extends State<PosOrderDetailOverlay> {
               textAlign: TextAlign.center,
               style: loewRegular.copyWith(
                 fontSize: PosOrderDetailSpec.contactTextSize,
-                color: PosOrderDetailSpec.inkAlpha(0.6),
+                color: TextTones.secondary,
               ),
             ),
           ),
@@ -1359,7 +1360,7 @@ class _Section extends StatelessWidget {
       style: loewBold.copyWith(
         fontSize: PosOrderDetailSpec.sectionLabelSize,
         letterSpacing: PosOrderDetailSpec.sectionLabelTracking,
-        color: PosOrderDetailSpec.inkAlpha(0.6),
+        color: TextTones.secondary,
       ),
     );
 
@@ -1407,7 +1408,7 @@ class _ContactRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: loewRegular.copyWith(
               fontSize: PosOrderDetailSpec.contactTextSize,
-              color: PosOrderDetailSpec.inkAlpha(0.6),
+              color: TextTones.secondary,
             ),
           ),
         ),
@@ -1435,7 +1436,7 @@ class _TotalRow extends StatelessWidget {
           : PosOrderDetailSpec.contactTextSize,
       color: emphasised
           ? PosOrderDetailSpec.ink
-          : PosOrderDetailSpec.inkAlpha(0.6),
+          : TextTones.secondary,
     );
 
     return Row(
@@ -1514,8 +1515,7 @@ class _ItemRow extends StatelessWidget {
 
     // A finished line goes quiet: struck through, dimmed and tinted. Kitchen's
     // treatment (order_ticket_card.dart:684-735) in POS colours.
-    final Color bodyInk =
-        done ? PosOrderDetailSpec.inkAlpha(0.45) : PosOrderDetailSpec.ink;
+    final Color bodyInk = done ? TextTones.hint : PosOrderDetailSpec.ink;
     final TextDecoration? strike = done ? TextDecoration.lineThrough : null;
 
     final PrepAction? action = status.next;
@@ -1638,13 +1638,12 @@ class _ItemRow extends StatelessWidget {
                                     PosOrderDetailSpec.itemMetaSize,
                                   ),
                                   color: done
-                                      ? PosOrderDetailSpec.inkAlpha(0.45)
+                                      ? TextTones.hint
                                       : PosOrderDetailSpec.inkAlpha(
                                           PosOrderDetailSpec.itemMetaAlpha,
                                         ),
                                   decoration: strike,
-                                  decorationColor:
-                                      PosOrderDetailSpec.inkAlpha(0.45),
+                                  decorationColor: TextTones.hint,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -1664,7 +1663,7 @@ class _ItemRow extends StatelessWidget {
                                         fontSize:
                                             PosOrderDetailSpec.itemMetaSize,
                                         color: done
-                                            ? PosOrderDetailSpec.inkAlpha(0.45)
+                                            ? TextTones.hint
                                             : PosOrderDetailSpec.itemNoteInk,
                                       ),
                                     ),
@@ -1681,12 +1680,10 @@ class _ItemRow extends StatelessWidget {
                                             PosOrderDetailSpec.itemNoteSize,
                                           ),
                                           color: done
-                                              ? PosOrderDetailSpec.inkAlpha(
-                                                  0.45)
+                                              ? TextTones.hint
                                               : PosOrderDetailSpec.itemNoteInk,
                                           decoration: strike,
-                                          decorationColor:
-                                              PosOrderDetailSpec.inkAlpha(0.45),
+                                          decorationColor: TextTones.hint,
                                         ),
                                       ),
                                     ),
@@ -1974,7 +1971,7 @@ class _StatusLabel extends StatelessWidget {
           _text,
           style: loewBold.copyWith(
             fontSize: PosOrderDetailSpec.actionTextSize,
-            color: PosOrderDetailSpec.inkAlpha(0.55),
+            color: TextTones.secondary,
           ),
         ),
       ),

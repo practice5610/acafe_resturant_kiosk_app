@@ -102,7 +102,9 @@ class CartModel {
   /// mutating the leftover unit that stays in the cart. Do not round-trip
   /// through JSON: [CartModel.fromJson] calls `.toDouble()` on nullable
   /// fields and will throw.
-  CartModel copyWithQuantity(int quantity) {
+  ///
+  /// [instruction], when given, replaces the line's note on the copy.
+  CartModel copyWithQuantity(int quantity, {String? instruction}) {
     return CartModel(
       _price,
       _discountedPrice,
@@ -119,7 +121,7 @@ class CartModel {
       _variations == null
           ? <List<bool?>>[]
           : _variations!.map((row) => List<bool?>.from(row)).toList(),
-      instruction: _instruction,
+      instruction: instruction ?? _instruction,
       dealId: _dealId,
       dealTitle: _dealTitle,
       dealImage: _dealImage,

@@ -6,6 +6,7 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dar
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
@@ -171,7 +172,7 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
       padding: EdgeInsets.fromLTRB(132 * s, 0, 132 * s, 60 * s),
       children: [
         Text('${data['report_date'] ?? ''}',
-            style: loewBold.copyWith(fontSize: 44 * s, color: Colors.black54)),
+            style: loewBold.copyWith(fontSize: 44 * s, color: TextTones.secondary)),
         SizedBox(height: 20 * s),
         if (closed) _ClosedBadge(s: s, data: data) else _OpenBadge(s: s),
         SizedBox(height: 48 * s),
@@ -244,7 +245,7 @@ class _SalesOverviewBodyState extends State<_SalesOverviewBody> {
               child: Text(
                 'Approx. refund of previously paid orders: ${PriceConverterHelper.convertPrice(approxRefundValue)}',
                 style: loewRegular.copyWith(
-                    fontSize: 26 * s, color: Colors.black45),
+                    fontSize: 26 * s, color: TextTones.hint),
               ),
             ),
         ]),
@@ -448,7 +449,7 @@ class _ClosingCommentCard extends StatelessWidget {
         text.isEmpty ? 'No comment was left for this day.' : text,
         style: loewRegular.copyWith(
             fontSize: 32 * s,
-            color: text.isEmpty ? Colors.black45 : Colors.black87),
+            color: text.isEmpty ? TextTones.hint : Colors.black87),
       ),
     ]);
   }
@@ -493,7 +494,7 @@ class _CloseDaySection extends StatelessWidget {
       SizedBox(height: 16 * s),
       Text(
         'Closing a day is permanent and cannot be undone.',
-        style: loewRegular.copyWith(fontSize: 26 * s, color: Colors.black45),
+        style: loewRegular.copyWith(fontSize: 26 * s, color: TextTones.hint),
       ),
     ]);
   }
@@ -519,7 +520,7 @@ class _CommentField extends StatelessWidget {
       children: [
         Text(label,
             style:
-                loewRegular.copyWith(fontSize: 28 * s, color: Colors.black54)),
+                loewRegular.copyWith(fontSize: 28 * s, color: TextTones.secondary)),
         SizedBox(height: 10 * s),
         Container(
           height: 84 * s,
@@ -538,7 +539,7 @@ class _CommentField extends StatelessWidget {
               border: InputBorder.none,
               hintText: 'Notes for this close',
               hintStyle: loewRegular.copyWith(
-                  fontSize: 32 * s, color: const Color(0xFFB9B5A6)),
+                  fontSize: 32 * s, color: TextTones.hint),
             ),
           ),
         ),

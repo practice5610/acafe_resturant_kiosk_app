@@ -11,6 +11,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_add_note_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -458,7 +459,7 @@ class _VariationSection extends StatelessWidget {
             'Choose up to $max',
             style: swiss721Light.copyWith(
               fontSize: 13,
-              color: PosHomeSpec.inkAlpha(0.6),
+              color: TextTones.secondary,
             ),
           ),
         ],
@@ -607,7 +608,7 @@ class _OptionTile extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: swiss721Light.copyWith(
                     fontSize: PosCustomizeSpec.optionPriceSize,
-                    color: PosHomeSpec.inkAlpha(0.6),
+                    color: TextTones.secondary,
                   ),
                 ),
               ],
@@ -691,7 +692,7 @@ class _RightSidebar extends StatelessWidget {
                   priceLine,
                   style: swiss721Light.copyWith(
                     fontSize: 12,
-                    color: PosHomeSpec.inkAlpha(0.6),
+                    color: TextTones.secondary,
                   ),
                 ),
                 for (final PosReceiptNote pick in picks) ...[
@@ -722,7 +723,7 @@ class _PickRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextStyle style = swiss721Light.copyWith(
       fontSize: 12,
-      color: PosHomeSpec.inkAlpha(0.53),
+      color: TextTones.secondary,
     );
     return Row(
       children: [

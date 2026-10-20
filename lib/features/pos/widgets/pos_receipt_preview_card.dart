@@ -2,6 +2,7 @@ import 'package:acafe_customer/features/pos/domain/pos_general_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_hardware_settings.dart';
 import 'package:acafe_customer/features/pos/domain/pos_hardware_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -298,7 +299,7 @@ class PosReceiptPreviewCard extends StatelessWidget {
           'Store name, address, order number and footer are live.',
           style: loewRegular.copyWith(
             fontSize: PosHardwareSpec.noteSize,
-            color: PosSettingsSpec.inkMuted(0.5),
+            color: TextTones.secondary,
             height: 1.35,
           ),
         ),

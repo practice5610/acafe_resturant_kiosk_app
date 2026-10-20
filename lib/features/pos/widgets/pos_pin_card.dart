@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_wordmark.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -436,7 +437,7 @@ class _PosPinCardState extends State<PosPinCard>
                       style: loewMedium.copyWith(
                         fontSize: 13 * s,
                         height: 1.35,
-                        color: const Color(0xFFB4544A),
+                        color: TextTones.danger,
                       ),
                     ),
             ),

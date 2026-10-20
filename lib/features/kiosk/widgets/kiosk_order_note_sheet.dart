@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
@@ -15,7 +16,7 @@ const Color _kNoteSurface = Color(0xFFFCFAF4);
 const Color _kNoteBorder = Color(0xFFE8E2D5);
 const Color _kNoteInk = Color(0xFF1E1E1E);
 const Color _kNoteText = Color(0xFF2B2B2B);
-const Color _kNoteMuted = Color(0xFF8A8275);
+const Color _kNoteMuted = TextTones.hint; // was #8A8275 (3.4:1)
 const Color _kNoteCream = Color(0xFFF3F3DD);
 
 const int _kNoteMaxLength = 255;

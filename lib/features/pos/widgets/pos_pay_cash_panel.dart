@@ -4,6 +4,7 @@ import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -232,7 +233,7 @@ class _TenderedFieldState extends State<_TenderedField> {
                     contentPadding: const EdgeInsets.symmetric(vertical: 2),
                     hintText: '0.00',
                     hintStyle: amountStyle.copyWith(
-                      color: PosHomeSpec.inkAlpha(0.3),
+                      color: TextTones.hint,
                     ),
                   ),
                 ),
@@ -297,8 +298,8 @@ class PosPayChangeDueBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color accent =
-        covered ? PosHomeSpec.discountGreen : PosHomeSpec.inkAlpha(0.35);
+    // Text colour for the "Change Due" label and amount.
+    final Color accent = covered ? PosHomeSpec.discountGreen : TextTones.hint;
     return Container(
       key: const Key('change-due'),
       height: PosPaymentSpec.changeDueHeight,

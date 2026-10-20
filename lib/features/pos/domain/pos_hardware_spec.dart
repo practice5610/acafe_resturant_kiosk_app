@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 
 /// Design tokens for POS Settings → Hardware (Figma node **1641:8685**).
 ///
@@ -54,8 +55,9 @@ class PosHardwareSpec {
   static const double noteSize = 12;
 
   /// Muted copy on this frame — subtitle, toggle descriptions, helper,
-  /// "Use store name", the Live Preview caption (Figma 1915:17910).
-  static const Color mutedText = Color(0xFF7C7661);
+  /// "Use store name", the Live Preview caption (Figma 1915:17910). Figma's
+  /// `#7C7661` is 4.0:1 on the page; drawn in the secondary tone.
+  static const Color mutedText = TextTones.secondary;
 
   // ── Pills ────────────────────────────────────────────────────────────
   static const double pillHeight = 36;

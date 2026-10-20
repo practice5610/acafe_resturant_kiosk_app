@@ -24,6 +24,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -659,7 +660,7 @@ class _PosOrdersBoardState extends State<_PosOrdersBoard> {
             'No orders',
             style: loewRegular.copyWith(
               fontSize: PosOrdersSpec.subtitleTextSize,
-              color: PosHomeSpec.inkAlpha(0.45),
+              color: TextTones.hint,
             ),
           )
         else
@@ -905,7 +906,7 @@ class _EmptyBoard extends StatelessWidget {
           textAlign: TextAlign.center,
           style: loewRegular.copyWith(
             fontSize: 14,
-            color: PosHomeSpec.inkAlpha(0.5),
+            color: TextTones.secondary,
           ),
         ),
       ),

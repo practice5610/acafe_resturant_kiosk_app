@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_login_surface.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
@@ -53,7 +55,11 @@ const Color _kFieldBg = Colors.white;
 const Color _kFieldBorder = Color(0xFFDDD4BA);
 
 class KioskLoginScreen extends StatefulWidget {
-  const KioskLoginScreen({super.key});
+  /// Which terminal the subtitle names. Null reads it from the app's address
+  /// ([KioskLoginSurface.current]).
+  final KioskLoginSurface? surface;
+
+  const KioskLoginScreen({super.key, this.surface});
 
   @override
   State<KioskLoginScreen> createState() => _KioskLoginScreenState();
@@ -239,16 +245,13 @@ class _KioskLoginScreenState extends State<KioskLoginScreen> {
             style: loewMedium.copyWith(fontSize: 22, color: Colors.black),
           ),
           const SizedBox(height: 8),
-          Opacity(
-            opacity: 0.6,
-            child: Text(
-              'Sign in once to bind this kiosk to its branch.',
-              textAlign: TextAlign.center,
-              style: loewRegular.copyWith(
-                fontSize: 15,
-                height: 1.35,
-                color: Colors.black,
-              ),
+          Text(
+            (widget.surface ?? KioskLoginSurface.current).hint,
+            textAlign: TextAlign.center,
+            style: loewRegular.copyWith(
+              fontSize: 15,
+              height: 1.35,
+              color: TextTones.secondary,
             ),
           ),
           SizedBox(height: compact ? 24 : 32),

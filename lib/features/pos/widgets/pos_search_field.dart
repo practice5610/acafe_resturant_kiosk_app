@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_settings_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -91,7 +92,7 @@ class PosSearchFieldStyle {
     iconSize: PosHomeSpec.searchIconSize,
     textSize: PosHomeSpec.searchHintSize,
     textHeight: PosHomeSpec.searchHintHeight,
-    hintAlpha: 0.4,
+    hintAlpha: TextTones.hintOpacity, // Figma 0.4
   );
 
   /// Settings → Products / Orders filters (Figma **1641:4003**).
@@ -106,9 +107,9 @@ class PosSearchFieldStyle {
     textSize: 14,
     // Match the icon box so hint + glyph share one vertical center on web.
     textHeight: 18 / 14,
-    hintAlpha: 0.6,
-    // Figma 1915:17573: the glyph is ink at 60%, same as the hint.
-    iconColor: Color(0x99241F20),
+    hintAlpha: TextTones.hintOpacity, // Figma 0.6
+    // Figma 1915:17573: the glyph is drawn in the same tone as the hint.
+    iconColor: TextTones.hint,
     letterSpacing: 0,
   );
 

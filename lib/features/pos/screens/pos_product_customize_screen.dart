@@ -21,6 +21,7 @@ import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -236,6 +237,12 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
   late final bool _ownsCustomerControllers;
   String? _instruction;
 
+  /// Items already configured on this screen with DUPLICATE, oldest first.
+  /// They sit in "Items that you will add:" and reach the cart only together
+  /// with the item being edited, when ADD TO CART is tapped. Leaving the
+  /// screen any other way discards them.
+  final List<CartModel> _staged = [];
+
   /// One [GlobalKey] per rendered section, so a failed Add to Cart can scroll
   /// the first invalid section into view. Created on demand, keyed by identity.
   final Map<ProductSectionRef, GlobalKey> _sectionKeys = {};
@@ -338,18 +345,34 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
         _validateAddOnGroups(context, productProvider);
   }
 
-  void _addToCart(ProductProvider productProvider) {
-    if (!_validate(context, productProvider)) {
-      // Validation already fired its snackbar. Scroll the first invalid section
-      // (in on-screen order) to the top so the customer can see what to fix.
-      final ProductSectionRef? invalid =
-          firstInvalidProductSection(_product, productProvider);
-      if (invalid != null) {
-        final GlobalKey? key = _sectionKeys[invalid];
-        if (key != null) scrollProductSectionIntoView(key);
-      }
-      return;
+  /// Runs the shared validation; on failure scrolls the first invalid section
+  /// (in on-screen order) into view. Validation fires its own snackbar.
+  bool _validateOrReveal(ProductProvider productProvider) {
+    if (_validate(context, productProvider)) return true;
+    final ProductSectionRef? invalid =
+        firstInvalidProductSection(_product, productProvider);
+    if (invalid != null) {
+      final GlobalKey? key = _sectionKeys[invalid];
+      if (key != null) scrollProductSectionIntoView(key);
     }
+    return false;
+  }
+
+  /// The item being edited, as a cart line. Its variation rows are copies, so
+  /// later taps on this screen can never reach into a staged line.
+  CartModel _currentLine() {
+    final CartModel built = buildKioskCartModel(
+      context,
+      _product,
+      instruction: _instruction,
+    );
+    return built.copyWithQuantity(built.quantity ?? 1);
+  }
+
+  /// The ONLY path from this screen to the cart: the staged items first, in
+  /// the order they were made, then the item being edited.
+  void _addToCart(ProductProvider productProvider) {
+    if (!_validateOrReveal(productProvider)) return;
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     if (widget.cartIndex != null) {
       final CartModel built = buildKioskCartModel(
@@ -359,32 +382,28 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
       );
       cartProvider.addToCart(built, widget.cartIndex, showMessage: false);
     } else {
-      _commitAdd(cartProvider);
+      for (final CartModel line in _staged) {
+        _commitAdd(cartProvider, line);
+      }
+      _commitAdd(cartProvider, _currentLine());
     }
     Navigator.of(context).pop();
   }
 
-  /// Adds the configured item as a new line, or folds it into the line that
-  /// already has the same size, variations and add-ons. A folded line keeps one
-  /// note: the one typed here if any, otherwise the line's existing note.
-  void _commitAdd(CartProvider cart) {
-    final CartModel draft = buildKioskCartModel(
-      context,
-      _product,
-      instruction: _instruction,
-    );
+  /// Adds [draft] as a new line, or folds it into the line that already has
+  /// the same size, variations and add-ons. A folded line keeps one note: the
+  /// draft's if it has one, otherwise the line's existing note.
+  void _commitAdd(CartProvider cart, CartModel draft) {
     final int sameIndex = findSameConfigLineIndex(cart.cartList, draft);
     if (sameIndex < 0) {
       cart.addToCart(draft, -1, showMessage: false);
       return;
     }
     final CartModel existing = cart.cartList[sameIndex]!;
-    final String? note = _instruction ?? existing.instruction;
-    final CartModel merged = buildKioskCartModel(
-      context,
-      _product,
-      instruction: note,
-    ).copyWithQuantity((existing.quantity ?? 1) + (draft.quantity ?? 1));
+    final CartModel merged = draft.copyWithQuantity(
+      (existing.quantity ?? 1) + (draft.quantity ?? 1),
+      instruction: draft.instruction ?? existing.instruction,
+    );
     cart.addToCart(merged, sameIndex, showMessage: false);
   }
 
@@ -400,23 +419,52 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
     setState(() => _instruction = result.isEmpty ? null : result);
   }
 
-  /// "DUPLICATE" (add mode only): commits a copy of the current configuration
-  /// to the cart as a separate line. Reuses [CartProvider.addToCart]'s ADD path
-  /// (index -1), so an identical config merges into the existing line's
-  /// quantity exactly as adding the same item twice already does — no new cart
-  /// or order logic. The screen stays open so the operator can keep going.
+  /// "DUPLICATE" (add mode only) starts another item of this product without
+  /// touching the cart. The finished configuration moves into "Items that you
+  /// will add:", and only the variation and add-on picks are cleared for the
+  /// next item; its note stays. Nothing is written until ADD TO CART.
   void _duplicate(ProductProvider productProvider) {
-    if (!_validate(context, productProvider)) {
-      final ProductSectionRef? invalid =
-          firstInvalidProductSection(_product, productProvider);
-      if (invalid != null) {
-        final GlobalKey? key = _sectionKeys[invalid];
-        if (key != null) scrollProductSectionIntoView(key);
-      }
+    if (!_validateOrReveal(productProvider)) return;
+    final CartModel finished = _currentLine();
+    setState(() => _staged.add(finished));
+    productProvider.initProductVariationStatus(
+        ProductHelper.effectiveVariations(_product)?.length ?? 0);
+    productProvider.resetSelections(_product);
+
+    // Without the side pane nothing on screen shows the parked item.
+    final bool sideReceipt =
+        PosMetrics.maybeOf(context)?.showsSideReceipt ?? true;
+    if (!sideReceipt) {
+      showCustomSnackBarHelper(
+        'Item ${_staged.length} saved. Choose options for item '
+        '${_staged.length + 1}.',
+        isError: false,
+      );
+    }
+  }
+
+  /// Trash on a row of "Items that you will add:". [index] counts the staged
+  /// items first; the item being edited is last.
+  void _removePendingItem(int index, ProductProvider productProvider) {
+    if (index < _staged.length) {
+      setState(() => _staged.removeAt(index));
       return;
     }
-    _commitAdd(context.read<CartProvider>());
-    showCustomSnackBarHelper('Item duplicated', isError: false);
+    // The item being edited. Alone, removing it means leaving without adding.
+    if (_staged.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    // Otherwise the previous item comes back into the editor, so the screen
+    // always has exactly one item open.
+    final CartModel previous = _staged.removeLast();
+    productProvider.initData(_product, previous);
+    productProvider.initProductVariationStatus(
+        ProductHelper.effectiveVariations(_product)?.length ?? 0);
+    setState(() {
+      final String note = previous.instruction?.trim() ?? '';
+      _instruction = note.isEmpty ? null : note;
+    });
   }
 
   @override
@@ -435,12 +483,18 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
               _product,
               instruction: _instruction,
             );
-            final double lineTotal = kioskLineTotal(preview);
-            final String priceLabel =
-                PriceConverterHelper.convertPrice(lineTotal);
+            // Everything ADD TO CART will write: the staged items, then this one.
+            final List<CartModel> pending = [..._staged, preview];
+            final double total = pending.fold<double>(
+                0, (sum, line) => sum + kioskLineTotal(line));
+            final String priceLabel = PriceConverterHelper.convertPrice(total);
             final String addLabel =
                 (getTranslated('add_to_cart', context) ?? 'Add to Cart').trim();
-            final String ctaLabel = addLabel.isEmpty ? 'Add to Cart' : addLabel;
+            final String baseLabel =
+                addLabel.isEmpty ? 'Add to Cart' : addLabel;
+            final String ctaLabel = pending.length > 1
+                ? '$baseLabel (${pending.length})'
+                : baseLabel;
             // Same rules _addToCart validates with, so the dimmed state and
             // the tap-time guidance can never disagree.
             final bool ready =
@@ -480,15 +534,15 @@ class _PosProductCustomizeScreenState extends State<PosProductCustomizeScreen> {
                         SizedBox(
                           // The same receipt-width policy Home and Payment use
                           // — a continuous proportion of the window at/above the
-                          // desktop floor. The pane shows the item being built
+                          // desktop floor. The pane shows the items being built
                           // ("Items that you will add:") rather than the cart.
                           width: PosResponsive.receiptWidth(
                             MediaQuery.sizeOf(context).width,
                           ),
                           child: _PendingItemsPreview(
-                            line: preview,
-                            note: _instruction,
-                            onDelete: () => Navigator.of(context).pop(),
+                            lines: pending,
+                            onDelete: (index) =>
+                                _removePendingItem(index, productProvider),
                           ),
                         ),
                     ],
@@ -572,26 +626,24 @@ class _AddToCartFooter extends StatelessWidget {
   }
 }
 
-/// Right pane: a preview of the item currently being built, headed "Items that
-/// you will add:" (Figma 1915:14803). Replaces the full receipt on this screen.
+/// Right pane: the items this screen will add, headed "Items that you will
+/// add:" (Figma 1915:14803). Replaces the full receipt on this screen.
+///
+/// [lines] are the items staged with DUPLICATE followed by the item being
+/// edited, which is always last. With more than one item the one being edited
+/// is tinted so it is clear which row the left pane is changing.
 class _PendingItemsPreview extends StatelessWidget {
-  final CartModel line;
-  final String? note;
-  final VoidCallback onDelete;
+  final List<CartModel> lines;
+  final ValueChanged<int> onDelete;
 
   const _PendingItemsPreview({
-    required this.line,
-    required this.note,
+    required this.lines,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final String? unit = posReceiptUnit(line);
-    final String price = PosHomeSpec.formatPrice(kioskLineTotal(line));
-    final String priceLine = unit == null ? price : '$price · $unit';
-    final List<PosReceiptNote> notes = posReceiptNotes(line);
-
+    final int editing = lines.length - 1;
     return Container(
       decoration: const BoxDecoration(
         color: PosCustomizeSpec.panelBg,
@@ -617,66 +669,103 @@ class _PendingItemsPreview extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: PosCustomizeSpec.mutedBorder),
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: lines.length,
+              itemBuilder: (context, index) => _PendingItemRow(
+                number: index + 1,
+                line: lines[index],
+                highlighted: lines.length > 1 && index == editing,
+                onDelete: () => onDelete(index),
               ),
             ),
-            child: Row(
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingItemRow extends StatelessWidget {
+  final int number;
+  final CartModel line;
+  final bool highlighted;
+  final VoidCallback onDelete;
+
+  const _PendingItemRow({
+    required this.number,
+    required this.line,
+    required this.highlighted,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final String? unit = posReceiptUnit(line);
+    final String price = PosHomeSpec.formatPrice(kioskLineTotal(line));
+    final String priceLine = unit == null ? price : '$price · $unit';
+    final List<PosReceiptNote> notes = posReceiptNotes(line);
+    final String note = line.instruction?.trim() ?? '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: highlighted ? PosHomeSpec.inkAlpha(0.05) : null,
+        border: const Border(
+          bottom: BorderSide(color: PosCustomizeSpec.mutedBorder),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'ITEM 1',
-                        style: loewExtraBold.copyWith(
-                          fontSize: 14,
-                          color: PosHomeSpec.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        priceLine,
-                        style: swiss721Light.copyWith(
-                          fontSize: 12,
-                          color: PosHomeSpec.inkAlpha(0.6),
-                        ),
-                      ),
-                      for (final n in notes) ...[
-                        const SizedBox(height: 4),
-                        _PreviewNote(mark: n.included ? '+' : '-', text: n.label),
-                      ],
-                      if (note != null && note!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        _PreviewNote(mark: 'Note:', text: note!.trim()),
-                      ],
-                    ],
+                Text(
+                  'ITEM $number',
+                  style: loewExtraBold.copyWith(
+                    fontSize: 14,
+                    color: PosHomeSpec.ink,
                   ),
                 ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Material(
-                    color: Colors.transparent,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: onDelete,
-                      child: const Icon(
-                        Icons.delete_outline,
-                        size: 20,
-                        color: PosHomeSpec.ink,
-                      ),
-                    ),
+                const SizedBox(height: 4),
+                Text(
+                  priceLine,
+                  style: swiss721Medium.copyWith(
+                    fontSize: 12,
+                    color: TextTones.secondary,
                   ),
                 ),
+                for (final n in notes) ...[
+                  const SizedBox(height: 4),
+                  _PreviewNote(mark: n.included ? '+' : '-', text: n.label),
+                ],
+                if (note.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  _PreviewNote(mark: 'Note:', text: note),
+                ],
               ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 26,
+            height: 26,
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onDelete,
+                child: const Icon(
+                  Icons.delete_outline,
+                  size: 20,
+                  color: PosHomeSpec.ink,
+                ),
+              ),
             ),
           ),
         ],
@@ -700,16 +789,16 @@ class _PreviewNote extends StatelessWidget {
           mark,
           style: loewRegular.copyWith(
             fontSize: 12,
-            color: PosHomeSpec.inkAlpha(0.53),
+            color: TextTones.secondary,
           ),
         ),
         const SizedBox(width: 4),
         Expanded(
           child: Text(
             text,
-            style: swiss721Light.copyWith(
+            style: swiss721Medium.copyWith(
               fontSize: 11,
-              color: PosHomeSpec.inkAlpha(0.53),
+              color: TextTones.secondary,
             ),
           ),
         ),
@@ -1148,7 +1237,7 @@ class _OptionCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: swiss721Light.copyWith(
                   fontSize: PosCustomizeSpec.optionPriceSize,
-                  color: PosHomeSpec.inkAlpha(0.6),
+                  color: TextTones.secondary,
                 ),
               ),
             ],
@@ -1326,7 +1415,7 @@ class _AddOnCard extends StatelessWidget {
           textAlign: TextAlign.center,
           style: swiss721Light.copyWith(
             fontSize: PosCustomizeSpec.optionPriceSize,
-            color: PosHomeSpec.inkAlpha(0.6),
+            color: TextTones.secondary,
           ),
         ),
       ],

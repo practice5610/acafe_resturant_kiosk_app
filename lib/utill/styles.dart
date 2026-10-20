@@ -37,9 +37,10 @@ const robotoRegular = TextStyle(
   fontWeight: FontWeight.w400,
 );
 
-// Figma kiosk fonts. The real font files are present in assets/fonts/ and
-// registered in pubspec.yaml (Loew 400/500/700/800, Swiss721 300), so these
-// resolve to the actual typefaces — no fallback is in effect.
+// Figma kiosk fonts, registered in pubspec.yaml: Loew 400/500/700/800 and
+// "Swiss721" 400/500. The Swiss721 family is really Nunito Sans (see the note
+// in pubspec.yaml), so `swiss721Light` draws Nunito Sans Regular and
+// `swiss721Medium` Nunito Sans Medium.
 const loewRegular = TextStyle(
   fontFamily: 'Loew',
   fontSize: Dimensions.fontSizeDefault,
@@ -80,6 +81,15 @@ const swiss721Light = TextStyle(
   fontFamily: 'Swiss721',
   fontSize: Dimensions.fontSizeDefault,
   fontWeight: FontWeight.w300,
+);
+
+/// Small detail copy (add-on and variation picks under a line item): one step
+/// heavier than [swiss721Light], so 11–12 px strokes stay solid on 1× kiosk
+/// and desktop displays instead of anti-aliasing to grey.
+const swiss721Medium = TextStyle(
+  fontFamily: 'Swiss721',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w500,
 );
 
 const scotchDisplayLight = TextStyle(

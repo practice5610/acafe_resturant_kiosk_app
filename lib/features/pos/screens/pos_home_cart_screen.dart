@@ -27,6 +27,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_search_field.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/product_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -796,7 +797,7 @@ class _CompactReceiptBar extends StatelessWidget {
                         maxLines: 1,
                         style: loewRegular.copyWith(
                           fontSize: PosHomeSpec.headerNumberSize,
-                          color: PosHomeSpec.inkAlpha(0.6),
+                          color: TextTones.secondary,
                         ),
                       ),
                     ],

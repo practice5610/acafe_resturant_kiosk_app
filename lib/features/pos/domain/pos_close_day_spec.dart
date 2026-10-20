@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:flutter/material.dart';
 
 /// Close Day modal — Figma **1915:18618** (Step 1), **1915:18940** (Step 1 with
@@ -63,7 +64,7 @@ class PosCloseDaySpec {
   static const double titleSize = 20;
   static const double stepSize = 13;
   static const double headerGap = 8;
-  static const Color stepColor = Color(0x99241F20); // 60% ink
+  static const Color stepColor = TextTones.secondary; // Figma 60% ink
 
   // ── Close button ─────────────────────────────────────────────────────
   /// Figma draws a bare 14px x-circle here — too small to find or hit on a
@@ -86,7 +87,7 @@ class PosCloseDaySpec {
   static const Duration closeStateDuration = Duration(milliseconds: 120);
 
   /// Figma's `rgba(36,31,32,0.6)` for labels and hints.
-  static const Color inkMuted = Color(0x99241F20);
+  static const Color inkMuted = TextTones.secondary; // Figma ink @0.6
 
   // ── Body copy ────────────────────────────────────────────────────────
   static const double sectionTitleSize = 16;
@@ -100,7 +101,7 @@ class PosCloseDaySpec {
   static const double expectedLabelSize = 14;
   static const double expectedAmountSize = 18;
   static const double expectedHintSize = 12;
-  static const Color expectedHintColor = Color(0x66241F20); // 40% ink
+  static const Color expectedHintColor = TextTones.hint; // Figma 40% ink
   static const Color expectedBorder = Color(0xFFE1DBC4);
   static const double hairlineWidth = 1;
 
@@ -118,7 +119,7 @@ class PosCloseDaySpec {
   static const EdgeInsets inputPadding =
       EdgeInsets.symmetric(horizontal: 16, vertical: 12);
   static const double inputTextSize = 14;
-  static const Color inputPlaceholder = Color(0x66241F20); // 40% ink
+  static const Color inputPlaceholder = TextTones.hint; // Figma 40% ink
   static const Color inputBorderColor = Color(0xFFE1DBC4);
 
   /// Keyboard focus: the stroke goes ink, as the denomination quantity boxes
@@ -157,7 +158,7 @@ class PosCloseDaySpec {
 
   // ── Denomination table (expanded — Figma 1915:18961) ─────────────────
   static const double denomHeaderSize = 10;
-  static const Color denomHeaderColor = Color(0x66241F20); // 40% ink
+  static const Color denomHeaderColor = TextTones.hint; // Figma 40% ink
 
   /// Header row's own bottom padding, before the table's row gap.
   static const double denomHeaderGap = 4;
@@ -166,7 +167,7 @@ class PosCloseDaySpec {
   static const double denomRowRadius = 8;
 
   /// Quantity and subtotal of a denomination nobody counted.
-  static const Color denomZeroColor = Color(0x66241F20); // 40% ink
+  static const Color denomZeroColor = TextTones.hint; // Figma 40% ink
   static const double denomRowGap = 6;
   static const double denomQtyWidth = 80;
   static const double denomQtyHeight = 22;
@@ -205,7 +206,7 @@ class PosCloseDaySpec {
       EdgeInsets.symmetric(horizontal: 8, vertical: 4);
   static const double discrepancyBadgeSize = 13;
   static const Color discrepancyBadgeBg = Color(0xFFFDF0F0);
-  static const Color discrepancyRed = Color(0xFFEB5757);
+  static const Color discrepancyRed = TextTones.danger; // Figma #EB5757 (3.1:1)
   static const double discrepancyActionGap = 12;
   static const double discrepancyHintSize = 12;
   static const double discrepancySectionGap = 10;

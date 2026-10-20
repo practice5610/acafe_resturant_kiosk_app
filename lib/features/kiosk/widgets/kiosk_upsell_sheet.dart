@@ -17,6 +17,7 @@ import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
@@ -283,7 +284,7 @@ class _Empty extends StatelessWidget {
         textAlign: TextAlign.center,
         style: loewMedium.copyWith(
           fontSize: (32 * s).clamp(13.0, 32.0),
-          color: Colors.black54,
+          color: TextTones.secondary,
         ),
       ),
     );
@@ -589,7 +590,7 @@ class _UpsellCard extends StatelessWidget {
                     style: loewMedium.copyWith(
                       fontSize: priceSize,
                       height: 1.0,
-                      color: Colors.black54,
+                      color: TextTones.secondary,
                     ),
                   ),
                 ],

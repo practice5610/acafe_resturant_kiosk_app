@@ -4,6 +4,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dar
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,8 +18,10 @@ import 'package:go_router/go_router.dart';
 // ===========================================================================
 const double kKioskFormDesignWidth = KioskResponsive.formDesignWidth;
 const Color kCheckoutFieldBg = Color(0xFFFBF8EF);
-const Color kCheckoutErrorRed = Color(0xFFEF4444);
-const Color kCheckoutHintColor = Color(0xFFB9B5A6);
+/// Was `#EF4444` (3.8:1 on white): too light for an error message.
+const Color kCheckoutErrorRed = TextTones.danger;
+/// Was `#B9B5A6` (2:1): placeholders read as empty fields.
+const Color kCheckoutHintColor = TextTones.hint;
 const Color kCheckoutButtonText = Color(0xFFFAF9F5);
 
 bool _goRouterCanPop(BuildContext context) {
@@ -235,16 +238,13 @@ class KioskCheckoutScaffold extends StatelessWidget {
                                   color: Colors.black),
                             ),
                             SizedBox(height: 30 * s),
-                            Opacity(
-                              opacity: 0.75,
-                              child: Text(
-                                subtitle,
-                                textAlign: TextAlign.center,
-                                style: loewMedium.copyWith(
-                                    fontSize: subtitleFontSize * s,
-                                    height: 1.2,
-                                    color: Colors.black),
-                              ),
+                            Text(
+                              subtitle,
+                              textAlign: TextAlign.center,
+                              style: loewMedium.copyWith(
+                                  fontSize: subtitleFontSize * s,
+                                  height: 1.2,
+                                  color: TextTones.secondary),
                             ),
                             SizedBox(height: landscape ? 80 * s : 380 * s),
                             fieldBuilder(s),

@@ -18,6 +18,7 @@ import 'package:acafe_customer/features/pos/screens/pos_report_screen.dart';
 import 'package:acafe_customer/features/splash/domain/reposotories/splash_repo.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1673,8 +1674,10 @@ void main() {
   test('spec keeps the Figma palette', () {
     // Guards the two values most likely to be "tidied" into the general POS
     // tokens: the report frames use a warmer border and a translucent muted
-    // ink than PosUI's defaults.
+    // ink than PosUI's defaults. The muted ink is Figma's translucent ink
+    // raised to the shared secondary tone (Figma's 60 % was 4.3:1 on white).
     expect(PosReportSpec.cardBorder, const Color(0xFFE1DBC4));
-    expect(PosReportSpec.inkMuted, const Color(0x99241F20));
+    expect(PosReportSpec.inkMuted, TextTones.secondary);
+    expect(PosReportSpec.inkMuted.withValues(alpha: 1), PosHomeSpec.ink);
   });
 }

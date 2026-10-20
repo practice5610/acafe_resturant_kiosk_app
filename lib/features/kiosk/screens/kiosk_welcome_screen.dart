@@ -3,11 +3,15 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:acafe_customer/common/models/language_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_language_offering.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_welcome_language_bar.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
@@ -16,9 +20,14 @@ import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
 /// Kiosk intro screen — a full-screen background image with the black A/CAFÉ
-/// logo pinned to the top, a "TOUCH TO ORDER" prompt in the middle and an
-/// animated down-arrow at the bottom (per the Figma "Overlay-Content" design).
-/// Tapping anywhere on the screen goes to the menu.
+/// logo pinned to the top, a "TOUCH TO ORDER" prompt in the middle and the
+/// language buttons at the bottom. Tapping anywhere else goes to the menu.
+///
+/// The languages are the ones Settings → Hardware offers on this device;
+/// English is chosen until a guest picks another (see
+/// [KioskLanguageOffering.selectionFor]). A switch applies at once and starts
+/// loading that language's menu in the background, so the tap to order stays
+/// fast.
 ///
 /// The artwork is never cropped and never zoomed: it is drawn whole, and the
 /// surplus left by a screen of a different shape is filled by continuing the
@@ -52,6 +61,10 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   bool _introReadySync = false;
 
   bool _orderLoading = false;
+
+  /// Settings → Hardware's offering, resolved once so the bar is stable.
+  late final List<LanguageModel> _languages =
+      KioskLanguageOffering.forThisDevice();
 
   @override
   void initState() {
@@ -100,22 +113,57 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     stream.addListener(_introListener!);
   }
 
-  void _startMenuPrefetch() {
+  Future<void> _startMenuPrefetch() async {
     if (!mounted) return;
-    final locale = Provider.of<LocalizationProvider>(context, listen: false)
-        .locale
-        .languageCode;
-    final categories = Provider.of<CategoryProvider>(context, listen: false);
-    final splash = Provider.of<SplashProvider>(context, listen: false);
+    final String locale = await _settleOnOfferedLanguage();
+    if (!mounted) return;
     final deals = Provider.of<KioskDealProvider>(context, listen: false);
 
     // Disk cache if present; one network prefetch only when the cache is empty.
     deals.loadCached();
     deals.fetchDeals();
+    _warmMenu(locale);
+  }
+
+  /// A kiosk left in a language Settings → Hardware no longer offers moves to
+  /// English (or the first offered language) before anything is loaded in it.
+  Future<String> _settleOnOfferedLanguage() async {
+    final localization =
+        Provider.of<LocalizationProvider>(context, listen: false);
+    final String current = localization.locale.languageCode;
+    final LanguageModel pick =
+        KioskLanguageOffering.selectionFor(_languages, current);
+    if (pick.languageCode != current) {
+      await localization.setKioskLanguage(
+        Locale(pick.languageCode!, pick.countryCode),
+      );
+    }
+    return pick.languageCode!;
+  }
+
+  void _warmMenu(String locale) {
+    final categories = Provider.of<CategoryProvider>(context, listen: false);
+    final splash = Provider.of<SplashProvider>(context, listen: false);
     categories.warmKioskMenuFromDisk(locale).then((_) {
       if (!mounted) return;
       KioskMenuImageHelper.precacheAroundSelected(context, categories, splash);
     });
+  }
+
+  Future<void> _selectLanguage(LanguageModel language) async {
+    final localization =
+        Provider.of<LocalizationProvider>(context, listen: false);
+    if (_orderLoading ||
+        language.languageCode == localization.locale.languageCode) {
+      return;
+    }
+    // The screen re-renders in the new language straight away; the menu
+    // follows in the background (a later switch supersedes this load).
+    await localization.setKioskLanguage(
+      Locale(language.languageCode!, language.countryCode),
+    );
+    if (!mounted) return;
+    _warmMenu(language.languageCode!);
   }
 
   Future<void> _onContinue() async {
@@ -167,14 +215,18 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
         KioskMetrics.maybeOf(context)?.window ?? MediaQuery.sizeOf(context);
 
     // Size of the artwork as actually drawn (contain, never cropped). Type and
-    // the arrow scale off it, so the composition keeps the artboard's
-    // proportions on a phone, a laptop window and the kiosk panel alike.
+    // the language buttons scale off it, so the composition keeps the
+    // artboard's proportions on a phone, a laptop window and the kiosk panel
+    // alike.
     final double artWidth = math.min(size.width, size.height * _introAspect);
-    final double artHeight = artWidth / _introAspect;
 
     final double logoWidth = (artWidth * 0.26).clamp(120.0, 980.0);
     final double instructionFont = (artWidth * 0.054).clamp(18.0, 220.0);
-    final double arrowSize = (artHeight * 0.11).clamp(56.0, 320.0);
+    // Never under the 48px touch target, even on a small window.
+    final double pillHeight = (artWidth * 0.058).clamp(48.0, 168.0);
+    final String prompt =
+        kioskTranslate(context, 'touch_to_order', 'Touch to order')
+            .toUpperCase();
 
     return Scaffold(
       backgroundColor: _introEdgeFallback,
@@ -187,8 +239,8 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
             // The artwork, whole, filling the screen edge to edge.
             _buildBackground(),
 
-            // Gentle top + bottom dark scrim so the logo, prompt and arrow stay
-            // readable over the (potentially bright) image.
+            // Gentle top + bottom dark scrim so the logo, prompt and language
+            // buttons stay readable over the (potentially bright) image.
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -222,49 +274,77 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
                       ),
                     ),
                     const Spacer(),
-                    // Center prompt.
-                    Text(
-                      'TOUCH TO ORDER',
-                      textAlign: TextAlign.center,
-                      style: loewExtraBold.copyWith(
-                        color: Colors.black,
-                        fontSize: instructionFont,
-                        height: 1.1,
+                    // Center prompt, in the chosen language. Cross-fades on a
+                    // switch rather than snapping.
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: Text(
+                        prompt,
+                        key: ValueKey<String>(prompt),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        style: loewExtraBold.copyWith(
+                          color: Colors.black,
+                          fontSize: instructionFont,
+                          height: 1.1,
+                        ),
                       ),
                     ),
                     const Spacer(),
-                    // Animated down-arrow (or a spinner while the menu is being
-                    // made ready after a tap).
-                    SizedBox(
-                      height: arrowSize,
-                      child: Center(
-                        child: _orderLoading
-                            ? const SizedBox(
-                                width: 40,
-                                height: 40,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 3,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.black),
-                                ),
-                              )
-                            : Image.asset(
-                                Images.kioskDownArrow,
-                                width: arrowSize,
-                                height: arrowSize,
-                                fit: BoxFit.contain,
-                                color: Colors.black,
-                                colorBlendMode: BlendMode.srcIn,
-                              ),
-                      ),
-                    ),
-                    SizedBox(height: size.height * 0.03),
+                    _buildLanguageSlot(pillHeight),
+                    SizedBox(height: size.height * 0.04),
                   ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// The language buttons, or a spinner in their place while the menu is
+  /// being made ready after a tap. The buttons keep their space while hidden
+  /// so the prompt above never jumps, and are locked: a switch now would open
+  /// the menu in the language being left.
+  Widget _buildLanguageSlot(double pillHeight) {
+    final String current =
+        Provider.of<LocalizationProvider>(context).locale.languageCode;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: pillHeight),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedOpacity(
+            opacity: _orderLoading ? 0 : 1,
+            duration: const Duration(milliseconds: 200),
+            child: IgnorePointer(
+              ignoring: _orderLoading,
+              child: ExcludeSemantics(
+                excluding: _orderLoading,
+                child: KioskWelcomeLanguageBar(
+                  languages: _languages,
+                  current: current,
+                  pillHeight: pillHeight,
+                  enabled: !_orderLoading,
+                  onSelect: _selectLanguage,
+                ),
+              ),
+            ),
+          ),
+          if (_orderLoading)
+            const SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+              ),
+            ),
+        ],
       ),
     );
   }

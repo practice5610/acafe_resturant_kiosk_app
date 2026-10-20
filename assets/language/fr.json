@@ -863,6 +863,7 @@
   "clear": "Effacer",
   "select_language": "Choisir la langue",
   "choose_your_preferred_language": "Choisissez votre langue préférée",
+  "touch_to_order": "Touchez pour commander",
   "kiosk_device_login": "Connexion de l'appareil",
   "kiosk_login_hint": "Connectez-vous une fois pour associer cette borne à son établissement.",
   "kiosk_notification_hint": "Activez les notifications pour que cette borne reçoive les alertes de commande.",

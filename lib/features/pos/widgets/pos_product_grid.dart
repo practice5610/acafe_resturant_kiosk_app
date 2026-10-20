@@ -3,6 +3,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.
 import 'package:acafe_customer/features/pos/domain/pos_home_layout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_product_tile.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -57,7 +58,7 @@ class _PosProductGridState extends State<PosProductGrid> {
           'No products',
           style: loewMedium.copyWith(
             fontSize: 16,
-            color: PosHomeSpec.inkAlpha(0.4),
+            color: TextTones.hint,
           ),
         ),
       );

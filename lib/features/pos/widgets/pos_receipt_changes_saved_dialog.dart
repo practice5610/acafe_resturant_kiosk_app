@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 
 // ─── Design tokens (State 14) ─────────────────────────────────────────────────
@@ -186,7 +187,7 @@ class _SuccessHeader extends StatelessWidget {
                   'The receipt has been updated successfully.',
                   style: swiss721Light.copyWith(
                     fontSize: 12,
-                    color: _kInk.withValues(alpha: 0.6),
+                    color: TextTones.secondary,
                     height: 16 / 12,
                   ),
                 ),
@@ -253,7 +254,7 @@ class _SummaryLabel extends StatelessWidget {
       'RECEIPT SUMMARY',
       style: loewBold.copyWith(
         fontSize: 11,
-        color: _kInk.withValues(alpha: 0.4),
+        color: TextTones.hint,
         letterSpacing: 0.8,
       ),
     );
@@ -275,7 +276,7 @@ class _SummaryRow extends StatelessWidget {
           label,
           style: swiss721Light.copyWith(
             fontSize: 13,
-            color: _kInk.withValues(alpha: 0.6),
+            color: TextTones.secondary,
             height: 18 / 13,
           ),
         ),

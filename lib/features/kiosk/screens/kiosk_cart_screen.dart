@@ -16,13 +16,14 @@ import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
 const Color _kCardBg = Color(0xFFFBF8EF);
 const Color _kCheckoutText = Color(0xFFFAF9F5);
 const Color _kNoteDivider = Color(0xFFDED9C7);
-const Color _kNoteHintText = Color(0xFF8A8275);
+const Color _kNoteHintText = TextTones.hint; // was #8A8275 (3.4:1)
 
 /// Artboard px a single breakdown line occupies: the 44px row plus the sliver
 /// of air `spaceBetween` needs to keep four of them from touching.
@@ -229,7 +230,7 @@ class _CartBody extends StatelessWidget {
                               getTranslated('empty_cart', context) ??
                                   'Empty cart',
                               style: loewRegular.copyWith(
-                                  fontSize: 64 * s, color: Colors.black54),
+                                  fontSize: 64 * s, color: TextTones.secondary),
                             ),
                           ),
                         )

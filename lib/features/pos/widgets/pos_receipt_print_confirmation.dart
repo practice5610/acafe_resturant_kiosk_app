@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -7,7 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 const _bg = Color(0xFFFBF8EF);
 const _border = Color(0xFFF0EBD8);
 const _divider = Color(0xFFF0EBD8);
-const _labelColor = Color(0xFF78706E);
+const _labelColor = TextTones.secondary; // Figma #78706E (4.3:1)
 
 const _svgPrinterCheck =
     '<svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">'
@@ -133,7 +134,7 @@ class _SummarySection extends StatelessWidget {
           'RECEIPT DETAILS',
           style: loewBold.copyWith(
             fontSize: 11,
-            color: PosHomeSpec.inkAlpha(0.45),
+            color: TextTones.hint,
             letterSpacing: 0.5,
           ),
         ),

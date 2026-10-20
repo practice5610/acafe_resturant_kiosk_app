@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 
 /// Manager-screen chrome neutrals. Warm, not grey -- a neutral grey hairline
 /// reads as stock Material against the cream page; these are tinted out of the
 /// same family as the page background so the controls belong to the kiosk.
 const Color kKioskHairline = Color(0xFFE4DCC6);
-const Color kKioskMutedFg = Color(0xFF837B69);
+/// Search glyph and placeholder. Was `#837B69` (3.7:1).
+const Color kKioskMutedFg = TextTones.hint;
 const Color kKioskSubtleFill = Color(0xFFF2ECDC);
 
 /// Hairline/outline widths have to be clamped: at kiosk scales `1.5 * s` lands

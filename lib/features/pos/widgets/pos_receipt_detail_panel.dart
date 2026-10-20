@@ -19,6 +19,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_receipt_confirm_changes_
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_reopen_dialog.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_line.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_panel.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -426,7 +427,7 @@ class _Placeholder extends StatelessWidget {
             textAlign: TextAlign.center,
             style: swiss721Light.copyWith(
               fontSize: PosReceiptsSpec.emptySublineSize,
-              color: PosHomeSpec.inkAlpha(0.53),
+              color: TextTones.secondary,
             ),
           ),
         ],
@@ -616,7 +617,7 @@ double _computeEditDelta(PosReceiptDetail receipt, List<CartModel> editLines) {
   return delta;
 }
 
-// ─── Amber used for REOPENED badges and "To charge" totals row ────────────────
+// ─── Amber for REOPENED badges; the "To charge" row's type is TextTones.warning
 const _kReopenedAmber = Color(0xFFD98C1A);
 const _kWarningBannerBg = Color(0xFFFFF7E5);
 const _kWarningBannerBorder = Color(0xFFF2C74D);
@@ -762,7 +763,7 @@ class _EditModeHeader extends StatelessWidget {
                       '#$receiptNumber · Reopened',
                       style: swiss721Light.copyWith(
                         fontSize: PosHomeSpec.headerNumberSize,
-                        color: PosHomeSpec.ink.withValues(alpha: 0.53),
+                        color: TextTones.secondary,
                         height: PosHomeSpec.headerNumberHeight,
                       ),
                     ),
@@ -902,14 +903,14 @@ class _EditModeTotals extends StatelessWidget {
                       : 'To refund ($methodLabel)',
                   style: loewBold.copyWith(
                     fontSize: 13,
-                    color: _kReopenedAmber,
+                    color: TextTones.warning,
                   ),
                 ),
                 Text(
                   '${delta > 0 ? '+' : '-'} ${PosHomeSpec.formatPrice(delta.abs())}',
                   style: loewExtraBold.copyWith(
                     fontSize: 13,
-                    color: _kReopenedAmber,
+                    color: TextTones.warning,
                   ),
                 ),
               ],

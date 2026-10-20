@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_close_day_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:flutter/material.dart';
 
 /// Figma **1915:18091** (redesign of 1641:5518) — Report Overview.
@@ -31,7 +32,7 @@ class PosReportSpec {
   static const Color ink = Color(0xFF241F20);
 
   /// Figma writes muted text as `rgba(36,31,32,0.6)` rather than a named grey.
-  static const Color inkMuted = Color(0x99241F20);
+  static const Color inkMuted = TextTones.secondary; // Figma ink @0.6
 
   /// Unhighlighted hourly bar / neutral chart fill.
   static const Color barIdle = Color(0xFFE1DBC4);

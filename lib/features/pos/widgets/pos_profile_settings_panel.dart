@@ -7,6 +7,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_settings_text_field.dart
 import 'package:acafe_customer/features/pos/widgets/pos_top_nav_bar.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -343,7 +344,7 @@ class _AvatarBlock extends StatelessWidget {
                 role,
                 style: loewBold.copyWith(
                   fontSize: 11,
-                  color: const Color(0xFF737373),
+                  color: TextTones.secondary,
                 ),
               ),
               const SizedBox(height: 6),

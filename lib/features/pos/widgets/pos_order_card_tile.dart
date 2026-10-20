@@ -9,6 +9,7 @@ import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_item_status_widgets.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_more_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_order_source_icon.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -390,8 +391,8 @@ class PosOrderCardTile extends StatelessWidget {
           style: loewMedium.copyWith(
             fontSize: PosOrdersSpec.progressLabelSize,
             color: progress.allReady
-                ? PosOrderDetailSpec.badgeFinished
-                : PosHomeSpec.inkAlpha(0.5),
+                ? TextTones.success
+                : TextTones.secondary,
           ),
         ),
         const SizedBox(height: PosOrdersSpec.progressGap),

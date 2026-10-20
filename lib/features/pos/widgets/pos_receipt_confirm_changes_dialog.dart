@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 
 // ─── Design tokens (State 13, Figma 1915:21106) ────────────────────────────
@@ -176,7 +177,7 @@ class _ModalHeader extends StatelessWidget {
                   '${PosHomeSpec.formatPrice(newTotal)}',
                   style: loewBold.copyWith(
                     fontSize: 12,
-                    color: _kInk.withValues(alpha: 0.6),
+                    color: TextTones.secondary,
                     height: 16 / 12,
                   ),
                 ),

@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:flutter/material.dart';
 
 /// Design tokens for the POS payment screen, read from the Figma frame
@@ -82,7 +83,7 @@ class PosPaymentSpec {
   static const double sectionLabelSize = 14;
   static const double sectionLabelHeight = 17 / 14;
   static const double sectionLabelTracking = 1;
-  static const double sectionLabelOpacity = 0.4;
+  static const double sectionLabelOpacity = TextTones.hintOpacity; // Figma 0.4
 
   // ── method-selectors (1641:2841) ─────────────────────────────────────
   static const double methodGap = 12;
@@ -113,7 +114,8 @@ class PosPaymentSpec {
   static const double cashFieldLabelGap = 8;
   static const double cashFieldLabelSize = 13;
   static const double cashFieldLabelHeight = 16 / 13;
-  static const double cashFieldLabelOpacity = 0.53;
+  static const double cashFieldLabelOpacity =
+      TextTones.secondaryOpacity; // Figma 0.53
   static const double cashFieldPadding = 12;
   static const double cashFieldRadius = 12;
   static const double cashFieldBorder = 2;
@@ -186,8 +188,8 @@ class PosPaymentSpec {
 
   static const double waitDotSize = 10;
   static const double waitDotGap = 6; // 42 wide total: 3x10 + 2x6
-  /// The dot green is its own value in the file — close to, but not,
-  /// `PosHomeSpec.discountGreen` (#2A8456). Kept as drawn.
+  /// The dot green is its own value in the file — close to, but not, Figma's
+  /// discount green (#2A8456). Kept as drawn.
   static const Color waitDotColor = Color(0xFF496052);
   static const List<double> waitDotOpacities = [1.0, 0.6, 0.3];
 
@@ -202,7 +204,8 @@ class PosPaymentSpec {
   static const double waitAmountLabelSize = 13;
   static const double waitAmountLabelHeight = 16 / 13;
   static const double waitAmountLabelTracking = 1;
-  static const double waitAmountLabelOpacity = 0.53;
+  static const double waitAmountLabelOpacity =
+      TextTones.secondaryOpacity; // Figma 0.53
   static const double waitAmountSize = 36;
   static const double waitAmountHeight = 43 / 36;
 
@@ -275,11 +278,13 @@ class PosPaymentSpec {
   static const double v2SummaryAmountGap = 10;
   static const double v2SummaryCaptionSize = 14; // Loew Bold, tracking 1
   static const double v2SummaryCaptionTracking = 1;
-  static const double v2SummaryCaptionOpacity = 0.4;
-  static const double v2SummarySubtitleSize = 12; // Swiss, ink @0.33
-  static const double v2SummarySubtitleOpacity = 0.33;
+  static const double v2SummaryCaptionOpacity =
+      TextTones.hintOpacity; // Figma 0.4
+  static const double v2SummarySubtitleSize = 12; // Swiss
+  static const double v2SummarySubtitleOpacity =
+      TextTones.hintOpacity; // Figma 0.33
   static const double v2SummaryAmountSize = 48; // Loew ExtraBold
-  static const double v2SummaryDueLabelSize = 13; // Swiss, ink @0.4
+  static const double v2SummaryDueLabelSize = 13; // Swiss, hint tone (Figma ink @0.4)
   // `ontvangen-section` (1915:9484): px-20 py-14.
   static const double v2ReceivedPaddingV = 14;
   static const double v2ReceivedTitleGap = 8; // icon → "Amount received"
@@ -310,7 +315,7 @@ class PosPaymentSpec {
   // off-palette template leftovers — per sign-off `#1A1A2E` maps to
   // [PosHomeSpec.ink] and `#8A94A6` to [v2MutedInkOpacity] of the ink. They
   // are deliberately NOT added as constants.
-  static const double v2MutedInkOpacity = 0.4;
+  static const double v2MutedInkOpacity = TextTones.hintOpacity; // Figma 0.4
 
   /// Figma's `leading-normal` line box for [fontSize], as a [TextStyle.height]
   /// multiplier: `round(1.2 × size) / size` (12 → 14, 13 → 16, 48 → 58). Loew's
@@ -364,10 +369,11 @@ class PosPaymentSpec {
   // ── Payment-method column (node 1915:9420) ───────────────────────────
   static const double v2MethodCardPadding = 24;
   static const double v2MethodCardGap = 20; // header -> selectors
-  /// "PAYMENT METHOD" — Loew Bold 14, ink @0.4, 1px tracking.
+  /// "PAYMENT METHOD" — Loew Bold 14, hint tone (Figma ink @0.4), 1px
+  /// tracking.
   static const double v2MethodHeaderSize = 14;
   static const double v2MethodHeaderTracking = 1;
-  static const double v2MethodHeaderOpacity = 0.4;
+  static const double v2MethodHeaderOpacity = TextTones.hintOpacity;
 
   /// Gap between the PRIMARY group and the OTHER group (node 1915:9423).
   static const double v2MethodGroupsGap = 12;
@@ -376,10 +382,11 @@ class PosPaymentSpec {
   static const double v2MethodGroupGap = 6;
   /// Row -> row inside the OTHER group (node 1915:9446).
   static const double v2OtherRowGap = 8;
-  /// Group label ("PRIMARY" / "OTHER") — Loew Bold 10, ink @0.33, 0.5px track.
+  /// Group label ("PRIMARY" / "OTHER") — Loew Bold 10, hint tone (Figma
+  /// ink @0.33), 0.5px track.
   static const double v2GroupLabelSize = 10;
   static const double v2GroupLabelTracking = 0.5;
-  static const double v2GroupLabelOpacity = 0.33;
+  static const double v2GroupLabelOpacity = TextTones.hintOpacity;
 
   // PRIMARY cards reuse the existing method-card tokens (methodHeight 95,
   // methodRadius 12, methodIconBox 32, methodRadioSize 24, methodLabelSize 15)
@@ -433,7 +440,7 @@ class PosPaymentSpec {
   static const double v2OptionSelectedBorderWidth = 1.5;
   static const double v2OptionLabelSize = 15; // Loew Bold
   static const double v2OptionSubtitleSize = 11; // Swiss
-  static const Color v2OptionSubtitleInk = Color(0xFF78706E);
+  static const Color v2OptionSubtitleInk = TextTones.secondary; // Figma #78706E
   static const double v2OptionTextGap = 3;
   static const double v2OptionGap = 12; // text column → radio
   static const double v2OptionRadioSize = 24;
@@ -441,7 +448,7 @@ class PosPaymentSpec {
   static const Color v2OptionRadioDotColor = Color(0xFFF0EBD9);
   /// Section captions in the split / refund panes (node 1915:11089).
   static const double v2SectionLabelSize = 11; // Loew Bold
-  static const Color v2SectionLabelInk = Color(0xFF78706E);
+  static const Color v2SectionLabelInk = TextTones.secondary; // Figma #78706E
   static const double v2OtherRowPaddingH = 12;
   static const double v2OtherRowPaddingV = 10;
   static const double v2OtherRowInnerGap = 6; // top row -> label
@@ -453,7 +460,7 @@ class PosPaymentSpec {
   /// The ring the 18px slot draws (`inset -16.67%` → 24px), node 1915:9452.
   static const double v2OtherRadioDrawn = 24;
   static const double v2OtherLabelSize = 12;
-  static const double v2OtherLabelOpacity = 0.47;
+  static const double v2OtherLabelOpacity = TextTones.hintOpacity; // Figma 0.47
   /// Idle icon well: `rgba(36,31,32,0.1)` — same as [methodIdleIconBg].
 
   // ── Cash tender in the summary pane (node 1915:10234 / 10244) ─────────
@@ -528,9 +535,9 @@ class PosPaymentSpec {
   static const double paneMargin = 32;
 
   // ── Overlay status cards (declined / error / success) ─────────────────
-  /// Error-card subtitle — Swiss 721 Light 13, `#78706E` (nodes 1915:11294 /
-  /// 11313 / 11332). A genuine new value, drawn as-is.
-  static const Color v2ErrorSubtitle = Color(0xFF78706E);
+  /// Error-card subtitle — Swiss 721 Light 13 (nodes 1915:11294 / 11313 /
+  /// 11332). Figma's `#78706E` is 4.3:1; drawn in the secondary tone.
+  static const Color v2ErrorSubtitle = TextTones.secondary;
   static const double v2ErrorSubtitleSize = 13;
   /// Heading -> subtitle gap inside `message-group` (node 1915:11292).
   static const double v2StatusSubtitleGap = 6;
@@ -567,12 +574,13 @@ class PosPaymentSpec {
 
   // ── Split-by-payment panel tokens (Family 2, node 1915:10034) ─────────
   // The split-entry right pane uses a warmer-toned variant of the summary card.
-  /// `#77716E` — muted warm ink on SPLIT PAYMENT header, remaining label, and
-  /// PAYMENT N section label. Drawn as its own flat value, not an ink opacity.
-  static const Color v2SplitLabelInk = Color(0xFF77716E);
+  /// Muted ink on SPLIT PAYMENT header, remaining label, and PAYMENT N section
+  /// label. Figma's flat `#77716E` is 4.3:1; drawn in the secondary tone.
+  static const Color v2SplitLabelInk = TextTones.secondary;
 
-  /// `#A7A19A` — lighter warm subtitle (e.g. "Overview for split payment").
-  static const Color v2SplitSubtitleInk = Color(0xFFA7A19A);
+  /// Lighter subtitle (e.g. "Overview for split payment"). Figma's `#A7A19A`
+  /// is 2.3:1; drawn in the hint tone.
+  static const Color v2SplitSubtitleInk = TextTones.hint;
 
   /// "SPLIT PAYMENT" — Loew Bold 13, 1px tracking.
   static const double v2SplitHeaderSize = 13;

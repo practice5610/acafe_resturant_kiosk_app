@@ -7,6 +7,7 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
@@ -153,7 +154,7 @@ class _ManagerTile extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: loewRegular.copyWith(
-                      fontSize: 36 * s, color: Colors.black54)),
+                      fontSize: 36 * s, color: TextTones.secondary)),
             ],
           ),
         ),

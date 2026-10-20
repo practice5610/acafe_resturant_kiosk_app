@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -155,7 +156,7 @@ class _AddNoteModalState extends State<_AddNoteModal> {
                         'Add a note for this item',
                         style: loewBold.copyWith(
                           fontSize: 12,
-                          color: PosHomeSpec.inkAlpha(0.6),
+                          color: TextTones.secondary,
                         ),
                       ),
                     ],
@@ -190,7 +191,7 @@ class _AddNoteModalState extends State<_AddNoteModal> {
               'NOTE',
               style: loewBold.copyWith(
                 fontSize: 11,
-                color: PosHomeSpec.inkAlpha(0.6),
+                color: TextTones.secondary,
               ),
             ),
             const SizedBox(height: 4),
@@ -223,7 +224,7 @@ class _AddNoteModalState extends State<_AddNoteModal> {
                   hintText: 'Less ice, no nuts',
                   hintStyle: loewRegular.copyWith(
                     fontSize: 14,
-                    color: PosHomeSpec.inkAlpha(0.4),
+                    color: TextTones.hint,
                   ),
                 ),
               ),

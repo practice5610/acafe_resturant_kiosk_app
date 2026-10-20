@@ -2,6 +2,7 @@ import 'package:acafe_customer/features/pos/domain/pos_item_prep_status.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_station_status.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -152,9 +153,8 @@ class PosItemActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool live = enabled && !busy;
-    final Color accent = action.subtle
-        ? PosOrderDetailSpec.inkAlpha(0.55)
-        : action.target.color;
+    final Color accent =
+        action.subtle ? TextTones.secondary : action.target.color;
 
     final Widget label = Row(
       mainAxisSize: MainAxisSize.min,
@@ -285,9 +285,7 @@ class PosItemProgressLabel extends StatelessWidget {
       progress.label,
       style: loewMedium.copyWith(
         fontSize: PosOrderDetailSpec.progressLabelSize,
-        color: progress.allReady
-            ? PosOrderDetailSpec.badgeFinished
-            : PosOrderDetailSpec.inkAlpha(0.55),
+        color: progress.allReady ? TextTones.success : TextTones.secondary,
       ),
     );
   }

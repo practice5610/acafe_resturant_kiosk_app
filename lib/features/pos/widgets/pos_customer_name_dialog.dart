@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -109,7 +110,7 @@ class _CustomerNameModalState extends State<_CustomerNameModal> {
                         'Add a name so we can call it out when it’s ready',
                         style: loewBold.copyWith(
                           fontSize: 12,
-                          color: PosHomeSpec.inkAlpha(0.6),
+                          color: TextTones.secondary,
                         ),
                       ),
                     ],
@@ -144,7 +145,7 @@ class _CustomerNameModalState extends State<_CustomerNameModal> {
               'CUSTOMER NAME',
               style: loewBold.copyWith(
                 fontSize: 11,
-                color: PosHomeSpec.inkAlpha(0.6),
+                color: TextTones.secondary,
               ),
             ),
             const SizedBox(height: 4),
@@ -174,7 +175,7 @@ class _CustomerNameModalState extends State<_CustomerNameModal> {
                   hintText: 'e.g. Dylan',
                   hintStyle: loewRegular.copyWith(
                     fontSize: 14,
-                    color: PosHomeSpec.inkAlpha(0.4),
+                    color: TextTones.hint,
                   ),
                 ),
               ),

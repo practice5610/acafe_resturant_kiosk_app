@@ -4,6 +4,7 @@ import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_send_repo.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -14,10 +15,10 @@ const _modalBorder = Color(0xFFF0EBD8);
 const _divider     = Color(0xFFF0EBD8);
 const _tileActive  = Color(0xFF241F20);
 const _iconBgIdle  = Color(0x1A241F20); // ink @ 10 %
-const _hintColor   = Color(0xFF78706E);
+const _hintColor   = TextTones.secondary; // Figma #78706E (4.3:1)
 const _ctaBg       = Color(0xFF241F20);
 const _ctaLabel    = Color(0xFFF7F1DE);
-const _subtitleOp  = 0.60;
+const _subtitleOp  = TextTones.secondaryOpacity; // Figma 0.60
 
 // ── Figma vectors, inlined (nodes 1915:13053 / 13063 / 13046) ─────────────
 // Drawn white on the ink well of the selected tile and ink on the idle one.
@@ -411,7 +412,7 @@ class _EmailFieldState extends State<_EmailField> {
           hintText: 'customer@example.com',
           hintStyle: loewRegular.copyWith(
             fontSize: 14,
-            color: PosHomeSpec.inkAlpha(0.33),
+            color: TextTones.hint,
           ),
           // `Input Field` (1915:13071): 56 tall, text centred, px-14.
           isDense: true,

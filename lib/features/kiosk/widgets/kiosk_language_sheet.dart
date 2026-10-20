@@ -6,6 +6,7 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_language_offering.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
@@ -50,7 +51,7 @@ const Color _kSheetText = Color(0xFF2B2B2B);
 
 /// Unselected languages sit back rather than compete: muted label, flatter
 /// surface, and the flag dimmed.
-const Color _kSheetMuted = Color(0xFF8A8275);
+const Color _kSheetMuted = TextTones.secondary; // was #8A8275 (3.4:1)
 
 /// `getTranslated` echoes the key back when the lookup fails — its `translate`
 /// throws on a missing key and the catch leaves the key in place — so a plain
@@ -271,17 +272,14 @@ class KioskLanguageCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: _kCardGap * s),
-          Opacity(
-            opacity: 0.7,
-            child: Text(
-              _t(context, 'choose_your_preferred_language',
-                  'Choose your preferred language'),
-              textAlign: TextAlign.center,
-              style: loewRegular.copyWith(
-                fontSize: _kSubtitleSize * s,
-                height: 1.3,
-                color: _kSheetText,
-              ),
+          Text(
+            _t(context, 'choose_your_preferred_language',
+                'Choose your preferred language'),
+            textAlign: TextAlign.center,
+            style: loewRegular.copyWith(
+              fontSize: _kSubtitleSize * s,
+              height: 1.3,
+              color: TextTones.secondary,
             ),
           ),
           SizedBox(height: _kCardGap * s),

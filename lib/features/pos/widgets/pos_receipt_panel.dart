@@ -2,6 +2,7 @@ import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_customer_name_dialog.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -158,7 +159,7 @@ class PosReceiptHeader extends StatelessWidget {
                         '#${orderNumber ?? PosHomeSpec.placeholderOrderNumber}',
                         style: swiss721Light.copyWith(
                           fontSize: PosHomeSpec.headerNumberSize,
-                          color: PosHomeSpec.inkAlpha(0.53),
+                          color: TextTones.secondary,
                           height: PosHomeSpec.headerNumberHeight,
                         ),
                       ),
@@ -349,7 +350,7 @@ class _NameTrigger extends StatelessWidget {
             'Customer name',
             style: loewRegular.copyWith(
               fontSize: PosHomeSpec.fieldLabelSize,
-              color: PosHomeSpec.inkAlpha(0.53),
+              color: TextTones.secondary,
               height: PosHomeSpec.fieldLabelHeight,
             ),
           ),
@@ -380,7 +381,7 @@ class _NameTrigger extends StatelessWidget {
                 style: loewMedium.copyWith(
                   fontSize: PosHomeSpec.fieldTextSize,
                   color:
-                      hasName ? PosHomeSpec.ink : PosHomeSpec.inkAlpha(0.4),
+                      hasName ? PosHomeSpec.ink : TextTones.hint,
                   height: PosHomeSpec.fieldTextHeight,
                 ),
               ),
@@ -431,7 +432,7 @@ class PosReceiptEmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: swiss721Light.copyWith(
               fontSize: PosHomeSpec.emptySublineSize,
-              color: PosHomeSpec.inkAlpha(0.53),
+              color: TextTones.secondary,
               height: PosHomeSpec.emptySublineHeight,
             ),
           ),
@@ -602,7 +603,7 @@ class _SummaryRow extends StatelessWidget {
           label,
           style: swiss721Light.copyWith(
             fontSize: density.text(PosHomeSpec.summaryRowSize),
-            color: color ?? PosHomeSpec.inkAlpha(0.6),
+            color: color ?? TextTones.secondary,
             height: PosHomeSpec.summaryRowHeight,
           ),
         ),

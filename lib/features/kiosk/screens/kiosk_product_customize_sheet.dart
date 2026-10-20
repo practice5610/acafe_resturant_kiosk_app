@@ -29,6 +29,7 @@ import 'package:acafe_customer/helper/product_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_analytics.dart';
@@ -79,7 +80,7 @@ const Color _kCardBorderSelected = Color(0xFF000000);
 /// Brand tan (BRAND_PALETTE `brand-accent`). Marks an add-on that is INCLUDED
 /// with the product rather than one the customer picked — see [_AddOnCard].
 const Color _kCardBorderIncluded = Color(0xFFC8A97E);
-const Color _kAddOnIncludedInk = Color(0xFF9C7C4C);
+const Color _kAddOnIncludedInk = TextTones.accent; // was #9C7C4C (3.4:1)
 
 /// Ground for an included card: the panel cream with a wash of the tan over
 /// it. Derived from the two tokens rather than hand-mixed, so it cannot drift

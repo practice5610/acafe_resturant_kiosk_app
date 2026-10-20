@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_order_filters.dart';
 import 'package:acafe_customer/features/pos/domain/pos_orders_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -79,7 +80,7 @@ class PosOrderDateRangeBar extends StatelessWidget {
           label.toUpperCase(),
           style: loewBold.copyWith(
             fontSize: PosOrdersSpec.dateLabelSize,
-            color: PosHomeSpec.inkAlpha(0.6),
+            color: TextTones.secondary,
           ),
         ),
         const SizedBox(width: PosOrdersSpec.dateLabelGap),
@@ -316,7 +317,7 @@ class _DateTimeField extends StatelessWidget {
                 style: loewBold.copyWith(
                   fontSize: PosOrdersSpec.dateTextSize,
                   color: empty
-                      ? PosHomeSpec.inkAlpha(0.45)
+                      ? TextTones.hint
                       : PosHomeSpec.ink,
                 ),
               ),
@@ -326,7 +327,7 @@ class _DateTimeField extends StatelessWidget {
                   PosOrderDateRangeBar.formatTime(value!),
                   style: loewBold.copyWith(
                     fontSize: PosOrdersSpec.dateTextSize,
-                    color: PosHomeSpec.inkAlpha(0.6),
+                    color: TextTones.secondary,
                   ),
                 ),
                 const SizedBox(width: PosOrdersSpec.filterIconGap),

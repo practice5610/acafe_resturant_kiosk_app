@@ -41,6 +41,12 @@ class CategoryProvider extends DataSyncProvider {
   int? _kioskPrefetchBranchId;
   bool _kioskMenuLoaded = false;
   Future<void>? _kioskPrefetchFuture;
+
+  /// Language of the load in [_kioskPrefetchFuture], and the language most
+  /// recently asked for. They differ when the customer switches language while
+  /// a menu is still loading (the welcome-screen pills make that one tap).
+  String? _kioskInFlightLocale;
+  String? _kioskWantedLocale;
   final Map<String, ProductModel> _kioskProductsByCategory = {};
 
   int? get _sessionBranchId {
@@ -92,24 +98,49 @@ class CategoryProvider extends DataSyncProvider {
   /// Non-blocking when called without await. Safe to call multiple times.
   /// Does not hit the network when the in-memory menu is already ready, unless
   /// [force] is true (language change).
+  ///
+  /// Only one load runs at a time. Asking for another language while one is in
+  /// flight queues the new language behind it; if the customer has moved on to
+  /// yet another language by the time its turn comes, it is skipped.
   Future<void> prefetchKioskMenu({
     required String localeCode,
     bool force = false,
     bool background = false, // ignored; kept for existing call sites
   }) {
+    _kioskWantedLocale = localeCode;
     if (!force && isKioskMenuReadyFor(localeCode)) {
       return Future.value();
     }
 
-    if (_kioskPrefetchFuture != null) {
-      return _kioskPrefetchFuture!;
+    final Future<void>? inFlight = _kioskPrefetchFuture;
+    if (inFlight != null) {
+      if (_kioskInFlightLocale == localeCode) return inFlight;
+      return inFlight.catchError((_) {}).then<void>((_) {
+        if (_kioskWantedLocale != localeCode) return null;
+        return prefetchKioskMenu(localeCode: localeCode, force: force);
+      });
     }
 
-    _kioskPrefetchFuture = _runKioskPrefetch(
-      localeCode: localeCode,
-      force: force,
+    return _trackKioskLoad(
+      localeCode,
+      _runKioskPrefetch(localeCode: localeCode, force: force),
     );
-    return _kioskPrefetchFuture!.whenComplete(() => _kioskPrefetchFuture = null);
+  }
+
+  bool _isSupersededKioskLoad(String localeCode) =>
+      _kioskWantedLocale != null && _kioskWantedLocale != localeCode;
+
+  /// Publishes [load] as the one in-flight kiosk load until it settles.
+  Future<void> _trackKioskLoad(String localeCode, Future<void> load) {
+    late final Future<void> tracked;
+    tracked = load.whenComplete(() {
+      if (!identical(_kioskPrefetchFuture, tracked)) return;
+      _kioskPrefetchFuture = null;
+      _kioskInFlightLocale = null;
+    });
+    _kioskPrefetchFuture = tracked;
+    _kioskInFlightLocale = localeCode;
+    return tracked;
   }
 
   /// Blocks until menu data is ready (waits on in-flight prefetch or fetches).
@@ -161,6 +192,9 @@ class CategoryProvider extends DataSyncProvider {
 
   /// Hydrate from SharedPreferences. Network prefetch only if the cache is empty.
   Future<void> warmKioskMenuFromDisk(String localeCode) async {
+    // Recorded before the disk hit returns early, so a slower load still in
+    // flight for another language knows it has been overtaken.
+    _kioskWantedLocale = localeCode;
     _discardStaleKioskMenuIfNeeded();
     if (_hydrateKioskMenuFromDisk(localeCode)) {
       notifyListeners();
@@ -182,9 +216,7 @@ class CategoryProvider extends DataSyncProvider {
     if (localeCode == null) return Future.value();
     if (_kioskPrefetchFuture != null) return _kioskPrefetchFuture!;
 
-    _kioskPrefetchFuture = _runKioskMenuPoll(localeCode);
-    return _kioskPrefetchFuture!
-        .whenComplete(() => _kioskPrefetchFuture = null);
+    return _trackKioskLoad(localeCode, _runKioskMenuPoll(localeCode));
   }
 
   Future<void> _runKioskMenuPoll(String localeCode) async {
@@ -263,7 +295,7 @@ class CategoryProvider extends DataSyncProvider {
     }
 
     var ok = await _fetchKioskMenuFromNetwork(localeCode);
-    if (!ok) {
+    if (!ok && !_isSupersededKioskLoad(localeCode)) {
       ok = await _fetchKioskMenuFromNetwork(localeCode);
     }
 
@@ -333,7 +365,11 @@ class CategoryProvider extends DataSyncProvider {
 
     try {
       final ApiResponseModel catResponse =
-          await categoryRepo!.getKioskCategoryList(limit: 24, offset: 1);
+          await categoryRepo!.getKioskCategoryList(
+        limit: 24,
+        offset: 1,
+        localeCode: localeCode,
+      );
       if (catResponse.response?.statusCode != 200) return false;
 
       final categoryModel = CategoryData.fromJson(catResponse.response!.data);
@@ -347,12 +383,18 @@ class CategoryProvider extends DataSyncProvider {
           offset: 1,
           type: 'all',
           limit: _kioskPrefetchProductLimit,
+          localeCode: localeCode,
         );
         if (prodResponse.response?.statusCode == 200) {
           productsByCategory['${category.id}'] =
               ProductModel.fromJson(prodResponse.response!.data);
         }
       }
+
+      // The customer moved to another language while this one was loading;
+      // its menu is already showing (or queued). Applying this one would put
+      // the menu in a language the screen no longer shows.
+      if (_isSupersededKioskLoad(localeCode)) return false;
 
       _applyFetchedKioskMenu(
         localeCode: localeCode,

@@ -11,6 +11,7 @@ import 'package:acafe_customer/features/pos/widgets/pos_settings_save_button.dar
 import 'package:acafe_customer/features/pos/widgets/pos_settings_text_field.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_toggle.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -426,9 +427,7 @@ class _Helper extends StatelessWidget {
       style: loewRegular.copyWith(
         fontSize: PosHardwareSpec.helperSize,
         height: 1.35,
-        color: isError
-            ? const Color(0xFFB4544A)
-            : PosHardwareSpec.mutedText,
+        color: isError ? TextTones.danger : PosHardwareSpec.mutedText,
       ),
     );
   }
@@ -492,7 +491,7 @@ class _ToggleRow extends StatelessWidget {
                       style: loewMedium.copyWith(
                         fontSize: PosHardwareSpec.noteSize,
                         height: 1.35,
-                        color: const Color(0xFF8A6A2F),
+                        color: TextTones.accent,
                       ),
                     ),
                   ],

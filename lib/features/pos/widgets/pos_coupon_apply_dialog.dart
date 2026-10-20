@@ -2,6 +2,7 @@ import 'package:acafe_customer/features/coupon/domain/models/coupon_apply_result
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -110,7 +111,7 @@ class _PosCouponApplyDialogState extends State<_PosCouponApplyDialog> {
               'Coupon code',
               style: loewRegular.copyWith(
                 fontSize: PosHomeSpec.fieldLabelSize,
-                color: PosHomeSpec.inkAlpha(0.53),
+                color: TextTones.secondary,
               ),
             ),
             const SizedBox(height: PosHomeSpec.fieldLabelGap),
@@ -127,7 +128,7 @@ class _PosCouponApplyDialogState extends State<_PosCouponApplyDialog> {
                 hintText: 'Enter code',
                 hintStyle: loewRegular.copyWith(
                   fontSize: PosHomeSpec.fieldTextSize,
-                  color: PosHomeSpec.inkAlpha(0.4),
+                  color: TextTones.hint,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -169,7 +170,7 @@ class _PosCouponApplyDialogState extends State<_PosCouponApplyDialog> {
           onPressed: _submitting ? null : () => Navigator.of(context).pop(),
           child: Text(
             'Cancel',
-            style: loewMedium.copyWith(color: PosHomeSpec.inkAlpha(0.6)),
+            style: loewMedium.copyWith(color: TextTones.secondary),
           ),
         ),
         TextButton(

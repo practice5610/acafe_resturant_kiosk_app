@@ -8,6 +8,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 
 // ===========================================================================
@@ -20,7 +21,7 @@ import 'package:acafe_customer/utill/styles.dart';
 // ===========================================================================
 
 const Color _kCardBorder = Color(0xFFE6E0CE);
-const Color _kSubtitle = Color(0xFF8A8275);
+const Color _kSubtitle = TextTones.secondary; // was #8A8275 (3.4:1)
 const Color _kInk = Color(0xFF1E1E1E);
 
 /// Brief pause after a tile is tapped so the selected border is visible

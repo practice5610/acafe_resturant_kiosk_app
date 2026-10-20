@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipts_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
@@ -172,7 +173,7 @@ class _EmptyBody extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: swiss721Light.copyWith(
                   fontSize: PosReceiptsSpec.emptySublineSize,
-                  color: PosHomeSpec.inkAlpha(0.53),
+                  color: TextTones.secondary,
                 ),
               ),
       ),
@@ -228,9 +229,8 @@ class _DataRow extends StatelessWidget {
     // the muted columns use on white would be unreadable on ink.
     final Color primary =
         selected ? PosReceiptsSpec.selectedInk : PosHomeSpec.ink;
-    final Color muted = selected
-        ? PosReceiptsSpec.selectedInk
-        : PosHomeSpec.inkAlpha(0.6);
+    final Color muted =
+        selected ? PosReceiptsSpec.selectedInk : TextTones.secondary;
 
     TextStyle base(TextStyle family, Color color) => family.copyWith(
           fontSize: PosReceiptsSpec.rowTextSize,

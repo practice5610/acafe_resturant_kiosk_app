@@ -6,6 +6,7 @@ import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
@@ -307,9 +308,7 @@ class _ManagerCard extends StatelessWidget {
                       duration: const Duration(milliseconds: 160),
                       style: loewRegular.copyWith(
                         fontSize: 22,
-                        color: hasError
-                            ? _kDanger
-                            : _kInk.withValues(alpha: 0.48),
+                        color: hasError ? TextTones.danger : TextTones.hint,
                       ),
                       child: Text(
                         hasError
@@ -553,12 +552,12 @@ class _KeypadKeyState extends State<_KeypadKey> {
                   ],
           ),
           child: widget.icon != null
-              ? Icon(widget.icon, size: 30, color: _kAccent)
+              ? Icon(widget.icon, size: 30, color: TextTones.accent)
               : Text(
                   widget.label ?? '',
                   style: loewMedium.copyWith(
                     fontSize: 32,
-                    color: widget.ghost ? _kAccent : _kInk,
+                    color: widget.ghost ? TextTones.accent : _kInk,
                   ),
                 ),
         ),

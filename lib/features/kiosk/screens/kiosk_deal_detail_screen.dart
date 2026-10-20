@@ -19,6 +19,7 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
@@ -474,7 +475,7 @@ class _DealPriceBreakdown extends StatelessWidget {
                 PriceConverterHelper.convertPrice(deal.originalPrice),
                 style: swiss721Light.copyWith(
                   fontSize: 18,
-                  color: const Color(0xFF888480),
+                  color: TextTones.hint,
                   decoration: TextDecoration.lineThrough,
                 ),
               ),

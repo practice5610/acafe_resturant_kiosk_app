@@ -141,10 +141,18 @@ flutter:
         - asset: assets/fonts/Loew-ExtraBold.ttf
           weight: 800
 
+    # Despite the name, this family is Nunito Sans 10pt: Swiss721-Light.ttf is
+    # byte-identical to NunitoSans-Regular.ttf. The real Swiss 721 .otf files
+    # in assets/fonts have no Euro sign, so every price would fall back to
+    # another face. Each file is declared at its true weight: `swiss721Light`
+    # (w300) still resolves to the Regular face, and w500 (`swiss721Medium`)
+    # is a real Medium rather than a synthesised one.
     - family: Swiss721
       fonts:
         - asset: assets/fonts/Swiss721-Light.ttf
-          weight: 300
+          weight: 400
+        - asset: assets/fonts/NunitoSans-Medium.ttf
+          weight: 500
 
     - family: ScotchDisplay
       fonts:

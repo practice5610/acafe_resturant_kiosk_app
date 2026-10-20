@@ -9,6 +9,7 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_search_field.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
@@ -266,7 +267,7 @@ class _TransactionRow extends StatelessWidget {
                 SizedBox(height: 4 * s),
                 Text(time,
                     style: loewRegular.copyWith(
-                        fontSize: 26 * s, color: Colors.black54)),
+                        fontSize: 26 * s, color: TextTones.secondary)),
               ],
             ),
           ),

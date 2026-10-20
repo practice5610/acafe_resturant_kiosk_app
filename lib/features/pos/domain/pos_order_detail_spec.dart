@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 
 /// Metrics for the Orders detail overlay (Figma **1641:4425** / **1641:5453**).
 ///
@@ -141,7 +142,7 @@ class PosOrderDetailSpec {
   static const double itemNoteSize = 11;
   static const double itemDetailGap = 4;
   static const Color itemDivider = Color(0xFFB9B5A6);
-  static const Color itemNoteInk = Color(0x87241F20);
+  static const Color itemNoteInk = TextTones.secondary; // Figma ink @0.53
 
   // Note labels — the `NOTE` / line-name heading over each entry in the
   // Order Notes card, in dark amber with a note icon.
@@ -249,7 +250,7 @@ class PosOrderDetailSpec {
   static const double headerStationTextSize = 12;
 
   /// Swiss 721 Light for the item's price and note lines (Figma 1915:16242).
-  static const double itemMetaAlpha = 0.6;
+  static const double itemMetaAlpha = TextTones.secondaryOpacity; // Figma 0.6
 
   // ── Items section header + progress ──────────────────────────────────
   static const double progressBarHeight = 4;

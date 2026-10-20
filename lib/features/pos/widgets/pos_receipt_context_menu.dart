@@ -1,4 +1,5 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -230,7 +231,7 @@ class _SectionHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: loewExtraBold.copyWith(
               fontSize: PosHomeSpec.contextMenuHeaderSize,
-              color: PosHomeSpec.inkAlpha(0.53),
+              color: TextTones.secondary,
               height: 1.0,
             ),
           ),

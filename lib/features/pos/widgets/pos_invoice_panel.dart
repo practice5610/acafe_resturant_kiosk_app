@@ -1,14 +1,15 @@
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_invoice_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 
 // ─── palette constants (Figma 1915:10440) ────────────────────────────────────
-const _headerOpacity = 0.40;
-const _subtitleOpacity = 0.33;
-const _labelOpacity = 0.33;
-const _fieldLabelOpacity = 0.53;
+const _headerOpacity = TextTones.hintOpacity; // Figma 0.40
+const _subtitleOpacity = TextTones.hintOpacity; // Figma 0.33
+const _labelOpacity = TextTones.hintOpacity; // Figma 0.33
+const _fieldLabelOpacity = TextTones.secondaryOpacity; // Figma 0.53
 const _borderInactive = PosHomeSpec.tableFieldBorder; // #E0D9C8
 const _borderActive = PosHomeSpec.ink;
 const _divider = PosHomeSpec.hairline; // #F0EBD8

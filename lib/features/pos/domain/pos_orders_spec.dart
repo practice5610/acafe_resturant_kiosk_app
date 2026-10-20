@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/pos/domain/pos_order_detail_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:flutter/material.dart';
 
 /// Figma **1641:2874** — the Orders board.
@@ -61,7 +62,7 @@ class PosOrdersSpec {
   static const double searchHeight = 32;
   static const double searchPaddingH = 10;
   static const double searchTextSize = 12;
-  static const double searchHintAlpha = 0.38;
+  static const double searchHintAlpha = TextTones.hintOpacity; // Figma 0.38
   static const double searchClearRadius = 4;
   static const double searchClearPadH = 6;
   static const double searchClearPadV = 3;
@@ -169,14 +170,15 @@ class PosOrdersSpec {
   /// 2026-10-19). Exactly the name's size and weight (the user's call: a 20px
   /// headline was too loud); the muted `#` sets it apart from the name.
   static const double orderNumberTextSize = nameTextSize;
-  static const double orderNumberHashAlpha = 0.35;
+  static const double orderNumberHashAlpha =
+      TextTones.hintOpacity; // Figma 0.35
 
   /// `order-number` → customer name: tight, so number and name read as one
   /// identity block.
   static const double orderNumberGap = 2;
   static const double subtitleTextSize = 11;
   static const double subtitleLineGap = 2;
-  static const double subtitleAlpha = 0.6;
+  static const double subtitleAlpha = TextTones.secondaryOpacity; // Figma 0.6
   static const double timerTextSize = 11;
   static const double priceTextSize = 14;
 

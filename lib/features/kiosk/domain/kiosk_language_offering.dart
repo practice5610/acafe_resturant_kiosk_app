@@ -44,6 +44,27 @@ class KioskLanguageOffering {
     return offered.isEmpty ? AppConstants.languages : offered;
   }
 
+  /// The language a kiosk offering [offered] should be in while currently in
+  /// [currentCode]: that one if it is offered, otherwise English (the kiosk
+  /// default), otherwise the first offered language.
+  ///
+  /// [offered] is never empty — [forDevice] falls back to every language.
+  static LanguageModel selectionFor(
+    List<LanguageModel> offered,
+    String currentCode,
+  ) {
+    LanguageModel? find(String code) {
+      for (final LanguageModel l in offered) {
+        if (l.languageCode == code) return l;
+      }
+      return null;
+    }
+
+    return find(currentCode) ??
+        find(AppConstants.defaultLanguageCode) ??
+        offered.first;
+  }
+
   static List<String>? _savedCodes(SharedPreferences? prefs) {
     final String? raw =
         prefs?.getString(AppConstants.posHardwareSettingsKey);

@@ -863,6 +863,7 @@
   "clear": "Löschen",
   "select_language": "Sprache wählen",
   "choose_your_preferred_language": "Wählen Sie Ihre bevorzugte Sprache",
+  "touch_to_order": "Zum Bestellen berühren",
   "kiosk_device_login": "Geräte-Anmeldung",
   "kiosk_login_hint": "Einmal anmelden, um dieses Terminal seiner Filiale zuzuordnen.",
   "kiosk_notification_hint": "Benachrichtigungen aktivieren, damit dieses Terminal Bestellhinweise erhält.",

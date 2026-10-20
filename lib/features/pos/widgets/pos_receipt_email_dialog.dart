@@ -4,6 +4,7 @@ import 'package:acafe_customer/di_container.dart' as di;
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_history.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_send_repo.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -13,8 +14,8 @@ const _bg = Color(0xFFFBF8EF);
 const _border = Color(0xFFF0EBD8);
 const _ctaBg = Color(0xFF241F20);
 const _ctaLabel = Color(0xFFF7F1DE);
-const _hintColor = Color(0xFF78706E);
-const _errorColor = Color(0xFFD32F2F);
+const _hintColor = TextTones.secondary; // Figma #78706E (4.3:1)
+const _errorColor = TextTones.danger; // Figma #D32F2F
 const _sentGreen = Color(0xFF2A8456);
 
 // ── motion ────────────────────────────────────────────────────────────────────
@@ -282,7 +283,7 @@ class _FormView extends StatelessWidget {
           style: loewBold.copyWith(
             fontSize: 11,
             letterSpacing: 0.5,
-            color: PosHomeSpec.inkAlpha(0.55),
+            color: TextTones.secondary,
           ),
         ),
         const SizedBox(height: 6),
@@ -343,7 +344,7 @@ class _EmailField extends StatelessWidget {
           hintText: 'customer@example.com',
           hintStyle: loewRegular.copyWith(
             fontSize: 14,
-            color: PosHomeSpec.inkAlpha(0.30),
+            color: TextTones.hint,
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -469,7 +470,7 @@ class _SummarySection extends StatelessWidget {
           'RECEIPT SUMMARY',
           style: loewExtraBold.copyWith(
             fontSize: 12,
-            color: PosHomeSpec.inkAlpha(0.50),
+            color: TextTones.secondary,
             letterSpacing: 0.5,
           ),
         ),
@@ -520,7 +521,7 @@ class _SummaryRow extends StatelessWidget {
           label,
           style: loewMedium.copyWith(
             fontSize: 14,
-            color: PosHomeSpec.inkAlpha(0.50),
+            color: TextTones.secondary,
           ),
         ),
         Flexible(

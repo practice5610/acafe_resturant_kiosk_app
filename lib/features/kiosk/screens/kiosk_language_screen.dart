@@ -10,6 +10,7 @@ import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/common/models/language_model.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_language_offering.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -143,17 +144,13 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                     SizedBox(height: 12 * s),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: side),
-                      child: Opacity(
-                        opacity: 0.6,
-                        child: Text(
-                          getTranslated(
-                              'you_want_to_see_for_the_app', context)!,
-                          textAlign: TextAlign.center,
-                          style: loewRegular.copyWith(
-                            fontSize: 18 * s,
-                            height: 1.3,
-                            color: Colors.black,
-                          ),
+                      child: Text(
+                        getTranslated('you_want_to_see_for_the_app', context)!,
+                        textAlign: TextAlign.center,
+                        style: loewRegular.copyWith(
+                          fontSize: 18 * s,
+                          height: 1.3,
+                          color: TextTones.secondary,
                         ),
                       ),
                     ),

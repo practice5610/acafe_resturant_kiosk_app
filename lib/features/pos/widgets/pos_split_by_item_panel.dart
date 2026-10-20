@@ -8,12 +8,13 @@ import 'package:acafe_customer/features/pos/widgets/pos_pay_option_row.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-const _labelInk = Color(0xFF78706E);
+const _labelInk = TextTones.secondary; // Figma #78706E (4.3:1)
 const _rowBorder = Color(0xFFE8E3D6);
 const _rowSelectedFill = Color(0xFFFBF7ED);
 const _selectedTotalFill = Color(0xFFF0EBD9);
@@ -377,7 +378,7 @@ class _ItemRow extends StatelessWidget {
 }
 
 /// `pill-Paid` (node 1915:12163): `#E0F2E5`, px-10 py-4, r12, Loew Bold 10
-/// `#2A8456`.
+/// in [PosHomeSpec.discountGreen] (Figma `#2A8456`, darkened to clear AA).
 class _PaidPill extends StatelessWidget {
   const _PaidPill();
 
@@ -393,7 +394,7 @@ class _PaidPill extends StatelessWidget {
         'Paid',
         style: loewBold.copyWith(
           fontSize: 10,
-          color: PosHomeSpec.discountGreen, // #2A8456
+          color: PosHomeSpec.discountGreen,
         ),
       ),
     );

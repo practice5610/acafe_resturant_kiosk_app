@@ -5,6 +5,7 @@ import 'package:acafe_customer/features/pos/providers/pos_staff_provider.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_dropdown.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_settings_text_field.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1295,7 +1296,8 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           if (_plandayError != null) ...[
             const SizedBox(height: 6),
             Text(_plandayError!,
-                style: const TextStyle(color: Color(0xFFD14343), fontSize: 12)),
+                style: loewRegular.copyWith(
+                    color: TextTones.danger, fontSize: 12)),
           ],
           const SizedBox(height: 12),
         ],
