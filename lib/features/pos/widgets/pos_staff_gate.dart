@@ -24,7 +24,12 @@ import 'package:provider/provider.dart';
 class PosStaffGate extends StatefulWidget {
   final Widget child;
 
-  const PosStaffGate({super.key, required this.child});
+  /// False while the till serves as a kiosk: the gate stays in the tree, with
+  /// the same shape, and simply lets everything through -- so switching modes
+  /// never moves the app's router (see AppChrome).
+  final bool enabled;
+
+  const PosStaffGate({super.key, required this.child, this.enabled = true});
 
   @override
   State<PosStaffGate> createState() => _PosStaffGateState();
@@ -75,28 +80,27 @@ class _PosStaffGateState extends State<PosStaffGate> {
         Provider.of<PosStaffSessionProvider?>(context);
     final KioskAuthProvider? auth = Provider.of<KioskAuthProvider?>(context);
 
-    // Not wired (a test harness, or a build without staff sign-in): pass through.
-    if (session == null || auth == null) return widget.child;
-
-    final bool deviceLoggedIn = auth.isLoggedIn();
-    if (!deviceLoggedIn) {
+    final bool deviceLoggedIn = auth?.isLoggedIn() ?? false;
+    if (auth != null && !deviceLoggedIn) {
       // Device logged out: the next login starts from a fresh read of the
       // branch switch rather than whatever the previous device session saw.
       _bootstrapRequested = false;
       _lastStaffId = null;
-      return widget.child;
     }
 
-    _ensureBootstrapped(session, deviceLoggedIn);
+    // Not wired (a harness, a build without staff sign-in), a logged-out
+    // device, or a till serving as a kiosk: everything passes through.
+    final bool active = widget.enabled && session != null && deviceLoggedIn;
+    if (active) _ensureBootstrapped(session, deviceLoggedIn);
 
     // Until the branch switch has been read, decide nothing from the default
     // "off" roster -- that is exactly what made the PIN flash over the welcome
     // screen. Hold a neutral branded surface instead, no content and no PIN.
-    final bool ready = session.bootstrapped;
-    final bool locked = ready && session.loginRequired && !session.isSignedIn;
+    final bool ready = !active || session.bootstrapped;
+    final bool locked = active && ready && session.loginRequired && !session.isSignedIn;
     final bool still = !ready || locked;
 
-    if (ready) {
+    if (active && ready) {
       final String? staffId = session.session?.id;
       if (staffId != _lastStaffId) {
         final bool becameSignedIn = staffId != null;
@@ -111,7 +115,7 @@ class _PosStaffGateState extends State<PosStaffGate> {
     // AppChrome) -- it stays mounted, offstage and still, under the cover.
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => session.touch(),
+      onPointerDown: active ? (_) => session.touch() : null,
       child: Stack(
         fit: StackFit.expand,
         children: [

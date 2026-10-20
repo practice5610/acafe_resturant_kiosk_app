@@ -210,10 +210,9 @@ class KioskMetrics {
   }
 
   static KioskMetrics of(BuildContext context) {
-    final KioskMetricsScope? scope =
-        context.dependOnInheritedWidgetOfExactType<KioskMetricsScope>();
-    assert(scope != null, 'KioskMetrics.of() called outside KioskShell');
-    return scope!.metrics;
+    final KioskMetrics? metrics = maybeOf(context);
+    assert(metrics != null, 'KioskMetrics.of() called outside KioskShell');
+    return metrics!;
   }
 
   static KioskMetrics? maybeOf(BuildContext context) =>
@@ -243,7 +242,9 @@ class KioskMetrics {
 }
 
 class KioskMetricsScope extends InheritedWidget {
-  final KioskMetrics metrics;
+  /// Null on a POS screen: AppFrame keeps this scope in the tree in both modes
+  /// (so the router never moves) and empties it where kiosk metrics do not apply.
+  final KioskMetrics? metrics;
 
   const KioskMetricsScope({
     super.key,

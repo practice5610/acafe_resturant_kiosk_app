@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:acafe_customer/common/responsive/app_chrome.dart';
+import 'package:acafe_customer/common/responsive/app_frame.dart';
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/features/pos/domain/pos_responsive.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
@@ -125,11 +128,19 @@ void main() {
   }
 
   group('the router survives a mode switch', () {
-    testWidgets('swapping the kiosk shell for the POS shell keeps the router', (tester) async {
-      // The app hands AppChrome a Router. Rebuilt from scratch it re-parses
-      // the address -- the RangeError seen live -- and strands open dialogs.
+    testWidgets('switching modes neither rebuilds nor re-parses the router', (tester) async {
+      // The app hands AppChrome a Router. Rebuilt -- or even moved -- it
+      // re-parses the address, which mid-switch GoRouter cannot do (the
+      // RangeError in canonicalUri seen live). It must stay exactly where it is.
       await boot(kioskMode: true);
-      final GoRouter router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const _Probe())]);
+      int parses = 0;
+      final GoRouter router = GoRouter(
+        routes: [GoRoute(path: '/', builder: (_, __) => const _Probe())],
+        redirect: (_, __) {
+          parses++;
+          return null;
+        },
+      );
       addTearDown(router.dispose);
       await tester.pumpWidget(ChangeNotifierProvider<KioskAuthProvider>.value(
         value: auth,
@@ -139,12 +150,47 @@ void main() {
         ),
       ));
       final State before = tester.state(find.byWidgetPredicate((w) => w is Router));
+      final int parsesBefore = parses;
 
       await auth.applyKioskMode(false);
       await tester.pump();
+      await auth.applyKioskMode(true);
+      await tester.pump();
 
-      expect(tester.state(find.byWidgetPredicate((w) => w is Router)), same(before),
-          reason: 'the router must move into the POS shell, not be rebuilt');
+      expect(tester.state(find.byWidgetPredicate((w) => w is Router)), same(before));
+      expect(parses, parsesBefore, reason: 'a mode switch must not make the router parse again');
+    });
+
+    testWidgets('the frame never moves the screen: kiosk, full-bleed kiosk, POS', (tester) async {
+      _Probe.created = 0;
+      Widget frame({required bool pos, bool fullBleed = false}) => MaterialApp(
+            home: AppFrame(pos: pos, fullBleed: fullBleed, child: const _Probe()),
+          );
+
+      await tester.pumpWidget(frame(pos: false, fullBleed: true));
+      await tester.pumpWidget(frame(pos: false));
+      await tester.pumpWidget(frame(pos: true));
+      await tester.pumpWidget(frame(pos: false, fullBleed: true));
+
+      expect(_Probe.created, 1);
+    });
+
+    testWidgets('each mode sees only its own measurements', (tester) async {
+      late BuildContext inner;
+      Widget frame(bool pos) => MaterialApp(
+            home: AppFrame(pos: pos, child: Builder(builder: (c) {
+              inner = c;
+              return const SizedBox();
+            })),
+          );
+
+      await tester.pumpWidget(frame(true));
+      expect(PosMetrics.maybeOf(inner), isNotNull);
+      expect(KioskMetrics.maybeOf(inner), isNull, reason: 'POS layouts must keep their window fallbacks');
+
+      await tester.pumpWidget(frame(false));
+      expect(KioskMetrics.maybeOf(inner), isNotNull);
+      expect(PosMetrics.maybeOf(inner), isNull);
     });
 
     testWidgets('the staff gate keeps the screen mounted while it reads the roster', (tester) async {
@@ -279,6 +325,28 @@ void main() {
       ));
       return t.modes;
     }
+
+    testWidgets('its label has a real text style above the navigator', (tester) async {
+      // In the app the curtain sits in MaterialApp's builder, above the
+      // navigator and its Material -- no DefaultTextStyle, so Text falls back
+      // to the debug style (yellow double underline) unless the face brings one.
+      await boot(kioskMode: true);
+      final t = build(_HeldRepo()..exit.complete(_exitOk));
+      await tester.pumpWidget(ChangeNotifierProvider<DeviceModeProvider>.value(
+        value: t.modes,
+        child: MaterialApp(
+          builder: (context, child) => DeviceModeCurtain(child: child!),
+          home: const SizedBox(),
+        ),
+      ));
+      await tester.runAsync(() => t.modes.switchToPos('4321'));
+      await tester.pump();
+
+      final TextStyle style = DefaultTextStyle.of(tester.element(find.text('Switching to POS'))).style;
+      expect(style.decoration, isNot(TextDecoration.underline));
+      t.modes.landed();
+      await tester.pumpAndSettle();
+    });
 
     testWidgets('down: the screen shows', (tester) async {
       await pumpCurtain(tester);

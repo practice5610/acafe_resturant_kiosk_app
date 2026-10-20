@@ -203,10 +203,9 @@ class PosMetrics {
   }
 
   static PosMetrics of(BuildContext context) {
-    final PosMetricsScope? scope =
-        context.dependOnInheritedWidgetOfExactType<PosMetricsScope>();
-    assert(scope != null, 'PosMetrics.of() called outside PosShell');
-    return scope!.metrics;
+    final PosMetrics? metrics = maybeOf(context);
+    assert(metrics != null, 'PosMetrics.of() called outside PosShell');
+    return metrics!;
   }
 
   static PosMetrics? maybeOf(BuildContext context) =>
@@ -225,7 +224,9 @@ class PosMetrics {
 }
 
 class PosMetricsScope extends InheritedWidget {
-  final PosMetrics metrics;
+  /// Null on a kiosk screen: AppFrame keeps this scope in the tree in both modes
+  /// (so the router never moves) and empties it where POS metrics do not apply.
+  final PosMetrics? metrics;
 
   const PosMetricsScope({
     super.key,

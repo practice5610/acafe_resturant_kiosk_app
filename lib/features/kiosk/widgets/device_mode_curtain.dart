@@ -86,7 +86,10 @@ class _CurtainFace extends StatelessWidget {
       key: DeviceModeCurtain.faceKey,
       behavior: HitTestBehavior.opaque,
       onTap: () {},
-      child: ColoredBox(
+      // Material, not a bare ColoredBox: the curtain sits in the app's
+      // builder, above the navigator, where nothing provides a text style --
+      // Text there falls back to the debug yellow underline.
+      child: Material(
         color: PosUI.pageBg,
         child: Center(
           child: Column(
