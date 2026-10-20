@@ -65,6 +65,11 @@ class _KioskLogoutButtonState extends State<KioskLogoutButton> {
   Widget build(BuildContext context) {
     final KioskAuthProvider auth = context.watch<KioskAuthProvider>();
 
+    // A POS till serving as a kiosk is in front of customers with no staff
+    // around it: nobody there may sign the device out. Staff take it back to
+    // POS first (KioskStaffExitTrigger), and log out from there.
+    if (auth.kioskModeActive) return const SizedBox.shrink();
+
     return PopupMenuButton<String>(
       key: KioskLogoutButton.buttonKey,
       tooltip: 'Account',

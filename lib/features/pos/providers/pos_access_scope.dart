@@ -32,6 +32,9 @@ class PosPermission {
   /// (Branch Manager / Owner) sees the whole branch; everyone else sees only
   /// their own punches. The server enforces this; the key mirrors its name.
   static const String viewAttendance = 'view_attendance';
+
+  /// POS ⇄ Kiosk: turn the till into a kiosk, and the staff PIN back.
+  static const String switchDeviceMode = 'switch_device_mode';
 }
 
 /// The till's current [PosAccess], read from both session providers.

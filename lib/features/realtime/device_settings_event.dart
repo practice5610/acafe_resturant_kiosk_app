@@ -19,6 +19,11 @@ class DeviceSettingsEvent {
   /// it (older server build) -- that means "leave the local value alone", not
   /// "turn images off", so a kiosk never silently drops into picture-less mode.
   final bool? showImages;
+
+  /// A POS till serving as a kiosk. Null when the frame did not carry it
+  /// (older server build): leave the local mode alone rather than read it as
+  /// "back to POS".
+  final bool? kioskMode;
   final String? occurredAt;
 
   const DeviceSettingsEvent({
@@ -32,6 +37,7 @@ class DeviceSettingsEvent {
     this.status = 'active',
     this.name = '',
     this.showImages,
+    this.kioskMode,
     this.occurredAt,
   });
 
@@ -60,6 +66,8 @@ class DeviceSettingsEvent {
       name: json['name']?.toString() ?? '',
       showImages:
           json.containsKey('show_images') ? json['show_images'] == true : null,
+      kioskMode:
+          json.containsKey('kiosk_mode') ? json['kiosk_mode'] == true : null,
       occurredAt: json['occurred_at']?.toString(),
     );
   }

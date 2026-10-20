@@ -67,6 +67,7 @@ class KioskAuthRepo {
     String? orderingExperience,
     bool? allergenTagEnabled,
     bool? showImages,
+    bool? kioskMode,
   }) async {
     final previousBranch = getBranchId();
     await sharedPreferences.setString(AppConstants.token, token);
@@ -117,6 +118,10 @@ class KioskAuthRepo {
     if (showImages != null) {
       await sharedPreferences.setBool(
           AppConstants.kioskShowImages, showImages);
+    }
+    if (kioskMode != null) {
+      await sharedPreferences.setBool(
+          AppConstants.kioskDeviceKioskMode, kioskMode);
     }
     // Refresh dio headers so the new token + branch take effect immediately.
     await dioClient.updateHeader(getToken: token);
@@ -177,6 +182,17 @@ class KioskAuthRepo {
   bool getShowImages() =>
       sharedPreferences.getBool(AppConstants.kioskShowImages) ?? true;
 
+  /// Whether the server last said this POS till is serving as a kiosk.
+  /// Defaults to false: a session persisted before the field existed is a
+  /// till in its normal mode. Only meaningful on a `pos` device.
+  bool getKioskMode() =>
+      sharedPreferences.getBool(AppConstants.kioskDeviceKioskMode) ?? false;
+
+  /// Persist the mode the server confirmed after a switch from this till.
+  Future<void> saveKioskMode(bool kioskMode) async {
+    await sharedPreferences.setBool(AppConstants.kioskDeviceKioskMode, kioskMode);
+  }
+
   /// Persist a live show-images update from the websocket (admin flipped the
   /// toggle on Device Update without forcing a re-login) -- mirrors
   /// [saveOrderingExperience].
@@ -219,6 +235,7 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskOrderingExperience);
     await sharedPreferences.remove(AppConstants.kioskAllergenTagEnabled);
     await sharedPreferences.remove(AppConstants.kioskShowImages);
+    await sharedPreferences.remove(AppConstants.kioskDeviceKioskMode);
     await sharedPreferences.remove(AppConstants.cartList);
     await sharedPreferences.remove(AppConstants.kioskMenuCacheKey);
     await sharedPreferences.remove(AppConstants.kioskDealsCacheKey);

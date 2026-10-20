@@ -8,7 +8,10 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
+import 'package:acafe_customer/features/kiosk/providers/device_mode_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_kiosk_mode_actions.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_layout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
@@ -527,6 +530,16 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
     // PosPunchScreen._backToPos.
     void openPunch() => context.push(PosRoutes.punch);
 
+    // POS ⇄ Kiosk: only a till, and only for someone allowed to switch it --
+    // the server checks the same permission. Absent (a harness without the
+    // mode provider), the rail is exactly as it was.
+    final bool canSwitchToKiosk =
+        Provider.of<DeviceModeProvider?>(context, listen: false) != null &&
+            (Provider.of<KioskAuthProvider?>(context)?.isPosTerminal ?? false) &&
+            PosAccessScope.of(context).can(PosPermission.switchDeviceMode);
+    final VoidCallback? openKioskMode =
+        canSwitchToKiosk ? () => openSwitchToKiosk(context) : null;
+
     final Widget content = _ContentArea(
       layout: layout,
       searchController: _search,
@@ -560,6 +573,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
                           selectedId: selectedId,
                           onSelect: _selectCategory,
                           onPunch: openPunch,
+                          onKioskMode: openKioskMode,
                         ),
                         Expanded(child: content),
                       ],
@@ -571,6 +585,7 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
                     selectedId: selectedId,
                     onSelect: _selectCategory,
                     onPunch: openPunch,
+                    onKioskMode: openKioskMode,
                     width: layout.sidebarWidth,
                     scale: layout.scale,
                   ),

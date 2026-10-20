@@ -35,6 +35,16 @@ class KioskRouteGuard {
     RouterHelper.kioskLoginScreen,
   };
 
+  /// The old kiosk manager screens. Staff-only, and every endpoint behind them
+  /// refuses anything but a POS -- so a kiosk-shell device, a till serving as
+  /// a kiosk included, never opens them, however the path was typed.
+  static const Set<String> _staffOnlyKioskPaths = {
+    RouterHelper.kioskManagerDashboardScreen,
+    RouterHelper.kioskManagerSalesOverviewScreen,
+    RouterHelper.kioskManagerTransactionsScreen,
+    RouterHelper.kioskManagerStockScreen,
+  };
+
   /// Returns a redirect path, or null when navigation may proceed.
   static String? redirect(BuildContext context, String path) {
     // POS branch, evaluated first so a POS-category device never falls through
@@ -50,6 +60,12 @@ class KioskRouteGuard {
         isPosDevice: auth.isPosDevice,
         isLoggedIn: auth.isLoggedIn(),
       );
+    }
+
+    if (_staffOnlyKioskPaths.contains(path)) {
+      return auth.isLoggedIn()
+          ? RouterHelper.kioskWelcomeScreen
+          : RouterHelper.kioskLoginScreen;
     }
 
     final bool isAuthEntry = path.isEmpty || _authEntryPaths.contains(path);

@@ -157,12 +157,6 @@ class PosPunchResultBanner extends StatelessWidget {
 /// The till's way into the punch flow, at the foot of the category rail and at
 /// the end of the compact category strip — one control, whichever composition
 /// is on screen (both carry the key `pos-sidebar-punch`).
-///
-/// A white, fully-rounded pill from the nav bar's Orders / Receipts /
-/// Attendance family, with the staff chip's hairline outline and an ink disc
-/// carrying the clock. That keeps it a quiet utility action: it is neither a
-/// category (an ink-filled tile when selected) nor a tag filter (an outlined
-/// pill).
 class PosPunchEntryButton extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -188,13 +182,63 @@ class PosPunchEntryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return PosRailPillButton(
+      buttonKey: const Key('pos-sidebar-punch'),
+      icon: Icons.schedule_rounded,
+      label: label,
+      onTap: onTap,
+      showLabel: showLabel,
+      expand: expand,
+      scale: scale,
+    );
+  }
+}
+
+/// A till utility action at the foot of the category rail (and the end of the
+/// compact strip): Punch In / Out, Kiosk Mode.
+///
+/// A white, fully-rounded pill from the nav bar's Orders / Receipts /
+/// Attendance family, with the staff chip's hairline outline and an ink disc
+/// carrying the icon. That keeps it a quiet utility action: it is neither a
+/// category (an ink-filled tile when selected) nor a tag filter (an outlined
+/// pill). One component, so every rail action draws the same.
+class PosRailPillButton extends StatelessWidget {
+  /// Put on the pill's [Material], where finders and taps land.
+  final Key buttonKey;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  /// False draws the disc alone in its white ring, for a strip too narrow to
+  /// spare the label; the label moves to a tooltip.
+  final bool showLabel;
+
+  /// True fills the parent's width (the rail column); false hugs the content.
+  final bool expand;
+
+  /// Rail density, see `PosCategorySidebar.scale`. The outline stays 1px.
+  final double scale;
+
+  const PosRailPillButton({
+    super.key,
+    required this.buttonKey,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.showLabel = true,
+    this.expand = false,
+    this.scale = 1,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final double pillHeight = PosHomeSpec.punchHeight * scale;
     final double inset = PosHomeSpec.punchDiscInset * scale;
     final double disc = pillHeight - inset * 2;
     const ShapeBorder shape = StadiumBorder();
 
     final Widget button = Material(
-      key: const Key('pos-sidebar-punch'),
+      key: buttonKey,
       color: PosHomeSpec.tileBg,
       shape: StadiumBorder(
         side: BorderSide(
@@ -223,7 +267,7 @@ class PosPunchEntryButton extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  Icons.schedule_rounded,
+                  icon,
                   size: disc * PosHomeSpec.punchIconRatio,
                   color: PosHomeSpec.pageBg,
                 ),

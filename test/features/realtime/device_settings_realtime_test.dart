@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:acafe_customer/common/reposotories/product_repo.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
@@ -14,6 +15,7 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart
 import 'package:acafe_customer/features/realtime/catalog_socket_frame.dart';
 import 'package:acafe_customer/features/realtime/device_settings_event.dart';
 import 'package:acafe_customer/features/realtime/device_settings_policy.dart';
+import 'package:acafe_customer/features/realtime/product_realtime_controller.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_gateway.dart';
 import 'package:acafe_customer/features/realtime/websocket_config.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
@@ -756,6 +758,72 @@ void main() {
       expect(await auth.validateSession(), isTrue);
       expect(auth.category, 'pos');
       expect(auth.orderingExperience, KioskOrderingExperience.versionB);
+    });
+  });
+
+  // POS ⇄ Kiosk: a till the panel switched (or whose switch response was lost)
+  // learns its mode on the next reconcile, and is torn down exactly once.
+  group('POS ⇄ Kiosk reconciliation', () {
+    late _FakeDeviceApi api;
+    late KioskAuthProvider auth;
+    late ProductRealtimeController controller;
+    late int teardowns;
+
+    setUp(() async {
+      api = _FakeDeviceApi();
+      await api.start();
+      api.device!['category'] = 'pos';
+      SharedPreferences.setMockInitialValues({
+        AppConstants.token: 'tok',
+        AppConstants.branch: 1,
+        AppConstants.kioskDeviceId: 1,
+        AppConstants.kioskDeviceName: 'Kiosk 1',
+        AppConstants.kioskDeviceCategory: 'pos',
+        AppConstants.kioskOrderingExperience: 'version_a',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final dio = DioClient(api.baseUrl, null,
+          loggingInterceptor: LoggingInterceptor(), sharedPreferences: prefs);
+      auth = KioskAuthProvider(
+          kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
+      teardowns = 0;
+      controller = ProductRealtimeController(
+        productRepo: ProductRepo(dioClient: dio, sharedPreferences: prefs),
+        gateway: ProductRealtimeGateway(),
+        onDeviceModeChanged: () async => teardowns++,
+      )..bindAuth(auth);
+    });
+
+    tearDown(() => api.stop());
+
+    test('kiosk mode set elsewhere reaches the till and tears it down', () async {
+      api.device!['kiosk_mode'] = true;
+
+      await controller.reconcileDeviceSettings();
+
+      expect(auth.kioskModeActive, isTrue);
+      expect(teardowns, 1);
+    });
+
+    test('a server that still says kiosk never brings the POS back', () async {
+      api.device!['kiosk_mode'] = true;
+
+      await controller.reconcileDeviceSettings();
+      await controller.reconcileDeviceSettings();
+
+      expect(auth.kioskModeActive, isTrue);
+      expect(teardowns, 1, reason: 'nothing changed the second time');
+    });
+
+    test('Return to POS from the panel brings the till back', () async {
+      api.device!['kiosk_mode'] = true;
+      await controller.reconcileDeviceSettings();
+      api.device!['kiosk_mode'] = false;
+
+      await controller.reconcileDeviceSettings();
+
+      expect(auth.isPosDevice, isTrue);
+      expect(teardowns, 2);
     });
   });
 }

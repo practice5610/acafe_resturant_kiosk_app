@@ -158,6 +158,8 @@ class PosHomeSpec {
   static const double stripLabelHeight = 17 / 14;
   /// Below this strip width the Punch action drops its label for a tooltip.
   static const double stripPunchLabelMinWidth = 560;
+  /// Kiosk Mode drops its label first, so the tabs keep their room.
+  static const double stripKioskLabelMinWidth = 760;
 
   // ── Punch In / Out entry (rail footer, strip end) ────────────────────
   // Not in the 1366 frame. Drawn in the nav bar's white pill family (its
@@ -179,6 +181,8 @@ class PosHomeSpec {
   /// category column's 16px edges, and the bottom matches the rail's 24.
   static const EdgeInsets punchFooterPadding =
       EdgeInsets.fromLTRB(16, 16, 16, 24);
+  /// Between stacked rail actions (Kiosk Mode above Punch In / Out).
+  static const double railActionGap = 8;
 
   // ── Receipt panel ────────────────────────────────────────────────────
   static const double panelPaddingH = 24;

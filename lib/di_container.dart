@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/reposotories/data_sync_repo.dart';
 import 'package:acafe_customer/common/reposotories/product_repo.dart';
 import 'package:acafe_customer/features/auth/domain/reposotories/auth_repo.dart';
 import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/device_mode_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_deal_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_manager_repo.dart';
@@ -19,6 +20,7 @@ import 'package:acafe_customer/features/pos/domain/pos_refund_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_standalone_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_payment_service.dart';
+import 'package:acafe_customer/features/kiosk/providers/device_mode_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -118,6 +120,22 @@ Future<void> init() async {
   sl.registerLazySingleton(() => ProductRealtimeController(
         productRepo: sl(),
         gateway: sl(),
+        // A POS ⇄ Kiosk switch this till did not ask for (the panel's Return
+        // to POS, or a lost response): bring the till in line first.
+        onDeviceModeChanged: () => sl<DeviceModeProvider>().afterRemoteSwitch(),
+      ));
+  // POS ⇄ Kiosk. The server holds the mode; this asks it to switch and brings
+  // the till in line. A staff endpoint refusing the till as not-a-POS means the
+  // screen missed a switch, so the realtime layer re-reads the mode.
+  sl.registerLazySingleton(() => DeviceModeProvider(
+        repo: DeviceModeRepo(dioClient: sl()),
+        auth: sl(),
+        staff: sl(),
+        posSession: sl(),
+        kioskManager: sl(),
+        cart: sl(),
+        dioClient: sl(),
+        onStaleMode: () => sl<ProductRealtimeController>().reconcileDeviceSettings(),
       ));
 
 

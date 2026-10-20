@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_staff_exit_trigger.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
@@ -327,14 +328,18 @@ class _KioskTopBar extends StatelessWidget {
           sideMargin, (landscape ? 16 : 40) * s, sideMargin, 0),
       child: Row(
         children: [
-          // Left-aligned brand title (the A/CAFÉ brand, per the design).
-          Text(
-            'A/CAFÉ',
-            style: loewExtraBold.copyWith(
-              fontSize: 120 * s,
-              height: 1,
-              letterSpacing: 2 * s,
-              color: Colors.black,
+          // Left-aligned brand title (the A/CAFÉ brand, per the design). On a
+          // POS till serving as a kiosk, a 3-second hold is the staff way back
+          // to POS; inert everywhere else.
+          KioskStaffExitTrigger(
+            child: Text(
+              'A/CAFÉ',
+              style: loewExtraBold.copyWith(
+                fontSize: 120 * s,
+                height: 1,
+                letterSpacing: 2 * s,
+                color: Colors.black,
+              ),
             ),
           ),
           const Spacer(),

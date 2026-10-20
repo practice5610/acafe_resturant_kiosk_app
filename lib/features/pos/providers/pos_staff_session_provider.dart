@@ -102,6 +102,10 @@ class PosStaffSessionProvider extends ChangeNotifier {
       // Switch is off: a session left over from when it was on is meaningless
       // now, and keeping its token on requests would be misleading.
       await _dropSession();
+    } else if (_session != null) {
+      // Adopted before the roster was known (a till leaving kiosk mode right
+      // after a reload): the idle lock could not be armed until now.
+      _armIdleTimer();
     }
 
     _bootstrapped = true;
@@ -147,6 +151,21 @@ class PosStaffSessionProvider extends ChangeNotifier {
 
     notifyListeners();
     return result;
+  }
+
+  /// Takes a session the server issued some other way than [signIn] -- the
+  /// staff PIN that brought this till back from kiosk mode signs that member
+  /// straight in, so they never type it twice.
+  Future<void> adoptSession(
+    PosStaffSession session,
+    String token,
+    DateTime? expiresAt,
+  ) async {
+    _session = session;
+    _token = token;
+    await tokenStore.write(token, expiresAt);
+    _armIdleTimer();
+    notifyListeners();
   }
 
   /// Back to the PIN screen. The till's sale state is untouched -- only who is

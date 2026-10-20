@@ -14,6 +14,7 @@ import 'package:acafe_customer/helper/kiosk_browser_gestures.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/app_localization.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
+import 'package:acafe_customer/features/kiosk/providers/device_mode_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_mode.dart';
 import 'package:acafe_customer/features/pos/pos_shell.dart';
@@ -131,6 +132,9 @@ Future<void> main() async {
       ChangeNotifierProvider(create: (context) => di.sl<KioskManagerProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<PosSessionProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<PosStaffSessionProvider>()),
+      // Not lazy: it installs the interceptor that notices a till the server
+      // has as a kiosk while the screen still shows the POS.
+      ChangeNotifierProvider(create: (context) => di.sl<DeviceModeProvider>(), lazy: false),
       ChangeNotifierProvider(create: (context) => di.sl<KioskDealProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<AuthProvider>()),
       ChangeNotifierProvider(create: (context) => di.sl<CartProvider>()),

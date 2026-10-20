@@ -1,5 +1,6 @@
 import 'package:acafe_customer/features/category/domain/category_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_kiosk_mode_actions.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_punch_actions.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,10 @@ class PosCategorySidebar extends StatelessWidget {
   /// the sidebar is unchanged for them. The one caller that passes it is
   /// `pos_home_cart_screen.dart`.
   final VoidCallback? onPunch;
+
+  /// Tapped to turn this till into a kiosk (POS ⇄ Kiosk). Null -- every caller
+  /// but a till allowed to switch -- leaves the rail exactly as it was.
+  final VoidCallback? onKioskMode;
 
   /// Pane width. Defaults to the flat Figma value — the only width this
   /// widget ever drew before the desktop-floor refactor — so every other
@@ -41,6 +46,7 @@ class PosCategorySidebar extends StatelessWidget {
     required this.selectedId,
     required this.onSelect,
     this.onPunch,
+    this.onKioskMode,
     this.width = PosHomeSpec.sidebarWidth,
     this.scale = 1,
   });
@@ -81,22 +87,32 @@ class PosCategorySidebar extends StatelessWidget {
               ),
             ),
           ),
-          if (onPunch != null)
-            _PosSidebarPunchAction(onTap: onPunch!, scale: scale),
+          if (onPunch != null || onKioskMode != null)
+            _PosSidebarFooter(
+              onPunch: onPunch,
+              onKioskMode: onKioskMode,
+              scale: scale,
+            ),
         ],
       ),
     );
   }
 }
 
-/// The Punch In / Out entry, pinned below the categories as the rail's footer:
-/// a hairline across the pane (so a long, scrolled list ends cleanly against
-/// it), then the shared [PosPunchEntryButton] on the category column's edges.
-class _PosSidebarPunchAction extends StatelessWidget {
-  final VoidCallback onTap;
+/// The till's utility actions, pinned below the categories as the rail's
+/// footer: a hairline across the pane (so a long, scrolled list ends cleanly
+/// against it), then Kiosk Mode and Punch In / Out stacked on the category
+/// column's edges.
+class _PosSidebarFooter extends StatelessWidget {
+  final VoidCallback? onPunch;
+  final VoidCallback? onKioskMode;
   final double scale;
 
-  const _PosSidebarPunchAction({required this.onTap, required this.scale});
+  const _PosSidebarFooter({
+    required this.onPunch,
+    required this.onKioskMode,
+    required this.scale,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -110,7 +126,17 @@ class _PosSidebarPunchAction extends StatelessWidget {
       ),
       child: Padding(
         padding: PosHomeSpec.punchFooterPadding * scale,
-        child: PosPunchEntryButton(onTap: onTap, expand: true, scale: scale),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onKioskMode != null)
+              PosKioskModeEntryButton(onTap: onKioskMode!, expand: true, scale: scale),
+            if (onKioskMode != null && onPunch != null)
+              SizedBox(height: PosHomeSpec.railActionGap * scale),
+            if (onPunch != null)
+              PosPunchEntryButton(onTap: onPunch!, expand: true, scale: scale),
+          ],
+        ),
       ),
     );
   }

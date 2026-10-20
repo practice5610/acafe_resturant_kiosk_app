@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_staff_exit_trigger.dart';
 import 'package:acafe_customer/common/models/language_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
@@ -264,13 +265,17 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
                   children: [
                     SizedBox(height: size.height * 0.035),
                     // A/CAFÉ logo pinned to the top (white artwork tinted black).
-                    SvgPicture.asset(
-                      Images.kioskLogoWhiteSvg,
-                      width: logoWidth,
-                      fit: BoxFit.contain,
-                      colorFilter: const ColorFilter.mode(
-                        Colors.black,
-                        BlendMode.srcIn,
+                    // On a POS till serving as a kiosk, a 3-second hold here is
+                    // the staff way back to POS; inert everywhere else.
+                    KioskStaffExitTrigger(
+                      child: SvgPicture.asset(
+                        Images.kioskLogoWhiteSvg,
+                        width: logoWidth,
+                        fit: BoxFit.contain,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.black,
+                          BlendMode.srcIn,
+                        ),
                       ),
                     ),
                     const Spacer(),

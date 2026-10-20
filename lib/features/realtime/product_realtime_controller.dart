@@ -18,6 +18,7 @@ import 'package:acafe_customer/features/realtime/device_settings_policy.dart';
 import 'package:acafe_customer/features/realtime/order_changed_event.dart';
 import 'package:acafe_customer/features/realtime/product_realtime_gateway.dart';
 import 'package:acafe_customer/features/realtime/websocket_config.dart';
+import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/main.dart' show Get;
 import 'package:dio/dio.dart';
@@ -30,10 +31,16 @@ class ProductRealtimeController {
   ProductRealtimeController({
     required this.productRepo,
     required this.gateway,
+    this.onDeviceModeChanged,
   });
 
   final ProductRepo productRepo;
   final ProductRealtimeGateway gateway;
+
+  /// Brings the till in line after it entered or left kiosk mode without
+  /// asking (DeviceModeProvider.afterRemoteSwitch). This controller then moves
+  /// the screen to the other mode.
+  final Future<void> Function()? onDeviceModeChanged;
 
   final Map<int, Timer> _debounce = {};
   Timer? _dealDebounce;
@@ -127,6 +134,10 @@ class ProductRealtimeController {
       branchId: branchId,
       deviceId: deviceId ?? auth.deviceId,
     );
+    // A cold boot or a reload trusts the stored mode until now. Re-read it
+    // once, so a till the panel returned to POS (or switched while this screen
+    // was closed) opens in the right mode instead of waiting for a reconnect.
+    unawaited(_refreshDeviceSettings());
   }
 
   /// Hot reload / already-connected path: keep the auth pointer fresh so
@@ -199,6 +210,7 @@ class ProductRealtimeController {
       name: event.name,
       orderingExperience: event.orderingExperience,
       showImages: event.showImages,
+      kioskMode: event.kioskMode,
       signOut: action == DeviceSettingsClientAction.signOut,
     );
 
@@ -220,11 +232,31 @@ class ProductRealtimeController {
         // socket on the new branch's channel; nothing to do here for the
         // subscription itself.
         return;
+      case KioskDeviceSettingsOutcome.modeChanged:
+        await onDeviceModeChanged?.call();
+        _showCurrentMode();
+        return;
       case KioskDeviceSettingsOutcome.applied:
       case KioskDeviceSettingsOutcome.ignored:
         return;
     }
   }
+
+  /// After a POS ⇄ Kiosk switch: the router has no listener on the device
+  /// mode, so the screen is moved explicitly -- to the till, where the staff
+  /// gate asks for a PIN if the branch wants one, or to the kiosk's welcome.
+  void _showCurrentMode() {
+    final KioskAuthProvider? auth = _auth;
+    if (auth == null) return;
+    RouterHelper.goRoutes.go(
+      auth.isPosDevice ? PosRoutes.home : RouterHelper.kioskWelcomeScreen,
+    );
+  }
+
+  /// Re-read the device's settings now and act on them. For a staff endpoint
+  /// that just refused this till as not-a-POS: the server knows a mode the
+  /// screen missed.
+  Future<void> reconcileDeviceSettings() => _refreshDeviceSettings();
 
   /// Device deactivated or deleted: the token is already dead server-side.
   /// Drop the socket and send the kiosk back to the device login screen.

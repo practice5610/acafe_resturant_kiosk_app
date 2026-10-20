@@ -23,6 +23,11 @@ enum KioskDeviceSettingsOutcome {
   /// Device deactivated or deleted -- session wiped, kiosk must return to the
   /// device login screen.
   signedOut,
+
+  /// A POS till entered or left kiosk mode somewhere else (the panel's Return
+  /// to POS, or a switch whose response this till never saw). The till has to
+  /// be torn down or brought back and moved to the other mode's screen.
+  modeChanged,
 }
 
 /// Manages the persistent kiosk device session: one-time login, boot-time
@@ -84,9 +89,28 @@ class KioskAuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 'kiosk' or 'pos' -- gates whether the manager icon is shown.
+  /// 'kiosk' or 'pos': the hardware's role, set by admin.
   String get category => kioskAuthRepo.getDeviceCategory();
-  bool get isPosDevice => category == 'pos';
+
+  /// A till, whatever mode it is in right now. Only a till can switch to a
+  /// kiosk and back.
+  bool get isPosTerminal => category == 'pos';
+
+  /// A till serving customers as a kiosk (POS ⇄ Kiosk). The server holds the
+  /// mode and refuses every staff endpoint while it is on; this mirrors it.
+  bool get kioskModeActive => isPosTerminal && kioskAuthRepo.getKioskMode();
+
+  /// Whether the POS is showing: a till that is not serving as a kiosk. Every
+  /// shell, route and order-type decision reads this, so a till in kiosk mode
+  /// is a kiosk everywhere.
+  bool get isPosDevice => isPosTerminal && !kioskModeActive;
+
+  /// Record a switch the server just confirmed for this till.
+  Future<void> applyKioskMode(bool kioskMode) async {
+    if (kioskAuthRepo.getKioskMode() == kioskMode) return;
+    await kioskAuthRepo.saveKioskMode(kioskMode);
+    notifyListeners();
+  }
 
   /// Apply an Ordering Experience push from Reverb. Ignores events aimed at
   /// another device. When this session never persisted a device id (older
@@ -132,6 +156,7 @@ class KioskAuthProvider extends ChangeNotifier {
     String orderingExperience = '',
     bool? allergenTagEnabled,
     bool? showImages,
+    bool? kioskMode,
     bool signOut = false,
   }) async {
     if (deviceId <= 0) {
@@ -168,6 +193,9 @@ class KioskAuthProvider extends ChangeNotifier {
         allergenTagEnabled != kioskAuthRepo.getAllergenTagEnabled();
     final bool showImagesChanged =
         showImages != null && showImages != kioskAuthRepo.getShowImages();
+    // Null = the server did not report it; never read that as "back to POS".
+    final bool kioskModeChanged =
+        kioskMode != null && kioskMode != kioskAuthRepo.getKioskMode();
 
     if (!branchChanged &&
         !experienceChanged &&
@@ -175,6 +203,7 @@ class KioskAuthProvider extends ChangeNotifier {
         !nameChanged &&
         !allergenChanged &&
         !showImagesChanged &&
+        !kioskModeChanged &&
         localDeviceId != null) {
       return KioskDeviceSettingsOutcome.ignored;
     }
@@ -191,13 +220,18 @@ class KioskAuthProvider extends ChangeNotifier {
       orderingExperience: nextExperience,
       allergenTagEnabled: allergenTagEnabled,
       showImages: showImages,
+      kioskMode: kioskMode,
     );
     _syncImageGate();
     notifyListeners();
 
-    return branchChanged
-        ? KioskDeviceSettingsOutcome.reboundBranch
-        : KioskDeviceSettingsOutcome.applied;
+    if (branchChanged) return KioskDeviceSettingsOutcome.reboundBranch;
+    // Only a flip of the flag on a till moves the screen; a plain category
+    // change keeps its existing (apply-only) behaviour.
+    if (kioskModeChanged && isPosTerminal) {
+      return KioskDeviceSettingsOutcome.modeChanged;
+    }
+    return KioskDeviceSettingsOutcome.applied;
   }
 
   /// Re-read this device's back-office settings from `/device/me` and apply
@@ -268,6 +302,9 @@ class KioskAuthProvider extends ChangeNotifier {
       showImages: device.containsKey('show_images')
           ? device['show_images'] == true
           : null,
+      kioskMode: device.containsKey('kiosk_mode')
+          ? device['kiosk_mode'] == true
+          : null,
     );
   }
 
@@ -328,6 +365,8 @@ class KioskAuthProvider extends ChangeNotifier {
         showImages: device.containsKey('show_images')
             ? device['show_images'] == true
             : null,
+        // A till switched to a kiosk stays one across a re-login.
+        kioskMode: device['kiosk_mode'] == true,
       );
       _syncImageGate();
       responseModel = ResponseModel(true, 'logged_in');
@@ -377,6 +416,9 @@ class KioskAuthProvider extends ChangeNotifier {
           allergenTagEnabled: branch['allergen_tag_enabled'] == true,
           showImages: device.containsKey('show_images')
               ? device['show_images'] == true
+              : null,
+          kioskMode: device.containsKey('kiosk_mode')
+              ? device['kiosk_mode'] == true
               : null,
         );
         _syncImageGate();

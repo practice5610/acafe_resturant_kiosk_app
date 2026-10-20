@@ -34,6 +34,9 @@ class AppConstants {
   // Kiosk device auth + branch-scoped catalog (branch derived server-side from token)
   static const String kioskDeviceLoginUri = '/api/v1/kiosk/device/login';
   static const String kioskDeviceMeUri = '/api/v1/kiosk/device/me';
+  // POS ⇄ Kiosk: into kiosk mode (staff permission), back to POS (staff PIN).
+  static const String kioskDeviceModeKioskUri = '/api/v1/kiosk/device/mode/kiosk';
+  static const String kioskDeviceModePosUri = '/api/v1/kiosk/device/mode/pos';
   // Customization A/B telemetry (batched, fire-and-forget).
   static const String kioskCustomizeEventsUri =
       '/api/v1/kiosk/customize-events';
@@ -205,6 +208,9 @@ class AppConstants {
   static const String kioskOrderingExperience = 'kiosk_ordering_experience';
   static const String kioskAllergenTagEnabled = 'kiosk_allergen_tag_enabled';
   static const String kioskShowImages = 'kiosk_show_images';
+  /// A POS till currently serving as a kiosk. Mirrors the server's
+  /// devices.kiosk_mode, which is what actually enforces it.
+  static const String kioskDeviceKioskMode = 'kiosk_device_kiosk_mode';
   // v4: cached products now carry note_suggestions (POS Quick Add); v3 caches
   // lack them, so they're dropped rather than served.
   static const String kioskMenuCacheKey = 'kiosk_menu_cache_v4';

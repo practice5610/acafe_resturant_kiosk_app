@@ -1,6 +1,7 @@
 import 'package:acafe_customer/features/category/domain/category_model.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_horizontal_scroller.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_kiosk_mode_actions.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_punch_actions.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
@@ -21,12 +22,16 @@ class PosCategoryStrip extends StatelessWidget {
   /// Opens the Punch In / Out screen. Null omits the action.
   final VoidCallback? onPunch;
 
+  /// Turns this till into a kiosk. Null omits the action.
+  final VoidCallback? onKioskMode;
+
   const PosCategoryStrip({
     super.key,
     required this.categories,
     required this.selectedId,
     required this.onSelect,
     this.onPunch,
+    this.onKioskMode,
   });
 
   @override
@@ -46,6 +51,8 @@ class PosCategoryStrip extends StatelessWidget {
         builder: (context, constraints) {
           final bool punchLabel =
               constraints.maxWidth >= PosHomeSpec.stripPunchLabelMinWidth;
+          final bool kioskLabel =
+              constraints.maxWidth >= PosHomeSpec.stripKioskLabelMinWidth;
           return Row(
             children: [
               Expanded(
@@ -63,6 +70,19 @@ class PosCategoryStrip extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onKioskMode != null)
+                Padding(
+                  padding: EdgeInsets.only(
+                      right: onPunch != null
+                          ? PosHomeSpec.stripTabGap
+                          : PosHomeSpec.compactGutter),
+                  // Gives up its label before Punch does: the strip's tabs
+                  // need the room more than a once-a-shift action.
+                  child: PosKioskModeEntryButton(
+                    onTap: onKioskMode!,
+                    showLabel: kioskLabel,
+                  ),
+                ),
               if (onPunch != null)
                 Padding(
                   padding:

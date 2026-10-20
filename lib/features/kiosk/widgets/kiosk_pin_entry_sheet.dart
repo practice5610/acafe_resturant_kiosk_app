@@ -79,7 +79,23 @@ Future<void> openKioskManagerAccess(BuildContext context) async {
 }
 
 class KioskPinEntrySheet extends StatefulWidget {
-  const KioskPinEntrySheet({super.key});
+  /// The card's heading, prompt and button. Default to the manager-code copy.
+  final String title;
+  final String prompt;
+  final String submitLabel;
+
+  /// Checks a typed PIN somewhere other than the manager code: returns null to
+  /// close the pad with success, or a one-line reason to show and stay open.
+  /// Null keeps the original manager-code flow ([KioskManagerProvider]).
+  final Future<String?> Function(String pin)? onSubmitPin;
+
+  const KioskPinEntrySheet({
+    super.key,
+    this.title = 'Manager access',
+    this.prompt = 'Enter your 4-digit code to unlock',
+    this.submitLabel = 'Unlock',
+    this.onSubmitPin,
+  });
 
   @override
   State<KioskPinEntrySheet> createState() => _KioskPinEntrySheetState();
@@ -89,6 +105,11 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
     with SingleTickerProviderStateMixin {
   String _code = '';
   late final AnimationController _shakeController;
+
+  // State for [KioskPinEntrySheet.onSubmitPin]; the manager flow keeps its own
+  // on KioskManagerProvider.
+  String? _error;
+  bool _checking = false;
 
   @override
   void initState() {
@@ -107,8 +128,12 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
 
   void _onDigit(String digit) {
     if (_code.length >= 4) return;
-    final provider = context.read<KioskManagerProvider>();
-    if (provider.pinError != null) provider.clearPinError();
+    if (widget.onSubmitPin == null) {
+      final provider = context.read<KioskManagerProvider>();
+      if (provider.pinError != null) provider.clearPinError();
+    } else if (_error != null) {
+      setState(() => _error = null);
+    }
     setState(() => _code += digit);
     if (_code.length == 4) _submit();
   }
@@ -121,11 +146,24 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
   void _onClear() => setState(() => _code = '');
 
   Future<void> _submit() async {
-    final provider = context.read<KioskManagerProvider>();
     final code = _code;
     if (code.length != 4) return;
 
-    final ok = await provider.verifyPin(code);
+    final Future<String?> Function(String pin)? check = widget.onSubmitPin;
+    final bool ok;
+    if (check != null) {
+      if (_checking) return;
+      setState(() => _checking = true);
+      final String? error = await check(code);
+      if (!mounted) return;
+      setState(() {
+        _checking = false;
+        _error = error;
+      });
+      ok = error == null;
+    } else {
+      ok = await context.read<KioskManagerProvider>().verifyPin(code);
+    }
     if (!mounted) return;
 
     if (ok) {
@@ -145,86 +183,103 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.onSubmitPin != null) {
+      return _buildSheet(context, error: _error, loading: _checking);
+    }
     return Consumer<KioskManagerProvider>(
-      builder: (context, provider, _) {
-        // Material (transparent) provides the DefaultTextStyle every Text below
-        // relies on. Without it, text rendered inside showGeneralDialog falls
-        // back to the framework debug style -> yellow double underline.
-        // Transparency paints nothing, so the blurred scrim is untouched.
-        return Material(
-          type: MaterialType.transparency,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Shared frosted scrim. It sits under the card and is the only
-              // opaque hit target on this layer, so any tap that misses the
-              // card -- including inside the sizing box around it -- closes.
-              KioskScrim(
-                animation: ModalRoute.of(context)?.animation ??
-                    kAlwaysCompleteAnimation,
-                onDismiss: _close,
-              ),
-              SafeArea(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Margin grows with the window so the card never sits flush
-                    // against the edge on a large panel, and never wastes half
-                    // a phone screen on a small one.
-                    final double hMargin = max(
-                        _kMinMargin, constraints.maxWidth * _kMarginFraction);
-                    final double vMargin = max(
-                        _kMinMargin, constraints.maxHeight * _kMarginFraction);
+      builder: (context, provider, _) => _buildSheet(
+        context,
+        // The manager card has always shown its own fixed copy for a miss.
+        error: provider.pinError == null ? null : 'Wrong code, try again',
+        loading: provider.verifyingPin,
+      ),
+    );
+  }
 
-                    // The width cap enforces _kMaxScale; the box height is
-                    // whatever the window leaves. BoxFit.contain then takes the
-                    // smaller of the two ratios, so the card always fits both
-                    // ways -- no overflow, no scrolling, no clipped keypad.
-                    final double boxWidth = min(
-                      max(constraints.maxWidth - hMargin * 2, 1),
-                      _kCardWidth * _kMaxScale,
-                    );
-                    final double boxHeight =
-                        max(constraints.maxHeight - vMargin * 2, 1);
+  Widget _buildSheet(
+    BuildContext context, {
+    required String? error,
+    required bool loading,
+  }) {
+    // Material (transparent) provides the DefaultTextStyle every Text below
+    // relies on. Without it, text rendered inside showGeneralDialog falls
+    // back to the framework debug style -> yellow double underline.
+    // Transparency paints nothing, so the blurred scrim is untouched.
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Shared frosted scrim. It sits under the card and is the only
+          // opaque hit target on this layer, so any tap that misses the
+          // card -- including inside the sizing box around it -- closes.
+          KioskScrim(
+            animation: ModalRoute.of(context)?.animation ??
+                kAlwaysCompleteAnimation,
+            onDismiss: _close,
+          ),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Margin grows with the window so the card never sits flush
+                // against the edge on a large panel, and never wastes half
+                // a phone screen on a small one.
+                final double hMargin = max(
+                    _kMinMargin, constraints.maxWidth * _kMarginFraction);
+                final double vMargin = max(
+                    _kMinMargin, constraints.maxHeight * _kMarginFraction);
 
-                    return Center(
-                      child: SizedBox(
-                        width: boxWidth,
-                        height: boxHeight,
-                        child: FittedBox(
-                          fit: BoxFit.contain,
-                          child: GestureDetector(
-                            // Swallows taps on the card itself so they never
-                            // reach the dismissing scrim underneath.
-                            onTap: () {},
-                            child: AnimatedBuilder(
-                              animation: _shakeController,
-                              builder: (context, child) => Transform.translate(
-                                offset: Offset(
-                                    _shakeOffset(_shakeController.value), 0),
-                                child: child,
-                              ),
-                              child: _ManagerCard(
-                                codeLength: _code.length,
-                                error: provider.pinError,
-                                loading: provider.verifyingPin,
-                                onDigit: _onDigit,
-                                onBackspace: _onBackspace,
-                                onClear: _onClear,
-                                onSubmit: _submit,
-                                onClose: _close,
-                              ),
-                            ),
+                // The width cap enforces _kMaxScale; the box height is
+                // whatever the window leaves. BoxFit.contain then takes the
+                // smaller of the two ratios, so the card always fits both
+                // ways -- no overflow, no scrolling, no clipped keypad.
+                final double boxWidth = min(
+                  max(constraints.maxWidth - hMargin * 2, 1),
+                  _kCardWidth * _kMaxScale,
+                );
+                final double boxHeight =
+                    max(constraints.maxHeight - vMargin * 2, 1);
+
+                return Center(
+                  child: SizedBox(
+                    width: boxWidth,
+                    height: boxHeight,
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: GestureDetector(
+                        // Swallows taps on the card itself so they never
+                        // reach the dismissing scrim underneath.
+                        onTap: () {},
+                        child: AnimatedBuilder(
+                          animation: _shakeController,
+                          builder: (context, child) => Transform.translate(
+                            offset: Offset(
+                                _shakeOffset(_shakeController.value), 0),
+                            child: child,
+                          ),
+                          child: _ManagerCard(
+                            title: widget.title,
+                            prompt: widget.prompt,
+                            submitLabel: widget.submitLabel,
+                            codeLength: _code.length,
+                            error: error,
+                            loading: loading,
+                            onDigit: _onDigit,
+                            onBackspace: _onBackspace,
+                            onClear: _onClear,
+                            onSubmit: _submit,
+                            onClose: _close,
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-            ],
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
@@ -234,7 +289,12 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
 /// gesture, and splitting it left/right made the card wider than the windows
 /// it had to fit.
 class _ManagerCard extends StatelessWidget {
+  final String title;
+  final String prompt;
+  final String submitLabel;
   final int codeLength;
+
+  /// The one-line reason the last PIN was refused, or null.
   final String? error;
   final bool loading;
   final ValueChanged<String> onDigit;
@@ -244,6 +304,9 @@ class _ManagerCard extends StatelessWidget {
   final VoidCallback onClose;
 
   const _ManagerCard({
+    required this.title,
+    required this.prompt,
+    required this.submitLabel,
     required this.codeLength,
     required this.error,
     required this.loading,
@@ -294,7 +357,7 @@ class _ManagerCard extends StatelessWidget {
                 _LockBadge(hasError: hasError),
                 const SizedBox(height: 20),
                 Text(
-                  'Manager access',
+                  title,
                   style: loewMedium.copyWith(
                       fontSize: 38, color: _kInk, letterSpacing: -0.3),
                 ),
@@ -310,11 +373,13 @@ class _ManagerCard extends StatelessWidget {
                         fontSize: 22,
                         color: hasError ? TextTones.danger : TextTones.hint,
                       ),
-                      child: Text(
-                        hasError
-                            ? 'Wrong code, try again'
-                            : 'Enter your 4-digit code to unlock',
-                        maxLines: 1,
+                      // Scales down rather than wrapping: the row is fixed height.
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          error ?? prompt,
+                          maxLines: 1,
+                        ),
                       ),
                     ),
                   ),
@@ -329,6 +394,7 @@ class _ManagerCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 28),
                 _UnlockButton(
+                  label: submitLabel,
                   loading: loading,
                   enabled: codeLength == 4,
                   onTap: onSubmit,
@@ -567,10 +633,12 @@ class _KeypadKeyState extends State<_KeypadKey> {
 }
 
 class _UnlockButton extends StatelessWidget {
+  final String label;
   final bool loading;
   final bool enabled;
   final VoidCallback onTap;
   const _UnlockButton({
+    required this.label,
     required this.loading,
     required this.enabled,
     required this.onTap,
@@ -614,7 +682,7 @@ class _UnlockButton extends StatelessWidget {
                         valueColor: AlwaysStoppedAnimation<Color>(_kSurface),
                       ),
                     )
-                  : Text('Unlock',
+                  : Text(label,
                       style: loewMedium.copyWith(
                           fontSize: 28,
                           color: _kSurface,
