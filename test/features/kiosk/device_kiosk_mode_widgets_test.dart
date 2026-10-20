@@ -243,6 +243,21 @@ void main() {
       expect(taps, 1);
     });
 
+    testWidgets('warns that an open ticket will be cleared', (tester) async {
+      await _auth();
+      await tester.pumpWidget(_host(Builder(
+        builder: (context) => TextButton(
+          onPressed: () => confirmSwitchToKiosk(context, ticketItems: 2, onConfirmed: () async {}),
+          child: const Text('Kiosk Mode'),
+        ),
+      )));
+
+      await tester.tap(find.text('Kiosk Mode'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('The 2 items on this ticket will be cleared.'), findsOneWidget);
+    });
+
     testWidgets('asks before switching, and cancelling changes nothing', (tester) async {
       await _auth();
       int switches = 0;

@@ -140,20 +140,26 @@ class DeviceModeProvider extends ChangeNotifier {
     final Map<String, dynamic> error = response.error;
     switch (response.errorCode) {
       case 'incorrect-pin':
+        // The wrong PIN that tripped the lock says so now, not on the next try.
+        if (error['locked_out'] == true) return _lockedCopy(error);
         final int left = int.tryParse('${error['attempts_remaining']}') ?? 0;
         return left > 0 ? 'Wrong PIN · $left ${left == 1 ? 'try' : 'tries'} left' : 'Wrong PIN';
       case 'exit-locked':
-        if (error['requires_panel_reset'] == true) {
-          return 'Locked · use Return to POS in admin';
-        }
-        final int seconds = int.tryParse('${error['retry_after_seconds']}') ?? 0;
-        final int minutes = (seconds / 60).ceil().clamp(1, 1 << 30);
-        return 'Locked · try again in $minutes min';
+        return _lockedCopy(error);
       case 'invalid-pin':
         return 'Enter your 4-digit PIN';
       default:
         return response.errorMessage ?? 'Something went wrong';
     }
+  }
+
+  String _lockedCopy(Map<String, dynamic> error) {
+    if (error['requires_panel_reset'] == true) {
+      return 'Locked · use Return to POS in admin';
+    }
+    final int seconds = int.tryParse('${error['retry_after_seconds']}') ?? 0;
+    final int minutes = (seconds / 60).ceil().clamp(1, 1 << 30);
+    return 'Locked · try again in $minutes min';
   }
 
   // ── A switch made somewhere else ──────────────────────────────────────

@@ -55,11 +55,13 @@ Future<
     })> _providers({
   required String category,
   bool loggedIn = true,
+  bool kioskMode = false,
 }) async {
   SharedPreferences.setMockInitialValues({
     if (loggedIn) AppConstants.token: 'device-token',
     AppConstants.branch: 1,
     AppConstants.kioskDeviceCategory: category,
+    AppConstants.kioskDeviceKioskMode: kioskMode,
     AppConstants.kioskBranchName: 'Main Branch',
     AppConstants.kioskDeviceName: 'Till 1',
   });
@@ -320,6 +322,21 @@ void main() {
     addTearDown(tester.view.reset);
 
     final p = await _providers(category: 'kiosk');
+    await tester.pumpWidget(shellHarness(auth: p.auth, manager: p.manager));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(KioskShell), findsOneWidget);
+    expect(find.byType(PosShell), findsNothing);
+  });
+
+  testWidgets('a POS till serving as a kiosk gets the kiosk shell, never the POS one',
+      (tester) async {
+    // POS ⇄ Kiosk: the category stays 'pos'; the server's kiosk_mode decides.
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final p = await _providers(category: 'pos', kioskMode: true);
     await tester.pumpWidget(shellHarness(auth: p.auth, manager: p.manager));
     await tester.pumpAndSettle();
 

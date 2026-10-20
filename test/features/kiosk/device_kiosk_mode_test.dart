@@ -300,6 +300,14 @@ void main() {
         expect(staff.isSignedIn, isFalse);
       });
 
+      test('the wrong PIN that locks the pad says so at once', () async {
+        await build(kioskMode: true);
+        repo.exit = _refusal(422, 'incorrect-pin',
+            {'attempts_remaining': 0, 'locked_out': true, 'retry_after_seconds': 900});
+
+        expect((await modes.switchToPos('0000')).message, 'Locked · try again in 15 min');
+      });
+
       test('a lockout says how long', () async {
         await build(kioskMode: true);
         repo.exit = _refusal(429, 'exit-locked', {'retry_after_seconds': 600, 'requires_panel_reset': false});
