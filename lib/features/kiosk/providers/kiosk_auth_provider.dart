@@ -45,7 +45,7 @@ class KioskAuthProvider extends ChangeNotifier {
   /// picture-less device never fetches an image even on a surface that was
   /// missed during the layout-collapse work.
   void _syncImageGate() {
-    CustomImageWidget.showProductImages = kioskAuthRepo.getShowImages();
+    CustomImageWidget.showProductImages = showImages;
   }
 
   bool _isLoading = false;
@@ -79,7 +79,10 @@ class KioskAuthProvider extends ChangeNotifier {
   /// Defaults to true (images shown) for any session that never saw the field.
   /// When false, every product/variation/add-on image surface renders its
   /// compact, picture-less layout and no image is fetched or precached.
-  bool get showImages => kioskAuthRepo.getShowImages();
+  ///
+  /// A till serving as a kiosk always shows images: the toggle is the staffed
+  /// till's speed setting, and customers get the full kiosk menu.
+  bool get showImages => kioskModeActive || kioskAuthRepo.getShowImages();
 
   /// Applies a POS Settings toggle locally after the server call in
   /// [KioskManagerProvider.setAllergenTagEnabled] has already succeeded.
@@ -109,6 +112,7 @@ class KioskAuthProvider extends ChangeNotifier {
   Future<void> applyKioskMode(bool kioskMode) async {
     if (kioskAuthRepo.getKioskMode() == kioskMode) return;
     await kioskAuthRepo.saveKioskMode(kioskMode);
+    _syncImageGate();
     notifyListeners();
   }
 

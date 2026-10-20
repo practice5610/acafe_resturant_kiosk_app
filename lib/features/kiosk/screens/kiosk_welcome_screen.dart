@@ -265,7 +265,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
                   children: [
                     SizedBox(height: size.height * 0.035),
                     // A/CAFÉ logo pinned to the top (white artwork tinted black).
-                    // On a POS till serving as a kiosk, a 3-second hold here is
+                    // On a POS till serving as a kiosk, three quick taps here are
                     // the staff way back to POS; inert everywhere else.
                     KioskStaffExitTrigger(
                       child: SvgPicture.asset(

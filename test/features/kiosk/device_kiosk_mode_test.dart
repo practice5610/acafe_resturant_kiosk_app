@@ -1,4 +1,5 @@
 import 'package:acafe_customer/common/models/product_model.dart';
+import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
@@ -105,7 +106,7 @@ void main() {
   late DioClient dio;
   late KioskAuthProvider auth;
 
-  Future<void> boot({String category = 'pos', bool kioskMode = false}) async {
+  Future<void> boot({String category = 'pos', bool kioskMode = false, bool showImages = true}) async {
     SharedPreferences.setMockInitialValues({
       AppConstants.token: 'device-token',
       AppConstants.branch: 1,
@@ -113,6 +114,7 @@ void main() {
       AppConstants.kioskDeviceName: 'Till 1',
       AppConstants.kioskDeviceCategory: category,
       AppConstants.kioskDeviceKioskMode: kioskMode,
+      AppConstants.kioskShowImages: showImages,
     });
     prefs = await SharedPreferences.getInstance();
     dio = DioClient(AppConstants.baseUrl, null,
@@ -151,6 +153,44 @@ void main() {
       await auth.logout();
 
       expect(prefs.containsKey(AppConstants.kioskDeviceKioskMode), isFalse);
+    });
+  });
+
+  group('product images', () {
+    // "Show Product Images" is the staffed till's speed setting. Customers on
+    // a till serving as a kiosk get the full kiosk menu, pictures included.
+    test('a till that hides images as a POS shows them as a kiosk', () async {
+      await boot(kioskMode: true, showImages: false);
+
+      expect(auth.showImages, isTrue);
+      expect(CustomImageWidget.showProductImages, isTrue);
+    });
+
+    test('switching turns images on, and back to POS restores the till setting', () async {
+      await boot(showImages: false);
+      expect(auth.showImages, isFalse);
+
+      await auth.applyKioskMode(true);
+      expect(auth.showImages, isTrue);
+      expect(CustomImageWidget.showProductImages, isTrue);
+
+      await auth.applyKioskMode(false);
+      expect(auth.showImages, isFalse);
+      expect(CustomImageWidget.showProductImages, isFalse);
+    });
+
+    test('a switch pushed from the server turns images on too', () async {
+      await boot(showImages: false);
+
+      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: true);
+
+      expect(CustomImageWidget.showProductImages, isTrue);
+    });
+
+    test('a real kiosk keeps its own picture-less setting', () async {
+      await boot(category: 'kiosk', kioskMode: true, showImages: false);
+
+      expect(auth.showImages, isFalse);
     });
   });
 

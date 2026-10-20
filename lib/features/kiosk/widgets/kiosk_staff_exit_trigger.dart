@@ -1,29 +1,61 @@
+import 'dart:async';
+
 import 'package:acafe_customer/features/kiosk/providers/device_mode_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_pin_entry_sheet.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// The staff way back from kiosk mode: hold the A/CAFÉ logo for three seconds
-/// (POS_KIOSK_MODE_PHASE1.md §5.4).
+/// The staff way back from kiosk mode: tap the A/CAFÉ logo three times in
+/// quick succession (POS_KIOSK_MODE_PHASE1.md §5.4).
 ///
-/// Hidden on purpose -- customers see nothing to tap, so the PIN pad behind it
-/// is not an invitation to guess. The PIN is what actually guards the way back,
-/// checked and rate-limited by the server; this only keeps it out of sight.
-/// Inert everywhere except a POS till that is serving as a kiosk: a real kiosk
-/// has no way to the POS at all.
-class KioskStaffExitTrigger extends StatelessWidget {
+/// Nothing on screen points at it, so the PIN pad behind it is not an
+/// invitation to guess. The PIN is what actually guards the way back, checked
+/// and rate-limited by the server; this only keeps it out of sight. While it
+/// is live the logo takes its own taps, so tapping it never starts an order;
+/// the rest of the screen still does. Inert everywhere except a POS till that
+/// is serving as a kiosk: a real kiosk has no way to the POS at all.
+class KioskStaffExitTrigger extends StatefulWidget {
   final Widget child;
 
-  /// What a completed hold does. Defaults to [openKioskStaffExit].
+  /// What the third tap does. Defaults to [openKioskStaffExit].
   final VoidCallback? onTriggered;
 
   const KioskStaffExitTrigger({super.key, required this.child, this.onTriggered});
 
-  static const Duration holdDuration = Duration(seconds: 3);
+  static const int tapsNeeded = 3;
+
+  /// Longest pause between two taps that still counts as one sequence.
+  static const Duration tapWindow = Duration(milliseconds: 700);
+
+  @override
+  State<KioskStaffExitTrigger> createState() => _KioskStaffExitTriggerState();
+}
+
+class _KioskStaffExitTriggerState extends State<KioskStaffExitTrigger> {
+  int _taps = 0;
+
+  /// Forgets the count once the pause after a tap runs past [tapWindow].
+  Timer? _reset;
+
+  void _onTap() {
+    _reset?.cancel();
+    _taps++;
+    if (_taps >= KioskStaffExitTrigger.tapsNeeded) {
+      _taps = 0;
+      (widget.onTriggered ?? () => openKioskStaffExit(context))();
+      return;
+    }
+    _reset = Timer(KioskStaffExitTrigger.tapWindow, () => _taps = 0);
+  }
+
+  @override
+  void dispose() {
+    _reset?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,21 +63,14 @@ class KioskStaffExitTrigger extends StatelessWidget {
     // (a harness) has no kiosk mode, so the logo stays just a logo.
     final bool active =
         Provider.of<KioskAuthProvider?>(context)?.kioskModeActive ?? false;
-    if (!active) return child;
+    if (!active) return widget.child;
 
-    return RawGestureDetector(
-      // Opaque so the hold is ours, not the tap-anywhere surface behind the
-      // logo; a plain tap still falls through to it once the hold is lost.
+    // Opaque, and the innermost tap recognizer, so a tap on the logo is ours
+    // rather than the welcome screen's tap-anywhere.
+    return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      gestures: {
-        LongPressGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-          () => LongPressGestureRecognizer(duration: holdDuration),
-          (recognizer) => recognizer.onLongPress =
-              onTriggered ?? () => openKioskStaffExit(context),
-        ),
-      },
-      child: child,
+      onTap: _onTap,
+      child: widget.child,
     );
   }
 }

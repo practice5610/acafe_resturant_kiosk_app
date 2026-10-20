@@ -53,48 +53,82 @@ Widget _host(Widget child) => MultiProvider(
 void main() {
   group('the hidden way back to POS', () {
     late int opened;
+    late int ordersStarted;
 
+    /// The logo inside a tap-anywhere surface, like the kiosk welcome screen.
     Future<void> pumpTrigger(WidgetTester tester) async {
       opened = 0;
-      await tester.pumpWidget(_host(KioskStaffExitTrigger(
-        onTriggered: () => opened++,
-        child: const Text('A/CAFÉ'),
+      ordersStarted = 0;
+      await tester.pumpWidget(_host(GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => ordersStarted++,
+        child: SizedBox(
+          width: 600,
+          height: 400,
+          child: Column(children: [
+            KioskStaffExitTrigger(onTriggered: () => opened++, child: const Text('A/CAFÉ')),
+            const SizedBox(height: 100),
+            const Text('TOUCH TO ORDER'),
+          ]),
+        ),
       )));
     }
 
-    Future<void> hold(WidgetTester tester, Duration duration) async {
-      final gesture = await tester.startGesture(tester.getCenter(find.text('A/CAFÉ')));
-      await tester.pump(duration);
-      await gesture.up();
-      await tester.pump();
+    Future<void> tapLogo(WidgetTester tester, {int times = 1, Duration gap = const Duration(milliseconds: 200)}) async {
+      for (int i = 0; i < times; i++) {
+        await tester.tap(find.text('A/CAFÉ'));
+        await tester.pump(gap);
+      }
     }
 
-    testWidgets('holding the logo for three seconds opens the staff PIN pad', (tester) async {
+    testWidgets('three quick taps on the logo open the staff PIN pad', (tester) async {
       await _auth(kioskMode: true);
       await pumpTrigger(tester);
 
-      await hold(tester, const Duration(milliseconds: 3100));
+      await tapLogo(tester, times: 3);
 
       expect(opened, 1);
+      expect(ordersStarted, 0, reason: 'tapping the logo never starts an order');
     });
 
-    testWidgets('a tap or a short hold does nothing', (tester) async {
+    testWidgets('one or two taps do nothing', (tester) async {
       await _auth(kioskMode: true);
       await pumpTrigger(tester);
 
-      await tester.tap(find.text('A/CAFÉ'));
-      await hold(tester, const Duration(seconds: 1));
+      await tapLogo(tester, times: 2);
+      await tester.pump(const Duration(seconds: 2));
+      await tapLogo(tester);
 
       expect(opened, 0);
+    });
+
+    testWidgets('slow taps do not add up', (tester) async {
+      await _auth(kioskMode: true);
+      await pumpTrigger(tester);
+
+      await tapLogo(tester, times: 3, gap: const Duration(milliseconds: 900));
+
+      expect(opened, 0);
+    });
+
+    testWidgets('the rest of the screen still starts an order', (tester) async {
+      await _auth(kioskMode: true);
+      await pumpTrigger(tester);
+
+      await tester.tap(find.text('TOUCH TO ORDER'));
+      await tester.pump();
+
+      expect(ordersStarted, 1);
     });
 
     testWidgets('a real kiosk has no way to the POS at all', (tester) async {
       await _auth(category: 'kiosk', kioskMode: true);
       await pumpTrigger(tester);
 
-      await hold(tester, const Duration(seconds: 4));
+      await tapLogo(tester, times: 3);
 
       expect(opened, 0);
+      expect(ordersStarted, 3, reason: 'on a real kiosk the logo is just part of the screen');
     });
   });
 

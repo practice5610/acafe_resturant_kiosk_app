@@ -329,7 +329,7 @@ class _KioskTopBar extends StatelessWidget {
       child: Row(
         children: [
           // Left-aligned brand title (the A/CAFÉ brand, per the design). On a
-          // POS till serving as a kiosk, a 3-second hold is the staff way back
+          // POS till serving as a kiosk, three quick taps are the staff way back
           // to POS; inert everywhere else.
           KioskStaffExitTrigger(
             child: Text(
