@@ -74,6 +74,8 @@ Future<KioskPlaceResult> placeKioskOrder(
   // already include it (the POS checkout adds it to both the charge and the
   // order total). Percent-based order-note tip lines stay a kiosk-only thing.
   double? tipAmountOverride,
+  // POS split (by payment or by item): placed before it is fully paid.
+  bool splitPayment = false,
 }) async {
   final cartProvider = Provider.of<CartProvider>(context, listen: false);
   final orderProvider = Provider.of<OrderProvider>(context, listen: false);
@@ -155,6 +157,7 @@ Future<KioskPlaceResult> placeKioskOrder(
     // no API change. Defaults to the kiosk's 0: a self-service sale has no
     // cash drawer.
     bringChangeAmount: bringChangeAmount ?? 0,
+    splitPayment: splitPayment,
   );
 
   final completer = Completer<KioskPlaceResult>();

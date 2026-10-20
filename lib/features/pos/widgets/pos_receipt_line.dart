@@ -285,18 +285,23 @@ class _NoteRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The mark shares the label's face and baseline. In Loew at a different
+    // size the "+" dropped below the label like a subscript.
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
         Text(
           note.included ? '+' : '-',
-          style: loewRegular.copyWith(
+          style: posReceiptLineDetailStyle.copyWith(
             fontSize: PosHomeSpec.lineNoteMarkSize,
-            color: TextTones.secondary,
             height: PosHomeSpec.lineNoteMarkHeight,
           ),
         ),
         const SizedBox(width: PosHomeSpec.lineNoteGap),
         Expanded(
+          // Full ink, not secondary: the picks are what staff check on a
+          // line, and grey strokes anti-alias to a blur on 1× screens.
           child: Text(
             note.label,
             maxLines: 1,
@@ -304,6 +309,7 @@ class _NoteRow extends StatelessWidget {
             style: posReceiptLineDetailStyle.copyWith(
               fontSize: PosHomeSpec.lineNoteSize,
               height: PosHomeSpec.lineNoteHeight,
+              color: TextTones.primary,
             ),
           ),
         ),

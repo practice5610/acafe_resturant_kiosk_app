@@ -384,7 +384,7 @@ void main() {
       expect(find.text('Amount Tendered'), findsOneWidget);
       expect(find.text('Change Due'), findsOneWidget);
       expect(find.byType(PosKeypad), findsOneWidget);
-      for (final String key in const ['1', '5', '9', '0', ',']) {
+      for (final String key in const ['1', '5', '9', '0', '.']) {
         expect(
             find.descendant(
               of: find.byType(PosKeypad),
@@ -393,6 +393,11 @@ void main() {
             findsOneWidget,
             reason: 'key $key');
       }
+      // The decimal key is a dot, matching how amounts are shown (10.40).
+      expect(
+          find.descendant(
+              of: find.byType(PosKeypad), matching: find.text(',')),
+          findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -428,7 +433,7 @@ void main() {
       expect(find.text(PosHomeSpec.formatPrice(20, padZero: false)),
           findsOneWidget);
 
-      await tapKey(tester, ',');
+      await tapKey(tester, '.');
       await tapKey(tester, '5');
       expect(find.text(PosHomeSpec.formatPrice(20.5, padZero: false)),
           findsOneWidget);

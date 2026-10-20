@@ -16,8 +16,9 @@ class PosReceiptRow {
   final String customerName;
   final String productsSummary;
 
-  /// `cash` or `card`, derived server-side. Never the wire `payment_method`,
-  /// which is `cash_on_delivery` on every order this app places.
+  /// `cash`, `card`, `split`, `invoice` or `standalone`, derived server-side
+  /// (PosTenders). Never the wire `payment_method`, which is
+  /// `cash_on_delivery` on every order this app places.
   final String method;
   final double amount;
   final String orderStatus;
@@ -64,6 +65,8 @@ String _methodLabel(String method) {
   switch (method) {
     case 'card':
       return 'Card';
+    case 'split':
+      return 'Split';
     case 'invoice':
       return 'Invoice';
     case 'standalone':

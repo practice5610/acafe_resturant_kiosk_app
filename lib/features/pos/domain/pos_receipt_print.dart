@@ -196,7 +196,7 @@ String posReceiptPrintHtml(
         '<span>${_esc(receipt.table!)}</span></div>');
   }
   out.write('<div class="pr-kv"><span>Method</span>'
-      '<span>${receipt.method == 'card' ? 'Card' : 'Cash'}</span></div>');
+      '<span>${_esc(receipt.methodLabel)}</span></div>');
   out.write('<div class="pr-rule"></div>');
 
   for (final line in receipt.lines) {

@@ -663,15 +663,16 @@ class _RightSidebar extends StatelessWidget {
             child: Text(
               'Editing item on #$receiptNumber',
               style: loewExtraBold.copyWith(
-                fontSize: 16,
+                fontSize: 18,
                 color: PosHomeSpec.ink,
               ),
             ),
           ),
-          // Item row
+          // Item row: same type as the receipt rows (PosHomeSpec.line*).
           Container(
             key: const Key('pos-edit-line-summary'),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            // 24 lines the row up under the header.
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             decoration: const BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: _kFooterBorder),
@@ -683,20 +684,19 @@ class _RightSidebar extends StatelessWidget {
                 Text(
                   productName,
                   style: loewExtraBold.copyWith(
-                    fontSize: 14,
+                    fontSize: PosHomeSpec.lineNameSize,
                     color: PosHomeSpec.ink,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: PosHomeSpec.lineDetailsGap),
                 Text(
                   priceLine,
-                  style: swiss721Light.copyWith(
-                    fontSize: 12,
-                    color: TextTones.secondary,
+                  style: posReceiptLineDetailStyle.copyWith(
+                    fontSize: PosHomeSpec.linePriceSize,
                   ),
                 ),
                 for (final PosReceiptNote pick in picks) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: PosHomeSpec.lineDetailsGap),
                   _PickRow(pick: pick),
                 ],
                 if (note != null) ...[
@@ -721,19 +721,21 @@ class _PickRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle style = swiss721Light.copyWith(
-      fontSize: 12,
-      color: TextTones.secondary,
+    final TextStyle style = posReceiptLineDetailStyle.copyWith(
+      fontSize: PosHomeSpec.lineNoteSize,
     );
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
-        SizedBox(width: 12, child: Text(pick.included ? '+' : '−', style: style)),
+        Text(pick.included ? '+' : '−', style: style),
+        const SizedBox(width: PosHomeSpec.lineNoteGap),
         Expanded(
           child: Text(
             pick.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: style,
+            style: style.copyWith(color: TextTones.primary),
           ),
         ),
       ],

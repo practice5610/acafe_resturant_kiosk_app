@@ -664,7 +664,7 @@ class _PendingItemsPreview extends StatelessWidget {
             child: Text(
               'Items that you will add:',
               style: loewExtraBold.copyWith(
-                fontSize: 16,
+                fontSize: 18,
                 color: PosHomeSpec.ink,
               ),
             ),
@@ -709,7 +709,8 @@ class _PendingItemRow extends StatelessWidget {
     final String note = line.instruction?.trim() ?? '';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      // 24 lines the rows up under the "Items that you will add:" heading.
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         color: highlighted ? PosHomeSpec.inkAlpha(0.05) : null,
         border: const Border(
@@ -724,27 +725,29 @@ class _PendingItemRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Same type as the receipt rows (PosHomeSpec.line*), so the
+                // two lists match.
                 Text(
                   'ITEM $number',
                   style: loewExtraBold.copyWith(
-                    fontSize: 14,
+                    fontSize: PosHomeSpec.lineNameSize,
                     color: PosHomeSpec.ink,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: PosHomeSpec.lineDetailsGap),
                 Text(
                   priceLine,
                   style: swiss721Medium.copyWith(
-                    fontSize: 12,
+                    fontSize: PosHomeSpec.linePriceSize,
                     color: TextTones.secondary,
                   ),
                 ),
                 for (final n in notes) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: PosHomeSpec.lineDetailsGap),
                   _PreviewNote(mark: n.included ? '+' : '-', text: n.label),
                 ],
                 if (note.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: PosHomeSpec.lineDetailsGap),
                   _PreviewNote(mark: 'Note:', text: note),
                 ],
               ],
@@ -752,8 +755,8 @@ class _PendingItemRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           SizedBox(
-            width: 26,
-            height: 26,
+            width: 30,
+            height: 30,
             child: Material(
               color: Colors.transparent,
               shape: const CircleBorder(),
@@ -762,7 +765,7 @@ class _PendingItemRow extends StatelessWidget {
                 onTap: onDelete,
                 child: const Icon(
                   Icons.delete_outline,
-                  size: 20,
+                  size: 22,
                   color: PosHomeSpec.ink,
                 ),
               ),
@@ -782,23 +785,28 @@ class _PreviewNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The mark shares the label's face and baseline. In Loew at a different
+    // size the "+" dropped below the label like a subscript.
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
         Text(
           mark,
-          style: loewRegular.copyWith(
-            fontSize: 12,
+          style: swiss721Medium.copyWith(
+            fontSize: PosHomeSpec.lineNoteMarkSize,
             color: TextTones.secondary,
           ),
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: PosHomeSpec.lineNoteGap),
         Expanded(
+          // Full ink, not secondary: these picks are what the cashier checks
+          // here, and grey 11px strokes anti-aliased to a blur on 1× screens.
           child: Text(
             text,
             style: swiss721Medium.copyWith(
-              fontSize: 11,
-              color: TextTones.secondary,
+              fontSize: PosHomeSpec.lineNoteSize,
+              color: TextTones.primary,
             ),
           ),
         ),

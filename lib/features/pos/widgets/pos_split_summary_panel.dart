@@ -246,7 +246,7 @@ class PosSplitSummaryPanel extends StatelessWidget {
     ];
 
     Widget keypad(double height) => PosKeypad(
-          rows: PosKeypad.digitRows(decimal: ','),
+          rows: PosKeypad.digitRows(decimal: '.'),
           style: posPaymentKeypadStyle(
             backspaceAsset: Images.posKeyBackspaceSvg,
             keyHeight: (height - 3 * PosPaymentSpec.keyGap) / 4,

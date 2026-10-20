@@ -727,8 +727,17 @@ class _FakeRefundRepo extends PosRefundRepo {
 }
 
 /// Refund frames 25–30: the real [PosRefundScreen], driven step by step.
+/// Frame 26 for a receipt paid by [method] -- for tests outside this file
+/// that need a non-card receipt without adding a golden frame.
+Future<void> pumpRefundMethodFrame(WidgetTester tester,
+        {required String method}) =>
+    _refundFrame(tester, step: 26, method: method);
+
 Future<void> _refundFrame(WidgetTester tester,
-    {required int step, bool split = false, bool backendData = false}) async {
+    {required int step,
+    bool split = false,
+    bool backendData = false,
+    String method = 'card'}) async {
   final session = PosRefundSession.instance;
   session.reset();
   addTearDown(session.reset);
@@ -737,7 +746,7 @@ Future<void> _refundFrame(WidgetTester tester,
     placedAt: null,
     customerName: 'Dylan',
     table: null,
-    method: 'card',
+    method: method,
     subtotal: 19,
     discount: 0,
     total: 19,

@@ -168,6 +168,7 @@ typedef PosPlaceOrderFn = Future<KioskPlaceResult> Function(
   String? paymentRef,
   double? bringChangeAmount,
   double? tipAmountOverride,
+  bool splitPayment,
 });
 
 /// Test seam for the order post. Null in production, where [posPlaceOrder] is
@@ -184,6 +185,7 @@ Future<KioskPlaceResult> posPlaceOrder(
   String? paymentRef,
   double? bringChangeAmount,
   double? tipAmountOverride,
+  bool splitPayment = false,
 }) =>
     (debugPosPlaceOrder ?? placeKioskOrder)(
       context,
@@ -191,6 +193,7 @@ Future<KioskPlaceResult> posPlaceOrder(
       paymentRef: paymentRef,
       bringChangeAmount: bringChangeAmount,
       tipAmountOverride: tipAmountOverride,
+      splitPayment: splitPayment,
     );
 
 /// Asks the terminal to abandon the payment in flight.

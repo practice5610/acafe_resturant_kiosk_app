@@ -473,7 +473,7 @@ class _ActualAmountBlock extends StatelessWidget {
         if (showKeypad) ...<Widget>[
           const SizedBox(height: PosCloseDaySpec.inputGroupGap),
           PosKeypad(
-            rows: PosKeypad.digitRows(decimal: ','),
+            rows: PosKeypad.digitRows(decimal: '.'),
             style: posCompactKeypadStyle(
               backspaceAsset: Images.posKeyBackspaceSvg,
             ),

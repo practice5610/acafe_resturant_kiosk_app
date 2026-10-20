@@ -103,7 +103,7 @@ class PosPayCashSummaryPanel extends StatelessWidget {
                 key: const Key('pad-box'),
                 height: PosPaymentSpec.keypadHeight,
                 child: PosKeypad(
-                  rows: PosKeypad.digitRows(decimal: ','),
+                  rows: PosKeypad.digitRows(decimal: '.'),
                   style: posPaymentKeypadStyle(backspaceAsset: Images.posKeyBackspaceSvg),
                   onKey: onKey,
                   onBackspace: onBackspace,

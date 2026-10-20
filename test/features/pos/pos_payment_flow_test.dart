@@ -402,6 +402,9 @@ late FakeReceiptSendRepo receiptRepo;
 late FakeInvoiceRepo invoiceRepo;
 late FakeStandaloneRepo standaloneRepo;
 late List<double> placed;
+
+/// Per placed order: did it go up as a split (placed before fully paid)?
+late List<bool> placedAsSplit;
 bool placeFails = false;
 
 /// When set, the order post waits for it — a slow network.
@@ -421,6 +424,7 @@ void setUpFlowFakes() {
   invoiceRepo = FakeInvoiceRepo();
   standaloneRepo = FakeStandaloneRepo();
   placed = [];
+  placedAsSplit = [];
   placeFails = false;
   placeGate = null;
   _register<KioskPaymentService>(terminal);
@@ -434,12 +438,14 @@ void setUpFlowFakes() {
       {required amount,
       paymentRef,
       bringChangeAmount,
-      tipAmountOverride}) async {
+      tipAmountOverride,
+      splitPayment = false}) async {
     if (placeGate != null) await placeGate!.future;
     if (placeFails) {
       return const KioskPlaceResult(success: false, message: 'Server down');
     }
     placed.add(amount);
+    placedAsSplit.add(splitPayment);
     // The order the split controllers see is the one just placed.
     splitRepo.grandTotal = amount;
     sbiRepo.grandTotal = amount;
@@ -597,6 +603,8 @@ void main() {
       // Charged first, then the order placed once, then the guest's items.
       expect(terminal.charged, [12]);
       expect(placed, [19]);
+      // Placed part-paid, so admin lists it only once the last guest pays.
+      expect(placedAsSplit, [true]);
       expect(sbiRepo.pays, [('0,1', 'card', 12.0)]);
       expect(find.text('Split Payment 1 Successful'), findsOneWidget);
 
@@ -782,7 +790,7 @@ void main() {
           reason: 'over € 19.00');
 
       await backspace(tester, 2);
-      await keys(tester, '8,555');
+      await keys(tester, '8.555');
       expect(bar(tester), ('Start Payment 1 · € 8.55', true),
           reason: 'a third decimal is ignored');
       await backspace(tester);
@@ -793,7 +801,7 @@ void main() {
     testWidgets('two guests, card then cash with change, then home',
         (tester) async {
       await openCustom(tester);
-      await keys(tester, '8,5');
+      await keys(tester, '8.5');
       await confirmBar(tester);
       expect(terminal.charged, [8.5]);
       expect(placed, [19]);
@@ -844,6 +852,8 @@ void main() {
       await confirmBar(tester);
       expect(terminal.charged, [12]);
       expect(placed, [19]);
+      // Placed part-paid, so admin lists it only once the last payment is in.
+      expect(placedAsSplit, [true]);
       expect(splitRepo.payments.single['paid_amount'], 12.0);
       expect(find.text('Split Payment 1 Successful'), findsOneWidget);
       await tap(tester, find.text('Start next payment'));
@@ -1264,6 +1274,7 @@ void main() {
       await confirmBar(tester);
       expect(terminal.charged, [19]);
       expect(placed, [19]);
+      expect(placedAsSplit, [false]);
       // The "Order Paid" card is disabled for now: a settled order goes
       // straight home.
       expect(find.text('Order Paid'), findsNothing);
@@ -1335,6 +1346,7 @@ void main() {
       expect(bar(tester), ('Confirm Payment', true));
       await confirmBar(tester);
       expect(placed, [19]);
+      expect(placedAsSplit, [false]);
       expect(invoiceRepo.created.single['company_name'], 'Acafe B.V.');
       expect(invoiceRepo.created.single['reference'], 'pos-inv-27362');
       expect(find.text('Invoice created'), findsOneWidget);
@@ -1356,6 +1368,7 @@ void main() {
       await tester.pumpAndSettle();
       await confirmBar(tester);
       expect(placed, [19]);
+      expect(placedAsSplit, [false]);
       expect(standaloneRepo.recorded.single, (27362, '123456'));
       expect(standaloneRepo.references, ['pos-sa-27362']);
       expect(find.text('Payment confirmed'), findsOneWidget);
@@ -1490,7 +1503,7 @@ void main() {
         await keys(tester, '99999');
         expect(bar(tester).$2, isFalse, reason: 'above the remaining');
         await backspace(tester, 5);
-        await keys(tester, '12345,67');
+        await keys(tester, '12345.67');
         expect(bar(tester), ('Start Payment 1 · € 12,345.67', true));
         expect(tester.takeException(), isNull);
       });

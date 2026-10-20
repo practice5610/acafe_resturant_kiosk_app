@@ -458,7 +458,11 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// payment saved, an invoice or a stand-alone payment confirmed) and hands
   /// back the same order every time after. Null (with [onError] told why)
   /// when it could not be placed — nothing is ever placed twice.
-  Future<int?> _ensureSaleOrder(ValueChanged<String> onError) async {
+  /// [split]: a split places the order with its first payment, before the
+  /// rest is in -- the backend starts it part-paid so admin waits for the
+  /// last payment before listing it.
+  Future<int?> _ensureSaleOrder(ValueChanged<String> onError,
+      {bool split = false}) async {
     final int? existing = _saleOrderId;
     if (existing != null) return existing;
 
@@ -469,6 +473,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       context,
       amount: grandTotal,
       tipAmountOverride: tip > 0 ? tip : null,
+      splitPayment: split,
     );
     if (!mounted) return null;
     final int orderId = int.tryParse((placed.orderId ?? '').trim()) ?? 0;
@@ -539,7 +544,8 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
     String? error;
     try {
-      final int? orderId = await _ensureSaleOrder((m) => error = m);
+      final int? orderId =
+          await _ensureSaleOrder((m) => error = m, split: true);
       if (!mounted) return;
       if (orderId != null) {
         if (_split.value != null) {

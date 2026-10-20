@@ -612,7 +612,10 @@ class _MethodPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final PosRefundSession s = PosRefundSession.instance;
-    final String original = s.order?.method ?? 'cash';
+    // refund/create takes only card or cash. A split, invoice or stand-alone
+    // receipt opened from Receipts has no per-payment splits here, so it
+    // refunds the way it always has: cash, unless the sale was a card sale.
+    final String original = s.order?.method == 'card' ? 'card' : 'cash';
     return ValueListenableBuilder<String>(
       valueListenable: s.refundMethod,
       builder: (context, method, _) => _OptionColumn(

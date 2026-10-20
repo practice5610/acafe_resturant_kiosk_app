@@ -244,16 +244,20 @@ class PosHomeSpec {
   static const double linePaddingH = 16;
   static const double linePaddingV = 12;
   static const double lineGap = 12;
-  static const double lineDetailsGap = 4;
-  static const double lineNameSize = 14;
-  static const double lineNameHeight = 17 / 14;
-  static const double linePriceSize = 12;
-  static const double linePriceHeight = 14 / 12;
-  static const double lineNoteMarkSize = 12;
-  static const double lineNoteMarkHeight = 14 / 12;
-  static const double lineNoteSize = 11;
-  static const double lineNoteHeight = 13 / 11;
-  static const double lineNoteGap = 4;
+  // Type is 2px over Figma's 14 / 12 / 11: at those sizes the name, price
+  // and add-on picks read as small and soft in the wider receipt panes of
+  // desktop tills. The customize screen's "Items that you will add:" pane
+  // uses the same sizes so both lists match.
+  static const double lineDetailsGap = 6;
+  static const double lineNameSize = 16;
+  static const double lineNameHeight = 19 / 16;
+  static const double linePriceSize = 14;
+  static const double linePriceHeight = 17 / 14;
+  static const double lineNoteMarkSize = 13;
+  static const double lineNoteMarkHeight = 16 / 13;
+  static const double lineNoteSize = 13;
+  static const double lineNoteHeight = 16 / 13;
+  static const double lineNoteGap = 6;
 
   static const double qtyControlHeight = 26;
   static const double qtyTrashSize = 26;

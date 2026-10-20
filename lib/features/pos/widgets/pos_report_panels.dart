@@ -243,12 +243,15 @@ class PosReportPaymentMethodsPanel extends StatelessWidget {
     'cash': Icons.payments_outlined,
     'card': Icons.credit_card_rounded,
     'wallet': Icons.account_balance_wallet_outlined,
+    'invoice': Icons.receipt_long_outlined,
   };
 
   static const Map<String, String> _labels = <String, String>{
     'cash': 'Cash',
     'card': 'PIN/Card',
     'wallet': 'Wallet',
+    // Listed by the backend only on a day with an invoice sale.
+    'invoice': 'Invoice',
   };
 
   @override

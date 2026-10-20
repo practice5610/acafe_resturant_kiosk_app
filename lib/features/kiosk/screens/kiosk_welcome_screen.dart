@@ -12,7 +12,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_language_offering.dar
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_welcome_language_bar.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_welcome_language_picker.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
@@ -22,7 +22,7 @@ import 'package:provider/provider.dart';
 
 /// Kiosk intro screen — a full-screen background image with the black A/CAFÉ
 /// logo pinned to the top, a "TOUCH TO ORDER" prompt in the middle and the
-/// language buttons at the bottom. Tapping anywhere else goes to the menu.
+/// language dropdown at the bottom. Tapping anywhere else goes to the menu.
 ///
 /// The languages are the ones Settings → Hardware offers on this device;
 /// English is chosen until a guest picks another (see
@@ -63,7 +63,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
 
   bool _orderLoading = false;
 
-  /// Settings → Hardware's offering, resolved once so the bar is stable.
+  /// Settings → Hardware's offering, resolved once so the picker is stable.
   late final List<LanguageModel> _languages =
       KioskLanguageOffering.forThisDevice();
 
@@ -216,7 +216,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
         KioskMetrics.maybeOf(context)?.window ?? MediaQuery.sizeOf(context);
 
     // Size of the artwork as actually drawn (contain, never cropped). Type and
-    // the language buttons scale off it, so the composition keeps the
+    // the language picker scale off it, so the composition keeps the
     // artboard's proportions on a phone, a laptop window and the kiosk panel
     // alike.
     final double artWidth = math.min(size.width, size.height * _introAspect);
@@ -241,7 +241,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
             _buildBackground(),
 
             // Gentle top + bottom dark scrim so the logo, prompt and language
-            // buttons stay readable over the (potentially bright) image.
+            // picker stay readable over the (potentially bright) image.
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -310,10 +310,10 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     );
   }
 
-  /// The language buttons, or a spinner in their place while the menu is
-  /// being made ready after a tap. The buttons keep their space while hidden
-  /// so the prompt above never jumps, and are locked: a switch now would open
-  /// the menu in the language being left.
+  /// The language picker, or a spinner in its place while the menu is being
+  /// made ready after a tap. The picker keeps its space while hidden so the
+  /// prompt above never jumps, and is locked: a switch now would open the
+  /// menu in the language being left.
   Widget _buildLanguageSlot(double pillHeight) {
     final String current =
         Provider.of<LocalizationProvider>(context).locale.languageCode;
@@ -330,7 +330,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
               ignoring: _orderLoading,
               child: ExcludeSemantics(
                 excluding: _orderLoading,
-                child: KioskWelcomeLanguageBar(
+                child: KioskWelcomeLanguagePicker(
                   languages: _languages,
                   current: current,
                   pillHeight: pillHeight,

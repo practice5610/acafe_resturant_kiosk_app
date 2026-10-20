@@ -25,6 +25,7 @@ class PlaceOrderBody {
   int? _deviceId;
   String? _customerEmail;
   String? _customerName;
+  bool _splitPayment = false;
 
   PlaceOrderBody copyWith({String? paymentMethod, String? transactionReference}) {
     _paymentMethod = paymentMethod;
@@ -57,6 +58,7 @@ class PlaceOrderBody {
         int? deviceId,
         String? customerEmail,
         String? customerName,
+        bool splitPayment = false,
       }) {
     _cart = cart;
     _couponDiscountAmount = couponDiscountAmount;
@@ -82,6 +84,7 @@ class PlaceOrderBody {
     _deviceId = deviceId;
     _customerEmail = customerEmail;
     _customerName = customerName;
+    _splitPayment = splitPayment;
   }
 
   List<Cart>? get cart => _cart;
@@ -186,6 +189,12 @@ class PlaceOrderBody {
     }
     if (_deviceId != null) {
       data['device_id'] = _deviceId;
+    }
+    // POS split: placed with its first payment, so the backend starts it
+    // part-paid and admin lists it only once the last payment is in. Sent
+    // only for a split, so every other payload is unchanged.
+    if (_splitPayment) {
+      data['split_payment'] = true;
     }
     return data;
   }

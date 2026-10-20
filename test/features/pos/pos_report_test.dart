@@ -547,6 +547,28 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // The backend adds an Invoice row only on a day with an invoice sale
+    // (ZReportService::paymentMethods). Four rows must still fit the card.
+    for (final Size size in const [Size(1366, 926), Size(1024, 768)]) {
+      testWidgets('an invoice day shows a fourth Invoice row at $size',
+          (tester) async {
+        final Map<String, dynamic> payload = _reportPayload();
+        ((payload['payment_methods'] as Map<String, dynamic>)['methods']
+                as List<Map<String, dynamic>>)
+            .add(<String, dynamic>{
+          'method': 'invoice',
+          'method_key': 'invoice',
+          'order_count': 2,
+          'amount': 86.8,
+        });
+        await pumpAt(tester, size, payload: payload);
+
+        expect(find.text('Invoice'), findsOneWidget);
+        expect(find.text('Wallet'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets(
         'resolves "today" from the server, then fetches exactly the selected day on each step',
         (tester) async {
@@ -589,7 +611,7 @@ void main() {
       expect(manager.closedDates, isEmpty);
 
       // Match expected (€842.50) so Step 2 has no discrepancy gate.
-      for (final String key in <String>['8', '4', '2', ',', '5', '0']) {
+      for (final String key in <String>['8', '4', '2', '.', '5', '0']) {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
@@ -736,7 +758,7 @@ void main() {
 
       await tester.tap(find.text('Close Day'));
       await tester.pumpAndSettle();
-      for (final String key in <String>['6', '2', ',']) {
+      for (final String key in <String>['6', '2', '.']) {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
@@ -905,7 +927,7 @@ void main() {
 
       await tester.tap(find.text('Close Day'));
       await tester.pumpAndSettle();
-      for (final String key in <String>['8', '4', '2', ',', '5', '0']) {
+      for (final String key in <String>['8', '4', '2', '.', '5', '0']) {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
@@ -939,7 +961,7 @@ void main() {
 
       await tester.tap(find.text('Close Day'));
       await tester.pumpAndSettle();
-      for (final String key in <String>['8', '4', '2', ',', '5', '0']) {
+      for (final String key in <String>['8', '4', '2', '.', '5', '0']) {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }
@@ -962,7 +984,7 @@ void main() {
 
       await tester.tap(find.text('Close Day'));
       await tester.pumpAndSettle();
-      for (final String key in <String>['8', '4', '2', ',', '5', '0']) {
+      for (final String key in <String>['8', '4', '2', '.', '5', '0']) {
         await tester.tap(find.text(key).first);
         await tester.pumpAndSettle();
       }

@@ -54,6 +54,17 @@ void main() {
       expect(find.text('Add to customer balance'), findsNothing);
     });
 
+    // refund/create takes only card or cash. A split / invoice / stand-alone
+    // receipt opened from Receipts must never send its display method as the
+    // refund tender (422 "The selected method is invalid").
+    for (final String method in ['split', 'invoice', 'standalone']) {
+      testWidgets('a $method receipt refunds as cash, never "$method"',
+          (tester) async {
+        await pumpRefundMethodFrame(tester, method: method);
+        expect(PosRefundSession.instance.refundMethod.value, 'cash');
+      });
+    }
+
     testWidgets('with the data: "Card •••• 4242" and Store credit',
         (tester) async {
       await auditFrames['26b_refund_method_last4_credit']!(tester);

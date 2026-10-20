@@ -253,7 +253,7 @@ class _PosTipModalState extends State<PosTipModal> {
     }
     final String? ch = event.character;
     if (ch != null && RegExp(r'^[0-9.,]$').hasMatch(ch)) {
-      _key(ch == '.' ? ',' : ch);
+      _key(ch == ',' ? '.' : ch);
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -433,7 +433,7 @@ class _PosTipModalState extends State<PosTipModal> {
               const SizedBox(height: PosTipSpec.customGap),
               PosKeypad(
                 rows: PosKeypad.digitRows(
-                  decimal: percentUnit ? PosKeypadKeys.spacer : ',',
+                  decimal: percentUnit ? PosKeypadKeys.spacer : '.',
                 ),
                 // The payment keypad as is: its 56px keys are the size
                 // this card was drawn around.

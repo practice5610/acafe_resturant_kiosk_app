@@ -126,7 +126,7 @@ void main() {
     );
   });
 
-  testWidgets('detail lines use the Medium face in the secondary tone',
+  testWidgets('detail lines use the Medium face; picks in full ink',
       (tester) async {
     await pumpLine(tester);
 
@@ -138,9 +138,16 @@ void main() {
       'Extra hot',
     ]) {
       final TextStyle style = styleOf(tester, text);
-      expect(style.color, TextTones.secondary, reason: text);
       expect(style.fontFamily, 'Swiss721', reason: text);
       expect(style.fontWeight, FontWeight.w500, reason: text);
+    }
+    // The price line and the kitchen note stay secondary; the add-on picks
+    // are what staff check, so they carry full ink.
+    for (final String text in ['€ 4.00 · Can', 'Extra hot']) {
+      expect(styleOf(tester, text).color, TextTones.secondary, reason: text);
+    }
+    for (final String text in ['Double shot', 'Oat milk', 'Sugar']) {
+      expect(styleOf(tester, text).color, TextTones.primary, reason: text);
     }
     // The +/− marks share the tone so they do not read as a separate level.
     // (The qty stepper's "+" chip is cream on black and is not a mark.)

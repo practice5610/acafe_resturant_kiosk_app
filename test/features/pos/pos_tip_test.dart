@@ -39,7 +39,8 @@ void main() {
         {required amount,
         paymentRef,
         bringChangeAmount,
-        tipAmountOverride}) async {
+        tipAmountOverride,
+        splitPayment = false}) async {
       orders.add((amount, tipAmountOverride));
       return const KioskPlaceResult(success: true, orderId: '27362');
     };
@@ -113,7 +114,7 @@ void main() {
     testWidgets('custom amount keyed on the keypad, with decimals',
         (tester) async {
       await openTip(tester);
-      await keyIn(tester, '2,505'); // the third decimal is ignored
+      await keyIn(tester, '2.505'); // the third decimal is ignored
       expect(find.descendant(
               of: find.byKey(const Key('pos-tip-input')),
               matching: find.text('2.50')),
