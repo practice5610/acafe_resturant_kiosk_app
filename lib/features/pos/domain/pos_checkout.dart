@@ -92,6 +92,12 @@ Future<PosCheckoutResult> posConfirmPayment(
   // placeKioskOrder — byte-identical to before. When > 0 it is added to both
   // the charged amount and the stored order total, and sent as `tip_amount`.
   double tipAmount = 0,
+  // POS "Open Employee Tab": places the order without collecting any money.
+  // The card terminal is skipped entirely and the order is posted with
+  // payment_method 'employee_tab', so the kitchen, admin, and Z-report see a
+  // normal order while no cash or card tender is recorded. Default false keeps
+  // every existing cash/card checkout byte-identical.
+  bool employeeTab = false,
   ValueChanged<PosCheckoutPhase>? onPhase,
 }) async {
   final CartProvider cart = context.read<CartProvider>();
@@ -111,7 +117,9 @@ Future<PosCheckoutResult> posConfirmPayment(
   KioskSession.instance.customerName = sale.customerName.text.trim();
 
   String? paymentRef;
-  if (method == PosPaymentMethod.card) {
+  // An employee tab collects nothing, so there is no terminal round-trip and
+  // no tender: fall straight through to the order post below.
+  if (!employeeTab && method == PosPaymentMethod.card) {
     onPhase?.call(PosCheckoutPhase.awaitingTerminal);
     final KioskPaymentResult payment = await sl<KioskPaymentService>().pay(
       amount: amount,
@@ -141,6 +149,9 @@ Future<PosCheckoutResult> posConfirmPayment(
     // Null when there is no tip, so the kiosk's session-percent path is used
     // unchanged; the explicit amount otherwise.
     tipAmountOverride: tip > 0 ? tip : null,
+    // 'employee_tab' only for an employee tab; the normal 'cash_on_delivery'
+    // for every cash/card sale.
+    paymentMethod: employeeTab ? 'employee_tab' : 'cash_on_delivery',
   );
 
   if (!placed.success) {
@@ -169,6 +180,7 @@ typedef PosPlaceOrderFn = Future<KioskPlaceResult> Function(
   double? bringChangeAmount,
   double? tipAmountOverride,
   bool splitPayment,
+  String paymentMethod,
 });
 
 /// Test seam for the order post. Null in production, where [posPlaceOrder] is
@@ -186,6 +198,7 @@ Future<KioskPlaceResult> posPlaceOrder(
   double? bringChangeAmount,
   double? tipAmountOverride,
   bool splitPayment = false,
+  String paymentMethod = 'cash_on_delivery',
 }) =>
     (debugPosPlaceOrder ?? placeKioskOrder)(
       context,
@@ -194,6 +207,7 @@ Future<KioskPlaceResult> posPlaceOrder(
       bringChangeAmount: bringChangeAmount,
       tipAmountOverride: tipAmountOverride,
       splitPayment: splitPayment,
+      paymentMethod: paymentMethod,
     );
 
 /// Asks the terminal to abandon the payment in flight.

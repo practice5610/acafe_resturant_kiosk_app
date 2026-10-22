@@ -439,7 +439,8 @@ void setUpFlowFakes() {
       paymentRef,
       bringChangeAmount,
       tipAmountOverride,
-      splitPayment = false}) async {
+      splitPayment = false,
+      paymentMethod = 'cash_on_delivery'}) async {
     if (placeGate != null) await placeGate!.future;
     if (placeFails) {
       return const KioskPlaceResult(success: false, message: 'Server down');

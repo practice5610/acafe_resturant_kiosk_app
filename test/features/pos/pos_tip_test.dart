@@ -40,7 +40,8 @@ void main() {
         paymentRef,
         bringChangeAmount,
         tipAmountOverride,
-        splitPayment = false}) async {
+        splitPayment = false,
+        paymentMethod = 'cash_on_delivery'}) async {
       orders.add((amount, tipAmountOverride));
       return const KioskPlaceResult(success: true, orderId: '27362');
     };

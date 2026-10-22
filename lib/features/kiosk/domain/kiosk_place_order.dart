@@ -76,6 +76,12 @@ Future<KioskPlaceResult> placeKioskOrder(
   double? tipAmountOverride,
   // POS split (by payment or by item): placed before it is fully paid.
   bool splitPayment = false,
+  // POS "Open Employee Tab": places the order with no money collected. The
+  // wire payment_method is swapped for 'employee_tab', which the backend lands
+  // as a paid POS order (nothing is owed) but keeps out of the cash/card
+  // tender totals and the Z-report drawer. Every kiosk/POS call keeps the
+  // default 'cash_on_delivery', so their payload is unchanged.
+  String paymentMethod = 'cash_on_delivery',
 }) async {
   final cartProvider = Provider.of<CartProvider>(context, listen: false);
   final orderProvider = Provider.of<OrderProvider>(context, listen: false);
@@ -134,7 +140,7 @@ Future<KioskPlaceResult> placeKioskOrder(
     deliveryAddressId: 0,
     deliveryAddress: null,
     orderType: kioskOrderType(kioskAuthProvider),
-    paymentMethod: 'cash_on_delivery',
+    paymentMethod: paymentMethod,
     branchId: branchId,
     deviceId: kioskAuthProvider.deviceId,
     customerEmail: KioskSession.instance.customerEmail,

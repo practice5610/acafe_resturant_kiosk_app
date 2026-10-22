@@ -37,6 +37,7 @@ import 'package:acafe_customer/features/pos/domain/pos_split_by_item_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_repo.dart';
 import 'package:acafe_customer/features/pos/domain/pos_split_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_complete_confirmation_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_order_toast.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_fit_column.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_invoice_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_dialog.dart';
@@ -218,6 +219,17 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   /// True while Confirm Payment is placing the order / recording the payment.
   bool _standaloneLoading = false;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Open Employee Tab ────────────────────────────────────────────────────
+  /// True while the employee-tab row is the active OTHER selection. There is
+  /// no pane — the right column keeps showing the receipt — and the sticky bar
+  /// becomes "Open Tab — No Payment", which places a normal order with nothing
+  /// collected.
+  bool _employeeTabActive = false;
+
+  /// True while the employee tab is placing its order.
+  bool _employeeTabLoading = false;
   // ─────────────────────────────────────────────────────────────────────────
 
   /// Null after any keypad entry — a chip stays lit only while it is what the
@@ -962,6 +974,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     _taken = null;
     _invoiceActive = false;
     _standaloneActive = false;
+    _employeeTabActive = false;
     if (context.mounted) context.go(PosRoutes.home);
   }
 
@@ -1468,6 +1481,73 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         ));
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Open Employee Tab ────────────────────────────────────────────────────
+
+  /// Operator taps "Open Employee Tab" in the OTHER row: the row lights up and
+  /// the sticky bar becomes "Open Tab — No Payment". Nothing is placed until
+  /// that bar is pressed ([_openEmployeeTab]).
+  void _startEmployeeTab() {
+    if (_employeeTabActive) return;
+    setState(() => _employeeTabActive = true);
+  }
+
+  /// Places the current ticket as a normal order with NO money collected:
+  /// same order/kitchen/admin/Z-report path as every other POS order, but the
+  /// card terminal is skipped and the order is posted with payment_method
+  /// 'employee_tab'. On success the screen goes home exactly like a paid sale.
+  Future<void> _openEmployeeTab() async {
+    if (_employeeTabLoading) return;
+    final CartProvider cart = context.read<CartProvider>();
+    if (!cart.cartList.any((line) => line != null)) return;
+
+    setState(() {
+      _employeeTabLoading = true;
+      _phase = PosCheckoutPhase.placingOrder;
+    });
+    final PosCheckoutResult result = await posConfirmPayment(
+      context,
+      // Ignored on the employee-tab path (no terminal), but required by the
+      // signature; pass the current method for consistency.
+      method: _sale.paymentMethod,
+      idempotencyKey: _idempotencyKey,
+      // An employee tab is never tipped — the perk is the items, not a tip.
+      tipAmount: 0,
+      employeeTab: true,
+      onPhase: (phase) {
+        if (!mounted) return;
+        setState(() => _phase = phase);
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _employeeTabLoading = false;
+      _phase = null;
+    });
+
+    switch (result.status) {
+      case PosCheckoutStatus.placed:
+        _holdLastFrame();
+        unawaited(_autoPrintIfEnabled(result.orderId));
+        context.go(PosRoutes.home);
+        // Same non-blocking confirmation as a paid order; the order was still
+        // created, just without a payment.
+        showPosOrderToast('Order created successfully');
+      // No money moves, so the only non-placed outcome here is the order post
+      // itself failing. The terminal statuses cannot occur (it is skipped).
+      case PosCheckoutStatus.orderFailed:
+      case PosCheckoutStatus.paymentFailed:
+      case PosCheckoutStatus.paymentCanceled:
+        showCustomSnackBarHelper(
+          result.message ?? 'The employee tab could not be opened.',
+          isError: true,
+        );
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   // ── Family 6 — Receipt Email / Print ─────────────────────────────────────
 
   /// Shows the receipt options dialog on top of the current success card.
@@ -1575,6 +1655,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     }
     if (_standaloneActive) {
       setState(() => _standaloneActive = false);
+      return;
+    }
+    if (_employeeTabActive) {
+      setState(() => _employeeTabActive = false);
     }
   }
 
@@ -1735,6 +1819,8 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         // );
         unawaited(_autoPrintIfEnabled(result.orderId));
         context.go(PosRoutes.home);
+        // Non-blocking bottom-right confirmation — see showPosOrderToast.
+        showPosOrderToast('Order created successfully');
       case PosCheckoutStatus.paymentFailed:
         // Figma 1641:4218 takes over the content area, rather than a snackbar
         // the operator can miss while looking at the customer.
@@ -2095,6 +2181,20 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                                 _startStandalone();
                                               },
                                     onSubmitStandalone: _submitStandalone,
+                                    // Open Employee Tab: never offered while
+                                    // changing a receipt's method, and inert
+                                    // once already selected (re-tap cancels via
+                                    // onCancelActiveOther).
+                                    employeeTabActive: _employeeTabActive,
+                                    onEmployeeTab: _change != null
+                                        ? null
+                                        : _employeeTabActive
+                                            ? null
+                                            : () {
+                                                if (_saleGuard()) return;
+                                                _cancelActiveOther();
+                                                _startEmployeeTab();
+                                              },
                                     onCancelActiveOther: _onCancelActiveOther,
                                     showSplitOptions: _change == null,
                                   );
@@ -2123,6 +2223,17 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                           ? _submitInvoice
                                           : null,
                                     ),
+                                  );
+                                }
+                                // Open Employee Tab: no pane, just a no-payment
+                                // place-order CTA.
+                                if (_employeeTabActive) {
+                                  return PosPayPillBar(
+                                    label: 'Open Tab — No Payment',
+                                    loading: _employeeTabLoading,
+                                    onConfirm: hasItems && !_employeeTabLoading
+                                        ? _openEmployeeTab
+                                        : null,
                                   );
                                 }
                                 // Frame 04: same bar for stand-alone.
@@ -2394,6 +2505,11 @@ class _Content extends StatelessWidget {
   final VoidCallback? onStandalone;
   final VoidCallback onSubmitStandalone;
 
+  // Open Employee Tab parameters. Tapping it places a normal order with no
+  // money collected; there is no pane, so there is nothing to submit.
+  final bool employeeTabActive;
+  final VoidCallback? onEmployeeTab;
+
   /// Cancels whichever OTHER mode is currently active (deselects on re-tap).
   final VoidCallback? onCancelActiveOther;
 
@@ -2475,6 +2591,8 @@ class _Content extends StatelessWidget {
     required this.standaloneLoading,
     required this.onStandalone,
     required this.onSubmitStandalone,
+    this.employeeTabActive = false,
+    this.onEmployeeTab,
     this.onCancelActiveOther,
     this.showSplitOptions = true,
   });
@@ -2514,6 +2632,8 @@ class _Content extends StatelessWidget {
       invoiceActive: invoiceActive || changeOther == 'invoice',
       onStandalone: onStandalone,
       standaloneActive: standaloneActive || changeOther == 'standalone',
+      onEmployeeTab: onEmployeeTab,
+      employeeTabActive: employeeTabActive,
       onCancelActiveOther: onCancelActiveOther,
       showSplitOptions: showSplitOptions,
     );

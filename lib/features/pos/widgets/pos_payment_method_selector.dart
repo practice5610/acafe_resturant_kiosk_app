@@ -56,6 +56,13 @@ class PosPaymentMethodSelector extends StatelessWidget {
   /// True when stand-alone mode is active.
   final bool standaloneActive;
 
+  /// When non-null, the "Open Employee Tab" OTHER row becomes tappable. It
+  /// places a normal order with no money collected (staff perk / comp).
+  final VoidCallback? onEmployeeTab;
+
+  /// True when the employee-tab row is the active OTHER selection.
+  final bool employeeTabActive;
+
   /// Called when the operator taps the currently-active OTHER row to deselect
   /// (cancel) it. Null = no cancellation available.
   final VoidCallback? onCancelActiveOther;
@@ -78,6 +85,8 @@ class PosPaymentMethodSelector extends StatelessWidget {
     this.invoiceActive = false,
     this.onStandalone,
     this.standaloneActive = false,
+    this.onEmployeeTab,
+    this.employeeTabActive = false,
     this.onCancelActiveOther,
     this.showSplitOptions = true,
   });
@@ -86,8 +95,11 @@ class PosPaymentMethodSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     // When any OTHER mode is active, neither PRIMARY method shows as selected.
     // This enforces a single-select across the combined PRIMARY + OTHER group.
-    final bool anyOtherActive =
-        splitActive || splitByItemActive || invoiceActive || standaloneActive;
+    final bool anyOtherActive = splitActive ||
+        splitByItemActive ||
+        invoiceActive ||
+        standaloneActive ||
+        employeeTabActive;
     final List<Widget> primary = [
       if (cardEnabled)
         PosPaymentMethodCard(
@@ -104,18 +116,29 @@ class PosPaymentMethodSelector extends StatelessWidget {
     ];
 
     // Indices into [_otherMethods]: 0 split-by-item, 1 split-by-payment,
-    // 2 invoice, 3 stand-alone. Change-method flows omit the splits.
+    // 2 invoice, 3 stand-alone, 4 open-employee-tab. Change-method flows omit
+    // the splits and the employee tab (a receipt's method is never an
+    // employee tab -- that is a sale action, not a tender).
     final List<int> visible = [
       if (showSplitOptions) 0,
       if (showSplitOptions) 1,
       2,
       3,
+      if (showSplitOptions) 4,
     ];
     final List<bool> allActive = [
-      splitByItemActive, splitActive, invoiceActive, standaloneActive,
+      splitByItemActive,
+      splitActive,
+      invoiceActive,
+      standaloneActive,
+      employeeTabActive,
     ];
     final List<VoidCallback?> allStarts = [
-      onSplitByItem, onSplitByPayment, onInvoice, onStandalone,
+      onSplitByItem,
+      onSplitByPayment,
+      onInvoice,
+      onStandalone,
+      onEmployeeTab,
     ];
 
     return Column(
@@ -287,7 +310,15 @@ const List<_OtherMethod> _otherMethods = [
   _OtherMethod(label: 'Split by payment', iconSvg: _iconBanknote),
   _OtherMethod(label: 'Invoice', iconSvg: _iconFileText),
   _OtherMethod(label: 'Stand-alone', iconSvg: _iconSmartphone),
+  _OtherMethod(label: 'Open Employee Tab', iconSvg: _iconUser),
 ];
+
+// A person glyph for the employee tab — Lucide "user", drawn to match the
+// 13px OTHER-row icons inline, so a stale web AssetManifest cannot blank it.
+const String _iconUser =
+    '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M10.8337 11.375V10.2917C10.8337 9.71739 10.6055 9.16659 10.1992 8.76027C9.79292 8.35394 9.24212 8.12567 8.66783 8.12567H4.33366C3.75937 8.12567 3.20857 8.35394 2.80224 8.76027C2.39591 9.16659 2.16699 9.71739 2.16699 10.2917V11.375M8.66783 3.79167C8.66783 4.98858 7.69757 5.95833 6.50033 5.95833C5.30308 5.95833 4.33366 4.98858 4.33366 3.79167C4.33366 2.59475 5.30308 1.625 6.50033 1.625C7.69757 1.625 8.66783 2.59475 8.66783 3.79167Z" '
+    'stroke="#241F20" stroke-width="1.44444" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const String _iconBanknote =
     '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">'
