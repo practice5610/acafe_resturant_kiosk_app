@@ -99,25 +99,34 @@ class KioskAuthProvider extends ChangeNotifier {
   /// kiosk and back.
   bool get isPosTerminal => category == 'pos';
 
-  /// A till serving customers as a kiosk (POS ⇄ Kiosk). The server holds the
-  /// mode and refuses every staff endpoint while it is on; this mirrors it.
-  bool get kioskModeActive => isPosTerminal && kioskAuthRepo.getKioskMode();
+  /// A till serving customers as a kiosk (POS ⇄ Kiosk). This is a
+  /// SESSION-LOCAL switch: it lives only in memory for the running screen,
+  /// is never persisted and never read back from the server. A cold start
+  /// (fresh login OR reload) always begins false, so a `category == 'pos'`
+  /// device always opens as POS. Only [switchToKiosk]/[switchToPos] on this
+  /// screen flip it -- a broadcast from another session never does.
+  bool get kioskModeActive => isPosTerminal && _sessionKioskMode;
 
   /// Whether the POS is showing: a till that is not serving as a kiosk. Every
   /// shell, route and order-type decision reads this, so a till in kiosk mode
   /// is a kiosk everywhere.
   bool get isPosDevice => isPosTerminal && !kioskModeActive;
 
-  /// Set while this till is switching itself. The server's push of that same
-  /// switch can land before the switch's own answer; applied then, it would
-  /// flip the mode under a screen that is still mid-transition. The switch
-  /// sets the mode itself from the answer ([applyKioskMode]).
+  /// The in-memory, session-local kiosk flag. Deliberately not persisted:
+  /// closing/reloading the app drops it, which is what makes a POS-category
+  /// device re-open as POS.
+  bool _sessionKioskMode = false;
+
+  /// Kept for call-site compatibility with the switch provider. With the
+  /// session-local model there is no server echo to suppress, so it no longer
+  /// gates anything, but the setter stays a no-op-safe field.
   bool holdKioskMode = false;
 
-  /// Record a switch the server just confirmed for this till.
+  /// Flip this running screen between POS and kiosk. Session-local only --
+  /// nothing is written to the device record or SharedPreferences.
   Future<void> applyKioskMode(bool kioskMode) async {
-    if (kioskAuthRepo.getKioskMode() == kioskMode) return;
-    await kioskAuthRepo.saveKioskMode(kioskMode);
+    if (_sessionKioskMode == kioskMode) return;
+    _sessionKioskMode = kioskMode;
     _syncImageGate();
     notifyListeners();
   }
@@ -179,7 +188,10 @@ class KioskAuthProvider extends ChangeNotifier {
     if (!kioskAuthRepo.isLoggedIn()) {
       return KioskDeviceSettingsOutcome.ignored;
     }
-    if (holdKioskMode) kioskMode = null;
+    // kiosk_mode is session-local now: a remote broadcast must never move this
+    // screen between POS and kiosk (that was the cross-session flip). Ignore
+    // the field entirely while still applying every other device setting.
+    kioskMode = null;
 
     if (signOut) {
       await kioskAuthRepo.clearSession();
@@ -313,9 +325,7 @@ class KioskAuthProvider extends ChangeNotifier {
       showImages: device.containsKey('show_images')
           ? device['show_images'] == true
           : null,
-      kioskMode: device.containsKey('kiosk_mode')
-          ? device['kiosk_mode'] == true
-          : null,
+      // kiosk_mode is session-local: never seeded from the server.
     );
   }
 
@@ -376,8 +386,8 @@ class KioskAuthProvider extends ChangeNotifier {
         showImages: device.containsKey('show_images')
             ? device['show_images'] == true
             : null,
-        // A till switched to a kiosk stays one across a re-login.
-        kioskMode: device['kiosk_mode'] == true,
+        // kiosk_mode is session-local: a fresh login always opens as the
+        // device's admin category, never as a kiosk a previous session left.
       );
       _syncImageGate();
       responseModel = ResponseModel(true, 'logged_in');
@@ -428,9 +438,7 @@ class KioskAuthProvider extends ChangeNotifier {
           showImages: device.containsKey('show_images')
               ? device['show_images'] == true
               : null,
-          kioskMode: device.containsKey('kiosk_mode')
-              ? device['kiosk_mode'] == true
-              : null,
+          // kiosk_mode is session-local: a reload re-opens as admin category.
         );
         _syncImageGate();
       }

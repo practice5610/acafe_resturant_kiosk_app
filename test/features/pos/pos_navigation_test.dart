@@ -88,9 +88,14 @@ Future<
   }
   di.sl.registerLazySingleton<SharedPreferences>(() => prefs);
 
+  final auth = KioskAuthProvider(
+      kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
+  // Kiosk mode is session-local: a till enters it with an in-memory flip, not
+  // a persisted flag read on boot.
+  if (kioskMode) await auth.applyKioskMode(true);
+
   return (
-    auth: KioskAuthProvider(
-        kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs)),
+    auth: auth,
     manager: KioskManagerProvider(
         kioskManagerRepo:
             KioskManagerRepo(dioClient: dio, sharedPreferences: prefs)),

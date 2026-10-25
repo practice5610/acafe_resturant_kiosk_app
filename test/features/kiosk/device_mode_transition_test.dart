@@ -14,13 +14,11 @@ import 'package:acafe_customer/features/kiosk/providers/device_mode_provider.dar
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/device_mode_curtain.dart';
-import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff_session_repo.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_staff_gate.dart';
-import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,26 +66,44 @@ class _HeldRepo extends DeviceModeRepo {
   Future<DeviceModeResponse> enterKiosk() async => enter;
 }
 
+/// The exit PIN is validated by a normal staff sign-in now. Configurable so a
+/// test can make it succeed (with the permission) or refuse.
+const PosStaffSession _sara = PosStaffSession(
+  id: 'sara',
+  staffId: 7,
+  name: 'Sara',
+  initials: 'S',
+  role: 'Employee',
+  permissions: {'switch_device_mode': true},
+);
+
 class _Roster extends PosStaffSessionRepo {
   _Roster() : super(dioClient: null);
 
   int calls = 0;
+
+  (PosStaffSession?, String?, DateTime?, PosSignInResult) Function(String)
+      onSignIn = (pin) => (
+            _sara,
+            'staff-token',
+            DateTime.parse('2030-01-01T00:00:00Z'),
+            const PosSignInResult(PosSignInOutcome.signedIn),
+          );
 
   @override
   Future<PosSignInRoster?> signInRoster() async {
     calls++;
     return const PosSignInRoster(staffLoginRequired: true, pinLength: 4, lockoutSeconds: 0, members: []);
   }
-}
 
-const DeviceModeResponse _exitOk = DeviceModeResponse(200, {
-  'device': {'id': 2, 'category': 'pos', 'kiosk_mode': false},
-  'staff_session': {
-    'token': 'staff-token',
-    'expires_at': '2030-01-01T00:00:00+00:00',
-    'staff': {'id': 'sara', 'staff_id': 7, 'name': 'Sara', 'initials': 'S', 'role': 'Employee', 'permissions': {}},
-  },
-});
+  @override
+  Future<(PosStaffSession?, String?, DateTime?, PosSignInResult)> signIn(
+    String pin, {
+    String? memberId,
+    int? roleId,
+  }) async =>
+      onSignIn(pin);
+}
 
 void main() {
   late SharedPreferences prefs;
@@ -214,36 +230,37 @@ void main() {
     });
   });
 
-  group('one switch, one transition', () {
-    test('a push during a switch from this till does not flip the mode under it', () async {
-      await boot(kioskMode: true);
-      final repo = _HeldRepo();
-      final t = build(repo);
+  group('a broadcast never moves this session', () {
+    test('a kiosk_mode push does not flip the running screen', () async {
+      await boot();
+      build(_HeldRepo());
+      await auth.applyKioskMode(true); // this screen switched itself, locally
 
-      final pending = t.modes.switchToPos('4321');
-      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: false);
-      expect(auth.kioskModeActive, isTrue, reason: 'the switch in flight decides, not its echo');
+      // Another session (or the server echo) broadcasts a mode change.
+      await auth.applyDeviceSettingsFromRealtime(
+          deviceId: 2, category: 'pos', kioskMode: false);
 
-      repo.exit.complete(_exitOk);
-      expect((await pending).ok, isTrue);
-      expect(auth.kioskModeActive, isFalse);
+      expect(auth.kioskModeActive, isTrue,
+          reason: 'only this screen decides its own mode');
     });
 
-    test('a push with no switch in flight still applies', () async {
-      await boot(kioskMode: true);
+    test('a non-mode device setting still applies from a broadcast', () async {
+      await boot();
       build(_HeldRepo());
 
-      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: false);
+      await auth.applyDeviceSettingsFromRealtime(
+          deviceId: 2, category: 'pos', name: 'Renamed', kioskMode: false);
 
-      expect(auth.kioskModeActive, isFalse);
+      expect(auth.deviceName, 'Renamed');
+      expect(auth.isPosDevice, isTrue);
     });
   });
 
   group('the curtain', () {
     test('covers a successful switch until the screen has landed', () async {
-      await boot(kioskMode: true);
-      final repo = _HeldRepo()..exit.complete(_exitOk);
-      final t = build(repo);
+      await boot();
+      final t = build(_HeldRepo());
+      await auth.applyKioskMode(true);
 
       await t.modes.switchToPos('4321');
       expect(t.modes.curtain, isTrue);
@@ -256,18 +273,21 @@ void main() {
     });
 
     test('a refused PIN never raises it', () async {
-      await boot(kioskMode: true);
-      final repo = _HeldRepo()
-        ..exit.complete(const DeviceModeResponse(422, {
-          'errors': [
-            {'code': 'incorrect-pin', 'message': 'no', 'attempts_remaining': 4}
-          ]
-        }));
-      final t = build(repo);
+      await boot();
+      final t = build(_HeldRepo());
+      await auth.applyKioskMode(true);
+      t.roster.onSignIn = (pin) => (
+            null,
+            null,
+            null,
+            const PosSignInResult(PosSignInOutcome.wrongPin,
+                attemptsRemaining: 4),
+          );
 
       await t.modes.switchToPos('0000');
 
       expect(t.modes.curtain, isFalse);
+      expect(auth.kioskModeActive, isTrue);
     });
 
     test('into kiosk: the kiosk is shown before the till is torn down, then it lifts', () async {
@@ -289,36 +309,11 @@ void main() {
     });
   });
 
-  group('a switch made elsewhere', () {
-    test('into kiosk: move to the welcome screen, then tear down', () async {
-      await boot();
-      final t = build(_HeldRepo());
-      t.staff.debugSignIn(const PosStaffSession(
-          id: 'sara', staffId: 7, name: 'Sara', initials: 'S', role: 'Employee', permissions: {}));
-      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: true);
-
-      await t.modes.afterRemoteSwitch();
-
-      expect(t.went, [RouterHelper.kioskWelcomeScreen]);
-      expect(t.staff.isSignedIn, isFalse);
-    });
-
-    test('back to POS: read the roster, then move to the till', () async {
-      await boot(kioskMode: true);
-      final t = build(_HeldRepo());
-      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: false);
-
-      await t.modes.afterRemoteSwitch();
-
-      expect(t.roster.calls, 1);
-      expect(t.went, [PosRoutes.home]);
-    });
-  });
-
   group('DeviceModeCurtain', () {
     Future<DeviceModeProvider> pumpCurtain(WidgetTester tester) async {
-      await boot(kioskMode: true);
-      final t = build(_HeldRepo()..exit.complete(_exitOk));
+      await boot();
+      final t = build(_HeldRepo());
+      await auth.applyKioskMode(true);
       await tester.pumpWidget(ChangeNotifierProvider<DeviceModeProvider>.value(
         value: t.modes,
         child: const MaterialApp(home: DeviceModeCurtain(child: Text('screen'))),
@@ -330,8 +325,9 @@ void main() {
       // In the app the curtain sits in MaterialApp's builder, above the
       // navigator and its Material -- no DefaultTextStyle, so Text falls back
       // to the debug style (yellow double underline) unless the face brings one.
-      await boot(kioskMode: true);
-      final t = build(_HeldRepo()..exit.complete(_exitOk));
+      await boot();
+      final t = build(_HeldRepo());
+      await auth.applyKioskMode(true);
       await tester.pumpWidget(ChangeNotifierProvider<DeviceModeProvider>.value(
         value: t.modes,
         child: MaterialApp(

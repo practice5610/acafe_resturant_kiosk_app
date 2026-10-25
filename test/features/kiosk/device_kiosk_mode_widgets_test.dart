@@ -38,6 +38,9 @@ Future<void> _auth({String category = 'pos', bool kioskMode = false}) async {
       loggingInterceptor: LoggingInterceptor(), sharedPreferences: prefs);
   auth = KioskAuthProvider(
       kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
+  // Kiosk mode is session-local now: entering it is an in-memory flip, not a
+  // persisted flag. (On a kiosk-category device this is inert, as in the app.)
+  if (kioskMode) await auth.applyKioskMode(true);
   posSession = PosSessionProvider(
       kioskManagerRepo: KioskManagerRepo(dioClient: dio, sharedPreferences: prefs));
 }

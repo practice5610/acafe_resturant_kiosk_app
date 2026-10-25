@@ -20,8 +20,14 @@ import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// POS ⇄ Kiosk (POS_KIOSK_MODE_PHASE1.md §5). The server holds the mode; the
-/// app follows it and tears the till down on the way into kiosk mode.
+/// POS ⇄ Kiosk, SESSION-LOCAL model (reversal of POS_KIOSK_MODE_PHASE1.md §5).
+///
+/// The "Switch to Kiosk" button flips only the running screen: no backend call,
+/// nothing persisted to the device row. A cold start (fresh login OR reload)
+/// always opens as the device's admin category, so a `category == 'pos'` device
+/// is a POS again every time. A kiosk_mode broadcast from another session never
+/// moves this one. The way back is a normal staff sign-in whose member must
+/// hold `switch_device_mode`.
 
 const PosStaffSession _sara = PosStaffSession(
   id: 'sara',
@@ -32,71 +38,55 @@ const PosStaffSession _sara = PosStaffSession(
   permissions: {'switch_device_mode': true},
 );
 
-Map<String, dynamic> _deviceJson({bool kioskMode = false}) => {
-      'id': 2,
-      'name': 'Till 1',
-      'category': 'pos',
-      'status': 'active',
-      'kiosk_mode': kioskMode,
-    };
+/// A valid member who may sign in but may NOT switch the till back to POS.
+const PosStaffSession _tom = PosStaffSession(
+  id: 'tom',
+  staffId: 9,
+  name: 'Tom',
+  initials: 'T',
+  role: 'Barista',
+  permissions: {'switch_device_mode': false},
+);
 
-class _FakeModeRepo extends DeviceModeRepo {
-  _FakeModeRepo() : super(dioClient: null);
+/// Stands in for the real POS staff login. [signIn] validates the exit PIN now
+/// (not a device-mode endpoint); the device row is never touched.
+class _FakeStaffRepo extends PosStaffSessionRepo {
+  _FakeStaffRepo() : super(dioClient: null);
 
-  DeviceModeResponse enter = DeviceModeResponse(200, {'device': _deviceJson(kioskMode: true)});
-  DeviceModeResponse exit = DeviceModeResponse(200, {
-    'device': _deviceJson(),
-    'staff_session': {
-      'token': 'staff-token',
-      'expires_at': '2030-01-01T00:00:00+00:00',
-      'staff': {
-        'id': 'sara',
-        'staff_id': 7,
-        'name': 'Sara',
-        'initials': 'S',
-        'role': 'Employee',
-        'permissions': {'switch_device_mode': true},
-      },
-    },
-  });
-  int enterCalls = 0;
+  PosSignInRoster roster = const PosSignInRoster(
+    staffLoginRequired: true,
+    pinLength: 4,
+    lockoutSeconds: 0,
+    members: [],
+  );
+
+  /// What the next sign-in returns. Defaults to Sara (has the permission).
+  (PosStaffSession?, String?, DateTime?, PosSignInResult) Function(String pin)
+      onSignIn = _signedIn(_sara);
+
   final List<String> pins = [];
 
-  @override
-  Future<DeviceModeResponse> enterKiosk() async {
-    enterCalls++;
-    return enter;
-  }
+  static (PosStaffSession?, String?, DateTime?, PosSignInResult) Function(String)
+      _signedIn(PosStaffSession member) => (pin) => (
+            member,
+            'staff-token',
+            DateTime.parse('2030-01-01T00:00:00Z'),
+            const PosSignInResult(PosSignInOutcome.signedIn),
+          );
 
   @override
-  Future<DeviceModeResponse> exitKiosk(String pin) async {
+  Future<PosSignInRoster?> signInRoster() async => roster;
+
+  @override
+  Future<(PosStaffSession?, String?, DateTime?, PosSignInResult)> signIn(
+    String pin, {
+    String? memberId,
+    int? roleId,
+  }) async {
     pins.add(pin);
-    return exit;
+    return onSignIn(pin);
   }
 }
-
-/// The branch's real answer once the till is a POS again. While it was a
-/// kiosk the server refused the roster, which the app reads as "staff login
-/// off" -- the very thing that must not survive the way back.
-class _BranchWithStaffLogin extends PosStaffSessionRepo {
-  _BranchWithStaffLogin() : super(dioClient: null);
-
-  @override
-  Future<PosSignInRoster?> signInRoster() async => const PosSignInRoster(
-        staffLoginRequired: true,
-        pinLength: 4,
-        lockoutSeconds: 0,
-        members: [],
-      );
-}
-
-DeviceModeResponse _refusal(int status, String code,
-        [Map<String, dynamic> extra = const {}]) =>
-    DeviceModeResponse(status, {
-      'errors': [
-        {'code': code, 'message': 'server says $code', ...extra},
-      ],
-    });
 
 void main() {
   // CartRepo reads the navigator context when it saves.
@@ -106,13 +96,18 @@ void main() {
   late DioClient dio;
   late KioskAuthProvider auth;
 
-  Future<void> boot({String category = 'pos', bool kioskMode = false, bool showImages = true}) async {
+  Future<void> boot(
+      {String category = 'pos',
+      bool kioskMode = false,
+      bool showImages = true}) async {
     SharedPreferences.setMockInitialValues({
       AppConstants.token: 'device-token',
       AppConstants.branch: 1,
       AppConstants.kioskDeviceId: 2,
       AppConstants.kioskDeviceName: 'Till 1',
       AppConstants.kioskDeviceCategory: category,
+      // A stale persisted flag is deliberately ignored by the session-local
+      // model; kept here to prove a cold start never reads it.
       AppConstants.kioskDeviceKioskMode: kioskMode,
       AppConstants.kioskShowImages: showImages,
     });
@@ -123,50 +118,41 @@ void main() {
         kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
   }
 
-  group('effective mode', () {
-    test('a POS till serving as a kiosk is not a POS', () async {
+  group('effective mode (session-local)', () {
+    test('a cold start ignores a stale kiosk_mode flag and opens as POS',
+        () async {
       await boot(kioskMode: true);
 
       expect(auth.isPosTerminal, isTrue);
+      expect(auth.kioskModeActive, isFalse,
+          reason: 'the persisted flag is not read on bootstrap');
+      expect(auth.isPosDevice, isTrue);
+    });
+
+    test('flipping the session flag makes this screen a kiosk', () async {
+      await boot();
+      expect(auth.isPosDevice, isTrue);
+
+      await auth.applyKioskMode(true);
+
       expect(auth.kioskModeActive, isTrue);
       expect(auth.isPosDevice, isFalse);
     });
 
-    test('a POS till outside kiosk mode is a POS', () async {
-      await boot();
-
-      expect(auth.kioskModeActive, isFalse);
-      expect(auth.isPosDevice, isTrue);
-    });
-
-    test('a stale flag on a kiosk device means nothing', () async {
-      await boot(category: 'kiosk', kioskMode: true);
+    test('a kiosk-category device is never a till', () async {
+      await boot(category: 'kiosk');
 
       expect(auth.isPosTerminal, isFalse);
       expect(auth.kioskModeActive, isFalse);
       expect(auth.isPosDevice, isFalse);
     });
-
-    test('logging the device out forgets kiosk mode', () async {
-      await boot(kioskMode: true);
-
-      await auth.logout();
-
-      expect(prefs.containsKey(AppConstants.kioskDeviceKioskMode), isFalse);
-    });
   });
 
   group('product images', () {
-    // "Show Product Images" is the staffed till's speed setting. Customers on
-    // a till serving as a kiosk get the full kiosk menu, pictures included.
-    test('a till that hides images as a POS shows them as a kiosk', () async {
-      await boot(kioskMode: true, showImages: false);
-
-      expect(auth.showImages, isTrue);
-      expect(CustomImageWidget.showProductImages, isTrue);
-    });
-
-    test('switching turns images on, and back to POS restores the till setting', () async {
+    // "Show Product Images" is the staffed till's speed setting. A till serving
+    // as a kiosk shows the full menu, pictures included.
+    test('switching to kiosk turns images on, back to POS restores the setting',
+        () async {
       await boot(showImages: false);
       expect(auth.showImages, isFalse);
 
@@ -179,52 +165,53 @@ void main() {
       expect(CustomImageWidget.showProductImages, isFalse);
     });
 
-    test('a switch pushed from the server turns images on too', () async {
+    test('a kiosk_mode push from another session does not turn images on',
+        () async {
       await boot(showImages: false);
 
-      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: true);
+      await auth.applyDeviceSettingsFromRealtime(
+          deviceId: 2, category: 'pos', kioskMode: true);
 
-      expect(CustomImageWidget.showProductImages, isTrue);
+      expect(CustomImageWidget.showProductImages, isFalse,
+          reason: 'the broadcast must not flip this session into kiosk mode');
+      expect(auth.isPosDevice, isTrue);
     });
 
     test('a real kiosk keeps its own picture-less setting', () async {
-      await boot(category: 'kiosk', kioskMode: true, showImages: false);
+      await boot(category: 'kiosk', showImages: false);
 
       expect(auth.showImages, isFalse);
     });
   });
 
-  group('pushes and reconciliation', () {
-    test('a push turning kiosk mode on is a mode change', () async {
+  group('cross-session broadcast is inert for mode', () {
+    test('a push turning kiosk mode on is never a mode change', () async {
       await boot();
 
-      expect(
-        await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: true),
-        KioskDeviceSettingsOutcome.modeChanged,
-      );
-      expect(auth.isPosDevice, isFalse);
+      final outcome = await auth.applyDeviceSettingsFromRealtime(
+          deviceId: 2, category: 'pos', kioskMode: true);
+
+      expect(outcome, isNot(KioskDeviceSettingsOutcome.modeChanged));
+      expect(auth.isPosDevice, isTrue,
+          reason: 'another screen entering kiosk must not move this one');
     });
 
-    test('the same mode again changes nothing', () async {
-      await boot(kioskMode: true);
+    test('other device settings still apply alongside an ignored kiosk_mode',
+        () async {
+      await boot();
 
-      expect(
-        await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: true),
-        KioskDeviceSettingsOutcome.ignored,
-      );
-      expect(auth.kioskModeActive, isTrue, reason: 'a reconnect never brings the POS back');
+      final outcome = await auth.applyDeviceSettingsFromRealtime(
+          deviceId: 2, category: 'pos', name: 'Renamed', kioskMode: true);
+
+      expect(outcome, KioskDeviceSettingsOutcome.applied);
+      expect(auth.deviceName, 'Renamed');
+      expect(auth.isPosDevice, isTrue);
     });
 
-    test('a frame without the field leaves the mode alone', () async {
-      await boot(kioskMode: true);
-
-      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', name: 'Renamed');
-
-      expect(auth.kioskModeActive, isTrue);
-    });
-
-    test('the event carries kiosk_mode, and null when an older server omits it', () {
-      final withField = DeviceSettingsEvent.fromJson({'device_id': 2, 'kiosk_mode': true});
+    test('the event still carries kiosk_mode, null when an older server omits it',
+        () {
+      final withField =
+          DeviceSettingsEvent.fromJson({'device_id': 2, 'kiosk_mode': true});
       final without = DeviceSettingsEvent.fromJson({'device_id': 2});
 
       expect(withField.kioskMode, isTrue);
@@ -233,23 +220,27 @@ void main() {
   });
 
   group('DeviceModeProvider', () {
-    late _FakeModeRepo repo;
+    late DeviceModeRepo repo;
+    late _FakeStaffRepo staffRepo;
     late PosStaffSessionProvider staff;
     late PosSessionProvider posSession;
     late KioskManagerProvider manager;
     late CartProvider cart;
     late DeviceModeProvider modes;
 
-    Future<void> build({bool kioskMode = false}) async {
-      await boot(kioskMode: kioskMode);
-      repo = _FakeModeRepo();
-      staff = PosStaffSessionProvider(repo: _BranchWithStaffLogin());
-      // What the till last heard while it was a kiosk: refused, read as off.
-      staff.debugSetRoster(PosSignInRoster.off);
+    Future<void> build() async {
+      await boot();
+      // A real repo with no client: proof the switch never calls the backend
+      // is that these endpoints throw nothing because they are never reached.
+      repo = DeviceModeRepo(dioClient: null);
+      staffRepo = _FakeStaffRepo();
+      staff = PosStaffSessionProvider(repo: staffRepo);
       posSession = PosSessionProvider(
-          kioskManagerRepo: KioskManagerRepo(dioClient: dio, sharedPreferences: prefs));
+          kioskManagerRepo:
+              KioskManagerRepo(dioClient: dio, sharedPreferences: prefs));
       manager = KioskManagerProvider(
-          kioskManagerRepo: KioskManagerRepo(dioClient: dio, sharedPreferences: prefs));
+          kioskManagerRepo:
+              KioskManagerRepo(dioClient: dio, sharedPreferences: prefs));
       // No repo: saving the basket needs a navigator context these tests lack.
       cart = CartProvider(cartRepo: null);
       modes = DeviceModeProvider(
@@ -264,13 +255,15 @@ void main() {
 
     void seedTicket() {
       cart.replaceCartList([
-        CartModel(4.5, 4.5, const [], 0, 1, 0, const [], Product(name: 'Latte'), const []),
+        CartModel(4.5, 4.5, const [], 0, 1, 0, const [], Product(name: 'Latte'),
+            const []),
       ]);
       PosSaleSession.instance.customerName.text = 'Walk-in Ana';
     }
 
     group('into kiosk mode', () {
-      test('signs staff out, drops every unlock and clears the ticket', () async {
+      test('signs staff out, drops every unlock and clears the ticket',
+          () async {
         await build();
         staff.debugSignIn(_sara);
         posSession.debugSetElevated(true);
@@ -286,51 +279,64 @@ void main() {
         expect(cart.cartList, isEmpty);
         expect(PosSaleSession.instance.customerName.text, isEmpty);
       });
-
-      test('a refusal changes nothing and says why', () async {
-        await build();
-        staff.debugSignIn(_sara);
-        seedTicket();
-        repo.enter = _refusal(422, 'no-staff-can-exit');
-
-        final result = await modes.switchToKiosk();
-
-        expect(result.ok, isFalse);
-        expect(result.message, 'server says no-staff-can-exit');
-        expect(auth.kioskModeActive, isFalse);
-        expect(staff.isSignedIn, isTrue);
-        expect(cart.cartList, hasLength(1));
-      });
     });
 
     group('back to POS', () {
-      test('the right PIN returns the till and signs the member in', () async {
-        await build(kioskMode: true);
+      test('the right PIN with the permission returns the till and signs in',
+          () async {
+        await build();
+        await auth.applyKioskMode(true);
         seedTicket(); // a customer walked away mid-order
 
         final result = await modes.switchToPos('4321');
 
         expect(result.ok, isTrue);
-        expect(repo.pins, ['4321']);
+        expect(staffRepo.pins, ['4321'], reason: 'validated by a staff sign-in');
         expect(auth.kioskModeActive, isFalse);
         expect(auth.isPosDevice, isTrue);
         expect(staff.session?.staffId, 7);
         expect(staff.token, 'staff-token');
-        expect(cart.cartList, isEmpty, reason: "the customer's basket is not the till's ticket");
+        expect(cart.cartList, isEmpty,
+            reason: "the customer's basket is not the till's ticket");
       });
 
-      test("the branch's staff login is read again, so the PIN screen comes back", () async {
-        await build(kioskMode: true);
+      test('the branch staff login is read again, so the member stays signed in',
+          () async {
+        await build();
+        await auth.applyKioskMode(true);
 
         await modes.switchToPos('4321');
 
         expect(staff.loginRequired, isTrue);
-        expect(staff.isSignedIn, isTrue, reason: 'the member who typed the PIN stays signed in');
+        expect(staff.isSignedIn, isTrue);
+      });
+
+      test('a valid PIN WITHOUT the permission keeps the kiosk', () async {
+        await build();
+        await auth.applyKioskMode(true);
+        staffRepo.onSignIn = _FakeStaffRepo._signedIn(_tom);
+
+        final result = await modes.switchToPos('1111');
+
+        expect(result.ok, isFalse);
+        expect(result.message,
+            "You don't have permission to switch this till to POS.");
+        expect(auth.kioskModeActive, isTrue,
+            reason: 'an unpermitted member must not drop into the POS');
+        expect(staff.isSignedIn, isFalse,
+            reason: 'the just-issued session is discarded');
       });
 
       test('a wrong PIN keeps the kiosk and counts down', () async {
-        await build(kioskMode: true);
-        repo.exit = _refusal(422, 'incorrect-pin', {'attempts_remaining': 3});
+        await build();
+        await auth.applyKioskMode(true);
+        staffRepo.onSignIn = (pin) => (
+              null,
+              null,
+              null,
+              const PosSignInResult(PosSignInOutcome.wrongPin,
+                  attemptsRemaining: 3),
+            );
 
         final result = await modes.switchToPos('0000');
 
@@ -340,59 +346,37 @@ void main() {
         expect(staff.isSignedIn, isFalse);
       });
 
-      test('the wrong PIN that locks the pad says so at once', () async {
-        await build(kioskMode: true);
-        repo.exit = _refusal(422, 'incorrect-pin',
-            {'attempts_remaining': 0, 'locked_out': true, 'retry_after_seconds': 900});
-
-        expect((await modes.switchToPos('0000')).message, 'Locked · try again in 15 min');
-      });
-
       test('a lockout says how long', () async {
-        await build(kioskMode: true);
-        repo.exit = _refusal(429, 'exit-locked', {'retry_after_seconds': 600, 'requires_panel_reset': false});
+        await build();
+        await auth.applyKioskMode(true);
+        staffRepo.onSignIn = (pin) => (
+              null,
+              null,
+              null,
+              const PosSignInResult(PosSignInOutcome.lockedOut,
+                  retryAfterSeconds: 600),
+            );
 
-        expect((await modes.switchToPos('0000')).message, 'Locked · try again in 10 min');
-      });
-
-      test('a day lockout points at the panel', () async {
-        await build(kioskMode: true);
-        repo.exit = _refusal(429, 'exit-locked', {'retry_after_seconds': 80000, 'requires_panel_reset': true});
-
-        expect((await modes.switchToPos('0000')).message, 'Locked · use Return to POS in admin');
+        expect((await modes.switchToPos('0000')).message,
+            'Locked · try again in 10 min');
+        expect(auth.kioskModeActive, isTrue);
       });
 
       test('no connection is not a wrong PIN', () async {
-        await build(kioskMode: true);
-        repo.exit = const DeviceModeResponse(null, null);
+        await build();
+        await auth.applyKioskMode(true);
+        staffRepo.onSignIn = (pin) => (
+              null,
+              null,
+              null,
+              const PosSignInResult(PosSignInOutcome.unavailable),
+            );
 
         final result = await modes.switchToPos('4321');
 
         expect(result.message, 'No connection · try again');
         expect(auth.kioskModeActive, isTrue);
       });
-    });
-
-    test('a till the panel returned to POS asks for staff login again', () async {
-      await build(kioskMode: true);
-      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: false);
-
-      await modes.afterRemoteSwitch();
-
-      expect(staff.loginRequired, isTrue);
-      expect(staff.isSignedIn, isFalse);
-    });
-
-    test('a switch made elsewhere tears the till down the same way', () async {
-      await build();
-      staff.debugSignIn(_sara);
-      seedTicket();
-      await auth.applyDeviceSettingsFromRealtime(deviceId: 2, category: 'pos', kioskMode: true);
-
-      await modes.afterRemoteSwitch();
-
-      expect(staff.isSignedIn, isFalse);
-      expect(cart.cartList, isEmpty);
     });
   });
 }

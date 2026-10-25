@@ -761,8 +761,9 @@ void main() {
     });
   });
 
-  // POS ⇄ Kiosk: a till the panel switched (or whose switch response was lost)
-  // learns its mode on the next reconcile, and is torn down exactly once.
+  // POS ⇄ Kiosk is SESSION-LOCAL now: the server's kiosk_mode is never read
+  // back on a reconcile, so a reconcile never moves this screen between modes.
+  // Every OTHER device setting still reconciles.
   group('POS ⇄ Kiosk reconciliation', () {
     late _FakeDeviceApi api;
     late KioskAuthProvider auth;
@@ -796,34 +797,27 @@ void main() {
 
     tearDown(() => api.stop());
 
-    test('kiosk mode set elsewhere reaches the till and tears it down', () async {
+    test('a server kiosk_mode is ignored: the till stays POS, no teardown', () async {
       api.device!['kiosk_mode'] = true;
 
       await controller.reconcileDeviceSettings();
 
-      expect(auth.kioskModeActive, isTrue);
-      expect(teardowns, 1);
-    });
-
-    test('a server that still says kiosk never brings the POS back', () async {
-      api.device!['kiosk_mode'] = true;
-
-      await controller.reconcileDeviceSettings();
-      await controller.reconcileDeviceSettings();
-
-      expect(auth.kioskModeActive, isTrue);
-      expect(teardowns, 1, reason: 'nothing changed the second time');
-    });
-
-    test('Return to POS from the panel brings the till back', () async {
-      api.device!['kiosk_mode'] = true;
-      await controller.reconcileDeviceSettings();
-      api.device!['kiosk_mode'] = false;
-
-      await controller.reconcileDeviceSettings();
-
+      expect(auth.kioskModeActive, isFalse,
+          reason: 'bootstrap/reconcile never reads the server flag');
       expect(auth.isPosDevice, isTrue);
-      expect(teardowns, 2);
+      expect(teardowns, 0, reason: 'a reconcile never moves the screen by mode');
+    });
+
+    test('other device settings still reconcile alongside an ignored kiosk_mode',
+        () async {
+      api.device!['kiosk_mode'] = true;
+      api.device!['name'] = 'Front Till';
+
+      await controller.reconcileDeviceSettings();
+
+      expect(auth.deviceName, 'Front Till');
+      expect(auth.isPosDevice, isTrue);
+      expect(teardowns, 0);
     });
   });
 }

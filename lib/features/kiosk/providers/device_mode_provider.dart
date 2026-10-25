@@ -7,6 +7,7 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/device_mode_curtain.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
+import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
 import 'package:acafe_customer/features/pos/providers/pos_session_provider.dart';
@@ -104,38 +105,19 @@ class DeviceModeProvider extends ChangeNotifier {
 
   /// [show] moves the screen to the kiosk. It runs after the mode has flipped
   /// and before the till is torn down, so the POS is never on screen signed out.
+  ///
+  /// SESSION-LOCAL: this flips only the running screen. It makes no backend
+  /// call and writes nothing to the device record -- the server still has this
+  /// till as a POS, and the admin "working as a kiosk" banner never appears.
   Future<DeviceModeSwitchResult> switchToKiosk({Future<void> Function()? show}) async {
     if (_busy) return const DeviceModeSwitchResult.refused(null);
     _setBusy(true);
-    auth.holdKioskMode = true;
     try {
-      final DeviceModeResponse response = await repo.enterKiosk();
-
-      if (response.ok) {
-        await _raiseCurtain(DeviceModeTarget.kiosk);
-        await auth.applyKioskMode(true);
-        await _enterKiosk(show);
-        return const DeviceModeSwitchResult.ok();
-      }
-
-      // The answer never arrived: ask the server what happened rather than
-      // guess, so a lost response cannot leave the screen and server apart.
-      if (response.statusCode == null) {
-        await _raiseCurtain(DeviceModeTarget.kiosk);
-        auth.holdKioskMode = false;
-        await auth.refreshDeviceSettings();
-        if (auth.kioskModeActive) {
-          await _enterKiosk(show);
-          return const DeviceModeSwitchResult.ok();
-        }
-        _lowerCurtain();
-        return const DeviceModeSwitchResult.refused('No connection · try again');
-      }
-
-      return DeviceModeSwitchResult.refused(
-          response.errorMessage ?? 'This till could not switch to kiosk mode.');
+      await _raiseCurtain(DeviceModeTarget.kiosk);
+      await auth.applyKioskMode(true);
+      await _enterKiosk(show);
+      return const DeviceModeSwitchResult.ok();
     } finally {
-      auth.holdKioskMode = false;
       _setBusy(false);
     }
   }
@@ -150,79 +132,55 @@ class DeviceModeProvider extends ChangeNotifier {
 
   /// On success the curtain stays up: the caller closes the PIN pad, moves to
   /// the till and calls [landed].
+  ///
+  /// SESSION-LOCAL: the PIN is checked by a normal staff sign-in
+  /// ([PosStaffSessionProvider.signIn]) -- not a device-mode call, and nothing
+  /// is written to the device record. The `switch_device_mode` permission is
+  /// then enforced locally against the signed-in member: a valid PIN alone is
+  /// not enough to drop an unpermitted member into the POS.
   Future<DeviceModeSwitchResult> switchToPos(String pin) async {
     if (_busy) return const DeviceModeSwitchResult.refused(null);
     _setBusy(true);
-    auth.holdKioskMode = true;
     try {
-      final DeviceModeResponse response = await repo.exitKiosk(pin);
-
-      if (response.ok) {
-        await _raiseCurtain(DeviceModeTarget.pos);
-        final Object? session = response.data?['staff_session'];
-        final Map? sessionJson = session is Map ? session : null;
-        final PosStaffSession? member = PosStaffSession.fromJson(sessionJson?['staff']);
-        final String token = (sessionJson?['token'] ?? '').toString();
-        if (member != null && token.isNotEmpty) {
-          await staff.adoptSession(
-            member,
-            token,
-            DateTime.tryParse('${sessionJson?['expires_at']}'),
-          );
-        }
-        await _backToPos();
-        return const DeviceModeSwitchResult.ok();
+      final PosSignInResult result = await staff.signIn(pin);
+      if (!result.ok) {
+        return DeviceModeSwitchResult.refused(_signInRefusal(result));
       }
 
-      if (response.statusCode == null) {
-        return const DeviceModeSwitchResult.refused('No connection · try again');
+      // signIn adopted the session; gate the switch on the member's permission.
+      final PosStaffSession? member = staff.session;
+      if (member == null || !member.can(PosPermission.switchDeviceMode)) {
+        // A valid PIN without the permission must not open the POS. Drop the
+        // just-issued session and keep this screen a kiosk.
+        await staff.signOut();
+        return const DeviceModeSwitchResult.refused(
+            "You don't have permission to switch this till to POS.");
       }
 
-      // The server already has this till as a POS (the panel brought it back
-      // while this screen missed the push). Catch up rather than refuse: the
-      // till opens on its PIN screen, where staff sign in as usual.
-      if (response.errorCode == 'not-in-kiosk-mode') {
-        await _raiseCurtain(DeviceModeTarget.pos);
-        auth.holdKioskMode = false;
-        await auth.refreshDeviceSettings();
-        if (!auth.kioskModeActive) {
-          await _backToPos();
-          return const DeviceModeSwitchResult.ok();
-        }
-        _lowerCurtain();
-      }
-
-      return DeviceModeSwitchResult.refused(_exitRefusal(response));
+      await _raiseCurtain(DeviceModeTarget.pos);
+      await _backToPos();
+      return const DeviceModeSwitchResult.ok();
     } finally {
-      auth.holdKioskMode = false;
       _setBusy(false);
     }
   }
 
-  String _exitRefusal(DeviceModeResponse response) {
-    final Map<String, dynamic> error = response.error;
-    switch (response.errorCode) {
-      case 'incorrect-pin':
-        // The wrong PIN that tripped the lock says so now, not on the next try.
-        if (error['locked_out'] == true) return _lockedCopy(error);
-        final int left = int.tryParse('${error['attempts_remaining']}') ?? 0;
-        return left > 0 ? 'Wrong PIN · $left ${left == 1 ? 'try' : 'tries'} left' : 'Wrong PIN';
-      case 'exit-locked':
-        return _lockedCopy(error);
-      case 'invalid-pin':
-        return 'Enter your 4-digit PIN';
-      default:
-        return response.errorMessage ?? 'Something went wrong';
+  String _signInRefusal(PosSignInResult result) {
+    switch (result.outcome) {
+      case PosSignInOutcome.lockedOut:
+        final int minutes =
+            (result.retryAfterSeconds / 60).ceil().clamp(1, 1 << 30);
+        return 'Locked · try again in $minutes min';
+      case PosSignInOutcome.wrongPin:
+        final int left = result.attemptsRemaining;
+        return left > 0
+            ? 'Wrong PIN · $left ${left == 1 ? 'try' : 'tries'} left'
+            : 'Wrong PIN';
+      case PosSignInOutcome.unavailable:
+        return result.message ?? 'No connection · try again';
+      case PosSignInOutcome.signedIn:
+        return 'Try again';
     }
-  }
-
-  String _lockedCopy(Map<String, dynamic> error) {
-    if (error['requires_panel_reset'] == true) {
-      return 'Locked · use Return to POS in admin';
-    }
-    final int seconds = int.tryParse('${error['retry_after_seconds']}') ?? 0;
-    final int minutes = (seconds / 60).ceil().clamp(1, 1 << 30);
-    return 'Locked · try again in $minutes min';
   }
 
   // ── A switch made somewhere else ──────────────────────────────────────
