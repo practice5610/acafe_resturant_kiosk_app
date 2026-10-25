@@ -119,14 +119,45 @@ void main() {
   }
 
   group('effective mode (session-local)', () {
-    test('a cold start ignores a stale kiosk_mode flag and opens as POS',
+    test('a reload restores the kiosk flag from this browser (stays kiosk)',
         () async {
       await boot(kioskMode: true);
 
       expect(auth.isPosTerminal, isTrue);
-      expect(auth.kioskModeActive, isFalse,
-          reason: 'the persisted flag is not read on bootstrap');
+      expect(auth.kioskModeActive, isTrue,
+          reason: 'a page reload of the same device session stays a kiosk');
+      expect(auth.isPosDevice, isFalse);
+    });
+
+    test('a cold device with no stored flag opens as POS', () async {
+      await boot();
+
+      expect(auth.isPosTerminal, isTrue);
+      expect(auth.kioskModeActive, isFalse);
       expect(auth.isPosDevice, isTrue);
+    });
+
+    test('entering kiosk mode persists locally, so a reload keeps it', () async {
+      await boot();
+      await auth.applyKioskMode(true);
+
+      // A reload = a fresh provider over the same SharedPreferences.
+      final reloaded = KioskAuthProvider(
+          kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
+
+      expect(reloaded.kioskModeActive, isTrue);
+    });
+
+    test('logging the device out clears the stored kiosk flag', () async {
+      await boot(kioskMode: true);
+      expect(auth.kioskModeActive, isTrue);
+
+      await auth.logout();
+
+      expect(prefs.getBool(AppConstants.kioskDeviceKioskMode), anyOf(isNull, isFalse));
+      final reloaded = KioskAuthProvider(
+          kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
+      expect(reloaded.kioskModeActive, isFalse);
     });
 
     test('flipping the session flag makes this screen a kiosk', () async {

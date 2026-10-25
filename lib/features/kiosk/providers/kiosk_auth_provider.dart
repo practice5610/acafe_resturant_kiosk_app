@@ -37,6 +37,12 @@ class KioskAuthProvider extends ChangeNotifier {
   final KioskAuthRepo kioskAuthRepo;
 
   KioskAuthProvider({required this.kioskAuthRepo}) {
+    // Restore the session-local kiosk flag from this browser's own storage, so
+    // a page reload (or a reopened tab) that is still the same device session
+    // stays a kiosk. This is LOCAL ONLY: it is never read from the server and
+    // never broadcast, so it cannot flip another session. A fresh device login
+    // resets it in [login]; a logout clears it in clearSession.
+    _sessionKioskMode = kioskAuthRepo.getKioskMode();
     _syncImageGate();
   }
 
@@ -112,9 +118,10 @@ class KioskAuthProvider extends ChangeNotifier {
   /// is a kiosk everywhere.
   bool get isPosDevice => isPosTerminal && !kioskModeActive;
 
-  /// The in-memory, session-local kiosk flag. Deliberately not persisted:
-  /// closing/reloading the app drops it, which is what makes a POS-category
-  /// device re-open as POS.
+  /// The session-local kiosk flag. Held in memory AND mirrored to this
+  /// browser's own SharedPreferences (never the server), so a reload of the
+  /// same device session stays a kiosk until staff exit with a PIN. A fresh
+  /// device login resets it; a logout clears it.
   bool _sessionKioskMode = false;
 
   /// Kept for call-site compatibility with the switch provider. With the
@@ -122,11 +129,14 @@ class KioskAuthProvider extends ChangeNotifier {
   /// gates anything, but the setter stays a no-op-safe field.
   bool holdKioskMode = false;
 
-  /// Flip this running screen between POS and kiosk. Session-local only --
-  /// nothing is written to the device record or SharedPreferences.
+  /// Flip this running screen between POS and kiosk. Session-local only: the
+  /// flag is mirrored to this browser's SharedPreferences (so a reload keeps
+  /// it) but NEVER sent to the server and never broadcast, so it cannot move
+  /// another session.
   Future<void> applyKioskMode(bool kioskMode) async {
     if (_sessionKioskMode == kioskMode) return;
     _sessionKioskMode = kioskMode;
+    await kioskAuthRepo.saveKioskMode(kioskMode);
     _syncImageGate();
     notifyListeners();
   }
@@ -386,9 +396,12 @@ class KioskAuthProvider extends ChangeNotifier {
         showImages: device.containsKey('show_images')
             ? device['show_images'] == true
             : null,
-        // kiosk_mode is session-local: a fresh login always opens as the
-        // device's admin category, never as a kiosk a previous session left.
+        // A fresh device login always opens as the device's admin category:
+        // reset the session-local kiosk flag so a previous session's switch
+        // (left in this browser's storage) never carries into a new login.
+        kioskMode: false,
       );
+      _sessionKioskMode = false;
       _syncImageGate();
       responseModel = ResponseModel(true, 'logged_in');
     } else {
@@ -468,6 +481,9 @@ class KioskAuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     await kioskAuthRepo.clearSession();
+    // clearSession drops the persisted flag; drop the in-memory one too.
+    _sessionKioskMode = false;
+    _syncImageGate();
     notifyListeners();
   }
 }
