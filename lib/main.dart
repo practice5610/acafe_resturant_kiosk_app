@@ -201,12 +201,15 @@ class _MyAppState extends State<MyApp> {
     final SplashProvider splashProvider =
         Provider.of<SplashProvider>(context, listen: false);
 
+    // Reveal the app once config resolves — on success, on null, AND on error.
+    // The device-login screen does not need config, so a backend that is down
+    // or not yet deployed (e.g. a fresh production API) must still show the
+    // login screen, never leave the user on a permanent blank boot screen.
     splashProvider
         .initConfig(context, DataSourceEnum.local)
-        .then((value) async {
-      if (value != null) {
-        _onRemoveLoader();
-      }
+        .then((_) {}, onError: (_) {})
+        .whenComplete(() {
+      if (mounted) _onRemoveLoader();
     });
   }
 
