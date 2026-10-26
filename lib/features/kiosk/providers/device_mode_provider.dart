@@ -244,10 +244,18 @@ class DeviceModeProvider extends ChangeNotifier {
   /// afresh: asked while the till was a kiosk, the server refused, which the
   /// staff session reads as "no staff login" -- and a till that believed that
   /// would skip its PIN screen.
+  ///
+  /// [PosStaffSessionProvider.bootstrap], not refreshRoster: a kiosk session
+  /// that was reloaded while in kiosk mode never bootstrapped the staff gate
+  /// (it is disabled on a kiosk), so `bootstrapped` is still false. Landing on
+  /// the POS with it false leaves PosStaffGate holding its blank cover. bootstrap
+  /// reads the roster the same way AND marks the gate ready, and it keeps the
+  /// member just signed in by the exit PIN (its restore runs only when there is
+  /// no session).
   Future<void> _backToPos() async {
     cart.clearCartList();
     await auth.applyKioskMode(false);
-    await staff.refreshRoster();
+    await staff.bootstrap();
   }
 
   /// Everything a customer must not inherit. The server has already killed

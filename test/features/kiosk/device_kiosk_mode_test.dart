@@ -331,6 +331,22 @@ void main() {
             reason: "the customer's basket is not the till's ticket");
       });
 
+      test('landing on the POS leaves the staff gate ready (not blank)',
+          () async {
+        // A kiosk session reloaded while in kiosk mode never bootstrapped the
+        // staff provider (the gate is disabled on a kiosk). The build() staff
+        // provider is deliberately un-bootstrapped to mirror that.
+        await build();
+        await auth.applyKioskMode(true);
+        expect(staff.bootstrapped, isFalse, reason: 'preconditions: the reloaded-kiosk state');
+
+        await modes.switchToPos('4321');
+
+        expect(staff.bootstrapped, isTrue,
+            reason: 'PosStaffGate needs this true or it holds its blank cover');
+        expect(staff.isSignedIn, isTrue);
+      });
+
       test('the branch staff login is read again, so the member stays signed in',
           () async {
         await build();
