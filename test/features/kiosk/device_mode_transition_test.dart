@@ -25,6 +25,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:universal_html/html.dart' as html;
 
 /// Switching a till between POS and kiosk must never show a broken frame
 /// (POS_KIOSK_MODE_PHASE1.md §5.6). The live repro: the shell swap rebuilt the
@@ -116,8 +117,14 @@ void main() {
       AppConstants.branch: 1,
       AppConstants.kioskDeviceId: 2,
       AppConstants.kioskDeviceCategory: 'pos',
-      AppConstants.kioskDeviceKioskMode: kioskMode,
     });
+    // The session flag lives in sessionStorage, which leaks across VM tests;
+    // reset it per boot and seed it only for a simulated kiosk session.
+    if (kioskMode) {
+      html.window.sessionStorage[AppConstants.kioskDeviceKioskMode] = 'true';
+    } else {
+      html.window.sessionStorage.remove(AppConstants.kioskDeviceKioskMode);
+    }
     prefs = await SharedPreferences.getInstance();
     dio = DioClient(AppConstants.baseUrl, null,
         loggingInterceptor: LoggingInterceptor(), sharedPreferences: prefs);
@@ -227,6 +234,100 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_Probe.created, 1);
+    });
+  });
+
+  group('returning to POS renders the till (no blank screen)', () {
+    // Mirrors AppChrome's shape: curtain > frame > gate > the routed child,
+    // with `pos` driven off the live KioskAuthProvider exactly as PosMode does.
+    Widget chrome(PosStaffSessionProvider staff, DeviceModeProvider modes) =>
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<KioskAuthProvider>.value(value: auth),
+            ChangeNotifierProvider<PosStaffSessionProvider>.value(value: staff),
+            ChangeNotifierProvider<DeviceModeProvider>.value(value: modes),
+          ],
+          child: MaterialApp(
+            home: Builder(builder: (context) {
+              final bool pos = context.watch<KioskAuthProvider>().isPosDevice;
+              return DeviceModeCurtain(
+                child: AppFrame(
+                  pos: pos,
+                  child: PosStaffGate(
+                    enabled: pos,
+                    child: Text(pos ? 'POS HOME' : 'KIOSK'),
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+
+    testWidgets(
+        'a till reloaded in kiosk mode shows the POS after the exit PIN, not a blank cover',
+        (tester) async {
+      // A kiosk session reloaded while in kiosk mode: the gate was disabled, so
+      // the staff provider never bootstrapped -- exactly the state that used to
+      // leave PosStaffGate holding its blank beige cover after the triple-tap.
+      await boot(kioskMode: true);
+      final t = build(_HeldRepo());
+      expect(t.staff.bootstrapped, isFalse, reason: 'precondition: reloaded-kiosk');
+
+      await tester.pumpWidget(chrome(t.staff, t.modes));
+      expect(find.text('KIOSK'), findsOneWidget);
+
+      // Triple-tap exit: a valid staff PIN brings the till back to POS.
+      await tester.runAsync(() => t.modes.switchToPos('4321'));
+      t.modes.landed();
+      await tester.pumpAndSettle();
+
+      // The till is on screen...
+      expect(auth.isPosDevice, isTrue);
+      expect(t.staff.bootstrapped, isTrue,
+          reason: 'the gate must be ready or it holds its blank cover');
+      expect(find.text('POS HOME'), findsOneWidget);
+
+      // ...actually painted, not left offstage under the gate's blank cover...
+      final Offstage gateOffstage = tester.widget<Offstage>(
+        find
+            .ancestor(
+                of: find.text('POS HOME'), matching: find.byType(Offstage))
+            .first,
+      );
+      expect(gateOffstage.offstage, isFalse,
+          reason: 'the POS content must be on stage, not hidden behind a cover');
+
+      // ...and the switch curtain has come down.
+      expect(find.byKey(DeviceModeCurtain.faceKey), findsNothing);
+    });
+
+    // Repeated switching is a state-machine concern (Scenario C): the gate must
+    // stay bootstrapped and the effective mode must track each switch. Asserted
+    // at the provider level so the result is deterministic and free of the
+    // curtain's spinner animation.
+    test('switching kiosk <-> POS repeatedly keeps the mode and gate consistent',
+        () async {
+      await boot();
+      final t = build(_HeldRepo());
+      await t.staff.bootstrap(); // a fresh POS boot bootstraps the gate
+      expect(auth.isPosDevice, isTrue);
+      expect(t.staff.bootstrapped, isTrue);
+
+      for (int i = 0; i < 3; i++) {
+        await t.modes.switchToKiosk();
+        expect(auth.kioskModeActive, isTrue, reason: 'round $i to kiosk');
+        expect(auth.isPosDevice, isFalse, reason: 'round $i to kiosk');
+        expect(t.staff.isSignedIn, isFalse,
+            reason: 'round $i: the till is torn down for the customer');
+
+        await t.modes.switchToPos('4321');
+        expect(auth.isPosDevice, isTrue, reason: 'round $i to POS');
+        expect(auth.kioskModeActive, isFalse, reason: 'round $i to POS');
+        expect(t.staff.bootstrapped, isTrue,
+            reason: 'round $i: the gate must stay ready, never a blank cover');
+        expect(t.staff.isSignedIn, isTrue,
+            reason: 'round $i: the member who entered the PIN is signed in');
+      }
     });
   });
 

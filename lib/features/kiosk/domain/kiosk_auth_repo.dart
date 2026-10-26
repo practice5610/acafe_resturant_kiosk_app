@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:universal_html/html.dart' as html;
 
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/exception/api_error_handler.dart';
@@ -120,8 +121,7 @@ class KioskAuthRepo {
           AppConstants.kioskShowImages, showImages);
     }
     if (kioskMode != null) {
-      await sharedPreferences.setBool(
-          AppConstants.kioskDeviceKioskMode, kioskMode);
+      _writeSessionKioskMode(kioskMode);
     }
     // Refresh dio headers so the new token + branch take effect immediately.
     await dioClient.updateHeader(getToken: token);
@@ -182,15 +182,48 @@ class KioskAuthRepo {
   bool getShowImages() =>
       sharedPreferences.getBool(AppConstants.kioskShowImages) ?? true;
 
-  /// Whether the server last said this POS till is serving as a kiosk.
-  /// Defaults to false: a session persisted before the field existed is a
-  /// till in its normal mode. Only meaningful on a `pos` device.
-  bool getKioskMode() =>
-      sharedPreferences.getBool(AppConstants.kioskDeviceKioskMode) ?? false;
+  /// Whether this POS till is currently serving as a kiosk.
+  ///
+  /// Read from the browser's `sessionStorage`, not SharedPreferences: the
+  /// POS⇄Kiosk switch is temporary and must last only for the running browser
+  /// session. A plain in-tab reload keeps the same session, so the till stays a
+  /// kiosk; closing/killing the app ends the session, so a cold relaunch always
+  /// reads false and reopens as POS. Defaults to false (a normal till) when
+  /// absent or unreadable. Only meaningful on a `pos` device.
+  bool getKioskMode() => _readSessionKioskMode();
 
-  /// Persist the mode the server confirmed after a switch from this till.
+  /// Persist the session-local kiosk flag for the current browser session.
+  /// Session-scoped (see [getKioskMode]): never written to SharedPreferences,
+  /// so it cannot survive a full application restart.
   Future<void> saveKioskMode(bool kioskMode) async {
-    await sharedPreferences.setBool(AppConstants.kioskDeviceKioskMode, kioskMode);
+    _writeSessionKioskMode(kioskMode);
+  }
+
+  /// Reads the session-scoped kiosk flag. Wrapped in try/catch because
+  /// `sessionStorage` can throw or be unavailable (private browsing, blocked
+  /// storage); the safe fallback is false, i.e. a normal POS till.
+  bool _readSessionKioskMode() {
+    try {
+      return html.window.sessionStorage[AppConstants.kioskDeviceKioskMode] ==
+          'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Writes (or clears) the session-scoped kiosk flag. Silently does nothing if
+  /// `sessionStorage` is unavailable -- the in-memory flag on
+  /// `KioskAuthProvider` still drives the running screen either way.
+  void _writeSessionKioskMode(bool kioskMode) {
+    try {
+      if (kioskMode) {
+        html.window.sessionStorage[AppConstants.kioskDeviceKioskMode] = 'true';
+      } else {
+        html.window.sessionStorage.remove(AppConstants.kioskDeviceKioskMode);
+      }
+    } catch (_) {
+      // Storage unavailable: nothing to persist for this session.
+    }
   }
 
   /// Persist a live show-images update from the websocket (admin flipped the
@@ -235,6 +268,9 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskOrderingExperience);
     await sharedPreferences.remove(AppConstants.kioskAllergenTagEnabled);
     await sharedPreferences.remove(AppConstants.kioskShowImages);
+    // Session-scoped now (sessionStorage); also drop any value an older build
+    // left in SharedPreferences so a stale flag can never resurrect kiosk mode.
+    _writeSessionKioskMode(false);
     await sharedPreferences.remove(AppConstants.kioskDeviceKioskMode);
     await sharedPreferences.remove(AppConstants.cartList);
     await sharedPreferences.remove(AppConstants.kioskMenuCacheKey);

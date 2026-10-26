@@ -19,15 +19,17 @@ import 'package:acafe_customer/features/realtime/device_settings_event.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:universal_html/html.dart' as html;
 
 /// POS ⇄ Kiosk, SESSION-LOCAL model (reversal of POS_KIOSK_MODE_PHASE1.md §5).
 ///
 /// The "Switch to Kiosk" button flips only the running screen: no backend call,
-/// nothing persisted to the device row. A cold start (fresh login OR reload)
-/// always opens as the device's admin category, so a `category == 'pos'` device
-/// is a POS again every time. A kiosk_mode broadcast from another session never
-/// moves this one. The way back is a normal staff sign-in whose member must
-/// hold `switch_device_mode`.
+/// nothing persisted to the device row. The temporary flag lives in the
+/// browser's `sessionStorage`, so an in-tab reload of the SAME session stays a
+/// kiosk, but a full application restart (a new session) always reopens a
+/// `category == 'pos'` device as POS. A kiosk_mode broadcast from another
+/// session never moves this one. The way back is a normal staff sign-in whose
+/// member must hold `switch_device_mode`.
 
 const PosStaffSession _sara = PosStaffSession(
   id: 'sara',
@@ -106,11 +108,20 @@ void main() {
       AppConstants.kioskDeviceId: 2,
       AppConstants.kioskDeviceName: 'Till 1',
       AppConstants.kioskDeviceCategory: category,
-      // A stale persisted flag is deliberately ignored by the session-local
-      // model; kept here to prove a cold start never reads it.
-      AppConstants.kioskDeviceKioskMode: kioskMode,
+      // A stale flag left in SharedPreferences by an older build must be
+      // ignored: the session flag now lives in sessionStorage. Seeding `true`
+      // here proves a cold start never reads localStorage for the mode.
+      AppConstants.kioskDeviceKioskMode: true,
       AppConstants.kioskShowImages: showImages,
     });
+    // sessionStorage leaks across tests in the VM, so reset it every boot. A
+    // boot WITH kioskMode seeds it true to simulate an in-tab reload whose
+    // previous session was a kiosk; the default (false) is a fresh session.
+    if (kioskMode) {
+      html.window.sessionStorage[AppConstants.kioskDeviceKioskMode] = 'true';
+    } else {
+      html.window.sessionStorage.remove(AppConstants.kioskDeviceKioskMode);
+    }
     prefs = await SharedPreferences.getInstance();
     dio = DioClient(AppConstants.baseUrl, null,
         loggingInterceptor: LoggingInterceptor(), sharedPreferences: prefs);
@@ -119,13 +130,12 @@ void main() {
   }
 
   group('effective mode (session-local)', () {
-    test('a reload restores the kiosk flag from this browser (stays kiosk)',
-        () async {
+    test('an in-tab reload (same session) stays a kiosk', () async {
       await boot(kioskMode: true);
 
       expect(auth.isPosTerminal, isTrue);
       expect(auth.kioskModeActive, isTrue,
-          reason: 'a page reload of the same device session stays a kiosk');
+          reason: 'a page reload of the same browser session stays a kiosk');
       expect(auth.isPosDevice, isFalse);
     });
 
@@ -137,15 +147,48 @@ void main() {
       expect(auth.isPosDevice, isTrue);
     });
 
-    test('entering kiosk mode persists locally, so a reload keeps it', () async {
+    test('entering kiosk mode persists for the session, so a reload keeps it',
+        () async {
       await boot();
       await auth.applyKioskMode(true);
 
-      // A reload = a fresh provider over the same SharedPreferences.
+      // A reload = a fresh provider within the SAME browser session, so the
+      // sessionStorage flag written by applyKioskMode is still there.
       final reloaded = KioskAuthProvider(
           kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
 
       expect(reloaded.kioskModeActive, isTrue);
+    });
+
+    test('a full application restart reopens a switched till as POS', () async {
+      // Bug 1: POS is the default. Switch a till to kiosk...
+      await boot();
+      await auth.applyKioskMode(true);
+      expect(auth.kioskModeActive, isTrue);
+
+      // ...then kill the app completely. Closing the tab/app ends the browser
+      // session, which clears sessionStorage (localStorage would survive, which
+      // was the bug). Relaunching builds a fresh provider over an empty session.
+      html.window.sessionStorage.remove(AppConstants.kioskDeviceKioskMode);
+      final relaunched = KioskAuthProvider(
+          kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
+
+      expect(relaunched.kioskModeActive, isFalse,
+          reason: 'kiosk mode must not survive a complete application restart');
+      expect(relaunched.isPosDevice, isTrue);
+    });
+
+    test('a fresh device login opens as POS even after a kiosk session',
+        () async {
+      await boot(kioskMode: true);
+      expect(auth.kioskModeActive, isTrue);
+
+      // A device login clears the flag for the session: a till logging in
+      // fresh is a POS, never a leftover kiosk.
+      await auth.applyKioskMode(false);
+      final reloaded = KioskAuthProvider(
+          kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
+      expect(reloaded.kioskModeActive, isFalse);
     });
 
     test('logging the device out clears the stored kiosk flag', () async {
@@ -154,7 +197,8 @@ void main() {
 
       await auth.logout();
 
-      expect(prefs.getBool(AppConstants.kioskDeviceKioskMode), anyOf(isNull, isFalse));
+      expect(
+          html.window.sessionStorage[AppConstants.kioskDeviceKioskMode], isNull);
       final reloaded = KioskAuthProvider(
           kioskAuthRepo: KioskAuthRepo(dioClient: dio, sharedPreferences: prefs));
       expect(reloaded.kioskModeActive, isFalse);

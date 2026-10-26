@@ -208,8 +208,13 @@ class AppConstants {
   static const String kioskOrderingExperience = 'kiosk_ordering_experience';
   static const String kioskAllergenTagEnabled = 'kiosk_allergen_tag_enabled';
   static const String kioskShowImages = 'kiosk_show_images';
-  /// A POS till currently serving as a kiosk. Mirrors the server's
-  /// devices.kiosk_mode, which is what actually enforces it.
+  /// A POS till temporarily serving as a kiosk. SESSION-SCOPED: this key lives
+  /// in the browser's `sessionStorage` (see [KioskAuthRepo]), NOT
+  /// SharedPreferences/localStorage. A POS⇄Kiosk switch is temporary, so it
+  /// must survive an in-tab reload but NOT a full application restart -- a cold
+  /// relaunch always reopens a till as POS. The same key name is also removed
+  /// from SharedPreferences on logout to clear any value left by an older build
+  /// that stored it there.
   static const String kioskDeviceKioskMode = 'kiosk_device_kiosk_mode';
   // v4: cached products now carry note_suggestions (POS Quick Add); v3 caches
   // lack them, so they're dropped rather than served.

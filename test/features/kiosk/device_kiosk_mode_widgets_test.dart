@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:universal_html/html.dart' as html;
 
 /// POS ⇄ Kiosk on screen (POS_KIOSK_MODE_PHASE1.md §5.3-5.5).
 
@@ -29,10 +30,12 @@ Future<void> _auth({String category = 'pos', bool kioskMode = false}) async {
     AppConstants.token: 'device-token',
     AppConstants.branch: 1,
     AppConstants.kioskDeviceCategory: category,
-    AppConstants.kioskDeviceKioskMode: kioskMode,
     AppConstants.kioskBranchName: 'Amsterdam',
     AppConstants.kioskDeviceName: 'Till 1',
   });
+  // Session flag lives in sessionStorage (leaks across VM tests): reset it so a
+  // previous test can't carry kiosk mode into this one.
+  html.window.sessionStorage.remove(AppConstants.kioskDeviceKioskMode);
   final prefs = await SharedPreferences.getInstance();
   final dio = DioClient(AppConstants.baseUrl, null,
       loggingInterceptor: LoggingInterceptor(), sharedPreferences: prefs);

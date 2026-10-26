@@ -28,6 +28,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:universal_html/html.dart' as html;
 
 import '../../helpers/kiosk_layout_harness.dart';
 
@@ -61,10 +62,12 @@ Future<
     if (loggedIn) AppConstants.token: 'device-token',
     AppConstants.branch: 1,
     AppConstants.kioskDeviceCategory: category,
-    AppConstants.kioskDeviceKioskMode: kioskMode,
     AppConstants.kioskBranchName: 'Main Branch',
     AppConstants.kioskDeviceName: 'Till 1',
   });
+  // The session kiosk flag lives in sessionStorage (and leaks across VM tests):
+  // reset it, since this harness drives kiosk mode via applyKioskMode below.
+  html.window.sessionStorage.remove(AppConstants.kioskDeviceKioskMode);
   final prefs = await SharedPreferences.getInstance();
   final dio = DioClient(
     AppConstants.baseUrl,
