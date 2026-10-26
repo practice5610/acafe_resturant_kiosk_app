@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show KeyDownEvent, KeyEvent, KeyRepeatEvent, LogicalKeyboardKey;
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
@@ -106,6 +108,10 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
   String _code = '';
   late final AnimationController _shakeController;
 
+  /// Lets staff type the PIN on a physical keyboard, not only the on-screen
+  /// pad: a till often has a real keyboard, and typing the code is faster.
+  final FocusNode _keyboardFocus = FocusNode(debugLabel: 'kiosk-pin-keyboard');
+
   // State for [KioskPinEntrySheet.onSubmitPin]; the manager flow keeps its own
   // on KioskManagerProvider.
   String? _error;
@@ -120,8 +126,61 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
 
   @override
   void dispose() {
+    _keyboardFocus.dispose();
     _shakeController.dispose();
     super.dispose();
+  }
+
+  /// Physical-keyboard entry. Digits (top row and numpad) type the PIN,
+  /// Backspace deletes, Enter submits, Escape closes -- mirroring the pad.
+  static final Map<LogicalKeyboardKey, String> _digitKeys = {
+    LogicalKeyboardKey.digit0: '0',
+    LogicalKeyboardKey.digit1: '1',
+    LogicalKeyboardKey.digit2: '2',
+    LogicalKeyboardKey.digit3: '3',
+    LogicalKeyboardKey.digit4: '4',
+    LogicalKeyboardKey.digit5: '5',
+    LogicalKeyboardKey.digit6: '6',
+    LogicalKeyboardKey.digit7: '7',
+    LogicalKeyboardKey.digit8: '8',
+    LogicalKeyboardKey.digit9: '9',
+    LogicalKeyboardKey.numpad0: '0',
+    LogicalKeyboardKey.numpad1: '1',
+    LogicalKeyboardKey.numpad2: '2',
+    LogicalKeyboardKey.numpad3: '3',
+    LogicalKeyboardKey.numpad4: '4',
+    LogicalKeyboardKey.numpad5: '5',
+    LogicalKeyboardKey.numpad6: '6',
+    LogicalKeyboardKey.numpad7: '7',
+    LogicalKeyboardKey.numpad8: '8',
+    LogicalKeyboardKey.numpad9: '9',
+  };
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final LogicalKeyboardKey key = event.logicalKey;
+
+    final String? digit = _digitKeys[key];
+    if (digit != null) {
+      _onDigit(digit);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.backspace) {
+      _onBackspace();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      _submit();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      _close();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   void _close() => Navigator.of(context).pop(false);
@@ -201,11 +260,19 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
     required String? error,
     required bool loading,
   }) {
+    // Focus (autofocus) catches physical-keyboard input for the whole sheet,
+    // so staff can type the PIN as well as tap the pad. It wraps everything,
+    // including the scrim, so a key press is caught wherever focus sits.
+    //
     // Material (transparent) provides the DefaultTextStyle every Text below
     // relies on. Without it, text rendered inside showGeneralDialog falls
     // back to the framework debug style -> yellow double underline.
     // Transparency paints nothing, so the blurred scrim is untouched.
-    return Material(
+    return Focus(
+      focusNode: _keyboardFocus,
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: Material(
       type: MaterialType.transparency,
       child: Stack(
         fit: StackFit.expand,
@@ -279,6 +346,7 @@ class _KioskPinEntrySheetState extends State<KioskPinEntrySheet>
             ),
           ),
         ],
+      ),
       ),
     );
   }
