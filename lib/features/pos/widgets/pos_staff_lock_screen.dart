@@ -1,11 +1,16 @@
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/di_container.dart' as di;
+import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_punch_source.dart';
 import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
 import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_lock_punch_view.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pin_card.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_ui.dart';
+import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -56,8 +61,41 @@ class _PosStaffLockScreenState extends State<PosStaffLockScreen> {
     // The switch may have been flipped, or someone hired, since the till last
     // looked. Cheap, and this is the moment it matters.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<PosStaffSessionProvider>().refreshRoster();
+      if (!mounted) return;
+      context.read<PosStaffSessionProvider>().refreshRoster();
+      _warmMenu();
     });
+  }
+
+  /// Warm the catalog WHILE the operator types their PIN, so the till's grid is
+  /// already loaded when they land on /pos-home instead of showing a spinner.
+  ///
+  /// This is the first screen a freshly-logged-in device sits on (device login
+  /// goes straight to /pos-home, whose PIN gate is this screen), so it is the
+  /// right place to start the one network fetch. It is idempotent and cheap on
+  /// every later appearance: [warmKioskMenuFromDisk] hydrates from disk and
+  /// hits the network ONLY when the in-memory menu is not already ready, so a
+  /// different staff member signing in next does NOT re-fetch the catalog.
+  /// Fire-and-forget: the PIN pad never waits on it. Mirrors
+  /// PosWelcomeScreen._startMenuPrefetch / PosHomeCartScreen._warmMenuEarly.
+  void _warmMenu() {
+    if (!mounted) return;
+    // Nullable reads: a test harness (or a screen mounted without the catalog
+    // providers) simply skips the warm, same as PosStaffGate reads its auth.
+    final category = context.read<CategoryProvider?>();
+    final splash = context.read<SplashProvider?>();
+    final localization = context.read<LocalizationProvider?>();
+    if (category == null || splash == null || localization == null) return;
+    final locale = localization.locale.languageCode;
+    final bool showImages = context.read<KioskAuthProvider?>()?.showImages ?? true;
+
+    category.warmKioskMenuFromDisk(locale).then((_) {
+      if (!mounted) return;
+      KioskMenuImageHelper.precacheAroundSelected(context, category, splash,
+          includeOptions: true, showImages: showImages);
+      // Swallow: a warm that cannot reach the server (or a test with no repo)
+      // just means /pos-home shows its own loader, exactly as before.
+    }).catchError((_) {});
   }
 
   @override
