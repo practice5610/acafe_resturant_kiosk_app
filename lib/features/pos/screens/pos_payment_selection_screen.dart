@@ -13,6 +13,8 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart' as kiosk;
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_manager_provider.dart';
+import 'package:acafe_customer/features/pos/domain/cash_change_calculator.dart';
+import 'package:acafe_customer/features/pos/domain/pos_cash_denominations.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_checkout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
@@ -54,6 +56,9 @@ import 'package:acafe_customer/features/pos/widgets/pos_payment_method_selector.
 import 'package:acafe_customer/features/pos/widgets/pos_receipt_context_menu.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_summary_panel.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_tip_dialog.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_employee_tab_panel.dart';
+import 'package:acafe_customer/features/pos/providers/pos_staff_session_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_staff_session.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_waiting_card.dart';
 import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
@@ -230,11 +235,26 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   /// True while the employee tab is placing its order.
   bool _employeeTabLoading = false;
+
+  /// The staff member the open tab is for (pos_public_id), or null until one is
+  /// picked. The "Open Tab — No Payment" CTA stays disabled until it is set so a
+  /// comp is always attributed to someone.
+  String? _employeeId;
+
+  /// True while the staff roster is being (re)fetched for the picker.
+  bool _employeeRosterLoading = false;
   // ─────────────────────────────────────────────────────────────────────────
 
   /// Null after any keypad entry — a chip stays lit only while it is what the
   /// operator actually chose. See [_onCashKey].
   PosCashDenomination? _denomination;
+
+  /// True right after a chip (or the Exact seed) loads a value: the next
+  /// keypad digit then *replaces* the amount rather than appending to it, so
+  /// keying "5" "0" after Exact reads € 50, not € 1.0050 (B1). Backspace clears
+  /// the flag and edits the value normally (B2). Only ever assigned inside the
+  /// existing cash setState calls — no new state plumbing.
+  bool _cashReplaceOnNextKey = false;
 
   /// Guards the exact-tender default below so it seeds [_cash] once per
   /// screen, not on every rebuild — otherwise it would fight the Clear button,
@@ -356,6 +376,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     if (_isCash && (_denomination?.exact ?? false)) {
       setState(() {
         _cash = _cash.withCents(_totalCents(payable + _tip.value));
+        _cashReplaceOnNextKey = true;
       });
     }
   }
@@ -707,6 +728,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         // tender away from it exactly as before.
         _cash = _cash.withCents(_totalCents(total));
         _denomination = const PosCashDenomination.exact();
+        _cashReplaceOnNextKey = true;
       } else {
         // Switching away from cash abandons the tender. Leaving a stale
         // amount behind would let an operator key €50, switch to card,
@@ -763,7 +785,12 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   void _onCashKey(String token) {
     setState(() {
-      _cash = _cash.key(token);
+      // First digit after a chip replaces the seeded value (B1); after that
+      // it builds up normally.
+      _cash = _cashReplaceOnNextKey
+          ? _cash.clear().key(token)
+          : _cash.key(token);
+      _cashReplaceOnNextKey = false;
       // Manual entry drops the chip highlight, even if the value still happens
       // to match — the chip reflects a choice, not a coincidence.
       _denomination = null;
@@ -772,7 +799,9 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
 
   void _onCashBackspace() {
     setState(() {
+      // Backspace edits the chip's value in place rather than clearing it (B2).
       _cash = _cash.backspace();
+      _cashReplaceOnNextKey = false;
       _denomination = null;
     });
   }
@@ -780,6 +809,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void _onCashTyped(String text) {
     setState(() {
       _cash = _cash.typed(text);
+      _cashReplaceOnNextKey = false;
       _denomination = null;
     });
   }
@@ -787,8 +817,27 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   void _onCashClear() {
     setState(() {
       _cash = _cash.clear();
+      _cashReplaceOnNextKey = false;
       _denomination = null;
     });
+  }
+
+  /// The denomination table for this terminal's currency (symbol-keyed, EUR
+  /// fallback — there is no ISO code in the config).
+  PosCashDenominations _cashDenominations() => PosCashDenominations.forSymbol(
+      context.read<SplashProvider>().configModel?.currencySymbol);
+
+  /// Quick-cash chips for the primary Cash pane: Exact plus up to four smart
+  /// suggestions built from the amount due. Replaces the fixed €5/€10/€20/€50
+  /// row for Cash only (splits keep [PosCashDenomination.defaults]).
+  List<PosCashDenomination> _cashSuggestionChips(double total) {
+    final List<int> units = _cashDenominations().suggestionUnits;
+    final List<int> values =
+        const CashChangeCalculator().suggestions(_totalCents(total), units);
+    return [
+      const PosCashDenomination.exact(),
+      for (final int c in values) PosCashDenomination.note(c),
+    ];
   }
 
   void _onDenomination(PosCashDenomination denomination, double total) {
@@ -797,6 +846,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
         denomination.exact ? _totalCents(total) : denomination.cents!,
       );
       _denomination = denomination;
+      _cashReplaceOnNextKey = true;
     });
   }
 
@@ -975,6 +1025,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     _invoiceActive = false;
     _standaloneActive = false;
     _employeeTabActive = false;
+    _employeeId = null;
     if (context.mounted) context.go(PosRoutes.home);
   }
 
@@ -1490,7 +1541,44 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
   /// that bar is pressed ([_openEmployeeTab]).
   void _startEmployeeTab() {
     if (_employeeTabActive) return;
-    setState(() => _employeeTabActive = true);
+    // Common case: an employee opens a tab for themselves, so default to whoever
+    // is signed in at the till and pre-fill their name. The picker stays
+    // editable for the rare comp placed on a colleague's behalf. With no staff
+    // session (branch not using staff login), it opens unset on the roster.
+    final PosStaffSession? me = context.read<PosStaffSessionProvider>().session;
+    setState(() {
+      _employeeTabActive = true;
+      _employeeId = me?.id;
+      _sale.customerName.text = me?.name ?? '';
+    });
+    _ensureEmployeeRoster();
+  }
+
+  /// The picker is drawn from the sign-in roster the lock screen already loads.
+  /// If the till has never needed it (staff login not required), fetch it once
+  /// so the dropdown is not empty.
+  Future<void> _ensureEmployeeRoster() async {
+    final PosStaffSessionProvider staff =
+        context.read<PosStaffSessionProvider>();
+    if (staff.members.isNotEmpty) return;
+    setState(() => _employeeRosterLoading = true);
+    await staff.refreshRoster();
+    if (!mounted) return;
+    setState(() => _employeeRosterLoading = false);
+  }
+
+  /// Records the picked employee and mirrors their name into the receipt's
+  /// customer-name field, so the ticket and the receipt carry it exactly as a
+  /// typed name would.
+  void _onSelectEmployee(String id, List<PosEmployeeOption> members) {
+    final PosEmployeeOption picked = members.firstWhere(
+      (m) => m.id == id,
+      orElse: () => PosEmployeeOption(id: id, name: ''),
+    );
+    setState(() {
+      _employeeId = id;
+      _sale.customerName.text = picked.name;
+    });
   }
 
   /// Places the current ticket as a normal order with NO money collected:
@@ -1658,7 +1746,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
       return;
     }
     if (_employeeTabActive) {
-      setState(() => _employeeTabActive = false);
+      setState(() {
+        _employeeTabActive = false;
+        _employeeId = null;
+      });
     }
   }
 
@@ -1678,6 +1769,7 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     final CartModel? line = cart.cartList[index];
     if (line == null) return;
     cart.setQuantity(isIncrement: true, cart: line, fromProductView: false);
+    _reseedExactTender();
   }
 
   void _decrementLine(int index) {
@@ -1692,6 +1784,19 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     } else {
       cart.setQuantity(isIncrement: false, cart: line, fromProductView: false);
     }
+    _reseedExactTender();
+  }
+
+  /// Keeps an Exact tender pinned to the live total when the cart changes, so
+  /// an Exact sale never silently goes under- or over-tendered (B3). Only the
+  /// Exact chip follows the due; a suggestion or hand-keyed amount is left as
+  /// the operator set it.
+  void _reseedExactTender() {
+    if (!_isCash || !(_denomination?.exact ?? false)) return;
+    setState(() {
+      _cash = _cash.withCents(_totalCents(_liveGrandTotal()));
+      _cashReplaceOnNextKey = true;
+    });
   }
 
   Future<void> _openReceiptOptions(BuildContext anchorContext) async {
@@ -1902,6 +2007,17 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
     final CouponProvider coupon = context.watch<CouponProvider>();
     final SplashProvider splash = context.read<SplashProvider>();
 
+    // Open Employee Tab picker options — the branch's sign-in roster, watched so
+    // the dropdown fills in as soon as a just-triggered refresh lands. Only read
+    // while the tab is active to avoid rebuilding the whole screen on roster
+    // changes during a normal cash/card sale.
+    final List<PosEmployeeOption> employeeMembers = _employeeTabActive
+        ? [
+            for (final m in context.watch<PosStaffSessionProvider>().members)
+              PosEmployeeOption(id: m.id, name: m.name),
+          ]
+        : const [];
+
     // Precision can only change when config loads; adopting it here keeps the
     // buffer and the formatter agreeing without a second source of truth.
     final int decimals = _decimals(context);
@@ -2070,6 +2186,10 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                         _selectMethod(method, grandTotal),
                                     cash: _cash,
                                     denomination: _denomination,
+                                    cashDenominations:
+                                        _cashSuggestionChips(grandTotal),
+                                    cashBreakdownDenominations:
+                                        _cashDenominations().breakdown,
                                     totalCents: _totalCents(grandTotal),
                                     onCashKey: _onCashKey,
                                     onCashTyped: _onCashTyped,
@@ -2195,6 +2315,13 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                                 _cancelActiveOther();
                                                 _startEmployeeTab();
                                               },
+                                    employeeMembers: employeeMembers,
+                                    selectedEmployeeId: _employeeId,
+                                    selectedEmployeeName:
+                                        _sale.customerName.text,
+                                    onSelectEmployee: (id) =>
+                                        _onSelectEmployee(id, employeeMembers),
+                                    employeeRosterLoading: _employeeRosterLoading,
                                     onCancelActiveOther: _onCancelActiveOther,
                                     showSplitOptions: _change == null,
                                   );
@@ -2228,10 +2355,14 @@ class _PosPaymentSelectionScreenState extends State<PosPaymentSelectionScreen> {
                                 // Open Employee Tab: no pane, just a no-payment
                                 // place-order CTA.
                                 if (_employeeTabActive) {
+                                  // Disabled until an employee is picked: a comp
+                                  // must always be attributed to someone.
                                   return PosPayPillBar(
                                     label: 'Open Tab — No Payment',
                                     loading: _employeeTabLoading,
-                                    onConfirm: hasItems && !_employeeTabLoading
+                                    onConfirm: hasItems &&
+                                            !_employeeTabLoading &&
+                                            _employeeId != null
                                         ? _openEmployeeTab
                                         : null,
                                   );
@@ -2430,6 +2561,12 @@ class _Content extends StatelessWidget {
   final String? changeOther;
   final PosCashEntry cash;
   final PosCashDenomination? denomination;
+
+  /// Smart quick-cash chips (Exact + suggestions) for the primary Cash pane.
+  final List<PosCashDenomination> cashDenominations;
+
+  /// Notes/coins the primary Cash pane counts change back with.
+  final List<int> cashBreakdownDenominations;
   final int totalCents;
   final ValueChanged<String> onCashKey;
   final ValueChanged<String> onCashTyped;
@@ -2510,6 +2647,15 @@ class _Content extends StatelessWidget {
   final bool employeeTabActive;
   final VoidCallback? onEmployeeTab;
 
+  // Who the comp is for. The picker is the branch's staff roster; the value is
+  // the consumed total shown as the employee's expense. The loading flag lets
+  // the field read "Loading…" before the roster arrives.
+  final List<PosEmployeeOption> employeeMembers;
+  final String? selectedEmployeeId;
+  final String? selectedEmployeeName;
+  final ValueChanged<String>? onSelectEmployee;
+  final bool employeeRosterLoading;
+
   /// Cancels whichever OTHER mode is currently active (deselects on re-tap).
   final VoidCallback? onCancelActiveOther;
 
@@ -2536,6 +2682,8 @@ class _Content extends StatelessWidget {
     required this.onSelectMethod,
     required this.cash,
     required this.denomination,
+    required this.cashDenominations,
+    required this.cashBreakdownDenominations,
     required this.totalCents,
     required this.onCashKey,
     required this.onCashTyped,
@@ -2593,6 +2741,11 @@ class _Content extends StatelessWidget {
     required this.onSubmitStandalone,
     this.employeeTabActive = false,
     this.onEmployeeTab,
+    this.employeeMembers = const [],
+    this.selectedEmployeeId,
+    this.selectedEmployeeName,
+    this.onSelectEmployee,
+    this.employeeRosterLoading = false,
     this.onCancelActiveOther,
     this.showSplitOptions = true,
   });
@@ -2647,6 +2800,21 @@ class _Content extends StatelessWidget {
   /// split-by-item panel, split-by-payment panel, or the normal Card/Cash
   /// panel depending on the active mode.
   Widget _summaryPane({required bool fill}) {
+    // Open Employee Tab: no money is collected, so the keypad and the tip row
+    // are replaced with the staff picker and the consumed value shown as the
+    // employee's expense (never a tender, never a tip).
+    if (employeeTabActive) {
+      return PosPayCard(
+        child: PosEmployeeTabPanel(
+          expense: total,
+          employees: employeeMembers,
+          selectedId: selectedEmployeeId,
+          selectedName: selectedEmployeeName,
+          onSelect: onSelectEmployee ?? (_) {},
+          loading: employeeRosterLoading,
+        ),
+      );
+    }
     // Receipt change-method mode: the drafted OTHER method shows the SAME
     // shared panel the order flow uses, in changeMode (no placement CTA/form).
     if (changeOther == 'standalone') {
@@ -2809,6 +2977,8 @@ class _Content extends StatelessWidget {
             total: total,
             entry: cash,
             totalCents: totalCents,
+            denominations: cashDenominations,
+            breakdownDenominations: cashBreakdownDenominations,
             selectedDenomination: denomination,
             onDenomination: onDenomination,
             onKey: onCashKey,

@@ -1328,7 +1328,10 @@ void main() {
     testWidgets('cash short of the total cannot be confirmed', (tester) async {
       await pumpPaymentScreen(tester,
           routed: true, method: PosPaymentMethod.cash);
-      await tap(tester, find.text('€ 10'));
+      // The smart suggestions are all above the total by construction, so a
+      // short tender is reached by clearing the Exact seed — an empty tender is
+      // the shortest of all. Confirm must then be disabled.
+      await tap(tester, find.bySemanticsLabel('Clear amount tendered'));
       expect(bar(tester), ('Confirm Payment', false));
     });
 

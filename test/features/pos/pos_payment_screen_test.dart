@@ -518,12 +518,14 @@ void main() {
       await _pump(tester, lines: [_line('Oat Milk Matcha', 6)]);
       await selectCash(tester);
 
+      // Keying after the Exact seed replaces it, so this is €2 against a €6
+      // total — a short tender, which now reads as Remaining €4.00 rather than
+      // a zeroed Change Due.
       await tapKey(tester, '2');
-      // €2 against a €6 total.
-      expect(
-          find.text(PosHomeSpec.formatPrice(0, padZero: false)), findsWidgets);
-      // No negative figure anywhere (a minus next to a digit or the currency
-      // symbol). Scoped to numbers so it does not trip over "Stand-alone".
+      expect(find.text('Remaining'), findsOneWidget);
+      expect(find.text(PosHomeSpec.formatPrice(4, padZero: false)), findsWidgets);
+      // The shortfall is shown as a positive figure — never a negative change.
+      // (Scoped to numbers so it does not trip over "Stand-alone".)
       expect(find.textContaining(RegExp(r'-\s*\d')), findsNothing);
       expect(find.textContaining(RegExp(r'€\s*-')), findsNothing);
     });
