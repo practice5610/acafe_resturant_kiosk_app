@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:acafe_customer/features/pos/domain/cash_change_calculator.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart';
+import 'package:acafe_customer/features/pos/domain/pos_cash_denominations.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_cash_panel.dart';
 import 'package:acafe_customer/features/pos/domain/pos_sale_session.dart';
@@ -8,6 +10,14 @@ import 'package:acafe_customer/features/pos/widgets/pos_pay_shell.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_split_by_item_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// The primary Cash pane's smart chips for a €12.50 due: Exact + suggestions.
+final List<PosCashDenomination> _smartChips = [
+  const PosCashDenomination.exact(),
+  for (final int c in const CashChangeCalculator()
+      .suggestions(1250, PosCashDenominations.eurSuggestionUnits))
+    PosCashDenomination.note(c),
+];
 
 Widget _cashPanel({bool fill = true}) => MaterialApp(
       home: Scaffold(
@@ -20,6 +30,7 @@ Widget _cashPanel({bool fill = true}) => MaterialApp(
               total: 12.5,
               entry: const PosCashEntry(),
               totalCents: 1250,
+              denominations: _smartChips,
               selectedDenomination: null,
               onDenomination: (_) {},
               onKey: (_) {},
@@ -49,8 +60,9 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(_cashPanel());
     final Finder chips = find.byKey(const Key('denom-chip'));
-    expect(chips, findsNWidgets(PosCashDenomination.defaults.length));
-    for (int i = 0; i < 5; i++) {
+    // Primary Cash pane: Exact + smart suggestions (€12.50 → 4 suggestions).
+    expect(chips, findsNWidgets(_smartChips.length));
+    for (int i = 0; i < _smartChips.length; i++) {
       final Size s = tester.getSize(chips.at(i));
       expect(s.width, closeTo(77.6, 0.5));
       expect(s.height, 41);

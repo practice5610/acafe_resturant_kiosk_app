@@ -1,7 +1,9 @@
+import 'package:acafe_customer/features/pos/domain/cash_change_calculator.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_entry.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_payment_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_cash_denomination.dart';
+import 'package:acafe_customer/features/pos/domain/pos_cash_denominations.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_keypad.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_pay_summary_panel.dart';
 import 'package:acafe_customer/theme/text_legibility.dart';
@@ -25,6 +27,17 @@ class PosPayCashSummaryPanel extends StatelessWidget {
   final double total;
   final PosCashEntry entry;
   final int totalCents;
+
+  /// The quick-cash chips. The primary Cash pane feeds smart suggestions here
+  /// (Exact + up to four values built from the amount due); split panes still
+  /// pass the fixed [PosCashDenomination.defaults]. Defaulted so existing
+  /// call sites keep the fixed row until they opt in.
+  final List<PosCashDenomination> denominations;
+
+  /// Notes and coins used to count change back, largest first (minor units).
+  /// Only the primary Cash pane shows the breakdown line.
+  final List<int> breakdownDenominations;
+
   final PosCashDenomination? selectedDenomination;
   final ValueChanged<PosCashDenomination> onDenomination;
   final ValueChanged<String> onKey;
@@ -47,6 +60,8 @@ class PosPayCashSummaryPanel extends StatelessWidget {
     required this.total,
     required this.entry,
     required this.totalCents,
+    this.denominations = PosCashDenomination.defaults,
+    this.breakdownDenominations = PosCashDenominations.eurBreakdown,
     required this.selectedDenomination,
     required this.onDenomination,
     required this.onKey,
@@ -95,9 +110,13 @@ class PosPayCashSummaryPanel extends StatelessWidget {
             children: [
               _TenderedField(entry: entry, onTyped: onTyped, onClear: onClear),
               const SizedBox(height: gap),
-              PosPayChangeDueBanner(cents: entry.cents - totalCents, covered: entry.cents >= totalCents),
+              _CashStatusSection(
+                dueCents: totalCents,
+                tenderedCents: entry.cents,
+                breakdownDenominations: breakdownDenominations,
+              ),
               const SizedBox(height: gap),
-              PosPayDenominationRow(denominations: PosCashDenomination.defaults, selected: selectedDenomination, onSelect: onDenomination),
+              PosPayDenominationRow(denominations: denominations, selected: selectedDenomination, onSelect: onDenomination),
               const SizedBox(height: gap),
               SizedBox(
                 key: const Key('pad-box'),
@@ -338,6 +357,142 @@ class PosPayChangeDueBanner extends StatelessWidget {
             ),
             style: loewExtraBold.copyWith(
               fontSize: PosPaymentSpec.changeValueSize, // 20
+              color: accent,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The live cash status for the **primary** Cash pane: a three-state banner
+/// (Remaining / exact / Change Due) and, only while there is change to give, a
+/// compact "Give back: …" breakdown line.
+///
+/// Everything here is a pure function of (due, tendered) via
+/// [CashChangeCalculator] — nothing is stored (decision D1). The split panes
+/// keep [PosPayChangeDueBanner] and are untouched.
+class _CashStatusSection extends StatelessWidget {
+  final int dueCents;
+  final int tenderedCents;
+  final List<int> breakdownDenominations;
+
+  const _CashStatusSection({
+    required this.dueCents,
+    required this.tenderedCents,
+    required this.breakdownDenominations,
+  });
+
+  static const CashChangeCalculator _calc = CashChangeCalculator();
+
+  /// Formats a denomination like the chips do: the symbol and decimals follow
+  /// the config (via [PosHomeSpec.formatPrice]), with a whole amount's `.00`
+  /// trimmed so the line reads `€ 10 + € 5 + 2 × € 2 + € 0.50`.
+  static String _money(int cents) {
+    final String priced =
+        PosHomeSpec.formatPrice(posCentsToMoney(cents), padZero: false);
+    return priced.replaceFirst(RegExp(r'([.,])0+$'), '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final CashStatus status = _calc.status(dueCents, tenderedCents);
+    final bool isRemaining = status.kind == CashStatusKind.remaining;
+
+    final List<Widget> children = [
+      _CashStatusBanner(
+        label: isRemaining ? 'Remaining' : 'Change Due',
+        cents: status.amount,
+        // Green for exact/change (unchanged from today); amber for a short
+        // tender, using the theme's existing warning token (B4).
+        accent: isRemaining ? TextTones.warning : PosHomeSpec.discountGreen,
+        covered: !isRemaining,
+      ),
+    ];
+
+    if (status.kind == CashStatusKind.change) {
+      final List<CashBreakdownPart> parts =
+          _calc.breakdown(status.amount, breakdownDenominations);
+      if (parts.isNotEmpty) {
+        final String line = parts
+            .map((p) => p.count == 1
+                ? _money(p.value)
+                : '${p.count} × ${_money(p.value)}')
+            .join(' + ');
+        children
+          ..add(const SizedBox(height: PosPaymentSpec.cashFieldLabelGap))
+          ..add(Text(
+            'Give back: $line',
+            key: const Key('change-breakdown'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: loewBold.copyWith(
+              fontSize: PosPaymentSpec.cashFieldLabelSize, // 13
+              color: TextTones.secondary,
+            ),
+          ));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: children,
+    );
+  }
+}
+
+/// The three-state banner. Same box as [PosPayChangeDueBanner] but the label,
+/// amount and accent are driven in, so the primary pane can show "Remaining"
+/// without changing the shared split banner.
+class _CashStatusBanner extends StatelessWidget {
+  final String label;
+  final int cents;
+  final Color accent;
+  final bool covered;
+
+  const _CashStatusBanner({
+    required this.label,
+    required this.cents,
+    required this.accent,
+    required this.covered,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('change-due'),
+      height: PosPaymentSpec.changeDueHeight,
+      padding: const EdgeInsets.symmetric(
+          horizontal: PosPaymentSpec.v2ChangeBannerPaddingH),
+      decoration: BoxDecoration(
+        color: covered
+            ? PosPaymentSpec.changeBannerFill // #EBF9F1
+            : PosHomeSpec.inkAlpha(0.03),
+        borderRadius: BorderRadius.circular(PosPaymentSpec.changeBannerRadius),
+      ),
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(PosPaymentSpec.changeBannerRadius),
+        border: Border.all(
+          color: covered ? PosHomeSpec.discountGreen : PosHomeSpec.hairline,
+          width: PosPaymentSpec.changeBannerBorder,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: loewBold.copyWith(
+              fontSize: PosPaymentSpec.changeLabelSize,
+              color: accent,
+            ),
+          ),
+          Text(
+            PosHomeSpec.formatPrice(posCentsToMoney(cents), padZero: false),
+            style: loewExtraBold.copyWith(
+              fontSize: PosPaymentSpec.changeValueSize,
               color: accent,
             ),
           ),
