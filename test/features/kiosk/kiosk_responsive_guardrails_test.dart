@@ -67,6 +67,17 @@ void main() {
     );
   });
 
+  test('welcome screen is video + ORDER HERE pill + flag row only', () {
+    final body = File('lib/features/kiosk/screens/kiosk_welcome_screen.dart')
+        .readAsStringSync();
+    expect(body, isNot(contains('SingleChildScrollView')));
+    expect(body, isNot(contains('KioskWelcomeLanguagePicker')));
+    expect(body, isNot(contains('touch_to_order')));
+    expect(body, contains("'order_here'"));
+    expect(body, contains('KioskLanguageOffering.forThisDevice()'));
+    expect(body, contains('ValueNotifier<String>'));
+  });
+
   test('content cap is the artboard, not 1440', () {
     final shell =
         File('lib/common/responsive/kiosk_shell.dart').readAsStringSync();

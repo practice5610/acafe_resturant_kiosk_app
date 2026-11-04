@@ -445,44 +445,24 @@ class _RefundButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          if (!PosAccessScope.guard(context, PosPermission.processRefunds)) {
-            return;
-          }
-          PosRefundSession.instance.order = receipt;
-          PosRefundSession.instance.splits = [];
-          // go, not push: /pos-refund lives outside the shell. push stacks
-          // the shell nav bar underneath the refund screen's own nav bar.
-          context.go(PosRoutes.refund);
-        },
-        borderRadius: BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
-        child: Container(
-          height: PosReceiptsSpec.printButtonHeight,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: PosHomeSpec.ink,
-            borderRadius:
-                BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
-          ),
-          child: Text(
-            'Refund',
-            style: loewBold.copyWith(
-              fontSize: PosReceiptsSpec.printLabelSize,
-              color: Colors.white,
-              height: 19 / 16,
-            ),
-          ),
-        ),
-      ),
+    return _HalfOutlinedButton(
+      label: 'Refund',
+      onTap: () {
+        if (!PosAccessScope.guard(context, PosPermission.processRefunds)) {
+          return;
+        }
+        PosRefundSession.instance.order = receipt;
+        PosRefundSession.instance.splits = [];
+        // go, not push: /pos-refund lives outside the shell. push stacks
+        // the shell nav bar underneath the refund screen's own nav bar.
+        context.go(PosRoutes.refund);
+      },
     );
   }
 }
 
-/// Pay-wrapper (Figma 1915:20737): Refund (full-width, top) + Print / Email
-/// (half-width each, bottom row).  Replaces the old single print button.
+/// Pay-wrapper: Print (full-width, black, top) + Refund / Email (half-width
+/// each, bottom row; Email goes full-width when the sale is not refundable).  Replaces the old single print button.
 class _ReceiptsPayWrapper extends StatelessWidget {
   final PosReceiptDetail? receipt;
   final VoidCallback? onPrint;
@@ -507,17 +487,19 @@ class _ReceiptsPayWrapper extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (refundable) ...[
-            _RefundButton(receipt: receipt!),
-            const SizedBox(height: PosReceiptsSpec.payActionsGap),
-          ],
+          _HalfOutlinedButton(
+            label: 'Print',
+            onTap: onPrint,
+            filled: true,
+          ),
+          const SizedBox(height: PosReceiptsSpec.payActionsGap),
           Row(
             children: [
+              // Empty left slot when not refundable keeps Email in place.
               Expanded(
-                child: _HalfOutlinedButton(
-                  label: 'Print',
-                  onTap: onPrint,
-                ),
+                child: refundable
+                    ? _RefundButton(receipt: receipt!)
+                    : const SizedBox.shrink(),
               ),
               const SizedBox(width: PosReceiptsSpec.payActionsGap),
               Expanded(
@@ -537,8 +519,13 @@ class _ReceiptsPayWrapper extends StatelessWidget {
 class _HalfOutlinedButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
+  final bool filled;
 
-  const _HalfOutlinedButton({required this.label, required this.onTap});
+  const _HalfOutlinedButton({
+    required this.label,
+    required this.onTap,
+    this.filled = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -546,7 +533,7 @@ class _HalfOutlinedButton extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1.0 : 0.35,
       child: Material(
-        color: PosReceiptsSpec.surface,
+        color: filled ? PosHomeSpec.ink : PosReceiptsSpec.surface,
         borderRadius: BorderRadius.circular(PosReceiptsSpec.printButtonRadius),
         child: InkWell(
           onTap: onTap,
@@ -567,7 +554,7 @@ class _HalfOutlinedButton extends StatelessWidget {
               label,
               style: loewBold.copyWith(
                 fontSize: PosReceiptsSpec.printLabelSize,
-                color: PosHomeSpec.ink,
+                color: filled ? Colors.white : PosHomeSpec.ink,
                 height: 19 / 16,
               ),
             ),
