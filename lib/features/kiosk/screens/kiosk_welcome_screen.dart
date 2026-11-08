@@ -16,14 +16,15 @@ import 'package:acafe_customer/features/language/providers/localization_provider
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/theme/brand_colors.dart';
+import 'package:acafe_customer/utill/cjk_fonts.dart';
+import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
-/// Kiosk intro screen: a full-screen looping background video, an "ORDER HERE"
-/// pill and a row of round language flags. Nothing else is drawn; the A/CAFÉ
-/// wordmark is part of the video. Tapping anywhere that is not a flag goes to
-/// the menu.
+/// Kiosk intro screen: the looping intro video filling the whole screen, an
+/// "ORDER HERE" pill and a row of round language flags. Tapping anywhere that
+/// is not a flag goes to the menu.
 ///
 /// The languages are the ones Settings → Hardware offers on this device;
 /// English is chosen until a guest picks another (see
@@ -31,39 +32,117 @@ import 'package:video_player/video_player.dart';
 /// loading that language's menu in the background, so the tap to order stays
 /// fast. A flag tap only ever switches language; it never starts an order.
 ///
-/// The still `kiosk_intro_Image.png` is the poster until the video is ready,
-/// and stays on screen if the video cannot start.
+/// The video is a centre-cropped cover on every screen, so there are never
+/// bars; the intro artwork is the poster until its first frame. Every size
+/// comes from [KioskIntroMetrics], one rule off the screen's shortest side.
 ///
 /// Menu data (categories + products) is prefetched in the background so the
 /// menu screen renders instantly when the user taps to continue.
 class KioskWelcomeScreen extends StatefulWidget {
-  /// Builds the background video's controller. Tests inject one that fails or
-  /// is fake; production uses the bundled `kiosk_intro.mp4`.
-  @visibleForTesting
-  final VideoPlayerController Function()? videoControllerFactory;
+  const KioskWelcomeScreen({super.key});
 
-  const KioskWelcomeScreen({super.key, this.videoControllerFactory});
+  /// The intro video. One place, so a landscape variant can later be chosen
+  /// here without touching the layout.
+  static String get introVideoAsset => 'assets/video/kiosk_intro.mp4';
 
   /// Keys for tests.
   static const Key orderButtonKey = ValueKey('kiosk_welcome_order_button');
   static const Key flagRowKey = ValueKey('kiosk_welcome_flag_row');
   static Key flagKey(String code) => ValueKey('kiosk_welcome_flag_$code');
+  static const Key videoKey = ValueKey('kiosk_welcome_video');
   static const Key staffExitKey = ValueKey('kiosk_welcome_staff_exit');
-  static const Key posterKey = ValueKey('kiosk_welcome_poster');
 
   @override
   State<KioskWelcomeScreen> createState() => _KioskWelcomeScreenState();
 }
 
-class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
-  /// Aspect ratio of the portrait kiosk artboard (2572x4522). On a window
-  /// wider than that, widths scale off the portrait column, so the pill never
-  /// stretches across a landscape screen.
-  static const double _introAspect = 2572 / 4522;
+/// Every size on the welcome screen, from the screen's shortest side `s`.
+/// No width-only or height-only fractions, so portrait and landscape agree.
+@immutable
+class KioskIntroMetrics {
+  /// Shortest side of the screen.
+  final double s;
 
-  /// Aspect ratio of the A/CAFÉ logo SVG (680.783 x 178.475); sizes the staff
-  /// exit hit area to the footprint the logo used to occupy.
-  static const double _logoAspect = 680.783 / 178.475;
+  /// Space kept free on each side of the flag row.
+  static const double sidePadding = 16;
+
+  /// Diameter of an unselected / the selected flag circle.
+  final double circle;
+  final double chosen;
+
+  /// Centre-to-centre distance between flags.
+  final double pitch;
+
+  final double buttonWidth;
+  final double buttonHeight;
+  final double buttonFont;
+
+  /// Row centre, and the button's bottom edge, above the bottom safe edge.
+  final double flagCentreFromBottom;
+  final double buttonBottomFromBottom;
+
+  /// Staff-exit hit area at the top centre.
+  final double exitWidth;
+  final double exitHeight;
+
+  const KioskIntroMetrics._({
+    required this.s,
+    required this.circle,
+    required this.chosen,
+    required this.pitch,
+    required this.buttonWidth,
+    required this.buttonHeight,
+    required this.buttonFont,
+    required this.flagCentreFromBottom,
+    required this.buttonBottomFromBottom,
+    required this.exitWidth,
+    required this.exitHeight,
+  });
+
+  factory KioskIntroMetrics.from(Size screen, {int flagCount = 8}) {
+    final double s = screen.shortestSide;
+
+    // Every flag is the same size; selection only changes the backdrop.
+    double circle = math.max(0.10 * s, 48);
+    double chosen = circle;
+    // Neighbouring circles never touch, even where the minimums win.
+    double pitch = math.max(0.11 * s, circle + 0.01 * s);
+
+    // Shrink spacing and circles together when the row would not fit.
+    final double rowWidth = (flagCount - 1) * pitch + chosen;
+    final double room = screen.width - 2 * sidePadding;
+    if (flagCount > 1 && rowWidth > room && room > 0) {
+      final double k = room / rowWidth;
+      circle *= k;
+      chosen *= k;
+      pitch *= k;
+    }
+
+    final double flagCentre = 0.10 * s;
+    final double buttonHeight = math.max(0.085 * s, 48);
+    return KioskIntroMetrics._(
+      s: s,
+      circle: circle,
+      chosen: chosen,
+      pitch: pitch,
+      buttonWidth: math.min(
+        math.max(0.78 * s, 260),
+        math.max(0, screen.width - 2 * sidePadding),
+      ),
+      buttonHeight: buttonHeight,
+      buttonFont: math.max(0.026 * s, 14),
+      flagCentreFromBottom: flagCentre,
+      buttonBottomFromBottom: flagCentre + chosen / 2 + 0.07 * s,
+      exitWidth: 0.25 * s,
+      exitHeight: 0.10 * s,
+    );
+  }
+}
+
+class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
+  /// Looping intro video. Created once, here, and disposed once: a language
+  /// switch rebuilds the widget but never this State.
+  VideoPlayerController? _video;
 
   bool _orderLoading = false;
 
@@ -83,7 +162,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
 
   static List<LanguageModel> _withFlagPath(List<LanguageModel> all) => all
       .where((l) =>
-          l.languageCode != null && (l.imageUrl ?? '').isNotEmpty)
+          l.languageCode != null && Images.roundFlagFor(l.languageCode) != null)
       .toList();
 
   @override
@@ -93,26 +172,47 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     _selected = ValueNotifier<String>(_localization.locale.languageCode);
     _localization.addListener(_syncSelected);
     _dropMissingFlags();
+    _initVideo();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startMenuPrefetch());
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Decode (or hit the cache for) the poster while the video starts.
-    KioskIntroImage.warm(context);
-  }
-
-  @override
   void dispose() {
+    _video?.dispose();
     _localization.removeListener(_syncSelected);
     _selected.dispose();
     _flags.dispose();
     super.dispose();
   }
 
+  /// Muted, looping, autoplay. The controller is only handed to the State once
+  /// it is playing and the screen is still up; any other exit (a failed load,
+  /// a screen that left meanwhile) disposes it here, so it is disposed exactly
+  /// once. A video that cannot play leaves the poster showing.
+  Future<void> _initVideo() async {
+    VideoPlayerController? controller =
+        VideoPlayerController.asset(KioskWelcomeScreen.introVideoAsset);
+    try {
+      await controller.initialize();
+      await controller.setVolume(0);
+      await controller.setLooping(true);
+      await controller.play();
+      if (mounted) {
+        _video = controller;
+        controller = null;
+        setState(() {});
+      }
+    } catch (_) {
+      // Missing asset / unsupported codec -> the poster stays up.
+    } finally {
+      await controller?.dispose();
+    }
+  }
+
   void _syncSelected() {
     _selected.value = _localization.locale.languageCode;
+    // A ja/zh guest needs the CJK font before the screen re-renders in it.
+    CjkFonts.ensureLoaded([_selected.value]);
   }
 
   /// A language whose flag is not bundled is skipped (and logged), never shown
@@ -124,11 +224,12 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
       final Set<String> bundled = manifest.listAssets().toSet();
       final List<LanguageModel> kept = [];
       for (final LanguageModel l in _flags.value) {
-        if (bundled.contains(l.imageUrl)) {
+        final String? flag = Images.roundFlagFor(l.languageCode);
+        if (flag != null && bundled.contains(flag)) {
           kept.add(l);
         } else {
           debugPrint(
-              'KioskWelcome: no flag asset for "${l.languageCode}" (${l.imageUrl}); skipped');
+              'KioskWelcome: no flag asset for "${l.languageCode}" ($flag); skipped');
         }
       }
       if (!mounted || kept.length == _flags.value.length) return;
@@ -238,183 +339,105 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   Widget build(BuildContext context) {
     final Size size =
         KioskMetrics.maybeOf(context)?.window ?? MediaQuery.sizeOf(context);
+    final KioskIntroMetrics m =
+        KioskIntroMetrics.from(size, flagCount: _flags.value.length);
+    final EdgeInsets safe = MediaQuery.paddingOf(context);
 
-    // Everything is a fraction of the window height, or of the portrait
-    // column's width (the whole width on a portrait kiosk).
-    final double colWidth = math.min(size.width, size.height * _introAspect);
-    final double buttonWidth = colWidth * 0.78;
-    final double buttonHeight = size.height * 0.05;
-    final double buttonTop = size.height * 0.85;
-    final double flagsTop = buttonTop + buttonHeight + size.height * 0.015;
+    // The OS text scale must not be able to break this layout.
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _orderLoading ? null : _onContinue,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildBackground(),
 
-    final double logoWidth = (colWidth * 0.26).clamp(120.0, 980.0);
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _orderLoading ? null : _onContinue,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            _KioskIntroVideo(controllerFactory: widget.videoControllerFactory),
-
-            // Staff way back to POS: invisible, where the logo used to sit.
-            Positioned(
-              top: MediaQuery.paddingOf(context).top + size.height * 0.035,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: KioskStaffExitTrigger(
-                  child: SizedBox(
-                    key: KioskWelcomeScreen.staffExitKey,
-                    width: logoWidth,
-                    height: logoWidth / _logoAspect,
+              // Invisible staff exit: on a POS till serving as a kiosk, three
+              // quick taps here are the way back to POS; inert everywhere else.
+              Positioned(
+                top: safe.top,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: KioskStaffExitTrigger(
+                    child: SizedBox(
+                      key: KioskWelcomeScreen.staffExitKey,
+                      width: m.exitWidth,
+                      height: m.exitHeight,
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            Positioned(
-              top: buttonTop,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _OrderHereButton(
-                  width: buttonWidth,
-                  height: buttonHeight,
-                  loading: _orderLoading,
-                  onPressed: _onContinue,
+              Positioned(
+                bottom: safe.bottom + m.buttonBottomFromBottom,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _OrderHereButton(
+                    width: m.buttonWidth,
+                    height: m.buttonHeight,
+                    fontSize: m.buttonFont,
+                    loading: _orderLoading,
+                    onPressed: _onContinue,
+                  ),
                 ),
               ),
-            ),
 
-            Positioned(
-              top: flagsTop,
-              left: 0,
-              right: 0,
-              child: _FlagRow(
+              _FlagRow(
                 flags: _flags,
                 selected: _selected,
                 enabled: !_orderLoading,
-                buttonHeight: buttonHeight,
-                maxWidth: colWidth,
+                metrics: m,
+                bottomInset: safe.bottom,
                 onSelect: _selectLanguage,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-}
 
-/// The looping, muted background video over the still poster.
-///
-/// The poster is always underneath, so a cold start, a slow decode or a video
-/// that fails to initialise all leave the artwork on screen, never black.
-/// Playback pauses while another route covers the welcome screen and resumes
-/// when it is uncovered.
-class _KioskIntroVideo extends StatefulWidget {
-  final VideoPlayerController Function()? controllerFactory;
-
-  const _KioskIntroVideo({this.controllerFactory});
-
-  @override
-  State<_KioskIntroVideo> createState() => _KioskIntroVideoState();
-}
-
-class _KioskIntroVideoState extends State<_KioskIntroVideo> {
-  VideoPlayerController? _controller;
-  bool _ready = false;
-  bool _disposed = false;
-  Animation<double>? _coveredBy;
-
-  @override
-  void initState() {
-    super.initState();
-    _start();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final Animation<double>? covered =
-        ModalRoute.of(context)?.secondaryAnimation;
-    if (covered == _coveredBy) return;
-    _coveredBy?.removeStatusListener(_onCovered);
-    _coveredBy = covered?..addStatusListener(_onCovered);
-  }
-
-  @override
-  void dispose() {
-    _disposed = true;
-    _coveredBy?.removeStatusListener(_onCovered);
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _start() async {
-    final VideoPlayerController controller = widget.controllerFactory != null
-        ? widget.controllerFactory!()
-        : VideoPlayerController.asset(
-            'assets/video/kiosk_intro.mp4',
-            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-          );
-    _controller = controller;
-    try {
-      await controller.initialize();
-      if (_disposed) return;
-      await controller.setVolume(0);
-      await controller.setLooping(true);
-      await controller.play();
-      if (_disposed) return;
-      setState(() => _ready = true);
-    } catch (e) {
-      debugPrint('KioskWelcome: intro video failed, keeping the poster: $e');
-      _controller = null;
-      try {
-        await controller.dispose();
-      } catch (_) {}
-    }
-  }
-
-  /// Another route above the welcome screen (anything but "fully uncovered")
-  /// pauses the video; uncovering plays it again.
-  void _onCovered(AnimationStatus status) {
-    final VideoPlayerController? c = _controller;
-    if (c == null || !_ready || _disposed) return;
-    if (status == AnimationStatus.dismissed) {
-      c.play();
-    } else {
-      c.pause();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final VideoPlayerController? c = _controller;
+  Widget _buildBackground() {
+    final VideoPlayerController? video = _video;
     return Stack(
       fit: StackFit.expand,
       children: [
+        // Poster: the intro artwork, cover, until the video has a frame.
         Image(
-          key: KioskWelcomeScreen.posterKey,
           image: KioskIntroImage.provider,
           fit: BoxFit.cover,
+          alignment: Alignment.center,
           gaplessPlayback: true,
-          // Missing artwork: the scaffold's near-black shows instead.
           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
         ),
-        if (_ready && c != null)
-          FittedBox(
-            fit: BoxFit.cover,
-            clipBehavior: Clip.hardEdge,
-            child: SizedBox(
-              width: c.value.size.width,
-              height: c.value.size.height,
-              child: VideoPlayer(c),
-            ),
-          ),
+        AnimatedOpacity(
+          opacity: video == null ? 0 : 1,
+          duration: const Duration(milliseconds: 300),
+          child: video == null
+              ? const SizedBox.shrink()
+              // True cover, centre-cropped: the video box is exactly the
+              // video's own size and FittedBox scales it to fill the screen.
+              : ClipRect(
+                  child: SizedBox.expand(
+                    child: FittedBox(
+                      key: KioskWelcomeScreen.videoKey,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                      child: SizedBox(
+                        width: video.value.size.width,
+                        height: video.value.size.height,
+                        child: VideoPlayer(video),
+                      ),
+                    ),
+                  ),
+                ),
+        ),
       ],
     );
   }
@@ -425,12 +448,14 @@ class _KioskIntroVideoState extends State<_KioskIntroVideo> {
 class _OrderHereButton extends StatelessWidget {
   final double width;
   final double height;
+  final double fontSize;
   final bool loading;
   final VoidCallback onPressed;
 
   const _OrderHereButton({
     required this.width,
     required this.height,
+    required this.fontSize,
     required this.loading,
     required this.onPressed,
   });
@@ -441,7 +466,6 @@ class _OrderHereButton extends StatelessWidget {
     context.watch<LocalizationProvider>();
     final String label =
         kioskTranslate(context, 'order_here', 'Order here').toUpperCase();
-    final double fontSize = height * 0.3;
 
     return Semantics(
       button: true,
@@ -455,6 +479,7 @@ class _OrderHereButton extends StatelessWidget {
           width: width,
           height: height,
           alignment: Alignment.center,
+          padding: EdgeInsets.symmetric(horizontal: height * 0.4),
           decoration: const ShapeDecoration(
             color: BrandColors.primaryDark,
             shape: StadiumBorder(),
@@ -468,16 +493,23 @@ class _OrderHereButton extends StatelessWidget {
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
-              : Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: loewBold.copyWith(
-                    color: Colors.white,
-                    fontSize: fontSize,
-                    letterSpacing: fontSize * 0.08,
-                    height: 1.0,
+              : AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 150),
+                  child: FittedBox(
+                    key: ValueKey<String>(label),
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: loewBold.copyWith(
+                        color: Colors.white,
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: fontSize * 0.08,
+                        height: 1.0,
+                      ),
+                    ),
                   ),
                 ),
         ),
@@ -486,75 +518,74 @@ class _OrderHereButton extends StatelessWidget {
   }
 }
 
-/// One horizontal row of round flags, no labels and no container. The chosen
-/// language is slightly larger with a white ring; every flag keeps a slot of
-/// the same width, so choosing one never shifts the others.
+/// One horizontal row of round flags, no labels and no container behind it,
+/// centred [KioskIntroMetrics.flagCentreFromBottom] above the bottom safe edge.
+///
+/// Each flag sits in a circle: soft see-through white (30%) when unselected,
+/// larger and solid white when chosen. The flag itself is 72% of its circle.
+/// Every flag keeps a slot of the same width, so choosing one never shifts the
+/// others.
 class _FlagRow extends StatelessWidget {
   final ValueNotifier<List<LanguageModel>> flags;
   final ValueNotifier<String> selected;
   final bool enabled;
-  final double buttonHeight;
-  final double maxWidth;
+  final KioskIntroMetrics metrics;
+  final double bottomInset;
   final ValueChanged<LanguageModel> onSelect;
 
   const _FlagRow({
     required this.flags,
     required this.selected,
     required this.enabled,
-    required this.buttonHeight,
-    required this.maxWidth,
+    required this.metrics,
+    required this.bottomInset,
     required this.onSelect,
   });
 
-  /// Smallest comfortable touch target.
+  /// Smallest comfortable touch height.
   static const double _minTouch = 48;
 
   @override
   Widget build(BuildContext context) {
-    final double flag = buttonHeight * 0.6;
-    final double chosen = buttonHeight * 0.8;
-    final double gap = flag * 0.5;
-    final double slotWidth = math.max(chosen + gap, _minTouch);
-    final double slotHeight = math.max(chosen, _minTouch);
+    final double slotHeight = math.max(metrics.chosen, _minTouch);
 
-    return ValueListenableBuilder<List<LanguageModel>>(
-      valueListenable: flags,
-      builder: (context, List<LanguageModel> shown, _) {
-        // One language needs no picker.
-        if (shown.length < 2) return const SizedBox.shrink();
-        return ValueListenableBuilder<String>(
-          valueListenable: selected,
-          builder: (context, String current, _) {
-            return IgnorePointer(
-              ignoring: !enabled,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxWidth),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      key: KioskWelcomeScreen.flagRowKey,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final LanguageModel l in shown)
-                          _FlagSlot(
-                            key: KioskWelcomeScreen.flagKey(l.languageCode!),
-                            language: l,
-                            isSelected: l.languageCode == current,
-                            size: l.languageCode == current ? chosen : flag,
-                            slotWidth: slotWidth,
-                            slotHeight: slotHeight,
-                            onTap: () => onSelect(l),
-                          ),
-                      ],
-                    ),
+    return Positioned(
+      bottom: bottomInset + metrics.flagCentreFromBottom - slotHeight / 2,
+      left: 0,
+      right: 0,
+      child: ValueListenableBuilder<List<LanguageModel>>(
+        valueListenable: flags,
+        builder: (context, List<LanguageModel> shown, _) {
+          // One language needs no picker.
+          if (shown.length < 2) return const SizedBox.shrink();
+          return ValueListenableBuilder<String>(
+            valueListenable: selected,
+            builder: (context, String current, _) {
+              return IgnorePointer(
+                ignoring: !enabled,
+                child: Center(
+                  child: Row(
+                    key: KioskWelcomeScreen.flagRowKey,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final LanguageModel l in shown)
+                        _FlagSlot(
+                          key: KioskWelcomeScreen.flagKey(l.languageCode!),
+                          language: l,
+                          isSelected: l.languageCode == current,
+                          size: metrics.circle,
+                          slotWidth: metrics.pitch,
+                          slotHeight: slotHeight,
+                          onTap: () => onSelect(l),
+                        ),
+                    ],
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -577,9 +608,11 @@ class _FlagSlot extends StatelessWidget {
     required this.onTap,
   });
 
+  /// Flag diameter as a share of its circle.
+  static const double _flagShare = 0.72;
+
   @override
   Widget build(BuildContext context) {
-    final double ring = isSelected ? size * 0.07 : 0;
     return Semantics(
       button: true,
       selected: isSelected,
@@ -595,21 +628,34 @@ class _FlagSlot extends StatelessWidget {
           height: slotHeight,
           child: Center(
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
+              duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               width: size,
               height: size,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: isSelected
-                    ? Border.all(color: Colors.white, width: ring)
-                    : null,
+                color: isSelected
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.30),
               ),
-              child: ClipOval(
-                child: Image.asset(
-                  language.imageUrl!,
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.high,
+              child: Container(
+                width: size * _flagShare,
+                height: size * _flagShare,
+                foregroundDecoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // Faint rim so white-edged flags (Japan) read as full size.
+                  border: Border.all(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    width: 1,
+                  ),
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    Images.roundFlagFor(language.languageCode)!,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
+                  ),
                 ),
               ),
             ),

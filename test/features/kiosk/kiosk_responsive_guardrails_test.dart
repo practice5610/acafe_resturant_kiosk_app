@@ -67,11 +67,14 @@ void main() {
     );
   });
 
-  test('welcome screen is video + ORDER HERE pill + flag row only', () {
+  test('welcome screen is a cover video + ORDER HERE pill + flag row only', () {
     final body = File('lib/features/kiosk/screens/kiosk_welcome_screen.dart')
         .readAsStringSync();
     expect(body, isNot(contains('SingleChildScrollView')));
     expect(body, isNot(contains('KioskWelcomeLanguagePicker')));
+    expect(body, contains('video_player'));
+    expect(body, contains('BoxFit.cover'));
+    expect(body, contains('KioskIntroMetrics'));
     expect(body, isNot(contains('touch_to_order')));
     expect(body, contains("'order_here'"));
     expect(body, contains('KioskLanguageOffering.forThisDevice()'));
