@@ -18,6 +18,7 @@ import 'package:acafe_customer/main.dart' show navigatorKey;
 import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,9 +89,32 @@ late SharedPreferences prefs;
 String hardwareOffering(List<String> codes) =>
     jsonEncode({'kiosk_languages': codes});
 
+/// An in-memory asset bundle whose manifest lists exactly [assets]; every other
+/// key (poster, flags) is served by the real bundle.
+class _ManifestBundle extends CachingAssetBundle {
+  _ManifestBundle(this.assets);
+  final List<String> assets;
+
+  @override
+  Future<ByteData> load(String key) async {
+    if (key == 'AssetManifest.bin') {
+      return const StandardMessageCodec().encodeMessage(<String, Object>{
+        for (final String a in assets) a: <Object>[],
+      })!;
+    }
+    return rootBundle.load(key);
+  }
+}
+
+const List<String> _bothVideos = [
+  'assets/video/kiosk_intro.mp4',
+  'assets/video/kiosk_intro_landscape.mp4',
+];
+
 Future<void> pumpWelcome(
   WidgetTester tester, {
   Size size = const Size(1080, 1920),
+  List<String> bundledAssets = _bothVideos,
   Map<String, Object> saved = const {},
   bool realTranslations = false,
 }) async {
@@ -152,7 +176,10 @@ Future<void> pumpWelcome(
         supportedLocales: realTranslations
             ? [for (final l in AppConstants.languages) Locale(l.languageCode!)]
             : const [Locale('en', 'US')],
-        home: home,
+        home: DefaultAssetBundle(
+          bundle: _ManifestBundle(bundledAssets),
+          child: home,
+        ),
       ),
     ),
   ));
@@ -461,6 +488,221 @@ void main() {
     });
   });
 
+  group('video by aspect ratio', () {
+    const Size tall = Size(1080, 1920);
+    const Size wide = Size(1920, 1080);
+
+    Future<void> resize(WidgetTester tester, Size size, Duration wait) async {
+      tester.view.physicalSize = size;
+      await tester.pump();
+      await tester.pump(wait);
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+
+    final Map<Size, bool> expectedWide = {
+      const Size(1080, 1920): false, // kiosk 0.56
+      const Size(440, 956): false, // iPhone 0.46
+      const Size(375, 667): false, // iPhone SE 0.56
+      const Size(412, 922): false, // Pixel Fold 0.45
+      const Size(768, 1024): true, // iPad Mini 0.75
+      const Size(1032, 1376): true, // iPad Pro 0.75
+      const Size(800, 1280): true, // POS 0.625
+      const Size(1000, 1000): true, // square
+      const Size(1512, 982): true, // laptop
+      const Size(1920, 1080): true,
+      const Size(1280, 800): true,
+    };
+    for (final MapEntry<Size, bool> e in expectedWide.entries) {
+      testWidgets(
+          '${e.key.width.toInt()}x${e.key.height.toInt()} first load plays the '
+          '${e.value ? 'wide' : 'tall'} video', (tester) async {
+        await pumpWelcome(tester, size: e.key);
+        expect(video.assets, [
+          e.value
+              ? KioskWelcomeScreen.introLandscapeVideoAsset
+              : KioskWelcomeScreen.introVideoAsset
+        ]);
+        expect(video.created, 1);
+      });
+    }
+
+    testWidgets(
+        'no wide asset in the manifest: tall video everywhere, no error',
+        (tester) async {
+      await pumpWelcome(tester,
+          size: wide, bundledAssets: const ['assets/video/kiosk_intro.mp4']);
+
+      expect(video.assets, [KioskWelcomeScreen.introVideoAsset]);
+      expect(find.byType(VideoPlayer), findsOneWidget);
+      await resize(tester, const Size(768, 1024), const Duration(seconds: 1));
+      expect(video.created, 1, reason: 'nothing to switch to');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'crossing the boundary switches once, then disposes the old one',
+        (tester) async {
+      await pumpWelcome(tester, size: wide);
+      expect(video.created, 1);
+
+      // A live drag: many sizes inside the debounce window.
+      for (final Size s in const [
+        Size(1700, 1080),
+        Size(1300, 1080),
+        Size(900, 1200),
+        Size(1080, 1920),
+      ]) {
+        await resize(tester, s, const Duration(milliseconds: 50));
+      }
+      expect(video.created, 1, reason: 'debounced: nothing switched mid-drag');
+      expect(video.disposed, 0);
+
+      await resize(tester, tall, const Duration(milliseconds: 400));
+      expect(video.created, 2, reason: 'exactly one switch');
+      expect(video.assets.last, KioskWelcomeScreen.introVideoAsset);
+      expect(find.byType(VideoPlayer), findsNWidgets(2),
+          reason: 'old stays under the new one while it fades in');
+      expect(video.disposed, 0);
+
+      await resize(tester, tall, const Duration(milliseconds: 600));
+      expect(find.byType(VideoPlayer), findsOneWidget);
+      expect(video.disposed, 1, reason: 'old controller released once');
+      expect(video.created, 2);
+    });
+
+    testWidgets('flipping back inside the debounce never switches',
+        (tester) async {
+      await pumpWelcome(tester, size: wide);
+      await resize(tester, tall, const Duration(milliseconds: 100));
+      await resize(tester, wide, const Duration(milliseconds: 100));
+      await resize(tester, wide, const Duration(seconds: 1));
+
+      expect(video.created, 1);
+      expect(video.disposed, 0);
+    });
+
+    testWidgets('the 0.59 - 0.62 band never switches the video',
+        (tester) async {
+      const Duration settle = Duration(seconds: 1);
+      await pumpWelcome(tester, size: tall);
+      for (final Size s in const [
+        Size(595, 1000),
+        Size(600, 1000),
+        Size(610, 1000),
+        Size(615, 1000),
+      ]) {
+        await resize(tester, s, settle);
+      }
+      expect(video.created, 1, reason: 'tall stays tall inside the band');
+
+      await resize(tester, const Size(630, 1000), settle); // past 0.62
+      await resize(tester, const Size(630, 1000), settle);
+      expect(video.created, 2);
+      expect(video.assets.last, KioskWelcomeScreen.introLandscapeVideoAsset);
+
+      for (final Size s in const [
+        Size(615, 1000),
+        Size(610, 1000),
+        Size(600, 1000),
+        Size(595, 1000),
+      ]) {
+        await resize(tester, s, settle);
+      }
+      expect(video.created, 2, reason: 'wide stays wide inside the band');
+
+      await resize(tester, const Size(580, 1000), settle); // under 0.59
+      await resize(tester, const Size(580, 1000), settle);
+      expect(video.created, 3);
+      expect(video.assets.last, KioskWelcomeScreen.introVideoAsset);
+    });
+
+    testWidgets('a language change does not re-create either controller',
+        (tester) async {
+      await pumpWelcome(tester, size: wide);
+      for (final String code in [...allCodes.skip(1), allCodes.first]) {
+        await tester.tap(flag(code));
+        await settleKiosk(tester);
+      }
+      expect(video.created, 1);
+      expect(video.disposed, 0);
+    });
+  });
+
+  group('control size from the virtual 9:16 frame', () {
+    double frame(Size s) =>
+        math.min(math.min(s.width, s.height * 9 / 16), 1080.0);
+
+    test('s = min(width, height x 9/16, 1080)', () {
+      expect(KioskIntroMetrics.from(const Size(1080, 1920)).s, 1080);
+      expect(KioskIntroMetrics.from(const Size(1920, 1080)).s, 607.5);
+      expect(KioskIntroMetrics.from(const Size(1512, 982)).s,
+          closeTo(552.375, 0.001));
+      expect(KioskIntroMetrics.from(const Size(2560, 1440)).s, 810);
+      expect(KioskIntroMetrics.from(const Size(768, 1024)).s, 576);
+      expect(KioskIntroMetrics.from(const Size(1032, 1376)).s, 774);
+      expect(KioskIntroMetrics.from(const Size(440, 956)).s, 440);
+      expect(KioskIntroMetrics.from(const Size(375, 667)).s,
+          closeTo(375, 0.01));
+    });
+
+    for (final Size size in const [
+      Size(1080, 1920),
+      Size(1920, 1080),
+      Size(1512, 982),
+      Size(2560, 1440),
+      Size(768, 1024),
+      Size(1032, 1376),
+      Size(440, 956),
+      Size(375, 667),
+    ]) {
+      testWidgets(
+          'pill and flags follow the frame at '
+          '${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+        await pumpWelcome(tester, size: size);
+        expectNoOverflow(tester, size);
+        final double s = frame(size);
+        final KioskIntroMetrics m = KioskIntroMetrics.from(size);
+        expect(m.s, closeTo(s, 0.001));
+
+        final Rect pill = tester.getRect(orderButton);
+        expect(pill.width, closeTo(math.min(0.78 * s, size.width - 32), 0.5));
+        expect(pill.height, closeTo(math.max(0.085 * s, 48), 0.5));
+        expect(pill.center.dx, closeTo(size.width / 2, 0.5));
+
+        final Rect row =
+            tester.getRect(find.byKey(KioskWelcomeScreen.flagRowKey));
+        expect(row.left, greaterThanOrEqualTo(0));
+        expect(row.right, lessThanOrEqualTo(size.width));
+        expect(row.center.dx, closeTo(size.width / 2, 0.5));
+        expect(pill.width, lessThanOrEqualTo(0.78 * s + 0.01),
+            reason: 'never wider than the frame allows');
+
+        for (final String c in allCodes) {
+          // The tap area is the flag's whole slot.
+          expect(tester.getSize(flag(c)).width, closeTo(m.pitch, 0.01));
+          expect(tester.getSize(flag(c)).height, greaterThanOrEqualTo(48));
+        }
+        if (size.width >= 600) {
+          expect(tester.getSize(circleOf('nl')).width,
+              greaterThanOrEqualTo(48 - 0.01),
+              reason: 'minimum flag holds wherever the row fits');
+        }
+        expect(tester.getSize(orderButton).height, greaterThanOrEqualTo(48));
+      });
+    }
+
+    testWidgets('never bigger than at 1080x1920', (tester) async {
+      await pumpWelcome(tester);
+      final Size pill = tester.getSize(orderButton);
+      for (final Size s in const [Size(3840, 2160), Size(2160, 3840)]) {
+        tester.view.physicalSize = s;
+        await tester.pump();
+        expect(tester.getSize(orderButton), pill);
+      }
+    });
+  });
+
   for (final Size size in [
     const Size(1080, 1920),
     const Size(1920, 1080),
@@ -471,13 +713,18 @@ void main() {
     const Size(440, 956),
     const Size(375, 667),
     const Size(412, 922),
+    const Size(768, 1024),
+    const Size(1512, 982),
+    const Size(1000, 1000),
+    const Size(2560, 1440),
   ]) {
     testWidgets(
         'video covers the whole screen, controls follow the spec at '
         '${size.width.toInt()}x${size.height.toInt()}', (tester) async {
       await pumpWelcome(tester, size: size);
       expectNoOverflow(tester, size);
-      final double s = size.shortestSide;
+      final double s =
+          math.min(math.min(size.width, size.height * 9 / 16), 1080.0);
       final KioskIntroMetrics m = KioskIntroMetrics.from(size);
 
       // True cover: the clip is the whole screen, and the video box inside it
@@ -493,12 +740,15 @@ void main() {
       expect(box.bottom, greaterThanOrEqualTo(size.height - 0.01));
       expect(box.center.dx, closeTo(size.width / 2, 0.5));
       expect(box.center.dy, closeTo(size.height / 2, 0.5));
-      expect(box.width / box.height, closeTo(576 / 1024, 0.001));
+      expect(
+          box.width / box.height,
+          closeTo(size.width / size.height > 0.605 ? 1920 / 1080 : 576 / 1024,
+              0.001),
+          reason: "the video keeps its own aspect ratio");
 
       // Button: spec width/height, centred.
       final Rect pill = tester.getRect(orderButton);
-      expect(pill.width,
-          closeTo(math.min(math.max(0.78 * s, 260), size.width - 32), 0.5));
+      expect(pill.width, closeTo(math.min(0.78 * s, size.width - 32), 0.5));
       expect(pill.height, closeTo(math.max(0.085 * s, 48), 0.5));
       expect(pill.center.dx, closeTo(size.width / 2, 0.5));
 

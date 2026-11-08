@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -41,9 +42,35 @@ import 'package:video_player/video_player.dart';
 class KioskWelcomeScreen extends StatefulWidget {
   const KioskWelcomeScreen({super.key});
 
-  /// The intro video. One place, so a landscape variant can later be chosen
-  /// here without touching the layout.
+  /// The portrait intro video. Also the fallback everywhere.
   static String get introVideoAsset => 'assets/video/kiosk_intro.mp4';
+
+  /// The 16:9 "wide" intro video: the full portrait picture centred, the sides
+  /// a soft extension of the background. Used on every screen that is not tall
+  /// and narrow (see [wideFrom]) when it is bundled.
+  static String get introLandscapeVideoAsset =>
+      'assets/video/kiosk_intro_landscape.mp4';
+
+  /// The video follows width / height: wide from [wideFrom], tall up to
+  /// [tallUpTo], and in between the current one stays so a window dragged
+  /// through the band never flip-flops. [firstLoadWide] decides the first load.
+  static const double wideFrom = 0.62;
+  static const double tallUpTo = 0.59;
+  static const double firstLoadWide = 0.605;
+
+  /// Cross-fade time, and the wait after the last resize before a switch.
+  static const Duration videoFade = Duration(milliseconds: 300);
+  static const Duration switchDebounce = Duration(milliseconds: 300);
+
+  /// The video for a shape. The wide file is only chosen when the asset
+  /// manifest lists it; otherwise the tall one is used everywhere.
+  static String introVideoAssetFor({
+    required bool wide,
+    required Set<String> bundled,
+  }) =>
+      wide && bundled.contains(introLandscapeVideoAsset)
+          ? introLandscapeVideoAsset
+          : introVideoAsset;
 
   /// Keys for tests.
   static const Key orderButtonKey = ValueKey('kiosk_welcome_order_button');
@@ -57,7 +84,7 @@ class KioskWelcomeScreen extends StatefulWidget {
 }
 
 /// Every size on the welcome screen, from the screen's shortest side `s`.
-/// No width-only or height-only fractions, so portrait and landscape agree.
+/// No width-only or height-only fractions, so every shape agrees.
 @immutable
 class KioskIntroMetrics {
   /// Shortest side of the screen.
@@ -100,7 +127,10 @@ class KioskIntroMetrics {
   });
 
   factory KioskIntroMetrics.from(Size screen, {int flagCount = 8}) {
-    final double s = screen.shortestSide;
+    // Sized as if a 9:16 kiosk screen sat in the middle of any screen, and
+    // never bigger than on the 1080x1920 kiosk.
+    final double s =
+        math.min(math.min(screen.width, screen.height * 9 / 16), 1080.0);
 
     // Every flag is the same size; selection only changes the backdrop.
     double circle = math.max(0.10 * s, 48);
@@ -126,7 +156,7 @@ class KioskIntroMetrics {
       chosen: chosen,
       pitch: pitch,
       buttonWidth: math.min(
-        math.max(0.78 * s, 260),
+        0.78 * s,
         math.max(0, screen.width - 2 * sidePadding),
       ),
       buttonHeight: buttonHeight,
@@ -140,9 +170,21 @@ class KioskIntroMetrics {
 }
 
 class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
-  /// Looping intro video. Created once, here, and disposed once: a language
-  /// switch rebuilds the widget but never this State.
+  /// Looping intro video, owned by this State: a language switch rebuilds the
+  /// widget but never this State, so it never recreates a controller. Only an
+  /// orientation change swaps it (see [_reconcileVideo]).
   VideoPlayerController? _video;
+  String? _videoAsset;
+
+  /// Controllers fading out under the new one; each is disposed once.
+  final List<VideoPlayerController> _fadingOut = [];
+
+  Set<String>? _bundled;
+  bool? _wide;
+  Size? _lastSize;
+  Timer? _switchTimer;
+  bool _reconciling = false;
+  final Set<String> _failed = {};
 
   bool _orderLoading = false;
 
@@ -172,41 +214,124 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     _selected = ValueNotifier<String>(_localization.locale.languageCode);
     _localization.addListener(_syncSelected);
     _dropMissingFlags();
-    _initVideo();
+    _loadManifest();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startMenuPrefetch());
   }
 
   @override
   void dispose() {
+    _switchTimer?.cancel();
     _video?.dispose();
+    for (final VideoPlayerController c in _fadingOut) {
+      c.dispose();
+    }
+    _fadingOut.clear();
     _localization.removeListener(_syncSelected);
     _selected.dispose();
     _flags.dispose();
     super.dispose();
   }
 
-  /// Muted, looping, autoplay. The controller is only handed to the State once
-  /// it is playing and the screen is still up; any other exit (a failed load,
-  /// a screen that left meanwhile) disposes it here, so it is disposed exactly
-  /// once. A video that cannot play leaves the poster showing.
-  Future<void> _initVideo() async {
-    VideoPlayerController? controller =
-        VideoPlayerController.asset(KioskWelcomeScreen.introVideoAsset);
+  Future<void> _loadManifest() async {
+    Set<String> bundled = const {};
     try {
-      await controller.initialize();
-      await controller.setVolume(0);
-      await controller.setLooping(true);
-      await controller.play();
-      if (mounted) {
-        _video = controller;
-        controller = null;
-        setState(() {});
-      }
-    } catch (_) {
-      // Missing asset / unsupported codec -> the poster stays up.
-    } finally {
-      await controller?.dispose();
+      final AssetBundle bundle =
+          context.getInheritedWidgetOfExactType<DefaultAssetBundle>()?.bundle ??
+              rootBundle;
+      final AssetManifest manifest =
+          await AssetManifest.loadFromAssetBundle(bundle);
+      bundled = manifest.listAssets().toSet();
+    } catch (e) {
+      debugPrint('KioskWelcome: could not read the asset manifest: $e');
     }
+    if (!mounted) return;
+    _bundled = bundled;
+    _reconcileVideo();
+  }
+
+  /// Shape with hysteresis: tall -> wide from 0.62, wide -> tall up to 0.59,
+  /// in between nothing changes.
+  void _noteSize(Size size) {
+    final double aspect = size.height <= 0 ? 0 : size.width / size.height;
+    final bool? current = _wide;
+    if (current == null) {
+      _wide = aspect > KioskWelcomeScreen.firstLoadWide;
+    } else if (!current && aspect >= KioskWelcomeScreen.wideFrom) {
+      _wide = true;
+    } else if (current && aspect <= KioskWelcomeScreen.tallUpTo) {
+      _wide = false;
+    }
+    if (_lastSize != size) {
+      _lastSize = size;
+      _scheduleSwitch();
+    }
+  }
+
+  String get _wantedAsset {
+    final String asset = KioskWelcomeScreen.introVideoAssetFor(
+      wide: _wide ?? false,
+      bundled: _bundled ?? const {},
+    );
+    return _failed.contains(asset) ? KioskWelcomeScreen.introVideoAsset : asset;
+  }
+
+  /// First video starts at once; later switches wait for the resize to settle.
+  void _scheduleSwitch() {
+    if (_bundled == null) return;
+    _switchTimer?.cancel();
+    if (_wantedAsset == _videoAsset) return;
+    if (_video == null) {
+      _reconcileVideo();
+      return;
+    }
+    _switchTimer = Timer(KioskWelcomeScreen.switchDebounce, _reconcileVideo);
+  }
+
+  /// Muted, looping, autoplay. A new controller is initialised and playing
+  /// before it replaces the old one, which keeps showing underneath while the
+  /// new one fades in and is disposed afterwards. Any controller that does not
+  /// make it into place is disposed here, so each is disposed exactly once. A
+  /// video that cannot play leaves the poster (or the previous video) showing.
+  Future<void> _reconcileVideo() async {
+    if (_reconciling || !mounted || _bundled == null) return;
+    _reconciling = true;
+    try {
+      while (mounted && _wantedAsset != _videoAsset) {
+        final String asset = _wantedAsset;
+        VideoPlayerController? controller = VideoPlayerController.asset(asset);
+        try {
+          await controller.initialize();
+          await controller.setVolume(0);
+          await controller.setLooping(true);
+          await controller.play();
+          if (!mounted) break;
+          if (asset != _wantedAsset) continue; // orientation moved on meanwhile
+          final VideoPlayerController? previous = _video;
+          _video = controller;
+          _videoAsset = asset;
+          controller = null;
+          if (previous != null) {
+            _fadingOut.add(previous);
+            Timer(KioskWelcomeScreen.videoFade * 1.5, () => _release(previous));
+          }
+          setState(() {});
+        } catch (_) {
+          // Missing asset / unsupported codec -> fall back to portrait / poster.
+          _failed.add(asset);
+          if (asset == KioskWelcomeScreen.introVideoAsset) break;
+        } finally {
+          await controller?.dispose();
+        }
+      }
+    } finally {
+      _reconciling = false;
+    }
+  }
+
+  void _release(VideoPlayerController c) {
+    if (!_fadingOut.remove(c)) return; // already released by dispose()
+    if (mounted) setState(() {});
+    c.dispose();
   }
 
   void _syncSelected() {
@@ -339,6 +464,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
   Widget build(BuildContext context) {
     final Size size =
         KioskMetrics.maybeOf(context)?.window ?? MediaQuery.sizeOf(context);
+    _noteSize(size);
     final KioskIntroMetrics m =
         KioskIntroMetrics.from(size, flagCount: _flags.value.length);
     final EdgeInsets safe = MediaQuery.paddingOf(context);
@@ -408,7 +534,8 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Poster: the intro artwork, cover, until the video has a frame.
+        // Poster: the intro artwork, cover, until the video has a frame and
+        // underneath every switch.
         Image(
           image: KioskIntroImage.provider,
           fit: BoxFit.cover,
@@ -416,29 +543,72 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
           gaplessPlayback: true,
           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
         ),
-        AnimatedOpacity(
-          opacity: video == null ? 0 : 1,
-          duration: const Duration(milliseconds: 300),
-          child: video == null
-              ? const SizedBox.shrink()
-              // True cover, centre-cropped: the video box is exactly the
-              // video's own size and FittedBox scales it to fill the screen.
-              : ClipRect(
-                  child: SizedBox.expand(
-                    child: FittedBox(
-                      key: KioskWelcomeScreen.videoKey,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.center,
-                      child: SizedBox(
-                        width: video.value.size.width,
-                        height: video.value.size.height,
-                        child: VideoPlayer(video),
-                      ),
-                    ),
-                  ),
-                ),
-        ),
+        for (final VideoPlayerController old in _fadingOut)
+          _VideoLayer(key: ObjectKey(old), controller: old, fadeIn: false),
+        if (video != null)
+          _VideoLayer(
+            key: ObjectKey(video),
+            controller: video,
+            fadeIn: true,
+            contentKey: KioskWelcomeScreen.videoKey,
+          ),
       ],
+    );
+  }
+}
+
+/// One playing video: a true cover, centre-cropped. The box is exactly the
+/// video's own size and FittedBox scales it to fill the screen. Fades in over
+/// whatever is beneath it.
+class _VideoLayer extends StatefulWidget {
+  final VideoPlayerController controller;
+  final bool fadeIn;
+  final Key? contentKey;
+
+  const _VideoLayer({
+    super.key,
+    required this.controller,
+    required this.fadeIn,
+    this.contentKey,
+  });
+
+  @override
+  State<_VideoLayer> createState() => _VideoLayerState();
+}
+
+class _VideoLayerState extends State<_VideoLayer> {
+  late bool _visible = !widget.fadeIn;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_visible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _visible = true);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Size size = widget.controller.value.size;
+    return AnimatedOpacity(
+      opacity: _visible ? 1 : 0,
+      duration: KioskWelcomeScreen.videoFade,
+      child: ClipRect(
+        child: SizedBox.expand(
+          child: FittedBox(
+            key: widget.contentKey,
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: size.width,
+              height: size.height,
+              child: VideoPlayer(widget.controller),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

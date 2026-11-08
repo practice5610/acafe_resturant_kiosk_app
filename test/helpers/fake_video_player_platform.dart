@@ -7,9 +7,14 @@ import 'package:video_player_platform_interface/video_player_platform_interface.
 /// [videoSize] as soon as it is asked for events, and counts creates/disposes so
 /// a test can prove a controller is made once and released once.
 class FakeVideoPlayerPlatform extends VideoPlayerPlatform {
-  FakeVideoPlayerPlatform({this.videoSize = const Size(576, 1024)});
+  FakeVideoPlayerPlatform({
+    this.videoSize = const Size(576, 1024),
+    this.landscapeSize = const Size(1920, 1080),
+  });
 
+  /// Size reported for the portrait asset, and for any `*_landscape.mp4`.
   final Size videoSize;
+  final Size landscapeSize;
   int created = 0;
   int disposed = 0;
   final List<String> assets = [];
@@ -35,7 +40,9 @@ class FakeVideoPlayerPlatform extends VideoPlayerPlatform {
     scheduleMicrotask(() => c.add(VideoEvent(
           eventType: VideoEventType.initialized,
           duration: const Duration(seconds: 6),
-          size: videoSize,
+          size: (assets[playerId]).contains('_landscape')
+              ? landscapeSize
+              : videoSize,
         )));
     return c.stream;
   }
