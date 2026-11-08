@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:app_links/app_links.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_language_offering.dart';
+import 'package:acafe_customer/utill/cjk_fonts.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -101,6 +103,17 @@ Future<void> main() async {
   // Customization A/B telemetry. Both are inert until something calls them,
   // and every failure path inside them is swallowed, so this cannot affect
   // ordering, payment or the menu.
+  // Japanese / Chinese need their CJK font on the first frame when one of them
+  // is the saved language; the other offered ones load in the background.
+  {
+    final SharedPreferences prefs = di.sl<SharedPreferences>();
+    final String? saved = prefs.getString(AppConstants.languageCode);
+    await CjkFonts.ensureLoaded([saved]);
+    unawaited(CjkFonts.ensureLoaded(
+      KioskLanguageOffering.forDevice(prefs).map((l) => l.languageCode),
+    ));
+  }
+
   KioskExperimentSession.instance.init(di.sl<SharedPreferences>());
   KioskCustomizeAnalytics.instance.init(di.sl<DioClient>());
 
@@ -243,12 +256,18 @@ class _MyAppState extends State<MyApp> {
 
     final splashProvider = Provider.of<SplashProvider>(context, listen: false);
 
-    return ProductRealtimeScope(
+    final Locale appLocale = Provider.of<LocalizationProvider>(context).locale;
+
+    // Rebuilds once a CJK font finishes loading so the fallback reaches the theme.
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: CjkFonts.loaded,
+      builder: (context, _, __) => ProductRealtimeScope(
       child: MaterialApp.router(
         routerConfig: RouterHelper.goRoutes,
       title: splashProvider.configModel?.restaurantName ?? AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: Provider.of<ThemeProvider>(context).darkTheme
+      theme: CjkFonts.apply(
+        Provider.of<ThemeProvider>(context).darkTheme
           ? dark.copyWith(
               primaryColor: BrandColors.primary,
               scaffoldBackgroundColor: BrandColors.backgroundDark,
@@ -259,7 +278,9 @@ class _MyAppState extends State<MyApp> {
               scaffoldBackgroundColor: BrandColors.background,
               canvasColor: BrandColors.background,
             ),
-      locale: Provider.of<LocalizationProvider>(context).locale,
+        appLocale,
+      ),
+      locale: appLocale,
       localizationsDelegates: const [
         AppLocalization.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -274,6 +295,7 @@ class _MyAppState extends State<MyApp> {
         PointerDeviceKind.unknown
       }),
       builder: (context, child) => AppChrome(child: child),
+    ),
     ),
     );
   }

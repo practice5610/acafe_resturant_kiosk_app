@@ -26,6 +26,8 @@ void main() {
     (name: 'current language was removed', offered: ['nl', 'en', 'fr'], current: 'de', want: 'en'),
     (name: 'English is not offered', offered: ['nl', 'fr'], current: 'en', want: 'nl'),
     (name: 'neither current nor English offered', offered: ['fr', 'de'], current: 'nl', want: 'fr'),
+    (name: 'new languages only: German before Italian', offered: ['it', 'de'], current: 'nl', want: 'de'),
+    (name: 'only new languages offered', offered: ['es', 'ja'], current: 'nl', want: 'ja'),
     (name: 'unknown saved code', offered: null, current: 'xx', want: 'en'),
   ];
 

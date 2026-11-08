@@ -44,9 +44,18 @@ class KioskLanguageOffering {
     return offered.isEmpty ? AppConstants.languages : offered;
   }
 
+  /// Which language a kiosk falls back to, in order, once the current one and
+  /// English are not offered. An explicit list, not the display order of
+  /// [AppConstants.languages]: reordering the flag row must not change it. The
+  /// first four are the order the kiosk always fell back in.
+  static const List<String> fallbackOrder = [
+    'nl', 'en', 'fr', 'de', 'it', 'ja', 'zh', 'es',
+  ];
+
   /// The language a kiosk offering [offered] should be in while currently in
   /// [currentCode]: that one if it is offered, otherwise English (the kiosk
-  /// default), otherwise the first offered language.
+  /// default), otherwise the first offered language in [fallbackOrder],
+  /// otherwise the first offered.
   ///
   /// [offered] is never empty — [forDevice] falls back to every language.
   static LanguageModel selectionFor(
@@ -60,8 +69,17 @@ class KioskLanguageOffering {
       return null;
     }
 
+    LanguageModel? byFallbackOrder() {
+      for (final String code in fallbackOrder) {
+        final LanguageModel? l = find(code);
+        if (l != null) return l;
+      }
+      return null;
+    }
+
     return find(currentCode) ??
         find(AppConstants.defaultLanguageCode) ??
+        byFallbackOrder() ??
         offered.first;
   }
 

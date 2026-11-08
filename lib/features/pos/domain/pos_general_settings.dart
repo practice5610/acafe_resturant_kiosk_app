@@ -52,17 +52,23 @@ class PosGeneralSettings {
   /// German stays available on the kiosk guest picker via [AppConstants.languages].
   static const List<String> posLanguageCodes = ['nl', 'en', 'fr'];
 
+  /// Staff-facing labels. Kept apart from [AppConstants.languages] on purpose:
+  /// those names are what *guests* read on the kiosk, and changing them must
+  /// not rename anything in staff Settings.
+  static const Map<String, String> posLanguageLabels = {
+    'nl': 'Dutch',
+    'en': 'English',
+    'fr': 'Français',
+  };
+
   static List<PosSettingsOption> get languageOptions {
-    final List<PosSettingsOption> out = [];
-    for (final LanguageModel lang in AppConstants.languages) {
-      final String code = lang.languageCode ?? '';
-      if (!posLanguageCodes.contains(code)) continue;
-      out.add(PosSettingsOption(
-        value: code,
-        label: lang.languageName ?? code.toUpperCase(),
-      ));
-    }
-    return out;
+    return [
+      for (final String code in posLanguageCodes)
+        PosSettingsOption(
+          value: code,
+          label: posLanguageLabels[code] ?? code.toUpperCase(),
+        ),
+    ];
   }
 
   static const List<PosSettingsOption> taxModelOptions = [

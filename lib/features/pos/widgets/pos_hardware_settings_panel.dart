@@ -12,6 +12,8 @@ import 'package:acafe_customer/features/pos/widgets/pos_settings_text_field.dart
 import 'package:acafe_customer/features/pos/widgets/pos_toggle.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/theme/text_legibility.dart';
+import 'package:acafe_customer/utill/app_constants.dart';
+import 'package:acafe_customer/utill/cjk_fonts.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -329,17 +331,28 @@ class _FormColumn extends StatelessWidget {
   }
 }
 
-/// Multi-select language pills.
+/// Multi-select language pills, one per locale in [AppConstants.languages]
+/// (each ships `assets/language/<code>.json`, enforced by
+/// `kiosk_languages_test`).
 ///
-/// The Figma frame shows five pills plus a "Show more" link. Only four locales
-/// are installed — `assets/language/{nl,en,fr,de}.json`, enforced by
-/// `kiosk_languages_test` — and Japanese/Chinese/Korean have no translation
-/// files anywhere in the product. So every installed language fits on screen
-/// and there is nothing left for "Show more" to reveal; adding the link would
-/// be an affordance that expands to nothing. It comes back the moment a fifth
-/// locale ships.
-class _KioskLanguages extends StatelessWidget {
+/// The Figma frame shows five pills plus a "Show more" link; the pills wrap, so
+/// every installed language is on screen. The link comes back if a build ever
+/// ships more locales than fit.
+class _KioskLanguages extends StatefulWidget {
   const _KioskLanguages();
+
+  @override
+  State<_KioskLanguages> createState() => _KioskLanguagesState();
+}
+
+class _KioskLanguagesState extends State<_KioskLanguages> {
+  @override
+  void initState() {
+    super.initState();
+    // The pills spell 日本語 / 中文 in their own script, whether or not this
+    // terminal currently offers them.
+    CjkFonts.ensureLoaded(AppConstants.languages.map((l) => l.languageCode));
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -14,7 +14,7 @@ void main() {
   }) {
     return MaterialApp(
       home: Scaffold(
-        body: Center(
+        body: SingleChildScrollView(
           child: KioskLanguageCard(
             // The scale a ~800px-wide surface produces, matching what the
             // sheet computes from KioskResponsive.scale at runtime.
@@ -33,7 +33,7 @@ void main() {
     for (final language in AppConstants.languages) {
       expect(find.text(language.languageName!), findsOneWidget);
     }
-    expect(find.text('Dutch'), findsOneWidget);
+    expect(find.text('Nederlands'), findsOneWidget);
     expect(find.text('English'), findsOneWidget);
     expect(find.text('Français'), findsOneWidget);
     expect(find.text('Deutsch'), findsOneWidget);
@@ -134,7 +134,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: Center(
+          body: SingleChildScrollView(
             child: KioskLanguageCard(
               s: 800 / 2572,
               current: 'en',

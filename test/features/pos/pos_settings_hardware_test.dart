@@ -190,8 +190,9 @@ void main() {
         AppConstants.languages.map((l) => l.languageCode).toList(),
       );
       // Deutsch is deliberately absent from the staff terminal list but
-      // present in the guest offering.
-      expect(PosHardwareSettings.allKioskLanguageCodes, contains('de'));
+      // present in the guest offering, along with the CJK languages.
+      expect(PosHardwareSettings.allKioskLanguageCodes,
+          ['nl', 'en', 'de', 'fr', 'it', 'ja', 'zh', 'es']);
       expect(PosGeneralSettings.posLanguageCodes, isNot(contains('de')));
     });
 
@@ -205,17 +206,17 @@ void main() {
     test('saved codes that are no longer installed are dropped', () {
       final settings = PosHardwareSettings.fromJson(
         {
-          'kiosk_languages': ['nl', 'ja', 'ko'],
+          'kiosk_languages': ['nl', 'ja', 'ko', 'xx'],
         },
         storeName: 'Store',
       );
-      expect(settings.kioskLanguages, ['nl']);
+      expect(settings.kioskLanguages, ['nl', 'ja']);
     });
 
     test('an all-unknown selection falls back to the full offering', () {
       final settings = PosHardwareSettings.fromJson(
         {
-          'kiosk_languages': ['ja', 'zh'],
+          'kiosk_languages': ['ko', 'xx'],
         },
         storeName: 'Store',
       );
@@ -255,7 +256,7 @@ void main() {
     test('falls back rather than showing an empty picker', () async {
       final p = await seeded({
         AppConstants.posHardwareSettingsKey: jsonEncode({
-          'kiosk_languages': ['ja'],
+          'kiosk_languages': ['ko'],
         }),
       });
       expect(
@@ -414,14 +415,14 @@ void main() {
 
   test('language pills multi-select but refuse to empty the picker', () async {
     final provider = await _provider();
-    expect(provider.draft.kioskLanguages.length, 4);
+    expect(provider.draft.kioskLanguages.length, 8);
 
     provider.toggleKioskLanguage('de');
     expect(provider.isKioskLanguageSelected('de'), isFalse);
     provider.toggleKioskLanguage('de');
     expect(provider.isKioskLanguageSelected('de'), isTrue);
 
-    for (final code in ['de', 'fr', 'en']) {
+    for (final code in ['de', 'fr', 'it', 'ja', 'zh', 'es', 'en']) {
       provider.toggleKioskLanguage(code);
     }
     expect(provider.draft.kioskLanguages, ['nl']);
@@ -488,13 +489,14 @@ void main() {
       (tester) async {
     await _pumpHardware(tester);
 
-    expect(find.byType(PosSettingsPill), findsNWidgets(4));
-    for (final label in ['DUTCH', 'ENGLISH', 'FRANÇAIS', 'DEUTSCH']) {
-      expect(find.text(label), findsOneWidget);
+    expect(find.byType(PosSettingsPill), findsNWidgets(8));
+    for (final label in [
+      'NEDERLANDS', 'ENGLISH', 'DEUTSCH', 'FRANÇAIS', 'ITALIANO', '日本語', '中文', 'ESPAÑOL'
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
     }
-    // Figma's aspirational locales have no translation files and must not be
-    // offered as if they worked.
-    expect(find.text('JAPANESE'), findsNothing);
+    // Korean and the like have no translation file and must not be offered.
+    expect(find.text('KOREAN'), findsNothing);
     expect(find.text('Show more'), findsNothing);
   });
 
@@ -678,7 +680,7 @@ void main() {
       await tester.drag(find.text('Printer'), const Offset(0, -400));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.byType(PosSettingsPill), findsNWidgets(4));
+      expect(find.byType(PosSettingsPill), findsNWidgets(8));
     });
   }
 }

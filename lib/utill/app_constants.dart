@@ -245,33 +245,55 @@ class AppConstants {
   static const String lastOrderPaymentMethod = 'last_order_payment_method';
   static const String appleLoginEmail = 'apple_login_email';
 
-  /// Languages the kiosk offers, in the order the picker shows them.
+  /// Languages the kiosk offers, in the order the picker and the welcome flag
+  /// row show them.
   ///
-  /// Deliberately short: the kiosk is a café terminal, not the consumer app, so
-  /// it ships only the four locales the venue actually serves. Adding one here
-  /// also requires `assets/language/<code>.json` — [kiosk_languages_test]
-  /// enforces that pairing.
+  /// Adding one here also requires `assets/language/<code>.json` (every key of
+  /// en.json) and a flag in [Images.roundFlags] (the one flag style every kiosk
+  /// screen uses) — [kiosk_languages_test]
+  /// enforces that pairing. Settings → Hardware → Kiosk Languages builds its
+  /// pills from this list.
   static List<LanguageModel> languages = [
     LanguageModel(
-        imageUrl: Images.netherlands,
-        languageName: 'Dutch',
+        imageUrl: Images.roundFlags['nl'],
+        languageName: 'Nederlands',
         countryCode: 'NL',
         languageCode: 'nl'),
     LanguageModel(
-        imageUrl: Images.unitedKingdom,
+        imageUrl: Images.roundFlags['en'],
         languageName: 'English',
         countryCode: 'US',
         languageCode: 'en'),
     LanguageModel(
-        imageUrl: Images.france,
+        imageUrl: Images.roundFlags['de'],
+        languageName: 'Deutsch',
+        countryCode: 'DE',
+        languageCode: 'de'),
+    LanguageModel(
+        imageUrl: Images.roundFlags['fr'],
         languageName: 'Français',
         countryCode: 'FR',
         languageCode: 'fr'),
     LanguageModel(
-        imageUrl: Images.germany,
-        languageName: 'Deutsch',
-        countryCode: 'DE',
-        languageCode: 'de'),
+        imageUrl: Images.roundFlags['it'],
+        languageName: 'Italiano',
+        countryCode: 'IT',
+        languageCode: 'it'),
+    LanguageModel(
+        imageUrl: Images.roundFlags['ja'],
+        languageName: '日本語',
+        countryCode: 'JP',
+        languageCode: 'ja'),
+    LanguageModel(
+        imageUrl: Images.roundFlags['zh'],
+        languageName: '中文',
+        countryCode: 'CN',
+        languageCode: 'zh'),
+    LanguageModel(
+        imageUrl: Images.roundFlags['es'],
+        languageName: 'Español',
+        countryCode: 'ES',
+        languageCode: 'es'),
   ];
 
   static const int balanceInputLen = 10;

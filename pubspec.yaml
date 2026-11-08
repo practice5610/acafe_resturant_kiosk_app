@@ -70,6 +70,13 @@ flutter:
     - assets/language/
     - assets/json/
     - assets/video/
+    - assets/image/flags_round/
+    # CJK fallback fonts: plain assets (not `fonts:`) so they load on demand, see
+    # lib/utill/cjk_fonts.dart.
+    - assets/fonts/NotoSansJP-Regular.ttf
+    - assets/fonts/NotoSansJP-Bold.ttf
+    - assets/fonts/NotoSansSC-Regular.ttf
+    - assets/fonts/NotoSansSC-Bold.ttf
     - assets/payment/
     - assets/
     - web/assets/

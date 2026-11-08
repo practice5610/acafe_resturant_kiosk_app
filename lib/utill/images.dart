@@ -141,6 +141,22 @@ class Images {
   static const String onBoardingTwo = 'assets/image/onboarding_two.png';
   static const String onBoardingThree = 'assets/image/onboarding_three.png';
   static const String unitedKingdom = 'assets/image/united_kindom.png';
+
+  /// Ring-free 202x202 round flags (flag-icon-css 1x1 SVGs), keyed by language
+  /// code. The kiosk welcome row is the only user; every other screen keeps the
+  /// flags above. This map is the one place a language code meets its flag.
+  static const Map<String, String> roundFlags = {
+    'nl': 'assets/image/flags_round/nl.png',
+    'en': 'assets/image/flags_round/en.png',
+    'de': 'assets/image/flags_round/de.png',
+    'fr': 'assets/image/flags_round/fr.png',
+    'it': 'assets/image/flags_round/it.png',
+    'ja': 'assets/image/flags_round/ja.png',
+    'zh': 'assets/image/flags_round/zh.png',
+    'es': 'assets/image/flags_round/es.png',
+  };
+
+  static String? roundFlagFor(String? languageCode) => roundFlags[languageCode];
   static const String done = 'assets/icon/done.png';
   static const String playStore = 'assets/image/play_store.png';
   static const String appStore = 'assets/image/app_store.png';

@@ -61,7 +61,7 @@ class PosHardwareSettings {
   /// Every locale that ships a translation file. Deliberately **not**
   /// [PosGeneralSettings.posLanguageCodes] — that trio (nl/en/fr) is the staff
   /// terminal's own language and drops German on purpose, while the kiosk guest
-  /// picker has always offered all four. This row configures the guest picker,
+  /// picker offers every installed language. This row configures the guest picker,
   /// so it must cover what the guest picker can actually show.
   static List<PosSettingsOption> get kioskLanguageOptions {
     final List<PosSettingsOption> out = [];
