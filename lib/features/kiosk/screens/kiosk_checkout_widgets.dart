@@ -500,6 +500,12 @@ class KioskCheckoutButton extends StatelessWidget {
   /// does not take a third of a 16:9 viewport.
   final double height;
   final VoidCallback? onTap;
+
+  /// When set, a disabled FILLED button renders as a `rgba(0,0,0,0.25)` fill
+  /// with the cream label still showing (Figma step-flow NEXT), instead of the
+  /// default 0.5-opacity dim. Opt-in so other callers (Version A, checkout) are
+  /// unchanged.
+  final bool disabledUsesFillAlpha;
   const KioskCheckoutButton({
     super.key,
     required this.s,
@@ -509,15 +515,19 @@ class KioskCheckoutButton extends StatelessWidget {
     this.fontSize = 72,
     this.height = 252,
     this.forceScaled = false,
+    this.disabledUsesFillAlpha = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final bool disabled = onTap == null;
+    final bool figmaDisabled = disabled && filled && disabledUsesFillAlpha;
     return Opacity(
-      opacity: disabled ? 0.5 : 1,
+      opacity: (disabled && !figmaDisabled) ? 0.5 : 1,
       child: Material(
-        color: filled ? Colors.black : Colors.transparent,
+        color: filled
+            ? (figmaDisabled ? Colors.black.withValues(alpha: 0.25) : Colors.black)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(30 * s),
         clipBehavior: Clip.antiAlias,
         child: KioskTap(

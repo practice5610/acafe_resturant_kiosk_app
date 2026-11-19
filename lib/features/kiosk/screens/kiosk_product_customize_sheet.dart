@@ -269,8 +269,9 @@ double _addOnCardHeight(
   required bool showPrice,
   required bool reserveQuantity,
 }) {
-  // Image slot absorbs the stepper, so reserved quantity never grows the box.
-  assert(showImage && showPrice && !reserveQuantity);
+  // Image slot absorbs the stepper, so reserving the counter row keeps the box
+  // the same height — the Expanded artwork simply gives up the 72px to it.
+  assert(showImage && showPrice);
   return _choiceCardHeight(width);
 }
 
@@ -1238,6 +1239,11 @@ class _Header extends StatelessWidget {
   /// Version B draws its own back button beside the progress bar, so it asks
   /// the header to skip the one in the corner rather than showing two.
   final bool showBackButton;
+
+  /// Optional widget rendered directly under the hero, above the name — Version
+  /// B passes the bare allergen icon row here (Figma 2305-13009 et al.), so it
+  /// shows on every step. Version A passes nothing and is unchanged.
+  final Widget? belowHero;
   const _Header({
     required this.s,
     required this.product,
@@ -1245,6 +1251,7 @@ class _Header extends StatelessWidget {
     this.heroFactor = 1.0,
     this.showImages = true,
     this.showBackButton = true,
+    this.belowHero,
   });
 
   @override
@@ -1280,6 +1287,13 @@ class _Header extends StatelessWidget {
                   ),
                 ),
               ),
+            // Allergen icon row (Version B) sits directly under the hero, above
+            // the name — Figma 2305-13009/13161/13433. Its height is folded into
+            // the artboard budget by the caller (see [_kAllergenRowArtboard]).
+            if (belowHero != null) ...[
+              SizedBox(height: _kAllergenRowGap * s),
+              belowHero!,
+            ],
             SizedBox(height: KioskCustomizeSpec.heroToTitle * s * heroFactor),
             Text(
               product.name ?? '',
@@ -2248,6 +2262,12 @@ class _AddOnsSection extends StatelessWidget {
   /// says the grid continues past the last visible row. The single screen does
   /// not: see [_AddOnScrollBox].
   final bool showIndicator;
+
+  /// Reserve the counter row on every card (fixed height whether or not a
+  /// stepper shows) so a selected and an unselected card keep identical layout.
+  /// Version B (the three-step flow) opts in; Version A leaves it off so the
+  /// single screen is unchanged.
+  final bool reserveQuantity;
   const _AddOnsSection({
     required this.s,
     required this.product,
@@ -2255,6 +2275,7 @@ class _AddOnsSection extends StatelessWidget {
     this.scrollable = true,
     this.maxHeight,
     this.showIndicator = true,
+    this.reserveQuantity = false,
   });
 
   /// Height of the panel's chrome — padding, title, and the gap under it.
@@ -2302,6 +2323,7 @@ class _AddOnsSection extends StatelessWidget {
             product: product,
             productProvider: productProvider,
             group: groups[i],
+            reserveQuantity: reserveQuantity,
           ),
         ],
       ],
@@ -2409,11 +2431,15 @@ class _GroupedAddOnCards extends StatelessWidget {
   final Product product;
   final ProductProvider productProvider;
   final AddOnGroup group;
+
+  /// See [_AddOnsSection.reserveQuantity].
+  final bool reserveQuantity;
   const _GroupedAddOnCards({
     required this.s,
     required this.product,
     required this.productProvider,
     required this.group,
+    this.reserveQuantity = false,
   });
 
   /// Report an add-on toggle. Rendered identically by both versions, so this is
@@ -2466,8 +2492,10 @@ class _GroupedAddOnCards extends StatelessWidget {
       );
       const bool showPrice = true;
       // Image is always reserved, so a selected multi add-on absorbs the
-      // stepper by shrinking its photo rather than growing the card.
-      const bool reserveQuantity = false;
+      // stepper by shrinking its photo rather than growing the card. When the
+      // caller reserves the counter row (Version B), every card keeps that row
+      // whether or not a stepper shows, so selected/idle cards match exactly.
+      final bool reserveQuantity = this.reserveQuantity;
       // Picture-less device: drive the card's image slot off the device flag
       // (reuses the art-less compact path). The height still budgets the image
       // box so the grid and the artboard scale math stay in agreement.
@@ -2814,12 +2842,18 @@ class _CupCanSection extends StatelessWidget {
   final int variationIndex;
   final Product product;
   final ProductProvider productProvider;
+
+  /// Version B (three-step flow) draws the cup/can cards to Figma 2305-13433:
+  /// a top-right radio and the small Loew Bold 28 / 3.36-tracked label. Version
+  /// A keeps its heading-style label and no radio, so it opts out (default).
+  final bool redesigned;
   const _CupCanSection({
     required this.s,
     required this.variation,
     required this.variationIndex,
     required this.product,
     required this.productProvider,
+    this.redesigned = false,
   });
 
   @override
@@ -2869,6 +2903,7 @@ class _CupCanSection extends StatelessWidget {
                   width: cardWidth,
                   height: cardHeight,
                   showImages: showImages,
+                  redesigned: redesigned,
                   name: values[i].level?.trim() ?? '',
                   priceDelta: values[i].optionPrice ?? 0,
                   showPrice: anyPriced,
@@ -2937,6 +2972,10 @@ class _CupCanCard extends StatelessWidget {
   /// Picture-less device: drop the vessel artwork and keep the label (+ price).
   final bool showImages;
 
+  /// See [_CupCanSection.redesigned]: Version B adds the radio and the small
+  /// letter-spaced label.
+  final bool redesigned;
+
   /// The page scale, so the vessel word can match the section headings, which
   /// are authored in artboard px like everything else.
   final double s;
@@ -2953,6 +2992,7 @@ class _CupCanCard extends StatelessWidget {
     required this.onTap,
     required this.s,
     this.showImages = true,
+    this.redesigned = false,
   });
 
   /// Section-heading size, capped so a narrow card ellipsizes the word rather
@@ -2998,6 +3038,20 @@ class _CupCanCard extends StatelessWidget {
               ),
             ),
           ),
+          child: Stack(
+            children: [
+              // Version B: radio in the top-right corner, matching the dietary
+              // cards (Figma 2305-13433, `Ellipse` nodes).
+              if (redesigned)
+                Positioned(
+                  top: KioskCustomizeSpec.optionRadioInset * k,
+                  right: KioskCustomizeSpec.optionRadioInset * k,
+                  child: _RadioDot(
+                    size: KioskCustomizeSpec.optionRadio * k,
+                    selected: selected,
+                  ),
+                ),
+              Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -3009,28 +3063,41 @@ class _CupCanCard extends StatelessWidget {
                 ),
                 SizedBox(height: KioskCustomizeSpec.vesselImageGap * kW),
               ],
-              Text(
-                name.toUpperCase(),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                // ONE family of labels. "Size", "Add add-ons" and "CUP" sit in
-                // the same column and read as the same kind of thing, so they
-                // share the section-heading size and weight exactly.
-                //
-                // This used to be sized from the card WIDTH and set in Bold,
-                // independent of `s`. Whenever height pulled the scale down —
-                // which is the normal case on the 1080x1920 kiosk — the
-                // headings shrank but this did not, so the vessel word ended up
-                // LARGER than the headings above it.
-                style: loewExtraBold.copyWith(
-                  fontSize: _vesselLabelSize,
-                  letterSpacing: _vesselLabelSize *
-                      KioskCustomizeSpec.vesselLabelTrackingRatio,
-                  height: 1.0,
-                  color: _kInkText,
-                ),
-              ),
+              // Version B (Figma 2305-13433): a small Loew Bold 28 caption with
+              // heavy 3.36 tracking under the vessel image. Version A keeps the
+              // heading-sized ExtraBold word that matches its other section
+              // titles (see below).
+              redesigned
+                  ? Text(
+                      name.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: loewBold.copyWith(
+                        fontSize: KioskCustomizeSpec.vesselLabelSize * s,
+                        letterSpacing: KioskCustomizeSpec.vesselLabelSize *
+                            s *
+                            KioskCustomizeSpec.vesselLabelTrackingRatio,
+                        height: 1.0,
+                        color: _kInkText,
+                      ),
+                    )
+                  : Text(
+                      name.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      // ONE family of labels. "Size", "Add add-ons" and "CUP" sit
+                      // in the same column and read as the same kind of thing, so
+                      // they share the section-heading size and weight exactly.
+                      style: loewExtraBold.copyWith(
+                        fontSize: _vesselLabelSize,
+                        letterSpacing: _vesselLabelSize *
+                            KioskCustomizeSpec.vesselLabelTrackingRatio,
+                        height: 1.0,
+                        color: _kInkText,
+                      ),
+                    ),
               if (showPrice) ...[
                 SizedBox(height: KioskCustomizeSpec.vesselImageGap * 0.5 * kW),
                 Text(
@@ -3045,6 +3112,9 @@ class _CupCanCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ],
+          ),
+              ),
             ],
           ),
         ),

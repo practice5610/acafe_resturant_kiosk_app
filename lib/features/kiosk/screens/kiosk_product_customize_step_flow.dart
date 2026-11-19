@@ -27,6 +27,20 @@ const double _kStepProgressArtboardHeight =
 /// "Your Choices" row: 20px top pad + 160px thumb + 17.5px gap + 73.75px label.
 const double _kChoicesRowArtboard = 271;
 
+/// Bare allergen icon row under the hero (Figma 2305-13009 et al.): coloured
+/// discs with white glyphs, matching the chip strip's disc size (`_Spec`).
+const double _kAllergenDiscSize = 84;
+const double _kAllergenDiscGlyph = 48;
+const double _kAllergenDiscGap = 18;
+
+/// Gap between the hero and the allergen row.
+const double _kAllergenRowGap = 24;
+
+/// Artboard height the allergen row adds to the header — the gap above it plus
+/// the disc — folded into every step's budget when the row is present so the
+/// single-scale math stays correct.
+const double _kAllergenRowArtboard = _kAllergenRowGap + _kAllergenDiscSize;
+
 /// The three questions Version B asks, in order.
 enum _CustomizeStep {
   milks,
@@ -271,6 +285,13 @@ class _KioskProductCustomizeStepScreenState
                 // column it is drawn in, not the glass.
                 final bool hasDescription =
                     kioskProductDescription(product).isNotEmpty;
+                // The allergen icon row sits under the hero on every step, so it
+                // is budgeted into every step's height (below). Present only
+                // when the branch toggle is on AND the product declares one.
+                final bool hasAllergenRow =
+                    Provider.of<KioskAuthProvider>(context, listen: false)
+                            .allergenTagEnabled &&
+                        kioskProductAllergens(product).isNotEmpty;
                 // Same scale rule as Version A, plus the progress bar's own
                 // height: the bar costs vertical room the hero would otherwise
                 // use, so the page has to be measured with it included.
@@ -296,7 +317,8 @@ class _KioskProductCustomizeStepScreenState
                       // stacked. Only the hero still asks for it; see below.
                       landscape: split,
                     ) +
-                    _kStepProgressArtboardHeight;
+                    _kStepProgressArtboardHeight +
+                    (hasAllergenRow ? _kAllergenRowArtboard : 0);
 
                 final double artboard = _steps
                     .map((step) => stepArtboard(step, split: false))
@@ -398,6 +420,14 @@ class _KioskProductCustomizeStepScreenState
                           product: product,
                           productProvider: productProvider,
                           showBackButton: false,
+                          // Bare allergen icon row under the hero, shown on
+                          // every step (Figma 2305-13009/13161/13433).
+                          belowHero: hasAllergenRow
+                              ? _AllergenIconRow(
+                                  s: s,
+                                  allergens: kioskProductAllergens(product),
+                                )
+                              : null,
                         ),
                       ),
                       // "Your Choices" row: a summary tile per step showing
@@ -467,18 +497,10 @@ class _KioskProductCustomizeStepScreenState
       {EdgeInsets padding = EdgeInsets.zero}) {
     switch (step) {
       case _CustomizeStep.milks:
-        final Widget? allergenNotice = KioskAllergenNotice.maybe(
-          s: s,
-          product: product,
-          enabled:
-              Provider.of<KioskAuthProvider>(context, listen: false)
-                  .allergenTagEnabled,
-        );
+        // The allergen row is drawn once in the shell (under the hero, every
+        // step), so it is NOT repeated here — see [_AllergenIconRow] and
+        // [_Header.belowHero].
         final List<Widget> panels = [
-          // Above Size, exactly as in Version A — the two flows are an A/B
-          // switch on presentation, so a disclosure must not depend on which
-          // one the device happens to be running.
-          if (allergenNotice != null) allergenNotice,
           if (_sections.size.isNotEmpty)
             _SizeOptionsPanel(
               s: s,
@@ -535,6 +557,9 @@ class _KioskProductCustomizeStepScreenState
                 maxHeight: constraints.maxHeight.isFinite
                     ? constraints.maxHeight - padding.vertical
                     : null,
+                // Step 2: reserve the counter row on every card so a selected
+                // card and an idle one keep identical layout.
+                reserveQuantity: true,
               ),
             ],
           ),
@@ -552,6 +577,8 @@ class _KioskProductCustomizeStepScreenState
                 variationIndex: _sections.cupCan[i].key,
                 product: product,
                 productProvider: productProvider,
+                // Step 3: Figma 2305-13433 cards (radio + small tracked label).
+                redesigned: true,
               ),
             ],
           ],
@@ -790,13 +817,71 @@ class _StepActionBar extends StatelessWidget {
               forceScaled: true,
               fontSize: KioskCustomizeSpec.actionLabelSize,
               label: isLastStep ? addLabel : nextLabel,
+              // Figma: a blocked NEXT / ADD TO CART is a rgba(0,0,0,0.25) fill
+              // with the cream label still on it, not a dimmed whole button.
+              disabledUsesFillAlpha: true,
               // A null onTap is what KioskCheckoutButton dims for its disabled
               // state, so an unanswered required step reads as blocked before
-              // the customer even taps.
-              onTap: isLastStep ? onAddToCart : (canAdvance ? onNext : null),
+              // the customer even taps — including the last step, where ADD TO
+              // CART stays blocked until cup/can (the required choice) is made.
+              onTap: canAdvance ? (isLastStep ? onAddToCart : onNext) : null,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The bare allergen icon row (Version B) — one coloured disc with its white
+/// glyph per allergen the product declares, centred under the hero and tappable
+/// for the same detail popup the chip strip opened. Returns null when the
+/// branch toggle is off or the product declares no allergens, so a product with
+/// no allergens costs no layout and no budget.
+class _AllergenIconRow extends StatelessWidget {
+  final double s;
+  final Set<KioskAllergen> allergens;
+  const _AllergenIconRow({required this.s, required this.allergens});
+
+  @override
+  Widget build(BuildContext context) {
+    // Design order, so the row never reshuffles between products.
+    final List<KioskAllergen> ordered =
+        KioskAllergen.values.where(allergens.contains).toList();
+    final double disc = _kAllergenDiscSize * s;
+    final double glyph = _kAllergenDiscGlyph * s;
+
+    return Center(
+      child: KioskTap(
+        onTap: () => showKioskAllergenInfo(context, allergens),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (int i = 0; i < ordered.length; i++)
+              Padding(
+                padding:
+                    EdgeInsets.only(left: i == 0 ? 0 : _kAllergenDiscGap * s),
+                child: Container(
+                  width: disc,
+                  height: disc,
+                  decoration: BoxDecoration(
+                    color: ordered[i].swatch,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: ordered[i].swatch.withValues(alpha: 0.35),
+                        offset: Offset(0, disc * 0.06),
+                        blurRadius: disc * 0.16,
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: SvgPicture.asset(ordered[i].icon,
+                      width: glyph, height: glyph),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -806,9 +891,11 @@ class _StepActionBar extends StatelessWidget {
 // YOUR CHOICES ROW — summary tiles for the step flow header
 // ---------------------------------------------------------------------------
 
-/// One tile per step showing the customer's current selection (or a dashed
-/// placeholder). Tapping a filled tile jumps back; tapping an empty one
-/// navigates forward.
+/// One tile per ACTUAL selection (each variation, add-on, size, cup/can), plus
+/// a dashed placeholder for every step that has nothing chosen yet. Tapping a
+/// filled tile jumps back to its step; tapping a placeholder jumps to that
+/// step; tapping the × badge removes that one choice. Past six tiles the sixth
+/// collapses to a black "+N" that opens the full list.
 class _YourChoicesRow extends StatelessWidget {
   final double s;
   final List<_CustomizeStep> steps;
@@ -827,119 +914,257 @@ class _YourChoicesRow extends StatelessWidget {
     required this.onStepTap,
   });
 
+  /// At most this many tiles sit in the row; the rest fold into a "+N" tile.
+  static const int _maxVisible = 6;
+
   @override
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
+    final List<_ChoiceEntry> tiles = _buildTiles(context, splash);
+    if (tiles.isEmpty) return const SizedBox.shrink();
+
+    // Cap at six: when there are more, the sixth slot becomes a black "+N"
+    // overflow tile that opens the full list.
+    final bool overflowing = tiles.length > _maxVisible;
+    final List<Widget> children = [];
+    final int inlineCount = overflowing ? _maxVisible - 1 : tiles.length;
+    for (int i = 0; i < inlineCount; i++) {
+      children.add(_ChoiceTile(s: s, entry: tiles[i]));
+    }
+    if (overflowing) {
+      final int hidden = tiles.length - inlineCount;
+      children.add(_ChoiceTile(
+        s: s,
+        entry: _ChoiceEntry.overflow(
+          count: hidden,
+          onTap: () => _showAllChoices(context, tiles),
+        ),
+      ));
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (int i = 0; i < steps.length; i++)
-          _ChoiceTile(
-            s: s,
-            step: steps[i],
-            isCurrent: i == currentStep,
-            selection: _selectionFor(context, splash, steps[i]),
-            onTap: () => onStepTap(i),
-          ),
-      ],
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
     );
   }
 
-  /// Resolve the first selected option for [step], returning its display name
-  /// and thumb image URL — or null when nothing is picked yet.
-  ({String name, String image})? _selectionFor(
+  /// The ordered tile models: every real selection first (in step order), then
+  /// a dashed placeholder for each step that still has no selection.
+  List<_ChoiceEntry> _buildTiles(BuildContext context, SplashProvider splash) {
+    final List<_ChoiceEntry> filled = [];
+    final List<_ChoiceEntry> placeholders = [];
+
+    for (int stepIdx = 0; stepIdx < steps.length; stepIdx++) {
+      final _CustomizeStep step = steps[stepIdx];
+      final List<_ChoiceEntry> stepTiles =
+          _tilesForStep(context, splash, step, stepIdx);
+      if (stepTiles.isEmpty) {
+        placeholders.add(_ChoiceEntry.placeholder(
+          label: step.label(context),
+          onTap: () => onStepTap(stepIdx),
+        ));
+      } else {
+        filled.addAll(stepTiles);
+      }
+    }
+    return [...filled, ...placeholders];
+  }
+
+  /// Filled tiles for one step — one per selected value / active add-on.
+  List<_ChoiceEntry> _tilesForStep(
     BuildContext context,
     SplashProvider splash,
     _CustomizeStep step,
+    int stepIdx,
   ) {
     switch (step) {
       case _CustomizeStep.milks:
-        // Check dietary variations first (the main milk choice), then size.
-        for (final group in [...sections.dietary, ...sections.size]) {
-          final values = group.value.variationValues ?? [];
-          final sel = productProvider.selectedVariations;
-          if (group.key >= sel.length) continue;
-          for (int j = 0; j < values.length; j++) {
-            if (j < sel[group.key].length && sel[group.key][j] == true) {
-              return (
-                name: (values[j].level ?? group.value.name ?? '').trim(),
-                image: _choiceImageUrl(
-                  KioskProductImageHelper.optionCardImageUrl(
-                    value: values[j],
-                    productImageBaseUrl: splash.baseUrls?.productImageUrl,
-                  ),
-                ),
-              );
-            }
-          }
-        }
-        return null;
-
-      case _CustomizeStep.addOns:
-        final addOnGroups = product.effectiveAddOnGroups;
-        int idx = 0;
-        for (final group in addOnGroups) {
-          for (final addon in group.addons) {
-            if (idx < productProvider.addOnActiveList.length &&
-                productProvider.addOnActiveList[idx]) {
-              return (
-                name: (addon.name ?? '').trim(),
-                image: _choiceImageUrl(
-                  _addonImageUrl(context, addon),
-                ),
-              );
-            }
-            idx++;
-          }
-        }
-        return null;
-
+        // Size panel then dietary groups — the same order Step 1 stacks them.
+        return _variationTiles(
+            splash, [...sections.size, ...sections.dietary], stepIdx);
       case _CustomizeStep.cupOrCan:
-        for (final group in sections.cupCan) {
-          final values = group.value.variationValues ?? [];
-          final sel = productProvider.selectedVariations;
-          if (group.key >= sel.length) continue;
-          for (int j = 0; j < values.length; j++) {
-            if (j < sel[group.key].length && sel[group.key][j] == true) {
-              return (
-                name: (values[j].level ?? group.value.name ?? '').trim(),
-                image: _choiceImageUrl(
-                  KioskProductImageHelper.optionCardImageUrl(
-                    value: values[j],
-                    productImageBaseUrl: splash.baseUrls?.productImageUrl,
+        return _variationTiles(splash, sections.cupCan, stepIdx);
+      case _CustomizeStep.addOns:
+        return _addOnTiles(context, stepIdx);
+    }
+  }
+
+  /// One tile per selected value across [groups]. Indices key straight into
+  /// [ProductProvider.selectedVariations], exactly as the panels and
+  /// [buildKioskCartModel] use them.
+  List<_ChoiceEntry> _variationTiles(
+    SplashProvider splash,
+    List<MapEntry<int, Variation>> groups,
+    int stepIdx,
+  ) {
+    final List<_ChoiceEntry> out = [];
+    final sel = productProvider.selectedVariations;
+    for (final group in groups) {
+      final int gi = group.key;
+      if (gi >= sel.length) continue;
+      final values = group.value.variationValues ?? [];
+      // A required single-select choice can only be swapped, never emptied, so
+      // it carries no × — the provider would just re-select it.
+      final bool removable =
+          !(group.value.isRequired == true && group.value.isMultiSelect != true);
+      for (int j = 0; j < values.length; j++) {
+        if (j < sel[gi].length && sel[gi][j] == true) {
+          out.add(_ChoiceEntry.filled(
+            name: (values[j].level ?? group.value.name ?? '').trim(),
+            image: _choiceImageUrl(
+              KioskProductImageHelper.optionCardImageUrl(
+                value: values[j],
+                productImageBaseUrl: splash.baseUrls?.productImageUrl,
+              ),
+            ),
+            onTap: () => onStepTap(stepIdx),
+            onRemove: removable
+                ? () => productProvider.setCartVariationIndex(
+                    gi, j, product, group.value.isMultiSelect == true)
+                : null,
+          ));
+        }
+      }
+    }
+    return out;
+  }
+
+  /// One tile per ACTIVE add-on. Indices key into the flat [product.addOns]
+  /// list, the same source [ProductProvider.addOnActiveList] is seeded from.
+  List<_ChoiceEntry> _addOnTiles(BuildContext context, int stepIdx) {
+    final List<_ChoiceEntry> out = [];
+    final addOns = product.addOns ?? const <AddOns>[];
+    for (int i = 0; i < addOns.length; i++) {
+      if (i >= productProvider.addOnActiveList.length) break;
+      if (!productProvider.addOnActiveList[i]) continue;
+      final AddOns addon = addOns[i];
+      final int qty = productProvider.addOnQtyList[i] ?? 1;
+      out.add(_ChoiceEntry.filled(
+        name: (addon.name ?? '').trim(),
+        image: _choiceImageUrl(_addonImageUrl(context, addon)),
+        quantity: qty,
+        onTap: () => onStepTap(stepIdx),
+        // Default add-ons are included with the product and cannot be removed.
+        onRemove:
+            addon.isDefault ? null : () => productProvider.addAddOn(false, i),
+      ));
+    }
+    return out;
+  }
+
+  /// Opens the full choices list when the row overflows past six tiles.
+  void _showAllChoices(BuildContext context, List<_ChoiceEntry> tiles) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: KioskUI.pageBg,
+        insetPadding: EdgeInsets.all(48 * s),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KioskCustomizeSpec.panelRadius * s),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(40 * s),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                getTranslated('your_choices', context)?.toUpperCase() ??
+                    'YOUR CHOICES',
+                style: loewExtraBold.copyWith(
+                    fontSize: 48 * s, height: 1.0, color: Colors.black),
+              ),
+              SizedBox(height: 32 * s),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    children: [
+                      for (final entry in tiles)
+                        if (!entry.isOverflow)
+                          _ChoiceTile(s: s, entry: entry),
+                    ],
                   ),
                 ),
-              );
-            }
-          }
-        }
-        return null;
-    }
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
-/// A single choice tile — either a filled selection or a dashed placeholder.
+/// The data behind one choice tile. Three flavours: a filled selection, a
+/// dashed step placeholder, or the black "+N" overflow tile.
+class _ChoiceEntry {
+  final String label;
+  final String? image;
+  final int quantity;
+  final bool filled;
+  final bool isOverflow;
+  final String? overflowText;
+  final VoidCallback onTap;
+  final VoidCallback? onRemove;
+  const _ChoiceEntry._({
+    required this.label,
+    this.image,
+    this.quantity = 1,
+    required this.filled,
+    this.isOverflow = false,
+    this.overflowText,
+    required this.onTap,
+    this.onRemove,
+  });
+
+  factory _ChoiceEntry.filled({
+    required String name,
+    required String image,
+    int quantity = 1,
+    required VoidCallback onTap,
+    VoidCallback? onRemove,
+  }) =>
+      _ChoiceEntry._(
+        label: name,
+        image: image,
+        quantity: quantity,
+        filled: true,
+        onTap: onTap,
+        onRemove: onRemove,
+      );
+
+  factory _ChoiceEntry.placeholder({
+    required String label,
+    required VoidCallback onTap,
+  }) =>
+      _ChoiceEntry._(label: label, filled: false, onTap: onTap);
+
+  factory _ChoiceEntry.overflow({
+    required int count,
+    required VoidCallback onTap,
+  }) =>
+      _ChoiceEntry._(
+        label: '',
+        filled: false,
+        isOverflow: true,
+        overflowText: '+$count',
+        onTap: onTap,
+      );
+}
+
+/// A single choice tile — filled selection, dashed placeholder, or "+N".
 class _ChoiceTile extends StatelessWidget {
   final double s;
-  final _CustomizeStep step;
-  final bool isCurrent;
-  final ({String name, String image})? selection;
-  final VoidCallback onTap;
-  const _ChoiceTile({
-    required this.s,
-    required this.step,
-    required this.isCurrent,
-    required this.selection,
-    required this.onTap,
-  });
+  final _ChoiceEntry entry;
+  const _ChoiceTile({required this.s, required this.entry});
 
   static const double _tileWidth = 280;
   static const double _thumbSize = 160;
   static const double _thumbRadius = 32.5;
   static const double _thumbBorder = 3.75;
   static const double _imageSize = 130;
-  static const double _removeSize = 55;
-  static const double _removeIconSize = 25;
+  static const double _badgeSize = 55;
+  static const double _badgeIconSize = 25;
   static const double _labelSize = 35;
   static const double _labelHeight = 73.75;
   static const double _gap = 17.5;
@@ -953,14 +1178,81 @@ class _ChoiceTile extends StatelessWidget {
     final double radius = _thumbRadius * s;
     final double border = _border(_thumbBorder, s);
 
-    final bool hasSelection = selection != null;
-    final Color borderColor = hasSelection ? Colors.black : _kCardIdleBorder;
-    final bool isDashed = !hasSelection;
+    final bool filled = entry.filled;
+    final bool overflow = entry.isOverflow;
+    final bool showQty = filled && entry.quantity > 1;
+
+    final Widget thumbChild;
+    if (overflow) {
+      thumbChild = Container(
+        width: thumb,
+        height: thumb,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          entry.overflowText ?? '',
+          style: loewExtraBold.copyWith(
+            fontSize: 60 * s,
+            height: 1.0,
+            color: _kCreamText,
+          ),
+        ),
+      );
+    } else if (filled) {
+      thumbChild = Container(
+        width: thumb,
+        height: thumb,
+        decoration: BoxDecoration(
+          color: _kPanelBg,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: Colors.black, width: border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        alignment: Alignment.center,
+        child: (entry.image != null && entry.image!.isNotEmpty)
+            ? CustomImageWidget(
+                key: ValueKey(entry.image),
+                placeholder: Images.placeholderImage,
+                image: entry.image!,
+                width: _imageSize * s,
+                height: _imageSize * s,
+                fit: BoxFit.contain,
+              )
+            : const SizedBox.shrink(),
+      );
+    } else {
+      // Dashed placeholder with a grey "+".
+      thumbChild = Container(
+        width: thumb,
+        height: thumb,
+        decoration: BoxDecoration(
+          color: _kPanelBg,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        foregroundDecoration: _DashedBorderDecoration(
+          color: _kCardIdleBorder,
+          strokeWidth: border,
+          radius: radius,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '+',
+          style: loewMedium.copyWith(
+            fontSize: 70 * s,
+            height: 1.0,
+            color: _kCardIdleBorder,
+          ),
+        ),
+      );
+    }
 
     return Transform.translate(
       offset: Offset(-_overlap * s * 0.5, 0),
       child: KioskTap(
-        onTap: onTap,
+        onTap: entry.onTap,
         child: SizedBox(
           width: w,
           child: Column(
@@ -973,60 +1265,38 @@ class _ChoiceTile extends StatelessWidget {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // Thumb container
-                    Container(
-                      width: thumb,
-                      height: thumb,
-                      decoration: BoxDecoration(
-                        color: _kPanelBg,
-                        borderRadius: BorderRadius.circular(radius),
-                        border: isDashed
-                            ? null
-                            : Border.all(color: borderColor, width: border),
-                      ),
-                      foregroundDecoration: isDashed
-                          ? _DashedBorderDecoration(
-                              color: _kCardIdleBorder,
-                              strokeWidth: border,
-                              radius: radius,
-                            )
-                          : null,
-                      alignment: Alignment.center,
-                      child: hasSelection
-                          ? CustomImageWidget(
-                              key: ValueKey(selection!.image),
-                              placeholder: Images.placeholderImage,
-                              image: selection!.image,
-                              width: _imageSize * s,
-                              height: _imageSize * s,
-                              fit: BoxFit.contain,
-                            )
-                          : Text(
-                              '+',
-                              style: loewMedium.copyWith(
-                                fontSize: 70 * s,
-                                height: 1.0,
-                                color: _kCardIdleBorder,
-                              ),
-                            ),
-                    ),
-                    // Remove badge (only on selected tiles)
-                    if (hasSelection)
+                    thumbChild,
+                    // Quantity badge (top-left) when a choice count is >1.
+                    if (showQty)
                       Positioned(
-                        right: -(_removeSize * 0.3) * s,
-                        top: -(_removeSize * 0.3) * s,
-                        child: Container(
-                          width: _removeSize * s,
-                          height: _removeSize * s,
-                          decoration: const BoxDecoration(
-                            color: Colors.black,
-                            shape: BoxShape.circle,
+                        left: -(_badgeSize * 0.3) * s,
+                        top: -(_badgeSize * 0.3) * s,
+                        child: _badge(
+                          size: _badgeSize * s,
+                          child: Text(
+                            '${entry.quantity}',
+                            style: loewExtraBold.copyWith(
+                              fontSize: _badgeIconSize * s,
+                              height: 1.0,
+                              color: Colors.white,
+                            ),
                           ),
-                          alignment: Alignment.center,
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: _removeIconSize * s,
-                            color: Colors.white,
+                        ),
+                      ),
+                    // Remove badge (top-right) on removable filled tiles.
+                    if (filled && entry.onRemove != null)
+                      Positioned(
+                        right: -(_badgeSize * 0.3) * s,
+                        top: -(_badgeSize * 0.3) * s,
+                        child: KioskTap(
+                          onTap: entry.onRemove,
+                          child: _badge(
+                            size: _badgeSize * s,
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: _badgeIconSize * s,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
@@ -1038,18 +1308,14 @@ class _ChoiceTile extends StatelessWidget {
                 height: _labelHeight * s,
                 child: Center(
                   child: Text(
-                    hasSelection
-                        ? selection!.name.toUpperCase()
-                        : step.label(context),
+                    entry.label.toUpperCase(),
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: loewBold.copyWith(
                       fontSize: _labelSize * s,
                       height: 1.05,
-                      color: hasSelection
-                          ? Colors.black
-                          : const Color(0xFF8C877A),
+                      color: filled ? Colors.black : const Color(0xFF8C877A),
                     ),
                   ),
                 ),
@@ -1060,6 +1326,17 @@ class _ChoiceTile extends StatelessWidget {
       ),
     );
   }
+
+  Widget _badge({required double size, required Widget child}) => Container(
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(
+          color: Colors.black,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: child,
+      );
 }
 
 /// Paints a dashed rounded-rect border as a [Decoration].
