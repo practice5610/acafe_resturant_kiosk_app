@@ -295,6 +295,11 @@ class KioskProductGridGeometry {
     required this.tileHeight,
   });
 
+  /// Figma card dimensions (node 2305:12471). Every position inside the card
+  /// is authored against these values and scaled by `tileWidth / designCardWidth`.
+  static const double designCardWidth = 548;
+  static const double designCardHeight = 823;
+
   factory KioskProductGridGeometry.resolve({
     required double areaWidth,
     required double gap,
@@ -313,20 +318,34 @@ class KioskProductGridGeometry {
     );
     final double tileWidth =
         columns <= 0 ? areaWidth : (areaWidth - gap * (columns - 1)) / columns;
-    // Portrait Figma: image is taller than wide (width/height = 0.72).
-    // Landscape: square image so a row of cards fits a 16:9 window.
-    // Picture-less device: no image band at all, so the tile is just its text
-    // block -- the grid packs denser with no empty image space above the name.
-    final double imageHeight =
-        showImages ? (landscape ? tileWidth : tileWidth / 0.72) : 0.0;
-    final double textBlockHeight = landscape ? tileWidth * 0.28 : tileWidth * 0.34;
+
+    // With images: fixed aspect ratio from Figma card (548 × 823).
+    // Without images: compact text-only card.
+    // Landscape: square image variant to fit 16:9 windows.
+    final double tileHeight;
+    final double imageHeight;
+    final double textBlockHeight;
+    if (!showImages) {
+      imageHeight = 0.0;
+      textBlockHeight = tileWidth * 0.34;
+      tileHeight = textBlockHeight;
+    } else if (landscape) {
+      imageHeight = tileWidth;
+      textBlockHeight = tileWidth * 0.28;
+      tileHeight = imageHeight + textBlockHeight;
+    } else {
+      // Stack-based card: fixed aspect ratio, positions are absolute inside.
+      tileHeight = tileWidth * (designCardHeight / designCardWidth);
+      imageHeight = tileHeight * 0.70; // approximate image band share
+      textBlockHeight = tileHeight - imageHeight;
+    }
     return KioskProductGridGeometry(
       columns: columns,
       gap: gap,
       tileWidth: tileWidth,
       imageHeight: imageHeight,
       textBlockHeight: textBlockHeight,
-      tileHeight: imageHeight + textBlockHeight,
+      tileHeight: tileHeight,
     );
   }
 }

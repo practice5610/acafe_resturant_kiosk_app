@@ -162,6 +162,7 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
       categoryProvider,
       Provider.of<SplashProvider>(context, listen: false),
       showImages: context.read<KioskAuthProvider>().showImages,
+      includeOptions: true,
     );
   }
 
@@ -177,7 +178,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     if (categoryProvider.isKioskMenuReadyFor(locale)) {
       KioskMenuImageHelper.precacheAroundSelected(
           context, categoryProvider, splash,
-          showImages: context.read<KioskAuthProvider>().showImages);
+          showImages: context.read<KioskAuthProvider>().showImages,
+          includeOptions: true);
       Provider.of<KioskDealProvider>(context, listen: false).fetchDeals();
       return;
     }
@@ -188,7 +190,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     Provider.of<KioskDealProvider>(context, listen: false).fetchDeals();
     KioskMenuImageHelper.precacheAroundSelected(
         context, categoryProvider, splash,
-        showImages: context.read<KioskAuthProvider>().showImages);
+        showImages: context.read<KioskAuthProvider>().showImages,
+        includeOptions: true);
   }
 
   Future<void> _onSelectCategory(int id) async {
@@ -219,7 +222,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     // 4) Warm neighbours for the next tap.
     KioskMenuImageHelper.precacheAroundSelected(
         context, categoryProvider, splash,
-        showImages: context.read<KioskAuthProvider>().showImages);
+        showImages: context.read<KioskAuthProvider>().showImages,
+        includeOptions: true);
   }
 
   @override
@@ -981,10 +985,10 @@ class _SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double ts = tileWidth / 564.0;
+    final double ts = tileWidth / _CardDesign.cardWidth;
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(60 * ts),
+      borderRadius: BorderRadius.circular(_CardDesign.cardRadius * ts),
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: EdgeInsets.all(24 * ts),
@@ -1017,6 +1021,80 @@ class _SkeletonCard extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Product card — Figma node 2305:12471 redesign
+//
+// Stack-based layout with ABSOLUTE positioning inside a fixed-size SizedBox.
+// Every vertical offset is measured from the top of the card in design px and
+// scaled by `ts = tileWidth / 548`. Content length never shifts any baseline.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Design-unit constants for the product card (Figma 2305:12471).
+/// Centralised here so they map 1:1 to the design spec.
+class _CardDesign {
+  _CardDesign._();
+
+  // Card frame
+  static const double cardWidth = 548;
+  static const double cardHeight = 823;
+  static const double cardRadius = 33;
+  static const double cardBorderWidth = 5.5;
+
+  // Photo feather mask
+  static const double photoTop = -11;
+  static const double photoWidthFraction = 0.82; // 82% of card width
+  static const double photoHeight = 630;
+  // The feather mask is a radial gradient: opaque centre → transparent edge.
+  // Stops from the Figma SVG (paint0_radial_0_91): 0→0.45 opaque, 0.92→ transparent.
+  static const double featherOpaqueStop = 0.45;
+  static const double featherFadeStop = 0.92;
+
+  // Allergen icons row
+  static const double allergenTop = 574;
+  static const double allergenIconSize = 32;
+  static const double allergenIconGap = 6;
+  static const double allergenRowHeight = 32;
+
+  // Name text box
+  static const double nameTop = 628;
+  static const double nameHeight = 67; // fixed 2-line box
+  static const double nameFontSize = 31.68;
+  static const double nameLineHeight = 1.05;
+
+  // Description
+  static const double descGap = 7; // below name box
+  static const double descHeight = 27;
+  static const double descFontSize = 22;
+  static const double descLineHeight = 1.2;
+
+  // Price
+  static const double priceGap = 9; // below description
+  static const double priceHeight = 42;
+  static const double priceFontSize = 39.6;
+  static const double priceLineHeight = 1.05;
+
+  // Text side inset (from card edge to text block)
+  static const double textInset = 24;
+
+  // Badge (POPULAR / OUT OF STOCK)
+  static const double badgeTop = 38.5;
+  static const double badgeLeft = 27.5;
+  static const double badgeHeight = 68;
+  static const double badgeRadius = 1098.9; // full pill
+  static const double badgeFontSize = 35.2;
+
+  // Info icon
+  static const double infoTop = 24;
+  static const double infoRight = 23;
+  static const double infoSize = 40;
+  static const double infoFontSize = 22;
+
+  // Out-of-stock
+  static const double outOfStockOpacity = 0.45;
+  static const Color outOfStockBadgeColor = Color(0xFF808080);
+  static const Color outOfStockTextColor = Color(0xFF808080);
+}
+
 class _KioskProductCard extends StatelessWidget {
   final double s;
   final double tileWidth;
@@ -1031,23 +1109,88 @@ class _KioskProductCard extends StatelessWidget {
     this.showImages = true,
   });
 
+  /// Out of stock when the branch-level record explicitly says so.
+  /// A null [BranchProduct] means the product has no branch override — treat
+  /// it as available (the backend would not include it otherwise).
+  bool get _isOutOfStock =>
+      product.branchProduct != null && product.branchProduct!.isAvailable != true;
+
   @override
   Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final String image = '${splash.baseUrls?.productImageUrl}/${product.image}';
-    // Metrics scale with the actual tile width (design tile ≈ 564px) so the card
-    // keeps the same proportions no matter how many columns fit on screen.
-    final double ts = tileWidth / 564.0;
-    final double cardRadius = 33 * ts;
-    final double cardBorderWidth = 5.5 * ts;
+    // Picture-less device: use the compact text-only card.
+    if (!showImages) return _buildTextOnlyCard(context);
 
-    // White rounded card containing the image AND the name + price (matches the
-    // Figma layout where text sits inside the card, not on the page below it).
-    // Border radius/width + colour come straight from Figma (33px / 5.5px / #DED9C7),
-    // scaled by `ts` so the card stays proportional at any kiosk screen size.
-    // The image sits flush against the card edges (no inset padding) so it fills
-    // the card edge-to-edge; Material's own rounded clip takes care of rounding
-    // the image's top corners to match the card.
+    final double ts = tileWidth / _CardDesign.cardWidth;
+    final double cardRadius = _CardDesign.cardRadius * ts;
+    final double cardBorderWidth = _CardDesign.cardBorderWidth * ts;
+    final double tileHeight = tileWidth * (_CardDesign.cardHeight / _CardDesign.cardWidth);
+
+    final cardContent = SizedBox(
+      width: tileWidth,
+      height: tileHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // ── Feathered photo ──
+          _buildPhoto(context, ts),
+
+          // ── Allergen icons ──
+          _buildAllergenRow(ts),
+
+          // ── Name (fixed 2-line box) ──
+          _buildName(ts),
+
+          // ── Description ──
+          _buildDescription(ts),
+
+          // ── Price ──
+          _buildPrice(ts),
+
+          // ── Badge (POPULAR / OUT OF STOCK) ──
+          if (badge != null && !_isOutOfStock) _buildBadge(ts),
+          if (_isOutOfStock) _buildOutOfStockBadge(ts),
+        ],
+      ),
+    );
+
+    final card = Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(cardRadius),
+        side: BorderSide(color: BrandColors.cardBorder, width: cardBorderWidth),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: cardContent,
+    );
+
+    // Out-of-stock: fade the card and block taps (but keep the info icon live).
+    // The info icon is positioned OUTSIDE the card's tap area via a separate
+    // Stack layer, so AbsorbPointer on the card does not kill it.
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Card body — tappable unless out of stock.
+        Opacity(
+          opacity: _isOutOfStock ? _CardDesign.outOfStockOpacity : 1.0,
+          child: _isOutOfStock
+              ? AbsorbPointer(child: card)
+              : KioskTap(
+                  onTap: () => openKioskCustomize(context, product),
+                  child: card,
+                ),
+        ),
+        // ── Info (i) icon — always tappable ──
+        _buildInfoIcon(context, ts),
+      ],
+    );
+  }
+
+  /// Compact text-only card (picture-less device / show-images off).
+  Widget _buildTextOnlyCard(BuildContext context) {
+    final double ts = tileWidth / _CardDesign.cardWidth;
+    final double cardRadius = _CardDesign.cardRadius * ts;
+    final double cardBorderWidth = _CardDesign.cardBorderWidth * ts;
+
     return Material(
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -1056,109 +1199,450 @@ class _KioskProductCard extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
-        onTap: () => openKioskCustomize(context, product),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment:
-              showImages ? MainAxisAlignment.start : MainAxisAlignment.center,
-          children: [
-            // Picture-less device: drop the whole image band. The grid tile is
-            // already sized to the text block only, so there is no empty box --
-            // the card collapses to a compact name + price.
-            if (showImages)
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: CustomImageWidget(
-                        placeholder: Images.placeholderImage,
-                        image: image,
-                        fit: BoxFit.cover,
-                        useShimmer: true,
-                        cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
+        onTap: _isOutOfStock ? null : () => openKioskCustomize(context, product),
+        child: Opacity(
+          opacity: _isOutOfStock ? _CardDesign.outOfStockOpacity : 1.0,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(24 * ts, 16 * ts, 24 * ts, 24 * ts),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (badge != null) ...[
+                  Center(
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 20 * ts, vertical: 6 * ts),
+                      decoration: BoxDecoration(
+                        color: _isOutOfStock
+                            ? _CardDesign.outOfStockBadgeColor
+                            : badge!.color,
+                        borderRadius: BorderRadius.circular(10 * ts),
+                      ),
+                      child: Text(
+                        _isOutOfStock ? 'OUT OF STOCK' : badge!.label,
+                        style: loewMedium.copyWith(
+                            color: Colors.white, fontSize: 28 * ts),
                       ),
                     ),
-                    if (badge != null)
-                      Positioned(
-                        top: 30 * ts,
-                        left: 0,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 28 * ts, vertical: 10 * ts),
-                          decoration: BoxDecoration(
-                            color: badge!.color,
-                            borderRadius: BorderRadius.only(
-                              topRight: Radius.circular(10 * ts),
-                              bottomRight: Radius.circular(10 * ts),
-                            ),
-                          ),
-                          child: Text(
-                            badge!.label,
-                            style: swiss721Light.copyWith(
-                                color: Colors.white, fontSize: 34 * ts),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(24 * ts, 16 * ts, 24 * ts, 24 * ts),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // With no image to carry the badge, show it inline as a
-                  // compact centered chip above the name.
-                  if (!showImages && badge != null) ...[
-                    Center(
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 20 * ts, vertical: 6 * ts),
-                        decoration: BoxDecoration(
-                          color: badge!.color,
-                          borderRadius: BorderRadius.circular(10 * ts),
-                        ),
-                        child: Text(
-                          badge!.label,
-                          style: swiss721Light.copyWith(
-                              color: Colors.white, fontSize: 28 * ts),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 12 * ts),
-                  ],
-                  Text(
-                    product.name ?? '',
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    // Figma: Loew ExtraBold (w800) 31.68px, 100% line height, 0 tracking.
-                    style: loewExtraBold.copyWith(
-                        fontSize: 45 * ts,
-                        height: 1.0,
-                        letterSpacing: 0,
-                        color: Colors.black),
                   ),
-                  SizedBox(height: 8 * ts),
-                  Text(
-                    PriceConverterHelper.convertPrice(
-                      product.price,
-                      discount: product.discount,
-                      discountType: product.discountType,
+                  SizedBox(height: 12 * ts),
+                ],
+                Text(
+                  product.name ?? '',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewExtraBold.copyWith(
+                    fontSize: _CardDesign.nameFontSize * ts,
+                    height: _CardDesign.nameLineHeight,
+                    letterSpacing: 0,
+                    color: _isOutOfStock
+                        ? _CardDesign.outOfStockTextColor
+                        : Colors.black,
+                  ),
+                ),
+                SizedBox(height: 8 * ts),
+                Text(
+                  PriceConverterHelper.convertPrice(
+                    product.price,
+                    discount: product.discount,
+                    discountType: product.discountType,
+                  ),
+                  textAlign: TextAlign.center,
+                  style: swiss721Light.copyWith(
+                    fontSize: _CardDesign.priceFontSize * ts,
+                    height: _CardDesign.priceLineHeight,
+                    color: _isOutOfStock
+                        ? _CardDesign.outOfStockTextColor
+                        : Colors.black,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Feathered product photo with radial gradient mask.
+  Widget _buildPhoto(BuildContext context, double ts) {
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    final String image = '${splash.baseUrls?.productImageUrl}/${product.image}';
+    final double photoWidth = tileWidth * _CardDesign.photoWidthFraction;
+    final double photoHeight = _CardDesign.photoHeight * ts;
+    final double photoLeft = (tileWidth - photoWidth) / 2;
+
+    return Positioned(
+      top: _CardDesign.photoTop * ts,
+      left: photoLeft,
+      width: photoWidth,
+      height: photoHeight,
+      child: ShaderMask(
+        shaderCallback: (Rect bounds) => const RadialGradient(
+          center: Alignment.center,
+          radius: 1.0,
+          colors: [
+            Colors.black,
+            Colors.black,
+            Colors.transparent,
+          ],
+          stops: [
+            0.0,
+            _CardDesign.featherOpaqueStop,
+            _CardDesign.featherFadeStop,
+          ],
+        ).createShader(bounds),
+        blendMode: BlendMode.dstIn,
+        child: CustomImageWidget(
+          placeholder: Images.placeholderImage,
+          image: image,
+          fit: BoxFit.cover,
+          useShimmer: true,
+          cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
+        ),
+      ),
+    );
+  }
+
+  /// Allergen icons row — always reserves its height even with no allergens.
+  Widget _buildAllergenRow(double ts) {
+    final Set<KioskAllergen> allergens = kioskProductAllergens(product);
+    final double iconSize = _CardDesign.allergenIconSize * ts;
+    final double iconGap = _CardDesign.allergenIconGap * ts;
+
+    return Positioned(
+      top: _CardDesign.allergenTop * ts,
+      left: 0,
+      right: 0,
+      height: _CardDesign.allergenRowHeight * ts,
+      child: allergens.isEmpty
+          ? SizedBox(height: _CardDesign.allergenRowHeight * ts)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < allergens.length; i++) ...[
+                  if (i > 0) SizedBox(width: iconGap),
+                  Container(
+                    width: iconSize,
+                    height: iconSize,
+                    decoration: BoxDecoration(
+                      color: allergens.elementAt(i).swatch,
+                      shape: BoxShape.circle,
                     ),
-                    textAlign: TextAlign.center,
-                    // Figma: Swiss 721 Light (w300) 39.6px, 100% line height, 0 tracking.
-                    style: swiss721Light.copyWith(
-                        fontSize: 42 * ts,
-                        height: 1.5,
-                        letterSpacing: 1,
-                        color: Colors.black),
+                    child: Center(
+                      child: CustomAssetImageWidget(
+                        allergens.elementAt(i).icon,
+                        width: iconSize * 0.57,
+                        height: iconSize * 0.57,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+
+  /// Product name — fixed 2-line box, vertically centered when 1 line.
+  Widget _buildName(double ts) {
+    final double nameHeight = _CardDesign.nameHeight * ts;
+    final double textInset = _CardDesign.textInset * ts;
+
+    return Positioned(
+      top: _CardDesign.nameTop * ts,
+      left: textInset,
+      right: textInset,
+      height: nameHeight,
+      child: Center(
+        child: Text(
+          product.name ?? '',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: loewExtraBold.copyWith(
+            fontSize: _CardDesign.nameFontSize * ts,
+            height: _CardDesign.nameLineHeight,
+            letterSpacing: 0,
+            color: _isOutOfStock
+                ? _CardDesign.outOfStockTextColor
+                : Colors.black,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Product description — 1 line with ellipsis.
+  Widget _buildDescription(double ts) {
+    final double descTop =
+        (_CardDesign.nameTop + _CardDesign.nameHeight + _CardDesign.descGap) * ts;
+    final double textInset = _CardDesign.textInset * ts;
+
+    return Positioned(
+      top: descTop,
+      left: textInset,
+      right: textInset,
+      height: _CardDesign.descHeight * ts,
+      child: Center(
+        child: Text(
+          product.description ?? '',
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: swiss721Light.copyWith(
+            fontSize: _CardDesign.descFontSize * ts,
+            height: _CardDesign.descLineHeight,
+            color: const Color(0xFF4D4D4D),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Price — single line.
+  Widget _buildPrice(double ts) {
+    final double priceTop =
+        (_CardDesign.nameTop +
+            _CardDesign.nameHeight +
+            _CardDesign.descGap +
+            _CardDesign.descHeight +
+            _CardDesign.priceGap) *
+        ts;
+    final double textInset = _CardDesign.textInset * ts;
+
+    return Positioned(
+      top: priceTop,
+      left: textInset,
+      right: textInset,
+      height: _CardDesign.priceHeight * ts,
+      child: Center(
+        child: Text(
+          PriceConverterHelper.convertPrice(
+            product.price,
+            discount: product.discount,
+            discountType: product.discountType,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: swiss721Light.copyWith(
+            fontSize: _CardDesign.priceFontSize * ts,
+            height: _CardDesign.priceLineHeight,
+            color: _isOutOfStock
+                ? _CardDesign.outOfStockTextColor
+                : Colors.black,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// POPULAR badge — green pill, top-left.
+  Widget _buildBadge(double ts) {
+    return Positioned(
+      top: _CardDesign.badgeTop * ts,
+      left: _CardDesign.badgeLeft * ts,
+      child: Container(
+        height: _CardDesign.badgeHeight * ts,
+        padding: EdgeInsets.symmetric(horizontal: 28 * ts),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: badge!.color,
+          borderRadius: BorderRadius.circular(_CardDesign.badgeRadius * ts),
+        ),
+        child: Text(
+          badge!.label.toUpperCase(),
+          style: loewMedium.copyWith(
+            fontSize: _CardDesign.badgeFontSize * ts,
+            height: 1,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// OUT OF STOCK badge — grey pill, top-left.
+  Widget _buildOutOfStockBadge(double ts) {
+    return Positioned(
+      top: _CardDesign.badgeTop * ts,
+      left: _CardDesign.badgeLeft * ts,
+      child: Container(
+        height: _CardDesign.badgeHeight * ts,
+        padding: EdgeInsets.symmetric(horizontal: 28 * ts),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: _CardDesign.outOfStockBadgeColor,
+          borderRadius: BorderRadius.circular(_CardDesign.badgeRadius * ts),
+        ),
+        child: Text(
+          'OUT OF STOCK',
+          style: loewMedium.copyWith(
+            fontSize: _CardDesign.badgeFontSize * ts,
+            height: 1,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Info (i) icon — 40×40 circle, top-right, independently tappable.
+  Widget _buildInfoIcon(BuildContext context, double ts) {
+    final double infoSize = _CardDesign.infoSize * ts;
+    final double infoRight = _CardDesign.infoRight * ts;
+    final double infoTop = _CardDesign.infoTop * ts;
+
+    return Positioned(
+      top: infoTop,
+      right: infoRight,
+      child: KioskTap(
+        onTap: () => _showProductInfoDialog(context),
+        child: Container(
+          width: infoSize,
+          height: infoSize,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(infoSize / 2),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            'i',
+            style: loewBold.copyWith(
+              fontSize: _CardDesign.infoFontSize * ts,
+              height: 1,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Ingredients & allergens info popup.
+  void _showProductInfoDialog(BuildContext context) {
+    final Set<KioskAllergen> allergens = kioskProductAllergens(product);
+    final double s = KioskLayout.scaleOf(context);
+    showDialog(
+      context: context,
+      builder: (context) => _ProductInfoDialog(
+        product: product,
+        allergens: allergens,
+        s: s,
+      ),
+    );
+  }
+}
+
+/// Ingredients & allergens popup dialog.
+class _ProductInfoDialog extends StatelessWidget {
+  final Product product;
+  final Set<KioskAllergen> allergens;
+  final double s;
+  const _ProductInfoDialog({
+    required this.product,
+    required this.allergens,
+    required this.s,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: KioskUI.pageBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30 * s),
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 600 * s),
+        child: Padding(
+          padding: EdgeInsets.all(40 * s),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      product.name ?? '',
+                      style: loewExtraBold.copyWith(
+                        fontSize: 36 * s,
+                        height: 1.1,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  KioskTap(
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(Icons.close, size: 36 * s, color: Colors.black),
                   ),
                 ],
               ),
-            ),
-          ],
+              if (product.description != null &&
+                  product.description!.isNotEmpty) ...[
+                SizedBox(height: 16 * s),
+                Text(
+                  product.description!,
+                  style: swiss721Light.copyWith(
+                    fontSize: 24 * s,
+                    height: 1.3,
+                    color: const Color(0xFF4D4D4D),
+                  ),
+                ),
+              ],
+              if (allergens.isNotEmpty) ...[
+                SizedBox(height: 28 * s),
+                Text(
+                  'Allergens',
+                  style: loewBold.copyWith(
+                    fontSize: 28 * s,
+                    color: Colors.black,
+                  ),
+                ),
+                SizedBox(height: 16 * s),
+                Wrap(
+                  spacing: 12 * s,
+                  runSpacing: 12 * s,
+                  children: allergens.map((allergen) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 36 * s,
+                          height: 36 * s,
+                          decoration: BoxDecoration(
+                            color: allergen.swatch,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: CustomAssetImageWidget(
+                              allergen.icon,
+                              width: 20 * s,
+                              height: 20 * s,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8 * s),
+                        Text(
+                          allergen.label,
+                          style: swiss721Light.copyWith(
+                            fontSize: 24 * s,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

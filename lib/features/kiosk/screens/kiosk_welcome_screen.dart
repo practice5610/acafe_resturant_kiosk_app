@@ -397,7 +397,8 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
     final splash = Provider.of<SplashProvider>(context, listen: false);
     categories.warmKioskMenuFromDisk(locale).then((_) {
       if (!mounted) return;
-      KioskMenuImageHelper.precacheAroundSelected(context, categories, splash);
+      KioskMenuImageHelper.precacheAroundSelected(context, categories, splash,
+          includeOptions: true);
     });
   }
 
@@ -451,6 +452,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
         categories,
         splash,
         awaitVisible: true,
+        includeOptions: true,
       ).timeout(const Duration(seconds: 3), onTimeout: () {});
     } catch (_) {}
     if (!mounted) return;
