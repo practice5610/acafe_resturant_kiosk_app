@@ -186,6 +186,8 @@ class Images {
   static const String allergenSoySvg = 'assets/svg/allergen_soy.svg';
   static const String allergenCheckSvg = 'assets/svg/allergen_check.svg';
   static const String allergenBackSvg = 'assets/svg/allergen_back.svg';
+  static const String stepMilksSvg = 'assets/svg/step_milks.svg';
+  static const String stepCupSvg = 'assets/svg/step_cup.svg';
   static const String kioskDownArrow = 'assets/image/kiosk_down_arrow.gif';
   // Vessel artwork for the kiosk "Can or cup?" step. The backend generates that
   // variation group from a switch and ships no images with it, so the kiosk

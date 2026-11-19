@@ -18,12 +18,14 @@ part of 'kiosk_product_customize_sheet.dart';
 const Color _kStepUpcoming = Color(0xFFB9B5A6);
 
 /// Artboard height of Version B's own chrome: the top inset plus the progress
-/// bar (a 110px circle over a 30px label, whichever is taller than the 120px
-/// back button beside it). Version A has no equivalent, so it is added to the
-/// shared page height before the scale is chosen — otherwise the bar would eat
-/// the room the header was measured for.
+/// bar (a 165px circle over a 30px label plus the choices row). Version A has
+/// no equivalent, so it is added to the shared page height before the scale is
+/// chosen — otherwise the bar would eat the room the header was measured for.
 const double _kStepProgressArtboardHeight =
-    KioskCustomizeSpec.backButtonTop + 156;
+    KioskCustomizeSpec.backButtonTop + 211 + _kChoicesRowArtboard;
+
+/// "Your Choices" row: 20px top pad + 160px thumb + 17.5px gap + 73.75px label.
+const double _kChoicesRowArtboard = 271;
 
 /// The three questions Version B asks, in order.
 enum _CustomizeStep {
@@ -46,11 +48,15 @@ enum _CustomizeStep {
   /// back-office report groups correctly regardless of kiosk locale.
   String get analyticsName => name;
 
-  IconData get icon => switch (this) {
-        _CustomizeStep.milks => Icons.local_drink_rounded,
-        _CustomizeStep.addOns => Icons.add_rounded,
-        _CustomizeStep.cupOrCan => Icons.local_cafe_rounded,
+  /// SVG asset for the step circle icon (null = text glyph like "+").
+  String? get svgAsset => switch (this) {
+        _CustomizeStep.milks => Images.stepMilksSvg,
+        _CustomizeStep.addOns => null,
+        _CustomizeStep.cupOrCan => Images.stepCupSvg,
       };
+
+  /// Fallback text glyph when [svgAsset] is null.
+  String get glyph => '+';
 }
 
 /// Version B of the customization screen: the same choices as Version A, split
@@ -394,6 +400,25 @@ class _KioskProductCustomizeStepScreenState
                           showBackButton: false,
                         ),
                       ),
+                      // "Your Choices" row: a summary tile per step showing
+                      // what the customer picked (or a placeholder). Tapping a
+                      // filled tile jumps back to its step; tapping an empty
+                      // one advances to it.
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: gutter),
+                        child: ValueListenableBuilder<int>(
+                          valueListenable: _stepIndex,
+                          builder: (context, current, _) => _YourChoicesRow(
+                            s: s,
+                            steps: _steps,
+                            currentStep: current,
+                            sections: _sections,
+                            product: product,
+                            productProvider: productProvider,
+                            onStepTap: _goToStep,
+                          ),
+                        ),
+                      ),
                       SizedBox(height: KioskCustomizeSpec.headerToPanels * s),
                       // The step body takes the remaining height. Only this and
                       // the action bar below react to a step change.
@@ -620,8 +645,29 @@ class _StepCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool filled = isCurrent || isCompleted;
-    final double d = 110 * s;
+    final double d = 165 * s;
     final Color line = filled ? _kDarkButton : _kStepUpcoming;
+    final Color iconColor = filled ? _kCreamText : _kStepUpcoming;
+
+    final Widget iconWidget;
+    final String? svg = step.svgAsset;
+    if (svg != null) {
+      iconWidget = SvgPicture.asset(
+        svg,
+        width: d * 0.48,
+        height: d * 0.48,
+        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+      );
+    } else {
+      iconWidget = Text(
+        step.glyph,
+        style: loewExtraBold.copyWith(
+          fontSize: d * 0.6,
+          height: 1.0,
+          color: iconColor,
+        ),
+      );
+    }
 
     final Widget circle = Container(
       width: d,
@@ -630,20 +676,14 @@ class _StepCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: filled ? _kDarkButton : Colors.transparent,
-        border: Border.all(color: line, width: _border(4, s)),
+        border: Border.all(color: line, width: _border(6, s)),
       ),
-      child: Icon(
-        step.icon,
-        size: d * 0.5,
-        color: filled ? _kCreamText : _kStepUpcoming,
-      ),
+      child: iconWidget,
     );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Only completed circles take a tap; the rest have no callback, so they
-        // also get no ripple and no pointer cursor.
         onTap == null
             ? circle
             : Material(
@@ -658,8 +698,6 @@ class _StepCircle extends StatelessWidget {
           style: loewExtraBold.copyWith(
             fontSize: 30 * s,
             height: 1.0,
-            // An unreached step's label sits back with its circle, but stays
-            // readable: the circle's own grey is under 2:1 as text.
             color: filled ? Colors.black : TextTones.hint,
           ),
         ),
@@ -675,7 +713,7 @@ class _StepConnector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double d = 110 * s;
+    final double d = 165 * s;
     return Padding(
       // Sit on the circle's vertical centre.
       padding: EdgeInsets.only(
@@ -761,5 +799,332 @@ class _StepActionBar extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// YOUR CHOICES ROW — summary tiles for the step flow header
+// ---------------------------------------------------------------------------
+
+/// One tile per step showing the customer's current selection (or a dashed
+/// placeholder). Tapping a filled tile jumps back; tapping an empty one
+/// navigates forward.
+class _YourChoicesRow extends StatelessWidget {
+  final double s;
+  final List<_CustomizeStep> steps;
+  final int currentStep;
+  final KioskCustomizeSections sections;
+  final Product product;
+  final ProductProvider productProvider;
+  final ValueChanged<int> onStepTap;
+  const _YourChoicesRow({
+    required this.s,
+    required this.steps,
+    required this.currentStep,
+    required this.sections,
+    required this.product,
+    required this.productProvider,
+    required this.onStepTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (int i = 0; i < steps.length; i++)
+          _ChoiceTile(
+            s: s,
+            step: steps[i],
+            isCurrent: i == currentStep,
+            selection: _selectionFor(context, splash, steps[i]),
+            onTap: () => onStepTap(i),
+          ),
+      ],
+    );
+  }
+
+  /// Resolve the first selected option for [step], returning its display name
+  /// and thumb image URL — or null when nothing is picked yet.
+  ({String name, String image})? _selectionFor(
+    BuildContext context,
+    SplashProvider splash,
+    _CustomizeStep step,
+  ) {
+    switch (step) {
+      case _CustomizeStep.milks:
+        // Check dietary variations first (the main milk choice), then size.
+        for (final group in [...sections.dietary, ...sections.size]) {
+          final values = group.value.variationValues ?? [];
+          final sel = productProvider.selectedVariations;
+          if (group.key >= sel.length) continue;
+          for (int j = 0; j < values.length; j++) {
+            if (j < sel[group.key].length && sel[group.key][j] == true) {
+              return (
+                name: (values[j].level ?? group.value.name ?? '').trim(),
+                image: _choiceImageUrl(
+                  KioskProductImageHelper.optionCardImageUrl(
+                    value: values[j],
+                    productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                  ),
+                ),
+              );
+            }
+          }
+        }
+        return null;
+
+      case _CustomizeStep.addOns:
+        final addOnGroups = product.effectiveAddOnGroups;
+        int idx = 0;
+        for (final group in addOnGroups) {
+          for (final addon in group.addons) {
+            if (idx < productProvider.addOnActiveList.length &&
+                productProvider.addOnActiveList[idx]) {
+              return (
+                name: (addon.name ?? '').trim(),
+                image: _choiceImageUrl(
+                  _addonImageUrl(context, addon),
+                ),
+              );
+            }
+            idx++;
+          }
+        }
+        return null;
+
+      case _CustomizeStep.cupOrCan:
+        for (final group in sections.cupCan) {
+          final values = group.value.variationValues ?? [];
+          final sel = productProvider.selectedVariations;
+          if (group.key >= sel.length) continue;
+          for (int j = 0; j < values.length; j++) {
+            if (j < sel[group.key].length && sel[group.key][j] == true) {
+              return (
+                name: (values[j].level ?? group.value.name ?? '').trim(),
+                image: _choiceImageUrl(
+                  KioskProductImageHelper.optionCardImageUrl(
+                    value: values[j],
+                    productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                  ),
+                ),
+              );
+            }
+          }
+        }
+        return null;
+    }
+  }
+}
+
+/// A single choice tile — either a filled selection or a dashed placeholder.
+class _ChoiceTile extends StatelessWidget {
+  final double s;
+  final _CustomizeStep step;
+  final bool isCurrent;
+  final ({String name, String image})? selection;
+  final VoidCallback onTap;
+  const _ChoiceTile({
+    required this.s,
+    required this.step,
+    required this.isCurrent,
+    required this.selection,
+    required this.onTap,
+  });
+
+  static const double _tileWidth = 280;
+  static const double _thumbSize = 160;
+  static const double _thumbRadius = 32.5;
+  static const double _thumbBorder = 3.75;
+  static const double _imageSize = 130;
+  static const double _removeSize = 55;
+  static const double _removeIconSize = 25;
+  static const double _labelSize = 35;
+  static const double _labelHeight = 73.75;
+  static const double _gap = 17.5;
+  static const double _padTop = 20;
+  static const double _overlap = 25;
+
+  @override
+  Widget build(BuildContext context) {
+    final double w = _tileWidth * s;
+    final double thumb = _thumbSize * s;
+    final double radius = _thumbRadius * s;
+    final double border = _border(_thumbBorder, s);
+
+    final bool hasSelection = selection != null;
+    final Color borderColor = hasSelection ? Colors.black : _kCardIdleBorder;
+    final bool isDashed = !hasSelection;
+
+    return Transform.translate(
+      offset: Offset(-_overlap * s * 0.5, 0),
+      child: KioskTap(
+        onTap: onTap,
+        child: SizedBox(
+          width: w,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: _padTop * s),
+              SizedBox(
+                width: thumb,
+                height: thumb,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Thumb container
+                    Container(
+                      width: thumb,
+                      height: thumb,
+                      decoration: BoxDecoration(
+                        color: _kPanelBg,
+                        borderRadius: BorderRadius.circular(radius),
+                        border: isDashed
+                            ? null
+                            : Border.all(color: borderColor, width: border),
+                      ),
+                      foregroundDecoration: isDashed
+                          ? _DashedBorderDecoration(
+                              color: _kCardIdleBorder,
+                              strokeWidth: border,
+                              radius: radius,
+                            )
+                          : null,
+                      alignment: Alignment.center,
+                      child: hasSelection
+                          ? CustomImageWidget(
+                              key: ValueKey(selection!.image),
+                              placeholder: Images.placeholderImage,
+                              image: selection!.image,
+                              width: _imageSize * s,
+                              height: _imageSize * s,
+                              fit: BoxFit.contain,
+                            )
+                          : Text(
+                              '+',
+                              style: loewMedium.copyWith(
+                                fontSize: 70 * s,
+                                height: 1.0,
+                                color: _kCardIdleBorder,
+                              ),
+                            ),
+                    ),
+                    // Remove badge (only on selected tiles)
+                    if (hasSelection)
+                      Positioned(
+                        right: -(_removeSize * 0.3) * s,
+                        top: -(_removeSize * 0.3) * s,
+                        child: Container(
+                          width: _removeSize * s,
+                          height: _removeSize * s,
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: _removeIconSize * s,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              SizedBox(height: _gap * s),
+              SizedBox(
+                height: _labelHeight * s,
+                child: Center(
+                  child: Text(
+                    hasSelection
+                        ? selection!.name.toUpperCase()
+                        : step.label(context),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: loewBold.copyWith(
+                      fontSize: _labelSize * s,
+                      height: 1.05,
+                      color: hasSelection
+                          ? Colors.black
+                          : const Color(0xFF8C877A),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Paints a dashed rounded-rect border as a [Decoration].
+class _DashedBorderDecoration extends Decoration {
+  final Color color;
+  final double strokeWidth;
+  final double radius;
+  const _DashedBorderDecoration({
+    required this.color,
+    required this.strokeWidth,
+    required this.radius,
+  });
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _DashedBorderPainter(color: color, strokeWidth: strokeWidth, radius: radius);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _DashedBorderDecoration &&
+          color == other.color &&
+          strokeWidth == other.strokeWidth &&
+          radius == other.radius;
+
+  @override
+  int get hashCode => Object.hash(color, strokeWidth, radius);
+}
+
+class _DashedBorderPainter extends BoxPainter {
+  final Color color;
+  final double strokeWidth;
+  final double radius;
+  _DashedBorderPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.radius,
+  });
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size ?? Size.zero;
+    final rrect = RRect.fromRectAndRadius(
+      offset & size,
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    // Dash pattern: 12px on, 8px off (scaled by strokeWidth ratio).
+    final metrics = path.computeMetrics().first;
+    final double totalLength = metrics.length;
+    const double dashOn = 12;
+    const double dashOff = 8;
+    double distance = 0;
+    while (distance < totalLength) {
+      final double end = math.min(distance + dashOn, totalLength);
+      canvas.drawPath(
+        metrics.extractPath(distance, end),
+        paint,
+      );
+      distance = end + dashOff;
+    }
   }
 }
