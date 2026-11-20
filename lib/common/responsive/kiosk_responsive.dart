@@ -308,14 +308,22 @@ class KioskProductGridGeometry {
     int minColumns = KioskResponsive.minProductColumns,
     int maxColumns = KioskResponsive.maxProductColumns,
     bool showImages = true,
+    int? columnsOverride,
   }) {
-    final int columns = kioskProductGridColumns(
-      areaWidth: areaWidth,
-      gap: gap,
-      minCard: minCard,
-      minColumns: minColumns,
-      maxColumns: maxColumns,
-    );
+    // A per-category override (set by admin on Device Update) REPLACES the
+    // responsive column count outright, clamped only to [1, maxColumns]. It
+    // deliberately bypasses the [minColumns] (=3) floor so a category can be
+    // set to 2 (or 1) per row. A null override keeps today's responsive count,
+    // so a category with no override is unchanged -- there is no hardcoded 3.
+    final int columns = columnsOverride != null
+        ? columnsOverride.clamp(1, maxColumns)
+        : kioskProductGridColumns(
+            areaWidth: areaWidth,
+            gap: gap,
+            minCard: minCard,
+            minColumns: minColumns,
+            maxColumns: maxColumns,
+          );
     final double tileWidth =
         columns <= 0 ? areaWidth : (areaWidth - gap * (columns - 1)) / columns;
 

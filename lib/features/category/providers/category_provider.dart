@@ -534,6 +534,11 @@ class CategoryProvider extends DataSyncProvider {
   bool get pageLastIndex => _pageLastIndex;
   bool get isLoading => _isLoading;
   String? get selectedSubCategoryId => _selectedSubCategoryId;
+
+  /// The currently-selected category id as an int, or null when none is
+  /// selected (or the stored id isn't numeric). Used by the kiosk menu grid to
+  /// look up this category's per-device products-per-row override.
+  int? get selectedCategoryId => int.tryParse(_selectedSubCategoryId ?? '');
   TextEditingController get searchController => _searchController;
   int get searchLength => _searchLength;
   bool get isSearch => _isSearch;

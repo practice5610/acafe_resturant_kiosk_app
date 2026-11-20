@@ -720,7 +720,19 @@ class _ProductArea extends StatelessWidget {
               : products.isEmpty
                   ? _EmptyProductArea(s: s)
                   : _ProductGrid(
-                      s: s, products: products, landscape: landscape);
+                      s: s,
+                      products: products,
+                      landscape: landscape,
+                      // Per-category override only when a single category is on
+                      // screen. With search/tag filters active the grid spans
+                      // categories, so there is no one category to key on --
+                      // keep the responsive count.
+                      columnsOverride: filtersActive
+                          ? null
+                          : context
+                              .read<KioskAuthProvider>()
+                              .columnsForCategory(category.selectedCategoryId),
+                    );
         },
       ),
     );
@@ -786,10 +798,15 @@ class _ProductGrid extends StatelessWidget {
   final double s;
   final List<Product> products;
   final bool landscape;
+
+  /// Per-device, per-category products-per-row override for the category being
+  /// shown. Null = no override, so the grid keeps its responsive column count.
+  final int? columnsOverride;
   const _ProductGrid({
     required this.s,
     required this.products,
     this.landscape = false,
+    this.columnsOverride,
   });
 
   @override
@@ -804,6 +821,7 @@ class _ProductGrid extends StatelessWidget {
           gap: colGap,
           landscape: landscape,
           showImages: showImages,
+          columnsOverride: columnsOverride,
         );
         final int columns = geo.columns;
         final double tileWidth = geo.tileWidth;

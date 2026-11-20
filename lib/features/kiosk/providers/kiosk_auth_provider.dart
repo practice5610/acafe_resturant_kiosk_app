@@ -5,6 +5,8 @@ import 'package:acafe_customer/common/models/response_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_ordering_experience.dart';
+import 'package:acafe_customer/features/realtime/device_settings_event.dart'
+    show parseCategoryColumnsMap;
 import 'package:acafe_customer/helper/api_checker_helper.dart';
 
 /// What a device-settings push (or a reconnect reconciliation) did to the
@@ -89,6 +91,18 @@ class KioskAuthProvider extends ChangeNotifier {
   /// A till serving as a kiosk always shows images: the toggle is the staffed
   /// till's speed setting, and customers get the full kiosk menu.
   bool get showImages => kioskModeActive || kioskAuthRepo.getShowImages();
+
+  /// Per-device, per-category products-per-row overrides (categoryId ->
+  /// columns), set by admin on Device Update. Empty map = no overrides, so
+  /// every category keeps the kiosk's responsive default. A category absent
+  /// from the map resolves to that default too; nothing is forced to a fixed
+  /// count here.
+  Map<int, int> get categoryColumns => kioskAuthRepo.getCategoryColumns();
+
+  /// The products-per-row override for [categoryId], or null when none is set
+  /// (the grid then keeps its responsive column count).
+  int? columnsForCategory(int? categoryId) =>
+      categoryId == null ? null : categoryColumns[categoryId];
 
   /// Applies a POS Settings toggle locally after the server call in
   /// [KioskManagerProvider.setAllergenTagEnabled] has already succeeded.
@@ -185,6 +199,7 @@ class KioskAuthProvider extends ChangeNotifier {
     String orderingExperience = '',
     bool? allergenTagEnabled,
     bool? showImages,
+    Map<int, int>? categoryColumns,
     bool? kioskMode,
     bool signOut = false,
   }) async {
@@ -226,6 +241,10 @@ class KioskAuthProvider extends ChangeNotifier {
         allergenTagEnabled != kioskAuthRepo.getAllergenTagEnabled();
     final bool showImagesChanged =
         showImages != null && showImages != kioskAuthRepo.getShowImages();
+    // Null = the frame did not carry it; an empty map is a real "no overrides"
+    // state and must be applied so clearing every override reaches the kiosk.
+    final bool categoryColumnsChanged = categoryColumns != null &&
+        !_sameColumns(categoryColumns, kioskAuthRepo.getCategoryColumns());
     // Null = the server did not report it; never read that as "back to POS".
     final bool kioskModeChanged =
         kioskMode != null && kioskMode != kioskAuthRepo.getKioskMode();
@@ -236,6 +255,7 @@ class KioskAuthProvider extends ChangeNotifier {
         !nameChanged &&
         !allergenChanged &&
         !showImagesChanged &&
+        !categoryColumnsChanged &&
         !kioskModeChanged &&
         localDeviceId != null) {
       return KioskDeviceSettingsOutcome.ignored;
@@ -253,6 +273,7 @@ class KioskAuthProvider extends ChangeNotifier {
       orderingExperience: nextExperience,
       allergenTagEnabled: allergenTagEnabled,
       showImages: showImages,
+      categoryColumns: categoryColumns,
       kioskMode: kioskMode,
     );
     _syncImageGate();
@@ -335,6 +356,11 @@ class KioskAuthProvider extends ChangeNotifier {
       showImages: device.containsKey('show_images')
           ? device['show_images'] == true
           : null,
+      // Absent key = older server; leave the local map alone. Present (incl.
+      // {}) = authoritative, so clearing overrides in admin reaches the kiosk.
+      categoryColumns: device.containsKey('category_columns')
+          ? parseCategoryColumnsMap(device['category_columns'])
+          : null,
       // kiosk_mode is session-local: never seeded from the server.
     );
   }
@@ -356,6 +382,20 @@ class KioskAuthProvider extends ChangeNotifier {
 
   static int? _asInt(dynamic value) =>
       value is int ? value : int.tryParse('$value');
+
+  /// True when two per-category override maps hold exactly the same entries,
+  /// so an unchanged `category_columns` push is ignored rather than rewritten.
+  static bool _sameColumns(Map<int, int> a, Map<int, int> b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   /// One-time device login. On success persists token + bound branch and
   /// returns success; on failure returns the server message (wrong creds /
@@ -395,6 +435,9 @@ class KioskAuthProvider extends ChangeNotifier {
         allergenTagEnabled: branch['allergen_tag_enabled'] == true,
         showImages: device.containsKey('show_images')
             ? device['show_images'] == true
+            : null,
+        categoryColumns: device.containsKey('category_columns')
+            ? parseCategoryColumnsMap(device['category_columns'])
             : null,
         // A fresh device login always opens as the device's admin category:
         // reset the session-local kiosk flag so a previous session's switch
@@ -450,6 +493,9 @@ class KioskAuthProvider extends ChangeNotifier {
           allergenTagEnabled: branch['allergen_tag_enabled'] == true,
           showImages: device.containsKey('show_images')
               ? device['show_images'] == true
+              : null,
+          categoryColumns: device.containsKey('category_columns')
+              ? parseCategoryColumnsMap(device['category_columns'])
               : null,
           // kiosk_mode is session-local: a reload re-opens as admin category.
         );

@@ -210,6 +210,7 @@ class ProductRealtimeController {
       orderingExperience: event.orderingExperience,
       showImages: event.showImages,
       kioskMode: event.kioskMode,
+      categoryColumns: event.categoryColumns,
       signOut: action == DeviceSettingsClientAction.signOut,
     );
 

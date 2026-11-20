@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:universal_html/html.dart' as html;
 
@@ -68,6 +70,7 @@ class KioskAuthRepo {
     String? orderingExperience,
     bool? allergenTagEnabled,
     bool? showImages,
+    Map<int, int>? categoryColumns,
     bool? kioskMode,
   }) async {
     final previousBranch = getBranchId();
@@ -119,6 +122,9 @@ class KioskAuthRepo {
     if (showImages != null) {
       await sharedPreferences.setBool(
           AppConstants.kioskShowImages, showImages);
+    }
+    if (categoryColumns != null) {
+      await _writeCategoryColumns(categoryColumns);
     }
     if (kioskMode != null) {
       _writeSessionKioskMode(kioskMode);
@@ -181,6 +187,52 @@ class KioskAuthRepo {
   /// images exactly as today -- the picture-less mode is strictly opt-in.
   bool getShowImages() =>
       sharedPreferences.getBool(AppConstants.kioskShowImages) ?? true;
+
+  /// Per-device, per-category products-per-row overrides (categoryId ->
+  /// columns), set by admin on Device Update. Defaults to an empty map so a
+  /// session persisted before this field existed (or any missing/corrupt value)
+  /// leaves every category on the kiosk's responsive default -- the override is
+  /// strictly opt-in and no category is ever forced to a fixed count here.
+  Map<int, int> getCategoryColumns() {
+    final String? raw =
+        sharedPreferences.getString(AppConstants.kioskCategoryColumns);
+    if (raw == null || raw.isEmpty) {
+      return <int, int>{};
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return <int, int>{};
+      }
+      final result = <int, int>{};
+      decoded.forEach((key, value) {
+        final int? id = int.tryParse('$key');
+        final int? cols = value is int ? value : int.tryParse('$value');
+        if (id != null && cols != null) {
+          result[id] = cols;
+        }
+      });
+      return result;
+    } catch (_) {
+      return <int, int>{};
+    }
+  }
+
+  /// Persist a live per-category override update from the websocket (admin
+  /// changed Device Update without forcing a re-login) -- mirrors
+  /// [saveShowImages].
+  Future<void> saveCategoryColumns(Map<int, int> categoryColumns) async {
+    await _writeCategoryColumns(categoryColumns);
+  }
+
+  /// JSON-encode the map (SharedPreferences has no map type) with string keys,
+  /// which is what [getCategoryColumns] decodes back.
+  Future<void> _writeCategoryColumns(Map<int, int> categoryColumns) async {
+    final encoded = categoryColumns
+        .map((key, value) => MapEntry(key.toString(), value));
+    await sharedPreferences.setString(
+        AppConstants.kioskCategoryColumns, jsonEncode(encoded));
+  }
 
   /// Whether this POS till is currently serving as a kiosk.
   ///
@@ -268,6 +320,7 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskOrderingExperience);
     await sharedPreferences.remove(AppConstants.kioskAllergenTagEnabled);
     await sharedPreferences.remove(AppConstants.kioskShowImages);
+    await sharedPreferences.remove(AppConstants.kioskCategoryColumns);
     // Session-scoped now (sessionStorage); also drop any value an older build
     // left in SharedPreferences so a stale flag can never resurrect kiosk mode.
     _writeSessionKioskMode(false);
