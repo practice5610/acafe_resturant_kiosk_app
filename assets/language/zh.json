@@ -924,5 +924,21 @@
   "allergen_info_title": "含有过敏原",
   "allergen_info_body": "本产品含有以下成分。如有过敏，请告知我们。",
   "allergen_info_dismiss": "知道了",
-  "included": "已包含"
+  "included": "已包含",
+  "landscape_item_added_toast": "{product}已添加到您的订单",
+  "landscape_cancel_order": "取消订单",
+  "landscape_cancel_order_title": "要取消您的订单吗？",
+  "landscape_cancel_order_body": "所有商品都将被移除，并返回到开始屏幕。",
+  "landscape_cancel_order_body_count": "全部 {count} 件商品都将被移除，并返回到开始屏幕。",
+  "landscape_cancel_order_confirm": "是，取消",
+  "landscape_keep_ordering": "继续点单",
+  "landscape_check_out": "去结账",
+  "landscape_combo_meal": "套餐组合",
+  "landscape_make_it_a_combo": "升级为套餐",
+  "landscape_have_a_coupon": "有优惠券吗？",
+  "landscape_enter_code": "输入代码",
+  "landscape_order_empty_title": "您的订单是空的",
+  "landscape_order_empty_body": "点击商品即可添加到此处。",
+  "landscape_out_of_stock": "已售罄",
+  "landscape_your_order": "您的订单"
 }

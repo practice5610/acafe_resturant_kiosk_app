@@ -34,8 +34,8 @@ class _LandscapeCancelDialog extends StatelessWidget {
         ? kioskTranslate(
             context,
             'landscape_cancel_order_body_count',
-            'All $itemCount items will be removed and you go back to the start screen.',
-          )
+            'All {count} items will be removed and you go back to the start screen.',
+          ).replaceAll('{count}', '$itemCount')
         : kioskTranslate(
             context,
             'landscape_cancel_order_body',

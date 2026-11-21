@@ -924,5 +924,21 @@
   "allergen_info_title": "CONTAINS ALLERGENS",
   "allergen_info_body": "This item contains the following. Please let us know if you have any allergies.",
   "allergen_info_dismiss": "GOT IT",
-  "included": "Included"
+  "included": "Included",
+  "landscape_item_added_toast": "{product} added to your order",
+  "landscape_cancel_order": "Cancel order",
+  "landscape_cancel_order_title": "Cancel your order?",
+  "landscape_cancel_order_body": "All items will be removed and you go back to the start screen.",
+  "landscape_cancel_order_body_count": "All {count} items will be removed and you go back to the start screen.",
+  "landscape_cancel_order_confirm": "YES, CANCEL",
+  "landscape_keep_ordering": "KEEP ORDERING",
+  "landscape_check_out": "CHECK OUT",
+  "landscape_combo_meal": "Combo meal",
+  "landscape_make_it_a_combo": "MAKE IT A COMBO",
+  "landscape_have_a_coupon": "Have a coupon?",
+  "landscape_enter_code": "Enter code",
+  "landscape_order_empty_title": "Your order is empty",
+  "landscape_order_empty_body": "Tap a product to add it here.",
+  "landscape_out_of_stock": "OUT OF STOCK",
+  "landscape_your_order": "Your order"
 }

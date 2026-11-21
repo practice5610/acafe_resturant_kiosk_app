@@ -924,5 +924,21 @@
   "allergen_info_title": "ENTHÄLT ALLERGENE",
   "allergen_info_body": "Dieser Artikel enthält Folgendes. Bitte teilen Sie uns mit, wenn Sie Allergien haben.",
   "allergen_info_dismiss": "VERSTANDEN",
-  "included": "Inklusive"
+  "included": "Inklusive",
+  "landscape_item_added_toast": "{product} wurde zu deiner Bestellung hinzugefügt",
+  "landscape_cancel_order": "Bestellung stornieren",
+  "landscape_cancel_order_title": "Bestellung stornieren?",
+  "landscape_cancel_order_body": "Alle Artikel werden entfernt und du gelangst zurück zum Startbildschirm.",
+  "landscape_cancel_order_body_count": "Alle {count} Artikel werden entfernt und du gelangst zurück zum Startbildschirm.",
+  "landscape_cancel_order_confirm": "JA, STORNIEREN",
+  "landscape_keep_ordering": "WEITER BESTELLEN",
+  "landscape_check_out": "ZUR KASSE",
+  "landscape_combo_meal": "Combo-Menü",
+  "landscape_make_it_a_combo": "ALS COMBO WÄHLEN",
+  "landscape_have_a_coupon": "Hast du einen Gutschein?",
+  "landscape_enter_code": "Code eingeben",
+  "landscape_order_empty_title": "Deine Bestellung ist leer",
+  "landscape_order_empty_body": "Tippe auf ein Produkt, um es hier hinzuzufügen.",
+  "landscape_out_of_stock": "AUSVERKAUFT",
+  "landscape_your_order": "Deine Bestellung"
 }

@@ -924,5 +924,21 @@
   "allergen_info_title": "アレルゲンを含みます",
   "allergen_info_body": "この商品には以下が含まれています。アレルギーがある場合はスタッフにお知らせください。",
   "allergen_info_dismiss": "了解",
-  "included": "含む"
+  "included": "含む",
+  "landscape_item_added_toast": "{product}がご注文に追加されました",
+  "landscape_cancel_order": "注文をキャンセル",
+  "landscape_cancel_order_title": "ご注文をキャンセルしますか？",
+  "landscape_cancel_order_body": "すべての商品が削除され、スタート画面に戻ります。",
+  "landscape_cancel_order_body_count": "{count}点の商品がすべて削除され、スタート画面に戻ります。",
+  "landscape_cancel_order_confirm": "はい、キャンセルします",
+  "landscape_keep_ordering": "注文を続ける",
+  "landscape_check_out": "レジに進む",
+  "landscape_combo_meal": "コンボセット",
+  "landscape_make_it_a_combo": "コンボにする",
+  "landscape_have_a_coupon": "クーポンをお持ちですか？",
+  "landscape_enter_code": "コードを入力",
+  "landscape_order_empty_title": "ご注文は空です",
+  "landscape_order_empty_body": "商品をタップしてここに追加してください。",
+  "landscape_out_of_stock": "品切れ",
+  "landscape_your_order": "ご注文内容"
 }

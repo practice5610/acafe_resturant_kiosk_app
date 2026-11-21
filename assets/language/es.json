@@ -924,5 +924,21 @@
   "allergen_info_title": "CONTIENE ALÉRGENOS",
   "allergen_info_body": "Este producto contiene lo siguiente. Avísanos si tienes alguna alergia.",
   "allergen_info_dismiss": "ENTENDIDO",
-  "included": "Incluido"
+  "included": "Incluido",
+  "landscape_item_added_toast": "{product} se añadió a tu pedido",
+  "landscape_cancel_order": "Cancelar pedido",
+  "landscape_cancel_order_title": "¿Cancelar tu pedido?",
+  "landscape_cancel_order_body": "Se eliminarán todos los artículos y volverás a la pantalla de inicio.",
+  "landscape_cancel_order_body_count": "Se eliminarán los {count} artículos y volverás a la pantalla de inicio.",
+  "landscape_cancel_order_confirm": "SÍ, CANCELAR",
+  "landscape_keep_ordering": "SEGUIR PIDIENDO",
+  "landscape_check_out": "PAGAR",
+  "landscape_combo_meal": "Menú combo",
+  "landscape_make_it_a_combo": "CONVIÉRTELO EN COMBO",
+  "landscape_have_a_coupon": "¿Tienes un cupón?",
+  "landscape_enter_code": "Introducir código",
+  "landscape_order_empty_title": "Tu pedido está vacío",
+  "landscape_order_empty_body": "Toca un producto para añadirlo aquí.",
+  "landscape_out_of_stock": "AGOTADO",
+  "landscape_your_order": "Tu pedido"
 }

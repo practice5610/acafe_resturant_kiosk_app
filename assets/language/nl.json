@@ -924,5 +924,21 @@
   "allergen_info_title": "BEVAT ALLERGENEN",
   "allergen_info_body": "Dit item bevat het volgende. Laat het ons weten als u allergieën heeft.",
   "allergen_info_dismiss": "BEGREPEN",
-  "included": "Inbegrepen"
+  "included": "Inbegrepen",
+  "landscape_item_added_toast": "{product} is aan je bestelling toegevoegd",
+  "landscape_cancel_order": "Bestelling annuleren",
+  "landscape_cancel_order_title": "Bestelling annuleren?",
+  "landscape_cancel_order_body": "Alle items worden verwijderd en je gaat terug naar het startscherm.",
+  "landscape_cancel_order_body_count": "Alle {count} items worden verwijderd en je gaat terug naar het startscherm.",
+  "landscape_cancel_order_confirm": "JA, ANNULEREN",
+  "landscape_keep_ordering": "DOORGAAN MET BESTELLEN",
+  "landscape_check_out": "AFREKENEN",
+  "landscape_combo_meal": "Combomaaltijd",
+  "landscape_make_it_a_combo": "MAAK ER EEN COMBO VAN",
+  "landscape_have_a_coupon": "Heb je een kortingscode?",
+  "landscape_enter_code": "Code invoeren",
+  "landscape_order_empty_title": "Je bestelling is leeg",
+  "landscape_order_empty_body": "Tik op een product om het hier toe te voegen.",
+  "landscape_out_of_stock": "NIET OP VOORRAAD",
+  "landscape_your_order": "Je bestelling"
 }
