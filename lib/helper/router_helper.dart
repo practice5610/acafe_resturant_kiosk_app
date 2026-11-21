@@ -22,6 +22,11 @@ import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_dashboard_sc
 import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_sales_overview_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_transactions_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_manager_stock_screen.dart';
+// Landscape kiosk (Option B) — the switch point + its placeholder shell. The
+// resolver below is the only change to _routeHandler; the shell route is
+// additive and touches no portrait screen.
+import 'package:acafe_customer/features/kiosk/landscape/landscape_routes.dart';
+import 'package:acafe_customer/features/kiosk/landscape/screens/landscape_shell_screen.dart';
 import 'package:acafe_customer/features/pos/pos_router.dart';
 import 'package:acafe_customer/features/maintenance/screens/maintenance_screen.dart';
 import 'package:acafe_customer/features/search/screens/search_result_screen.dart';
@@ -147,6 +152,13 @@ class RouterHelper {
 
   static Widget _routeHandler(BuildContext context, Widget route,
       {bool isBranchCheck = false, required String? path}) {
+    // Landscape kiosk (Option B) switch — the single decision site, live on
+    // every build (current window width >= height = landscape). In landscape
+    // a route shows its registered landscape variant; portrait and
+    // not-yet-built routes fall through to the existing portrait screen
+    // unchanged, so the app still works end to end in a landscape window.
+    route = KioskLandscapeSwitch.resolve(context, path ?? '', route);
+
     final splashProvider =
         Provider.of<SplashProvider>(context, listen: false);
     if (splashProvider.configModel == null) {
@@ -222,6 +234,10 @@ class RouterHelper {
       GoRoute(path: maintain, builder: (context, state) => _routeHandler(context, path: _getPath(state), const MaintenanceScreen())),
       GoRoute(path: update, builder: (context, state) => _routeHandler(context, path: _getPath(state), const ForceUpdateScreen())),
       GoRoute(path: languageScreen, builder: (context, state) => KioskLanguageScreen(fromMenu: state.uri.queryParameters['page'] == 'menu')),
+      // Landscape (Option B) Phase-1 placeholder shell. Additive, landscape-only,
+      // touches no portrait screen; open /landscape-shell-kiosk in a landscape
+      // window to confirm the switch and the scale foundation render.
+      GoRoute(path: kioskLandscapeShellRoute, builder: (context, state) => const LandscapeShellScreen()),
       GoRoute(path: searchScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const SearchScreen())),
       GoRoute(path: searchResultScreen, builder: (context, state) => _routeHandler(
         context, path: _getPath(state), SearchResultScreen(searchString: SearchFlowHelper.decodeSearchQuery(state.uri.queryParameters['text'])), isBranchCheck: true,
