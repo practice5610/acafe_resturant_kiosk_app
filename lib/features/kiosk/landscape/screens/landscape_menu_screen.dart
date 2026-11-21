@@ -548,16 +548,16 @@ class _ProductGrid extends StatelessWidget {
           maxColumns: kColumns,
         );
         final int columns = geo.columns;
-        // The shared KioskProductGridGeometry assumes a square landscape
-        // image (ratio 1.0) + a 0.28x text band, i.e. tileHeight ≈ 1.28x
-        // tileWidth. The real card is 374.95 tall at a 250 width — ratio
-        // ≈1.4998. That ratio lives in a file shared with portrait
+        // Figma's own card ratio (374.95 tall at a 250 width, ≈1.4998) left
+        // only ~1.3 rows visible on a real screen before the next row was
+        // scrolled almost entirely out of view — shortened so two full rows
+        // fit. That ratio lives in a file shared with portrait
         // (common/responsive/kiosk_responsive.dart), so rather than change
-        // the shared factory's assumption, the correct card height is
-        // computed locally from the Figma ratio and used for the sliver's
-        // mainAxisExtent; LandscapeProductCard already lays its image out
-        // with Expanded, so it fills whatever height it is given.
-        const double kCardAspect = 374.9543151855469 / 250.0;
+        // the shared factory's assumption, the card height is computed
+        // locally and used for the sliver's mainAxisExtent;
+        // LandscapeProductCard already lays its image out with Expanded, so
+        // it fills whatever height it is given.
+        const double kCardAspect = 1.2;
         // Guards a tiny/negative tileWidth during an extreme resize (the
         // shared factory doesn't floor it) so the grid never hands a
         // negative mainAxisExtent to SliverGrid.
