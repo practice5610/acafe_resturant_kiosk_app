@@ -7,47 +7,69 @@ import 'package:acafe_customer/features/category/providers/category_provider.dar
 import 'package:acafe_customer/features/kiosk/domain/kiosk_combo_match.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_combo_sheet.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_product_card.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
-import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
-import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
-import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/theme/text_legibility.dart';
-import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
 // ===========================================================================
-// KIOSK — "WOULD YOU LIKE SOMETHING TO DRINK?" upsell
+// KIOSK — "WOULD YOU LIKE TO ADD A DRINK?" upsell  (Figma POS 2305:14909)
 // ===========================================================================
 // Shown when the customer heads for the cart or checkout with a one-sided
 // order. Which question gets asked is decided by [KioskOrderComposition], not
-// here — this file only draws the answer.
+// here — this file only draws the answer. The cards are the SAME
+// [KioskProductCard] the menu grid uses, with description and (i) switched off.
 // ===========================================================================
 
-/// Card fill, a shade off the page cream so it lifts off the blurred menu.
-const Color _kCardBg = Color(0xFFFBF7EC);
-const Color _kCardBorder = Color(0xFFE6E0CE);
+/// Figma 2305:14909, measured on its 2078px-wide sheet. Every size is the
+/// design value × k, where k = sheetWidth / [sheetW] — one scale, no per-element
+/// clamps, so the sheet holds its proportions on any kiosk.
+class _Spec {
+  _Spec._();
+
+  static const double sheetW = 2078;
+  static const Color bg = Color(0xFFFBF8EF);
+  static const Color borderColor = Color(0xFFB9B5A6);
+  static const double radius = 30;
+  static const double border = 1;
+
+  static const double padTop = 94; // sheet top (608) → title (702)
+  static const double headerH = 157; // title box
+  static const double backLeft = 65; // sheet left (247) → back (312)
+  static const double backTop = 8; // title top (702) → back top (710)
+  static const double backSize = 141;
+  static const double titleW = 946;
+  static const double titleSize = 72; // Loew ExtraBold, leading 1
+  static const double titleToGrid = 142; // 859 → 1001
+  static const double gridToButton = 74; // last row end (2704) → button (2778)
+  static const double buttonW = 571;
+  static const double buttonH = 126;
+  static const double buttonText = 36; // Loew Bold
+  static const double padBottom = 129; // button end (2904) → sheet end (3033)
+}
 
 /// How many suggestions the grid offers. Six fills two rows of three without
 /// the sheet ever needing to scroll on a kiosk.
 const int _kMaxSuggestions = 6;
 
-/// Opens the upsell for [composition] and resolves to true when the customer
-/// added something, false when they declined or it was dismissed.
-///
-/// Returns false immediately when there is nothing worth asking — the caller
-/// can therefore always `await` this and carry on.
-Future<bool> openKioskUpsellSheet(
+/// Opens the upsell for [course] and resolves to the product the customer
+/// tapped, or null when they declined / dismissed it. The caller opens
+/// customize for the chosen product AFTER this sheet has closed, so the sheet
+/// never has to pop itself from across a push (which is unreliable once the
+/// dialog subtree has rebuilt behind the customize route).
+Future<Product?> openKioskUpsellSheet(
   BuildContext context, {
   required KioskCourse course,
 }) async {
-  final result = await showGeneralDialog<bool>(
+  return showGeneralDialog<Product>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Add to your order',
@@ -71,7 +93,6 @@ Future<bool> openKioskUpsellSheet(
       );
     },
   );
-  return result ?? false;
 }
 
 class _KioskUpsellSheet extends StatelessWidget {
@@ -80,9 +101,9 @@ class _KioskUpsellSheet extends StatelessWidget {
 
   String _title(BuildContext context) => course == KioskCourse.drink
       ? kioskTranslate(context, 'would_you_like_something_to_drink',
-          'Would you like something to drink?')
+          'Would you like to add a drink?')
       : kioskTranslate(context, 'would_you_like_something_to_eat',
-          'Would you like something to eat?');
+          'Would you like to add something to eat?');
 
   /// Suggestions for the missing course, cheapest-looking first isn't the goal —
   /// the most popular items are, because that is what a barista would offer.
@@ -106,6 +127,14 @@ class _KioskUpsellSheet extends StatelessWidget {
     return matches.take(_kMaxSuggestions).toList();
   }
 
+  /// Tap on a suggestion: close the sheet, handing the product back so the
+  /// caller opens customize once the sheet is gone. Doing the customize push
+  /// from inside the sheet (then popping it afterwards) is unreliable — the
+  /// dialog rebuilds behind the customize route — so the sheet just reports the
+  /// choice and closes cleanly here.
+  void _pick(BuildContext context, Product product) =>
+      Navigator.of(context).pop(product);
+
   @override
   Widget build(BuildContext context) {
     // Material (transparent) supplies the DefaultTextStyle every Text below
@@ -118,7 +147,7 @@ class _KioskUpsellSheet extends StatelessWidget {
         children: [
           KioskScrim(
             animation: ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation,
-            onDismiss: () => Navigator.of(context).pop(false),
+            onDismiss: () => Navigator.of(context).pop(),
           ),
           SafeArea(
             child: LayoutBuilder(
@@ -128,64 +157,72 @@ class _KioskUpsellSheet extends StatelessWidget {
                   constraints.maxWidth,
                   viewportHeight: constraints.maxHeight,
                 );
+                final double k = m.sheetWidth / _Spec.sheetW;
+                final bool showImages =
+                    Provider.of<KioskAuthProvider>(context, listen: false)
+                        .showImages;
                 final all = _suggestions(context);
                 final suggestions =
                     all.take(m.visibleCount(all.length)).toList();
 
                 return Center(
                   child: SingleChildScrollView(
-                    // The sheet, not the page: on a short window the card
-                    // scrolls inside the scrim instead of overflowing.
+                    // On a short window the sheet scrolls inside the scrim
+                    // instead of overflowing.
                     padding: EdgeInsets.symmetric(vertical: 24 * s),
                     child: GestureDetector(
                       // Absorb taps so tapping the card never dismisses.
                       onTap: () {},
                       child: Container(
                         width: m.sheetWidth,
-                        // A dialog must never be taller than the screen it sits
-                        // on; past this the card scrolls internally instead of
-                        // growing. Without a ceiling the sheet grew with the
-                        // number of suggestions until it WAS the page.
-                        constraints: BoxConstraints(
-                          maxHeight: constraints.maxHeight * 0.86,
+                        padding: EdgeInsets.only(
+                          top: _Spec.padTop * k,
+                          bottom: _Spec.padBottom * k,
                         ),
-                        padding: EdgeInsets.all(m.pad),
                         decoration: BoxDecoration(
-                          color: _kCardBg,
+                          color: _Spec.bg,
                           borderRadius:
-                              BorderRadius.circular((36 * s).clamp(18.0, 36.0)),
-                          border: Border.all(color: _kCardBorder, width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.18),
-                              blurRadius: (60 * s).clamp(24.0, 60.0),
-                              offset: Offset(0, (18 * s).clamp(8.0, 18.0)),
-                            ),
-                          ],
+                              BorderRadius.circular(_Spec.radius * k),
+                          border: Border.all(
+                            color: _Spec.borderColor,
+                            width: (_Spec.border * k).clamp(0.5, 2.0),
+                          ),
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _Header(s: s, title: _title(context)),
-                            SizedBox(height: (34 * s).clamp(14.0, 34.0)),
-                            if (suggestions.isEmpty)
-                              _Empty(s: s)
-                            else
-                              Wrap(
-                                spacing: m.gutter,
-                                runSpacing: m.gutter,
-                                alignment: WrapAlignment.center,
-                                children: [
-                                  for (final product in suggestions)
-                                    SizedBox(
-                                      width: m.tile,
-                                      child: _UpsellCard(
-                                          tile: m.tile, product: product),
+                            _Header(k: k, title: _title(context)),
+                            SizedBox(height: _Spec.titleToGrid * k),
+                            Padding(
+                              padding:
+                                  EdgeInsets.symmetric(horizontal: m.pad),
+                              child: suggestions.isEmpty
+                                  ? _Empty(s: s)
+                                  : Wrap(
+                                      spacing: m.gutter,
+                                      runSpacing: m.gutter,
+                                      alignment: WrapAlignment.center,
+                                      children: [
+                                        for (final product in suggestions)
+                                          SizedBox(
+                                            width: m.tile,
+                                            child: KioskProductCard(
+                                              s: s,
+                                              tileWidth: m.tile,
+                                              product: product,
+                                              badge: kioskCardBadgeFor(product),
+                                              showImages: showImages,
+                                              showDescription: false,
+                                              showInfoIcon: false,
+                                              onTap: () =>
+                                                  _pick(context, product),
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                ],
-                              ),
-                            SizedBox(height: (36 * s).clamp(16.0, 36.0)),
-                            _DeclineButton(s: s),
+                            ),
+                            SizedBox(height: _Spec.gridToButton * k),
+                            _DeclineButton(k: k),
                           ],
                         ),
                       ),
@@ -201,67 +238,77 @@ class _KioskUpsellSheet extends StatelessWidget {
   }
 }
 
-/// Back button on the left, title optically centred in the remaining space.
+/// Back circle top-left, title centred on the sheet (Figma 2305:14909).
 class _Header extends StatelessWidget {
-  final double s;
+  final double k;
   final String title;
-  const _Header({required this.s, required this.title});
+  const _Header({required this.k, required this.title});
 
   @override
   Widget build(BuildContext context) {
-    final double button = (86 * s).clamp(36.0, 86.0);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        KioskCircleBack(size: button, onTap: () => Navigator.of(context).pop(false)),
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: (12 * s).clamp(6.0, 12.0)),
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: loewExtraBold.copyWith(
-                fontSize: (52 * s).clamp(17.0, 52.0),
-                height: 1.15,
-                color: Colors.black,
+    return SizedBox(
+      height: _Spec.headerH * k,
+      child: Stack(
+        children: [
+          Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: _Spec.titleW * k,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: loewExtraBold.copyWith(
+                  fontSize: _Spec.titleSize * k,
+                  height: 1.0,
+                  letterSpacing: 0,
+                  color: Colors.black,
+                ),
               ),
             ),
           ),
-        ),
-        // Balances the back button so the title stays truly centred.
-        SizedBox(width: button),
-      ],
+          Positioned(
+            left: _Spec.backLeft * k,
+            top: _Spec.backTop * k,
+            child: KioskCircleBack(
+              size: _Spec.backSize * k,
+              onTap: () => Navigator.of(context).pop(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 /// "NO, THANK YOU!" — a text action, not a button: declining should never
-/// compete visually with the suggestions.
+/// compete visually with the suggestions. Figma: 571×126 hit box, Loew Bold 36.
 class _DeclineButton extends StatelessWidget {
-  final double s;
-  const _DeclineButton({required this.s});
+  final double k;
+  const _DeclineButton({required this.k});
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(15 * k),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
-        onTap: () => Navigator.of(context).pop(false),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: (24 * s).clamp(12.0, 24.0),
-            vertical: (14 * s).clamp(8.0, 14.0),
-          ),
-          child: Text(
-            kioskTranslate(context, 'no_thank_you', 'No, thank you!')
-                .toUpperCase(),
-            style: loewBold.copyWith(
-              fontSize: (30 * s).clamp(12.0, 30.0),
-              height: 1.0,
-              letterSpacing: 0.4,
-              color: Colors.black,
+        onTap: () => Navigator.of(context).pop(),
+        child: SizedBox(
+          width: _Spec.buttonW * k,
+          height: _Spec.buttonH * k,
+          child: Center(
+            child: Text(
+              kioskTranslate(context, 'no_thank_you', 'No, thank you!')
+                  .toUpperCase(),
+              style: loewBold.copyWith(
+                fontSize: _Spec.buttonText * k,
+                height: 1.0,
+                letterSpacing: 0,
+                color: Colors.black,
+              ),
             ),
           ),
         ),
@@ -325,11 +372,16 @@ Future<void> offerKioskPayUpsell(BuildContext context) async {
 /// The customer is on their way somewhere; the upsell must never block that.
 /// If anything about the offer fails, navigation still happens.
 Future<void> _offerThenGo(BuildContext context, VoidCallback go) async {
+  bool handled = false;
   try {
-    await _presentUpsell(context);
+    handled = await _presentUpsell(context);
   } catch (_) {}
   if (!context.mounted) return;
-  go();
+  // When the customer picked a suggestion, the add flow (customize → "added to
+  // cart" confirmation, which returns to the menu on its own) owns navigation —
+  // calling [go] here would race that screen. Only continue to the cart /
+  // checkout when nothing was added (declined, dismissed, or combo offer).
+  if (!handled) go();
 }
 
 /// Combo match first (product ids), then the food/drink grid.
@@ -337,22 +389,35 @@ Future<void> _offerThenGo(BuildContext context, VoidCallback go) async {
 /// Combo-first still matters: a deal match on product ids is independent of
 /// whether those products are food or drink. The course rule itself now uses
 /// cup/can, not `products.area`.
-Future<void> _presentUpsell(BuildContext context) async {
+/// Shows the right upsell (combo, then the missing-course grid) and returns
+/// true when the customer picked a suggestion — in which case the add flow
+/// (customize → confirmation → menu) has taken over navigation and the caller
+/// must NOT navigate again. Returns false when nothing was added.
+Future<bool> _presentUpsell(BuildContext context) async {
   final cart = Provider.of<CartProvider>(context, listen: false);
   final deals = Provider.of<KioskDealProvider>(context, listen: false).deals;
   final KioskComboMatch? match = findKioskComboUpgrade(cart.cartList, deals);
   if (match != null && !_KioskUpsellMemory.alreadyAskedCombo(match.deal.id)) {
     _KioskUpsellMemory.rememberCombo(match.deal.id);
     await openKioskComboSheet(context, match: match);
-    return;
+    return false;
   }
 
   final composition = KioskOrderComposition.of(cart.cartList);
   final KioskCourse? course = composition.courseToOffer;
   if (course != null && !_KioskUpsellMemory.alreadyAsked(course)) {
     _KioskUpsellMemory.remember(course);
-    await openKioskUpsellSheet(context, course: course);
+    final Product? picked = await openKioskUpsellSheet(context, course: course);
+    // Sheet is closed now; open customize for the tapped suggestion so adding
+    // it uses the same cup/can → add-to-cart path as the menu. The confirmation
+    // screen then returns to the menu on its own, so report that navigation is
+    // handled. Declining (null) falls through so the caller continues the flow.
+    if (picked != null && context.mounted) {
+      await openKioskCustomize(context, picked);
+      return true;
+    }
   }
+  return false;
 }
 
 /// Remembers which upsells this customer has already seen.
@@ -509,96 +574,3 @@ class KioskUpsellGridMetrics {
   bool get fits => rowWidth < available;
 }
 
-// ===========================================================================
-// SUGGESTION CARD
-// ===========================================================================
-
-/// Compact product card for the upsell grid.
-///
-/// Not [KioskProductCard]: that one is the MENU card, built for a ~300px grid
-/// slot with fixed 12px padding, a fixed 20px radius and fixed caption type. In
-/// a modal it has to render at half that width, where the fixed metrics stop
-/// being proportional — a 12px inset around a 130px card reads as a fat border,
-/// and the caption size stays put while everything around it shrinks. This card
-/// carries the same visual language (white surface, square photo, badge in the
-/// corner, name over price) with every dimension derived from the tile it is
-/// actually given.
-class _UpsellCard extends StatelessWidget {
-  final double tile;
-  final Product product;
-
-  const _UpsellCard({required this.tile, required this.product});
-
-  @override
-  Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final String image = '${splash.baseUrls?.productImageUrl}/${product.image}';
-
-    // Everything below scales off the tile, so the card holds its proportions
-    // whether it is 128px on a laptop window or 420px on a 4K kiosk.
-    final double radius = (tile * 0.09).clamp(10.0, 22.0);
-    final double inset = (tile * 0.07).clamp(8.0, 20.0);
-    final double nameSize = (tile * 0.10).clamp(11.0, 22.0);
-    final double priceSize = (tile * 0.095).clamp(10.0, 20.0);
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(radius),
-      clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        // Same destination as tapping the product on the menu: customize, then
-        // the shared add-to-cart path.
-        onTap: () => openKioskCustomize(context, product),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: CustomImageWidget.showProductImages
-              ? MainAxisAlignment.start
-              : MainAxisAlignment.center,
-          children: [
-            if (CustomImageWidget.showProductImages)
-              AspectRatio(
-                aspectRatio: 1,
-                child: CustomImageWidget(
-                  placeholder: Images.placeholderImage,
-                  image: image,
-                  fit: BoxFit.cover,
-                  useShimmer: true,
-                  cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
-                ),
-              ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(inset, inset * 0.8, inset, inset),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    product.name ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: loewBold.copyWith(
-                      fontSize: nameSize,
-                      height: 1.15,
-                      color: Colors.black,
-                    ),
-                  ),
-                  SizedBox(height: inset * 0.35),
-                  Text(
-                    PriceConverterHelper.convertPrice(product.price),
-                    maxLines: 1,
-                    style: loewMedium.copyWith(
-                      fontSize: priceSize,
-                      height: 1.0,
-                      color: TextTones.secondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

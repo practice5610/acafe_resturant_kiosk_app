@@ -52,6 +52,11 @@ class DeviceSettingsEvent {
   /// "turn images off", so a kiosk never silently drops into picture-less mode.
   final bool? showImages;
 
+  /// Per-device "Show Category Images" flag (the Menu rail's photo-tile
+  /// layout). Null when the frame did not carry it (older server build) --
+  /// "leave the local value alone", not "turn tiles off".
+  final bool? showCategoryImages;
+
   /// A POS till serving as a kiosk. Null when the frame did not carry it
   /// (older server build): leave the local mode alone rather than read it as
   /// "back to POS".
@@ -75,6 +80,7 @@ class DeviceSettingsEvent {
     this.status = 'active',
     this.name = '',
     this.showImages,
+    this.showCategoryImages,
     this.kioskMode,
     this.categoryColumns,
     this.occurredAt,
@@ -105,6 +111,9 @@ class DeviceSettingsEvent {
       name: json['name']?.toString() ?? '',
       showImages:
           json.containsKey('show_images') ? json['show_images'] == true : null,
+      showCategoryImages: json.containsKey('show_category_images')
+          ? json['show_category_images'] == true
+          : null,
       kioskMode:
           json.containsKey('kiosk_mode') ? json['kiosk_mode'] == true : null,
       categoryColumns: json.containsKey('category_columns')

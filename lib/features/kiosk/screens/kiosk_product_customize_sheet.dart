@@ -304,7 +304,11 @@ String _addonGroupTitle(BuildContext context, AddOnGroup group) {
 /// or stands alone is [CartProvider.addToCart]'s call, made on the
 /// configuration signature. Editing comes in through `openKioskCartLine`, which
 /// passes both [cart] and [cartIndex].
-void openKioskCustomize(BuildContext context, Product product,
+///
+/// Completes when the customize screen closes (immediately for products with
+/// nothing to customize), so a caller like the upsell sheet can check whether
+/// the cart actually changed. Existing callers ignore the Future.
+Future<void> openKioskCustomize(BuildContext context, Product product,
     {CartModel? cart, int? cartIndex, ValueChanged<CartModel>? onConfigured}) {
   // THE ALLERGEN GATE. The first time a customer reaches for a product in an
   // order, ask what they need to avoid before showing them anything they might
@@ -322,7 +326,7 @@ void openKioskCustomize(BuildContext context, Product product,
   //   _askAllergensThenOpenKioskCustomize(context, product);
   //   return;
   // }
-  _openKioskCustomizeNow(context, product,
+  return _openKioskCustomizeNow(context, product,
       cart: cart, cartIndex: cartIndex, onConfigured: onConfigured);
 }
 
@@ -344,7 +348,7 @@ Future<void> _askAllergensThenOpenKioskCustomize(
   _openKioskCustomizeNow(context, product);
 }
 
-void _openKioskCustomizeNow(BuildContext context, Product product,
+Future<void> _openKioskCustomizeNow(BuildContext context, Product product,
     {CartModel? cart, int? cartIndex, ValueChanged<CartModel>? onConfigured}) {
   final cartProvider = Provider.of<CartProvider>(context, listen: false);
   final productProvider = Provider.of<ProductProvider>(context, listen: false);
@@ -366,17 +370,17 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
         productProvider.initProductVariationStatus(0);
         onConfigured(buildKioskCartModel(context, product));
       }
-      return;
+      return Future<void>.value();
     }
     productProvider.initData(product, null);
     productProvider.initProductVariationStatus(0);
     final CartModel built = buildKioskCartModel(context, product);
     if (onConfigured != null) {
       onConfigured(built);
-      return;
+      return Future<void>.value();
     }
     cartProvider.addToCart(built, productProvider.cartIndex);
-    return;
+    return Future<void>.value();
   }
 
   // A NEW product tap opens a BLANK configuration, even when the cart already
@@ -405,8 +409,8 @@ void _openKioskCustomizeNow(BuildContext context, Product product,
   // seeding, the no-modifiers shortcut — is shared, so the two
   // versions can only ever differ in presentation. A live admin change remounts
   // the correct flow via [KioskCustomizeExperienceHost] without a full reload.
-  Navigator.of(context).push(
-    MaterialPageRoute(
+  return Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
       builder: (_) => KioskCustomizeExperienceHost(
         product: product,
         cartIndex: cartIndex,

@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/models/api_response_model.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
+import 'package:acafe_customer/features/pos/domain/pos_category_layout.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_ordering_experience.dart';
 import 'package:acafe_customer/features/realtime/device_settings_event.dart'
     show parseCategoryColumnsMap;
@@ -91,6 +92,15 @@ class KioskAuthProvider extends ChangeNotifier {
   /// A till serving as a kiosk always shows images: the toggle is the staffed
   /// till's speed setting, and customers get the full kiosk menu.
   bool get showImages => kioskModeActive || kioskAuthRepo.getShowImages();
+
+  /// Which category-rail variant the POS Menu screen draws: the simple text
+  /// list (default) or the photo tiles. Driven by the per-device "Show Category
+  /// Images" Kiosk Setting (admin Device Update), delivered on the same kiosk
+  /// config channel as [showImages]. Absent/false -> the simple rail
+  /// ([kDefaultPosCategoryLayout]), so nothing changes until an admin opts in.
+  PosCategoryLayout get categoryLayout => kioskAuthRepo.getShowCategoryImages()
+      ? PosCategoryLayout.tiles
+      : kDefaultPosCategoryLayout;
 
   /// Per-device, per-category products-per-row overrides (categoryId ->
   /// columns), set by admin on Device Update. Empty map = no overrides, so
@@ -199,6 +209,7 @@ class KioskAuthProvider extends ChangeNotifier {
     String orderingExperience = '',
     bool? allergenTagEnabled,
     bool? showImages,
+    bool? showCategoryImages,
     Map<int, int>? categoryColumns,
     bool? kioskMode,
     bool signOut = false,
@@ -241,6 +252,8 @@ class KioskAuthProvider extends ChangeNotifier {
         allergenTagEnabled != kioskAuthRepo.getAllergenTagEnabled();
     final bool showImagesChanged =
         showImages != null && showImages != kioskAuthRepo.getShowImages();
+    final bool showCategoryImagesChanged = showCategoryImages != null &&
+        showCategoryImages != kioskAuthRepo.getShowCategoryImages();
     // Null = the frame did not carry it; an empty map is a real "no overrides"
     // state and must be applied so clearing every override reaches the kiosk.
     final bool categoryColumnsChanged = categoryColumns != null &&
@@ -255,6 +268,7 @@ class KioskAuthProvider extends ChangeNotifier {
         !nameChanged &&
         !allergenChanged &&
         !showImagesChanged &&
+        !showCategoryImagesChanged &&
         !categoryColumnsChanged &&
         !kioskModeChanged &&
         localDeviceId != null) {
@@ -273,6 +287,7 @@ class KioskAuthProvider extends ChangeNotifier {
       orderingExperience: nextExperience,
       allergenTagEnabled: allergenTagEnabled,
       showImages: showImages,
+      showCategoryImages: showCategoryImages,
       categoryColumns: categoryColumns,
       kioskMode: kioskMode,
     );
@@ -356,6 +371,11 @@ class KioskAuthProvider extends ChangeNotifier {
       showImages: device.containsKey('show_images')
           ? device['show_images'] == true
           : null,
+      // Absent key = older server; leave the local value (default simple rail)
+      // untouched rather than forcing the tile layout on.
+      showCategoryImages: device.containsKey('show_category_images')
+          ? device['show_category_images'] == true
+          : null,
       // Absent key = older server; leave the local map alone. Present (incl.
       // {}) = authoritative, so clearing overrides in admin reaches the kiosk.
       categoryColumns: device.containsKey('category_columns')
@@ -436,6 +456,9 @@ class KioskAuthProvider extends ChangeNotifier {
         showImages: device.containsKey('show_images')
             ? device['show_images'] == true
             : null,
+        showCategoryImages: device.containsKey('show_category_images')
+            ? device['show_category_images'] == true
+            : null,
         categoryColumns: device.containsKey('category_columns')
             ? parseCategoryColumnsMap(device['category_columns'])
             : null,
@@ -493,6 +516,9 @@ class KioskAuthProvider extends ChangeNotifier {
           allergenTagEnabled: branch['allergen_tag_enabled'] == true,
           showImages: device.containsKey('show_images')
               ? device['show_images'] == true
+              : null,
+          showCategoryImages: device.containsKey('show_category_images')
+              ? device['show_category_images'] == true
               : null,
           categoryColumns: device.containsKey('category_columns')
               ? parseCategoryColumnsMap(device['category_columns'])

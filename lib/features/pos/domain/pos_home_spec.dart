@@ -42,6 +42,40 @@ class PosHomeSpec {
   static const double sidebarRuleHeight = 2;
   static const double sidebarRuleOpacity = 0.25;
 
+  // ── Category sidebar · tile variant (Figma 2305:14721) ───────────────
+  // "Menu Variant 2 — Category Tiles with Photos". Values are the design's
+  // native pixels; the tile widget scales them all by `paneWidth / tileListW`
+  // so the rail keeps the Figma proportions at any pane width. See
+  // [PosCategoryLayout] and [PosCategoryTile].
+  //
+  // Base pane width for the tile rail. Wider than the flat list's 192 because
+  // each row now carries a photo; chosen to hold the design's 600-wide list at
+  // the same rail:frame ratio (600 / 2572 of the Figma frame). The responsive
+  // layer scales this the same way it scales [sidebarWidth].
+  static const double sidebarTileWidth = 320;
+
+  /// The Figma "Category list" frame width (2305:14721). The tile widget's
+  /// scale is `paneWidth / sidebarTileDesignWidth`, so every token below reads
+  /// as a raw design pixel.
+  static const double sidebarTileDesignWidth = 600;
+  static const double sidebarTileCardWidth = 560;
+  static const double sidebarTileCardHeight = 300;
+  static const double sidebarTileCardRadius = 28;
+  static const double sidebarTileCardBorder = 3;
+  static const double sidebarTileCardPadTop = 24;
+  static const double sidebarTileCardPadBottom = 22;
+  static const double sidebarTileImageWidth = 420;
+  static const double sidebarTileImageHeight = 190;
+  static const double sidebarTileLabelSize = 38;
+  static const double sidebarTileLabelWidth = 520;
+  static const double sidebarTileGap = 18;
+  static const double sidebarTileListPadV = 24;
+
+  static const Color sidebarTileCardBg = Color(0xFFFBF8EF);
+  static const Color sidebarTileCardBorderColor = Color(0xFFDED8C6);
+  static const Color sidebarTileActiveBg = Color(0xFF0D0D0D);
+  static const Color sidebarTileInk = Color(0xFF0D0D0D);
+
   // ── Content area ─────────────────────────────────────────────────────
   static const double contentPaddingLeft = 32;
   /// Smaller than the left inset: the 4px scroll track sits in this gutter.

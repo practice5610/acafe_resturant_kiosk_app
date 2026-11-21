@@ -70,6 +70,7 @@ class KioskAuthRepo {
     String? orderingExperience,
     bool? allergenTagEnabled,
     bool? showImages,
+    bool? showCategoryImages,
     Map<int, int>? categoryColumns,
     bool? kioskMode,
   }) async {
@@ -122,6 +123,10 @@ class KioskAuthRepo {
     if (showImages != null) {
       await sharedPreferences.setBool(
           AppConstants.kioskShowImages, showImages);
+    }
+    if (showCategoryImages != null) {
+      await sharedPreferences.setBool(
+          AppConstants.kioskShowCategoryImages, showCategoryImages);
     }
     if (categoryColumns != null) {
       await _writeCategoryColumns(categoryColumns);
@@ -187,6 +192,12 @@ class KioskAuthRepo {
   /// images exactly as today -- the picture-less mode is strictly opt-in.
   bool getShowImages() =>
       sharedPreferences.getBool(AppConstants.kioskShowImages) ?? true;
+
+  /// Per-device "Show Category Images" toggle — picks the Menu rail's photo-tile
+  /// layout. Defaults to FALSE so a session persisted before this field existed
+  /// (or any missing value) keeps the simple text rail; the tiles are opt-in.
+  bool getShowCategoryImages() =>
+      sharedPreferences.getBool(AppConstants.kioskShowCategoryImages) ?? false;
 
   /// Per-device, per-category products-per-row overrides (categoryId ->
   /// columns), set by admin on Device Update. Defaults to an empty map so a
@@ -286,6 +297,13 @@ class KioskAuthRepo {
         AppConstants.kioskShowImages, showImages);
   }
 
+  /// Persist a live show-category-images update from the websocket -- mirrors
+  /// [saveShowImages].
+  Future<void> saveShowCategoryImages(bool showCategoryImages) async {
+    await sharedPreferences.setBool(
+        AppConstants.kioskShowCategoryImages, showCategoryImages);
+  }
+
   /// Persist a live Ordering Experience update from the websocket (admin
   /// changed Device Update without forcing a re-login).
   Future<void> saveOrderingExperience(String orderingExperience) async {
@@ -320,6 +338,7 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskOrderingExperience);
     await sharedPreferences.remove(AppConstants.kioskAllergenTagEnabled);
     await sharedPreferences.remove(AppConstants.kioskShowImages);
+    await sharedPreferences.remove(AppConstants.kioskShowCategoryImages);
     await sharedPreferences.remove(AppConstants.kioskCategoryColumns);
     // Session-scoped now (sessionStorage); also drop any value an older build
     // left in SharedPreferences so a stale flag can never resurrect kiosk mode.

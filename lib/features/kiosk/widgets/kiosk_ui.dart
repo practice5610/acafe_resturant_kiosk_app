@@ -1,15 +1,9 @@
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
-import 'package:acafe_customer/common/models/product_model.dart';
-import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
-import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
-import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
-import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -394,99 +388,6 @@ class KioskCategoryTile extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Product card with a SQUARE image (AspectRatio 1.0) — the key fix for the
-/// "giant portrait rectangle" problem — and fixed name/price type. Max width is
-/// capped by the grid (300px); on wider screens the grid adds columns/gap
-/// rather than growing the card. Shared by the menu and search-results grids.
-class KioskProductCard extends StatelessWidget {
-  final Product product;
-  final String? badgeLabel;
-  final Color? badgeColor;
-  const KioskProductCard({
-    super.key,
-    required this.product,
-    this.badgeLabel,
-    this.badgeColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final String image = '${splash.baseUrls?.productImageUrl}/${product.image}';
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        onTap: () => openKioskCustomize(context, product),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (CustomImageWidget.showProductImages)
-            Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 1,
-                  child: CustomImageWidget(
-                    placeholder: Images.placeholderImage,
-                    image: image,
-                    fit: BoxFit.cover,
-                    useShimmer: true,
-                    cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
-                  ),
-                ),
-                if (badgeLabel != null)
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: badgeColor ?? KioskUI.popularGreen,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        badgeLabel!,
-                        style: loewBold.copyWith(
-                            fontSize: KioskUI.caption, color: Colors.white),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: loewBold.copyWith(
-                        fontSize: KioskUI.body,
-                        height: 1.15,
-                        color: Colors.black),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    PriceConverterHelper.convertPrice(product.price),
-                    style: loewExtraBold.copyWith(
-                        fontSize: KioskUI.body, color: KioskUI.text),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );

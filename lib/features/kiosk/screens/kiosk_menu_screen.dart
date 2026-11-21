@@ -13,6 +13,7 @@ import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_product_card.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
@@ -24,9 +25,12 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 // Used only by the commented-out manager-access lock below (ownership
 // moved to POS Settings). Restore together with that block.
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
+import 'package:acafe_customer/features/pos/domain/pos_category_layout.dart';
+import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_category_sidebar.dart'
+    show PosCategoryTile;
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 // Used only by the commented-out manager-access lock below (ownership
 // moved to POS Settings). Restore together with that block.
 // import 'package:acafe_customer/features/kiosk/widgets/kiosk_pin_entry_sheet.dart';
@@ -37,7 +41,6 @@ import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
-import 'package:acafe_customer/theme/brand_colors.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
@@ -55,8 +58,6 @@ import 'package:provider/provider.dart';
 // ===========================================================================
 
 // Static promo/badge colours from the design (page background is KioskUI.pageBg).
-const Color _kPopularGreen = Color(0xFF357937);
-const Color _kSpecialRed = Color(0xFF59030E);
 
 // Top-bar search / filter / language controls (Figma 124×124, SVG stroke 6 @ 137).
 const double _kTopBarActionSize = 124;
@@ -591,6 +592,14 @@ class _CategoryRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The photo-tile variant is the same Figma design (2305:14721) the POS rail
+    // uses, driven by the per-device "Show Category Images" Kiosk Setting.
+    // watch (not read) so a live device.settings push re-skins the rail.
+    final bool tiles = context.watch<KioskAuthProvider>().categoryLayout ==
+        PosCategoryLayout.tiles;
+    final String? imageBaseUrl =
+        context.read<SplashProvider>().baseUrls?.categoryImageUrl;
+
     return Consumer<CategoryProvider>(
       builder: (context, category, _) {
         final categories = category.categoryList;
@@ -598,6 +607,37 @@ class _CategoryRail extends StatelessWidget {
           return SizedBox(
               width: width,
               child: const Center(child: CircularProgressIndicator()));
+        }
+        if (tiles) {
+          final double tileScale = width / PosHomeSpec.sidebarTileDesignWidth;
+          return SizedBox(
+            width: width,
+            child: ListView.separated(
+              padding: EdgeInsets.symmetric(
+                vertical: PosHomeSpec.sidebarTileListPadV * tileScale,
+              ),
+              itemCount: categories.length,
+              separatorBuilder: (_, __) =>
+                  SizedBox(height: PosHomeSpec.sidebarTileGap * tileScale),
+              itemBuilder: (context, index) {
+                final c = categories[index];
+                final bool selected =
+                    '${c.id}' == category.selectedSubCategoryId;
+                final String image = c.image ?? '';
+                return Center(
+                  child: PosCategoryTile(
+                    label: c.name ?? '',
+                    imageUrl: (imageBaseUrl != null && image.isNotEmpty)
+                        ? '$imageBaseUrl/$image'
+                        : null,
+                    selected: selected,
+                    onTap: () => onSelect(c.id!),
+                    scale: tileScale,
+                  ),
+                );
+              },
+            ),
+          );
         }
         return SizedBox(
           width: width,
@@ -863,11 +903,11 @@ class _ProductGrid extends StatelessWidget {
                   SliverGrid(
                     gridDelegate: gridDelegate,
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) => _KioskProductCard(
+                      (context, index) => KioskProductCard(
                         s: s,
                         tileWidth: tileWidth,
                         product: products[index],
-                        badge: _badgeForProduct(products[index]),
+                        badge: kioskCardBadgeFor(products[index]),
                         showImages: showImages,
                       ),
                       childCount: splitAt,
@@ -887,11 +927,11 @@ class _ProductGrid extends StatelessWidget {
                     SliverGrid(
                       gridDelegate: gridDelegate,
                       delegate: SliverChildBuilderDelegate(
-                        (context, index) => _KioskProductCard(
+                        (context, index) => KioskProductCard(
                             s: s,
                             tileWidth: tileWidth,
                             product: rest[index],
-                            badge: _badgeForProduct(rest[index]),
+                            badge: kioskCardBadgeFor(rest[index]),
                             showImages: showImages),
                         childCount: rest.length,
                       ),
@@ -905,50 +945,6 @@ class _ProductGrid extends StatelessWidget {
       },
     );
   }
-
-  /// Badge from merchandising tags only (Popular, Specials, …).
-  /// Allergen tags never appear here — see [kioskMenuCardBadgeTag].
-  _Badge? _badgeForProduct(Product product) {
-    final ProductTag? chosen = kioskMenuCardBadgeTag(product);
-    if (chosen == null) return null;
-    final String raw = chosen.tag?.trim() ?? '';
-    if (raw.isEmpty) return null;
-    return _Badge(_badgeLabel(raw), _badgeColor(chosen));
-  }
-
-  String _badgeLabel(String tag) {
-    if (normalizeKioskTag(tag) == 'specials') return 'Special';
-    if (tag.length <= 1) return tag.toUpperCase();
-    return '${tag[0].toUpperCase()}${tag.substring(1).toLowerCase()}';
-  }
-
-  Color _badgeColor(ProductTag tag) {
-    final Color? fromHex = _colorFromHex(tag.color);
-    if (fromHex != null) return fromHex;
-    switch (normalizeKioskTag(tag.tag ?? '')) {
-      case 'popular':
-        return _kPopularGreen;
-      case 'specials':
-        return _kSpecialRed;
-      default:
-        return _kSpecialRed;
-    }
-  }
-
-  Color? _colorFromHex(String? hex) {
-    if (hex == null) return null;
-    final String value = hex.replaceFirst('#', '').trim();
-    if (value.length != 6) return null;
-    final int? parsed = int.tryParse(value, radix: 16);
-    if (parsed == null) return null;
-    return Color(0xFF000000 | parsed);
-  }
-}
-
-class _Badge {
-  final String label;
-  final Color color;
-  const _Badge(this.label, this.color);
 }
 
 /// Loading skeleton for the product grid: shimmering white cards laid out with
@@ -1003,10 +999,10 @@ class _SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double ts = tileWidth / _CardDesign.cardWidth;
+    final double ts = tileWidth / KioskCardDesign.cardWidth;
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(_CardDesign.cardRadius * ts),
+      borderRadius: BorderRadius.circular(KioskCardDesign.cardRadius * ts),
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: EdgeInsets.all(24 * ts),
@@ -1038,635 +1034,6 @@ class _SkeletonCard extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Product card — Figma node 2305:12471 redesign
-//
-// Stack-based layout with ABSOLUTE positioning inside a fixed-size SizedBox.
-// Every vertical offset is measured from the top of the card in design px and
-// scaled by `ts = tileWidth / 548`. Content length never shifts any baseline.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Design-unit constants for the product card (Figma 2305:12471).
-/// Centralised here so they map 1:1 to the design spec.
-class _CardDesign {
-  _CardDesign._();
-
-  // Card frame
-  static const double cardWidth = 548;
-  static const double cardHeight = 823;
-  static const double cardRadius = 33;
-  static const double cardBorderWidth = 5.5;
-
-  // Photo feather mask
-  static const double photoTop = -11;
-  static const double photoWidthFraction = 0.82; // 82% of card width
-  static const double photoHeight = 630;
-  // The feather mask is a radial gradient: opaque centre → transparent edge.
-  // Stops from the Figma SVG (paint0_radial_0_91): 0→0.45 opaque, 0.92→ transparent.
-  static const double featherOpaqueStop = 0.45;
-  static const double featherFadeStop = 0.92;
-
-  // Allergen icons row
-  static const double allergenTop = 574;
-  static const double allergenIconSize = 32;
-  static const double allergenIconGap = 6;
-  static const double allergenRowHeight = 32;
-
-  // Name text box
-  static const double nameTop = 628;
-  static const double nameHeight = 67; // fixed 2-line box
-  static const double nameFontSize = 31.68;
-  static const double nameLineHeight = 1.05;
-
-  // Description
-  static const double descGap = 7; // below name box
-  static const double descHeight = 27;
-  static const double descFontSize = 22;
-  static const double descLineHeight = 1.2;
-
-  // Price
-  static const double priceGap = 9; // below description
-  static const double priceHeight = 42;
-  static const double priceFontSize = 39.6;
-  static const double priceLineHeight = 1.05;
-
-  // Text side inset (from card edge to text block)
-  static const double textInset = 24;
-
-  // Badge (POPULAR / OUT OF STOCK)
-  static const double badgeTop = 38.5;
-  static const double badgeLeft = 27.5;
-  static const double badgeHeight = 68;
-  static const double badgeRadius = 1098.9; // full pill
-  static const double badgeFontSize = 35.2;
-
-  // Info icon
-  static const double infoTop = 24;
-  static const double infoRight = 23;
-  static const double infoSize = 40;
-  static const double infoFontSize = 22;
-
-  // Out-of-stock
-  static const double outOfStockOpacity = 0.45;
-  static const Color outOfStockBadgeColor = Color(0xFF808080);
-  static const Color outOfStockTextColor = Color(0xFF808080);
-}
-
-class _KioskProductCard extends StatelessWidget {
-  final double s;
-  final double tileWidth;
-  final Product product;
-  final _Badge? badge;
-  final bool showImages;
-  const _KioskProductCard({
-    required this.s,
-    required this.tileWidth,
-    required this.product,
-    this.badge,
-    this.showImages = true,
-  });
-
-  /// Out of stock when the branch-level record explicitly says so.
-  /// A null [BranchProduct] means the product has no branch override — treat
-  /// it as available (the backend would not include it otherwise).
-  bool get _isOutOfStock =>
-      product.branchProduct != null && product.branchProduct!.isAvailable != true;
-
-  @override
-  Widget build(BuildContext context) {
-    // Picture-less device: use the compact text-only card.
-    if (!showImages) return _buildTextOnlyCard(context);
-
-    final double ts = tileWidth / _CardDesign.cardWidth;
-    final double cardRadius = _CardDesign.cardRadius * ts;
-    final double cardBorderWidth = _CardDesign.cardBorderWidth * ts;
-    final double tileHeight = tileWidth * (_CardDesign.cardHeight / _CardDesign.cardWidth);
-
-    final cardContent = SizedBox(
-      width: tileWidth,
-      height: tileHeight,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // ── Feathered photo ──
-          _buildPhoto(context, ts),
-
-          // ── Allergen icons ──
-          _buildAllergenRow(ts),
-
-          // ── Name (fixed 2-line box) ──
-          _buildName(ts),
-
-          // ── Description ──
-          _buildDescription(ts),
-
-          // ── Price ──
-          _buildPrice(ts),
-
-          // ── Badge (POPULAR / OUT OF STOCK) ──
-          if (badge != null && !_isOutOfStock) _buildBadge(ts),
-          if (_isOutOfStock) _buildOutOfStockBadge(ts),
-        ],
-      ),
-    );
-
-    final card = Material(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(cardRadius),
-        side: BorderSide(color: BrandColors.cardBorder, width: cardBorderWidth),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: cardContent,
-    );
-
-    // Out-of-stock: fade the card and block taps (but keep the info icon live).
-    // The info icon is positioned OUTSIDE the card's tap area via a separate
-    // Stack layer, so AbsorbPointer on the card does not kill it.
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Card body — tappable unless out of stock.
-        Opacity(
-          opacity: _isOutOfStock ? _CardDesign.outOfStockOpacity : 1.0,
-          child: _isOutOfStock
-              ? AbsorbPointer(child: card)
-              : KioskTap(
-                  onTap: () => openKioskCustomize(context, product),
-                  child: card,
-                ),
-        ),
-        // ── Info (i) icon — always tappable ──
-        _buildInfoIcon(context, ts),
-      ],
-    );
-  }
-
-  /// Compact text-only card (picture-less device / show-images off).
-  Widget _buildTextOnlyCard(BuildContext context) {
-    final double ts = tileWidth / _CardDesign.cardWidth;
-    final double cardRadius = _CardDesign.cardRadius * ts;
-    final double cardBorderWidth = _CardDesign.cardBorderWidth * ts;
-
-    return Material(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(cardRadius),
-        side: BorderSide(color: BrandColors.cardBorder, width: cardBorderWidth),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        onTap: _isOutOfStock ? null : () => openKioskCustomize(context, product),
-        child: Opacity(
-          opacity: _isOutOfStock ? _CardDesign.outOfStockOpacity : 1.0,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(24 * ts, 16 * ts, 24 * ts, 24 * ts),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (badge != null) ...[
-                  Center(
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 20 * ts, vertical: 6 * ts),
-                      decoration: BoxDecoration(
-                        color: _isOutOfStock
-                            ? _CardDesign.outOfStockBadgeColor
-                            : badge!.color,
-                        borderRadius: BorderRadius.circular(10 * ts),
-                      ),
-                      child: Text(
-                        _isOutOfStock ? 'OUT OF STOCK' : badge!.label,
-                        style: loewMedium.copyWith(
-                            color: Colors.white, fontSize: 28 * ts),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 12 * ts),
-                ],
-                Text(
-                  product.name ?? '',
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: loewExtraBold.copyWith(
-                    fontSize: _CardDesign.nameFontSize * ts,
-                    height: _CardDesign.nameLineHeight,
-                    letterSpacing: 0,
-                    color: _isOutOfStock
-                        ? _CardDesign.outOfStockTextColor
-                        : Colors.black,
-                  ),
-                ),
-                SizedBox(height: 8 * ts),
-                Text(
-                  PriceConverterHelper.convertPrice(
-                    product.price,
-                    discount: product.discount,
-                    discountType: product.discountType,
-                  ),
-                  textAlign: TextAlign.center,
-                  style: swiss721Light.copyWith(
-                    fontSize: _CardDesign.priceFontSize * ts,
-                    height: _CardDesign.priceLineHeight,
-                    color: _isOutOfStock
-                        ? _CardDesign.outOfStockTextColor
-                        : Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Feathered product photo with radial gradient mask.
-  Widget _buildPhoto(BuildContext context, double ts) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final String image = '${splash.baseUrls?.productImageUrl}/${product.image}';
-    final double photoWidth = tileWidth * _CardDesign.photoWidthFraction;
-    final double photoHeight = _CardDesign.photoHeight * ts;
-    final double photoLeft = (tileWidth - photoWidth) / 2;
-
-    return Positioned(
-      top: _CardDesign.photoTop * ts,
-      left: photoLeft,
-      width: photoWidth,
-      height: photoHeight,
-      child: ShaderMask(
-        shaderCallback: (Rect bounds) => const RadialGradient(
-          center: Alignment.center,
-          radius: 1.0,
-          colors: [
-            Colors.black,
-            Colors.black,
-            Colors.transparent,
-          ],
-          stops: [
-            0.0,
-            _CardDesign.featherOpaqueStop,
-            _CardDesign.featherFadeStop,
-          ],
-        ).createShader(bounds),
-        blendMode: BlendMode.dstIn,
-        child: CustomImageWidget(
-          placeholder: Images.placeholderImage,
-          image: image,
-          fit: BoxFit.cover,
-          useShimmer: true,
-          cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
-        ),
-      ),
-    );
-  }
-
-  /// Allergen icons row — always reserves its height even with no allergens.
-  Widget _buildAllergenRow(double ts) {
-    final Set<KioskAllergen> allergens = kioskProductAllergens(product);
-    final double iconSize = _CardDesign.allergenIconSize * ts;
-    final double iconGap = _CardDesign.allergenIconGap * ts;
-
-    return Positioned(
-      top: _CardDesign.allergenTop * ts,
-      left: 0,
-      right: 0,
-      height: _CardDesign.allergenRowHeight * ts,
-      child: allergens.isEmpty
-          ? SizedBox(height: _CardDesign.allergenRowHeight * ts)
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (int i = 0; i < allergens.length; i++) ...[
-                  if (i > 0) SizedBox(width: iconGap),
-                  Container(
-                    width: iconSize,
-                    height: iconSize,
-                    decoration: BoxDecoration(
-                      color: allergens.elementAt(i).swatch,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: CustomAssetImageWidget(
-                        allergens.elementAt(i).icon,
-                        width: iconSize * 0.57,
-                        height: iconSize * 0.57,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-    );
-  }
-
-  /// Product name — fixed 2-line box, vertically centered when 1 line.
-  Widget _buildName(double ts) {
-    final double nameHeight = _CardDesign.nameHeight * ts;
-    final double textInset = _CardDesign.textInset * ts;
-
-    return Positioned(
-      top: _CardDesign.nameTop * ts,
-      left: textInset,
-      right: textInset,
-      height: nameHeight,
-      child: Center(
-        child: Text(
-          product.name ?? '',
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: loewExtraBold.copyWith(
-            fontSize: _CardDesign.nameFontSize * ts,
-            height: _CardDesign.nameLineHeight,
-            letterSpacing: 0,
-            color: _isOutOfStock
-                ? _CardDesign.outOfStockTextColor
-                : Colors.black,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Product description — 1 line with ellipsis.
-  Widget _buildDescription(double ts) {
-    final double descTop =
-        (_CardDesign.nameTop + _CardDesign.nameHeight + _CardDesign.descGap) * ts;
-    final double textInset = _CardDesign.textInset * ts;
-
-    return Positioned(
-      top: descTop,
-      left: textInset,
-      right: textInset,
-      height: _CardDesign.descHeight * ts,
-      child: Center(
-        child: Text(
-          product.description ?? '',
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: swiss721Light.copyWith(
-            fontSize: _CardDesign.descFontSize * ts,
-            height: _CardDesign.descLineHeight,
-            color: const Color(0xFF4D4D4D),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Price — single line.
-  Widget _buildPrice(double ts) {
-    final double priceTop =
-        (_CardDesign.nameTop +
-            _CardDesign.nameHeight +
-            _CardDesign.descGap +
-            _CardDesign.descHeight +
-            _CardDesign.priceGap) *
-        ts;
-    final double textInset = _CardDesign.textInset * ts;
-
-    return Positioned(
-      top: priceTop,
-      left: textInset,
-      right: textInset,
-      height: _CardDesign.priceHeight * ts,
-      child: Center(
-        child: Text(
-          PriceConverterHelper.convertPrice(
-            product.price,
-            discount: product.discount,
-            discountType: product.discountType,
-          ),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: swiss721Light.copyWith(
-            fontSize: _CardDesign.priceFontSize * ts,
-            height: _CardDesign.priceLineHeight,
-            color: _isOutOfStock
-                ? _CardDesign.outOfStockTextColor
-                : Colors.black,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// POPULAR badge — green pill, top-left.
-  Widget _buildBadge(double ts) {
-    return Positioned(
-      top: _CardDesign.badgeTop * ts,
-      left: _CardDesign.badgeLeft * ts,
-      child: Container(
-        height: _CardDesign.badgeHeight * ts,
-        padding: EdgeInsets.symmetric(horizontal: 28 * ts),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: badge!.color,
-          borderRadius: BorderRadius.circular(_CardDesign.badgeRadius * ts),
-        ),
-        child: Text(
-          badge!.label.toUpperCase(),
-          style: loewMedium.copyWith(
-            fontSize: _CardDesign.badgeFontSize * ts,
-            height: 1,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// OUT OF STOCK badge — grey pill, top-left.
-  Widget _buildOutOfStockBadge(double ts) {
-    return Positioned(
-      top: _CardDesign.badgeTop * ts,
-      left: _CardDesign.badgeLeft * ts,
-      child: Container(
-        height: _CardDesign.badgeHeight * ts,
-        padding: EdgeInsets.symmetric(horizontal: 28 * ts),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: _CardDesign.outOfStockBadgeColor,
-          borderRadius: BorderRadius.circular(_CardDesign.badgeRadius * ts),
-        ),
-        child: Text(
-          'OUT OF STOCK',
-          style: loewMedium.copyWith(
-            fontSize: _CardDesign.badgeFontSize * ts,
-            height: 1,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Info (i) icon — 40×40 circle, top-right, independently tappable.
-  Widget _buildInfoIcon(BuildContext context, double ts) {
-    final double infoSize = _CardDesign.infoSize * ts;
-    final double infoRight = _CardDesign.infoRight * ts;
-    final double infoTop = _CardDesign.infoTop * ts;
-
-    return Positioned(
-      top: infoTop,
-      right: infoRight,
-      child: KioskTap(
-        onTap: () => _showProductInfoDialog(context),
-        child: Container(
-          width: infoSize,
-          height: infoSize,
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(infoSize / 2),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            'i',
-            style: loewBold.copyWith(
-              fontSize: _CardDesign.infoFontSize * ts,
-              height: 1,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Ingredients & allergens info popup.
-  void _showProductInfoDialog(BuildContext context) {
-    final Set<KioskAllergen> allergens = kioskProductAllergens(product);
-    final double s = KioskLayout.scaleOf(context);
-    showDialog(
-      context: context,
-      builder: (context) => _ProductInfoDialog(
-        product: product,
-        allergens: allergens,
-        s: s,
-      ),
-    );
-  }
-}
-
-/// Ingredients & allergens popup dialog.
-class _ProductInfoDialog extends StatelessWidget {
-  final Product product;
-  final Set<KioskAllergen> allergens;
-  final double s;
-  const _ProductInfoDialog({
-    required this.product,
-    required this.allergens,
-    required this.s,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: KioskUI.pageBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(30 * s),
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 600 * s),
-        child: Padding(
-          padding: EdgeInsets.all(40 * s),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      product.name ?? '',
-                      style: loewExtraBold.copyWith(
-                        fontSize: 36 * s,
-                        height: 1.1,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  KioskTap(
-                    onTap: () => Navigator.pop(context),
-                    child: Icon(Icons.close, size: 36 * s, color: Colors.black),
-                  ),
-                ],
-              ),
-              if (product.description != null &&
-                  product.description!.isNotEmpty) ...[
-                SizedBox(height: 16 * s),
-                Text(
-                  product.description!,
-                  style: swiss721Light.copyWith(
-                    fontSize: 24 * s,
-                    height: 1.3,
-                    color: const Color(0xFF4D4D4D),
-                  ),
-                ),
-              ],
-              if (allergens.isNotEmpty) ...[
-                SizedBox(height: 28 * s),
-                Text(
-                  'Allergens',
-                  style: loewBold.copyWith(
-                    fontSize: 28 * s,
-                    color: Colors.black,
-                  ),
-                ),
-                SizedBox(height: 16 * s),
-                Wrap(
-                  spacing: 12 * s,
-                  runSpacing: 12 * s,
-                  children: allergens.map((allergen) {
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 36 * s,
-                          height: 36 * s,
-                          decoration: BoxDecoration(
-                            color: allergen.swatch,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: CustomAssetImageWidget(
-                              allergen.icon,
-                              width: 20 * s,
-                              height: 20 * s,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 8 * s),
-                        Text(
-                          allergen.label,
-                          style: swiss721Light.copyWith(
-                            fontSize: 24 * s,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // Dark button fill + cream text used by the filled cart bar (from the design).
 const Color _kDarkButton = Color(0xFF1E1E1E);
 const Color _kCreamText = Color(0xFFFFFFFF);

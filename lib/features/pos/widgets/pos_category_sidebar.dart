@@ -1,4 +1,6 @@
+import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/category/domain/category_model.dart';
+import 'package:acafe_customer/features/pos/domain/pos_category_layout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_kiosk_mode_actions.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_punch_actions.dart';
@@ -14,6 +16,16 @@ class PosCategorySidebar extends StatelessWidget {
   final List<CategoryModel> categories;
   final String? selectedId;
   final ValueChanged<CategoryModel> onSelect;
+
+  /// Which rail variant to draw. Defaults to [PosCategoryLayout.list] so every
+  /// existing caller and test is unchanged; the Menu screen passes the
+  /// configured value. Only the per-row presentation differs — data, selection
+  /// and tap handling are identical for both. See [PosCategoryLayout].
+  final PosCategoryLayout layout;
+
+  /// Base URL for category images, used only by [PosCategoryLayout.tiles]. When
+  /// null (or a category has no image), the tile falls back to a name-only row.
+  final String? imageBaseUrl;
 
   /// Tapped to open the Punch In / Out screen. Optional: when null (every
   /// existing caller and the widget's own tests) the action is not rendered, so
@@ -45,6 +57,8 @@ class PosCategorySidebar extends StatelessWidget {
     required this.categories,
     required this.selectedId,
     required this.onSelect,
+    this.layout = PosCategoryLayout.list,
+    this.imageBaseUrl,
     this.onPunch,
     this.onKioskMode,
     this.width = PosHomeSpec.sidebarWidth,
@@ -70,21 +84,9 @@ class PosCategorySidebar extends StatelessWidget {
             child: ScrollConfiguration(
               behavior:
                   ScrollConfiguration.of(context).copyWith(scrollbars: false),
-              child: ListView.separated(
-                padding: PosHomeSpec.sidebarPadding * scale,
-                itemCount: categories.length,
-                separatorBuilder: (_, __) =>
-                    SizedBox(height: PosHomeSpec.sidebarItemGap * scale),
-                itemBuilder: (context, index) {
-                  final category = categories[index];
-                  return PosCategoryItem(
-                    label: category.name ?? '',
-                    selected: '${category.id}' == selectedId,
-                    onTap: () => onSelect(category),
-                    scale: scale,
-                  );
-                },
-              ),
+              child: layout == PosCategoryLayout.tiles
+                  ? _buildTileList(context)
+                  : _buildTextList(context),
             ),
           ),
           if (onPunch != null || onKioskMode != null)
@@ -95,6 +97,57 @@ class PosCategorySidebar extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  /// The original flat text rail.
+  Widget _buildTextList(BuildContext context) {
+    return ListView.separated(
+      padding: PosHomeSpec.sidebarPadding * scale,
+      itemCount: categories.length,
+      separatorBuilder: (_, __) =>
+          SizedBox(height: PosHomeSpec.sidebarItemGap * scale),
+      itemBuilder: (context, index) {
+        final category = categories[index];
+        return PosCategoryItem(
+          label: category.name ?? '',
+          selected: '${category.id}' == selectedId,
+          onTap: () => onSelect(category),
+          scale: scale,
+        );
+      },
+    );
+  }
+
+  /// "Menu Variant 2 — Category Tiles with Photos" (Figma 2305:14721).
+  ///
+  /// Every tile token is a native design pixel scaled by [tileScale] so the
+  /// rail keeps the Figma proportions at whatever width the pane was given.
+  Widget _buildTileList(BuildContext context) {
+    // Scale the design (a 600-wide list) down to the actual pane width.
+    final double tileScale = width / PosHomeSpec.sidebarTileDesignWidth;
+    return ListView.separated(
+      padding: EdgeInsets.symmetric(
+        vertical: PosHomeSpec.sidebarTileListPadV * tileScale,
+      ),
+      itemCount: categories.length,
+      separatorBuilder: (_, __) =>
+          SizedBox(height: PosHomeSpec.sidebarTileGap * tileScale),
+      itemBuilder: (context, index) {
+        final category = categories[index];
+        final String image = category.image ?? '';
+        return Center(
+          child: PosCategoryTile(
+            label: category.name ?? '',
+            imageUrl: (imageBaseUrl != null && image.isNotEmpty)
+                ? '$imageBaseUrl/$image'
+                : null,
+            selected: '${category.id}' == selectedId,
+            onTap: () => onSelect(category),
+            scale: tileScale,
+          ),
+        );
+      },
     );
   }
 }
@@ -262,6 +315,107 @@ class PosCategoryItem extends StatelessWidget {
                     child: ColoredBox(color: PosHomeSpec.ink),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A single category row in the tile variant (Figma 2305:14721).
+///
+/// A rounded card holding a cutout product photo (contain, never cropped) above
+/// a centred, uppercase name of up to two lines. The active card is filled ink
+/// with a cream name; inactive cards are the cream fill with a faint outline.
+/// All geometry is a native design pixel multiplied by [scale].
+class PosCategoryTile extends StatelessWidget {
+  final String label;
+
+  /// Fully-qualified image URL, or null for a name-only fallback (no image
+  /// configured, or no base URL available).
+  final String? imageUrl;
+  final bool selected;
+  final VoidCallback onTap;
+
+  /// `paneWidth / PosHomeSpec.sidebarTileDesignWidth`.
+  final double scale;
+
+  const PosCategoryTile({
+    super.key,
+    required this.label,
+    required this.imageUrl,
+    required this.selected,
+    required this.onTap,
+    required this.scale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final BorderRadius radius =
+        BorderRadius.circular(PosHomeSpec.sidebarTileCardRadius * scale);
+    final Color borderColor = selected
+        ? PosHomeSpec.sidebarTileActiveBg
+        : PosHomeSpec.sidebarTileCardBorderColor;
+
+    return Material(
+      color: selected
+          ? PosHomeSpec.sidebarTileActiveBg
+          : PosHomeSpec.sidebarTileCardBg,
+      borderRadius: radius,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Container(
+          width: PosHomeSpec.sidebarTileCardWidth * scale,
+          height: PosHomeSpec.sidebarTileCardHeight * scale,
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(
+              color: borderColor,
+              width: PosHomeSpec.sidebarTileCardBorder * scale,
+            ),
+          ),
+          padding: EdgeInsets.only(
+            top: PosHomeSpec.sidebarTileCardPadTop * scale,
+            bottom: PosHomeSpec.sidebarTileCardPadBottom * scale,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Cutout product shot on the cream (or ink) background: no mask,
+              // circle, border or fill behind it; contained so it is never
+              // cropped. Missing image -> the slot collapses to nothing and the
+              // name takes the whole card.
+              if (imageUrl != null)
+                SizedBox(
+                  width: PosHomeSpec.sidebarTileImageWidth * scale,
+                  height: PosHomeSpec.sidebarTileImageHeight * scale,
+                  child: CustomImageWidget(
+                    image: imageUrl!,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              Expanded(
+                child: Center(
+                  child: SizedBox(
+                    width: PosHomeSpec.sidebarTileLabelWidth * scale,
+                    child: Text(
+                      label.toUpperCase(),
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: loewBold.copyWith(
+                        fontSize: PosHomeSpec.sidebarTileLabelSize * scale,
+                        height: 1,
+                        color: selected
+                            ? Colors.white
+                            : PosHomeSpec.sidebarTileInk,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

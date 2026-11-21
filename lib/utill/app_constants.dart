@@ -208,6 +208,7 @@ class AppConstants {
   static const String kioskOrderingExperience = 'kiosk_ordering_experience';
   static const String kioskAllergenTagEnabled = 'kiosk_allergen_tag_enabled';
   static const String kioskShowImages = 'kiosk_show_images';
+  static const String kioskShowCategoryImages = 'kiosk_show_category_images';
   static const String kioskCategoryColumns = 'kiosk_category_columns';
   /// A POS till temporarily serving as a kiosk. SESSION-SCOPED: this key lives
   /// in the browser's `sessionStorage` (see [KioskAuthRepo]), NOT

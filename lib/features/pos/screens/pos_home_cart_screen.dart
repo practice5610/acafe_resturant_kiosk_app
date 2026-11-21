@@ -14,6 +14,7 @@ import 'package:acafe_customer/features/pos/providers/pos_access_scope.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_kiosk_mode_actions.dart';
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_layout.dart';
+import 'package:acafe_customer/features/pos/domain/pos_category_layout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/domain/pos_receipt_menu_actions.dart';
 import 'package:acafe_customer/features/pos/domain/pos_routes.dart';
@@ -580,15 +581,30 @@ class _PosHomeCartScreenState extends State<PosHomeCartScreen> {
                     ),
                   )
                 else ...[
-                  PosCategorySidebar(
-                    categories: categories,
-                    selectedId: selectedId,
-                    onSelect: _selectCategory,
-                    onPunch: openPunch,
-                    onKioskMode: openKioskMode,
-                    width: layout.sidebarWidth,
-                    scale: layout.scale,
-                  ),
+                  Builder(builder: (context) {
+                    final PosCategoryLayout catLayout =
+                        context.watch<KioskAuthProvider>().categoryLayout;
+                    final bool tiles =
+                        catLayout == PosCategoryLayout.tiles;
+                    // Keep the responsive scaling the list rail already has,
+                    // just at the tile rail's wider base width.
+                    final double sidebarWidth = tiles
+                        ? layout.sidebarWidth *
+                            (PosHomeSpec.sidebarTileWidth /
+                                PosHomeSpec.sidebarWidth)
+                        : layout.sidebarWidth;
+                    return PosCategorySidebar(
+                      categories: categories,
+                      selectedId: selectedId,
+                      onSelect: _selectCategory,
+                      layout: catLayout,
+                      imageBaseUrl: splash.baseUrls?.categoryImageUrl,
+                      onPunch: openPunch,
+                      onKioskMode: openKioskMode,
+                      width: sidebarWidth,
+                      scale: layout.scale,
+                    );
+                  }),
                   Expanded(child: content),
                 ],
                 if (layout.sideReceipt)

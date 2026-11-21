@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/category/domain/category_model.dart';
+import 'package:acafe_customer/features/pos/domain/pos_category_layout.dart';
 import 'package:acafe_customer/features/pos/domain/pos_home_spec.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_category_sidebar.dart';
 import 'package:flutter/material.dart';
@@ -49,6 +51,8 @@ Future<void> _pump(
 
 void main() {
   setUpAll(_loadLoew);
+
+  _tilesMain();
 
   testWidgets('shows the Punch In / Out action when a handler is given',
       (tester) async {
@@ -178,4 +182,64 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+}
+
+void _tilesMain() {
+  group('tile variant', () {
+    Future<void> pumpTiles(
+      WidgetTester tester, {
+      String? imageBaseUrl,
+      String selectedId = '1',
+      void Function(CategoryModel)? onSelect,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PosCategorySidebar(
+              categories: [
+                CategoryModel(id: 1, name: 'Coffee', image: 'coffee.png'),
+                CategoryModel(id: 2, name: 'Matcha'),
+              ],
+              selectedId: selectedId,
+              onSelect: onSelect ?? (_) {},
+              layout: PosCategoryLayout.tiles,
+              imageBaseUrl: imageBaseUrl,
+              width: PosHomeSpec.sidebarTileWidth,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('renders a tile per category with its name', (tester) async {
+      await pumpTiles(tester);
+      expect(find.byType(PosCategoryTile), findsNWidgets(2));
+      expect(find.text('COFFEE'), findsOneWidget);
+      expect(find.text('MATCHA'), findsOneWidget);
+    });
+
+    testWidgets('selecting a tile fires the handler with its category',
+        (tester) async {
+      CategoryModel? tapped;
+      await pumpTiles(tester, onSelect: (c) => tapped = c);
+      await tester.tap(find.text('MATCHA'));
+      expect(tapped?.id, 2);
+    });
+
+    testWidgets('falls back to a name-only tile with no base url',
+        (tester) async {
+      await pumpTiles(tester, imageBaseUrl: null);
+      expect(find.byType(CustomImageWidget), findsNothing);
+      expect(find.text('COFFEE'), findsOneWidget);
+    });
+
+    testWidgets('shows an image only for a category that has one',
+        (tester) async {
+      await pumpTiles(tester, imageBaseUrl: 'https://img.test');
+      // Coffee has an image; Matcha does not -> exactly one image slot.
+      expect(find.byType(CustomImageWidget), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
