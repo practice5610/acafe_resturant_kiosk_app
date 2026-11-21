@@ -83,13 +83,7 @@ class LandscapeProductCard extends StatelessWidget {
               Expanded(
                 child: Stack(
                   children: [
-                    Positioned.fill(
-                      child: CustomImageWidget(
-                        placeholder: Images.placeholderImage,
-                        image: image,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+                    Positioned.fill(child: _FeatheredCardPhoto(image: image)),
                     if (outOfStock)
                       const Positioned.fill(
                         child: DecoratedBox(
@@ -170,6 +164,68 @@ class LandscapeProductCard extends StatelessWidget {
     );
 
     return outOfStock ? Opacity(opacity: 0.45, child: card) : card;
+  }
+}
+
+/// Figma's "Card Photo" (`2305:3757`) is two copies of the SAME product
+/// image: a base fill stretched ~5000% wide (a cheap all-over colour wash,
+/// no blur filter needed) behind a normal crop of the photo faded at its
+/// edges by a radial-gradient alpha mask ("Photo feather", `2305:3758`,
+/// mask SVG `2305:3760`: opaque to 45% of its radius, transparent by 92%).
+/// Reproduced with [ShaderMask] + [RadialGradient] rather than rasterizing
+/// the downloaded mask SVG per card — a shader is GPU-cheap and never
+/// re-decodes on resize, which matters on small POS devices with many
+/// cards on screen. Proportions (crop ~79% of the box, offset ~10%/‑1%) are
+/// Figma's own photo-frame ratios, applied to this box's own size so they
+/// scale with [LandscapeMetrics] like everything else on this screen.
+class _FeatheredCardPhoto extends StatelessWidget {
+  final String image;
+  const _FeatheredCardPhoto({required this.image});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double w = constraints.maxWidth;
+        final double h = constraints.maxHeight;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipRect(
+              child: OverflowBox(
+                maxWidth: w * 50,
+                minWidth: w * 50,
+                maxHeight: h,
+                minHeight: h,
+                child: CustomImageWidget(
+                  placeholder: Images.placeholderImage,
+                  image: image,
+                  fit: BoxFit.fill,
+                ),
+              ),
+            ),
+            Positioned(
+              left: w * 0.104,
+              top: h * -0.0134,
+              width: w * 0.793,
+              height: h * 0.794,
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (bounds) => const RadialGradient(
+                  colors: [Colors.black, Colors.black, Colors.transparent],
+                  stops: [0.0, 0.45, 0.92],
+                ).createShader(bounds),
+                child: CustomImageWidget(
+                  placeholder: Images.placeholderImage,
+                  image: image,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

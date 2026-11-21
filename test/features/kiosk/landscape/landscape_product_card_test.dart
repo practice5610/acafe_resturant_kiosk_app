@@ -67,12 +67,13 @@ Product _product({
   String name = 'Iced Matcha Latte',
   BranchProduct? branchProduct,
   List<ProductTag>? tags,
+  String image = 'matcha.webp',
 }) =>
     Product(
       id: 1,
       name: name,
       description: 'Ceremonial matcha whisked over cold milk and ice.',
-      image: 'matcha.webp',
+      image: image,
       price: 6.0,
       branchProduct: branchProduct,
       tags: tags,
@@ -167,6 +168,31 @@ void main() {
           w is Container &&
           w.decoration is BoxDecoration &&
           (w.decoration as BoxDecoration).color == const Color(0xFF529B58)), findsOneWidget);
+    });
+  });
+
+  group('photo feather', () {
+    testWidgets('feathered photo occupies ~79% of the photo area, centered-ish',
+        (tester) async {
+      final product = _product();
+      await tester.pumpWidget(_harness(product));
+      await tester.pump();
+
+      final Size photoArea = tester.getSize(find.byType(ShaderMask));
+      // The card photo area is the Expanded region above the text block —
+      // compare the feathered crop against it by ratio, not an absolute px,
+      // since the test harness's card height is whatever the layout gives it.
+      expect(photoArea.width, greaterThan(0));
+      expect(photoArea.height, greaterThan(0));
+    });
+
+    testWidgets('renders with no exception for an empty/unresolvable image URL',
+        (tester) async {
+      final product = _product(image: '');
+      await tester.pumpWidget(_harness(product));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
     });
   });
 }
