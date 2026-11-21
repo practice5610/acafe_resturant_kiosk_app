@@ -181,7 +181,7 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
             // a narrow (near-portrait) width during a resize.
             final double panelUpper = math.max(c.maxWidth * 0.4, 0.0);
             final double panelLower = math.min(220.0, panelUpper);
-            final double panelWidth = (390 * s).clamp(panelLower, panelUpper);
+            final double panelWidth = (430 * s).clamp(panelLower, panelUpper);
             return Stack(
               children: [
                 Row(
@@ -548,16 +548,21 @@ class _ProductGrid extends StatelessWidget {
           maxColumns: kColumns,
         );
         final int columns = geo.columns;
-        // Figma's own card ratio (374.95 tall at a 250 width, ≈1.4998) left
-        // only ~1.3 rows visible on a real screen before the next row was
-        // scrolled almost entirely out of view — shortened so two full rows
-        // fit. That ratio lives in a file shared with portrait
-        // (common/responsive/kiosk_responsive.dart), so rather than change
-        // the shared factory's assumption, the card height is computed
-        // locally and used for the sliver's mainAxisExtent;
-        // LandscapeProductCard already lays its image out with Expanded, so
-        // it fills whatever height it is given.
-        const double kCardAspect = 1.0;
+        // Figma's exact card ratio (`get_metadata` on 2305:3756: 374.9543
+        // tall at a 250 wide card — a tall rectangle, not square). Figma's
+        // OWN 1366x1024 canvas only shows row 1 + the promo banner too —
+        // row 2 starts at y795 and ends at y1170, past the 1024 reference
+        // height, which is exactly why the design has a "Bottom fade" layer
+        // at y884: row 2 is meant to scroll into view, same as this screen
+        // already does, not fit on one screen uncropped. A browser window
+        // taller than the 1366x1024 reference simply shows more of the
+        // scrollable grid, which is correct, not a bug. That ratio lives in
+        // a file shared with portrait (common/responsive/kiosk_responsive.dart),
+        // so rather than change the shared factory's assumption, the card
+        // height is computed locally and used for the sliver's
+        // mainAxisExtent; LandscapeProductCard already lays its image out
+        // with Expanded, so it fills whatever height it is given.
+        const double kCardAspect = 374.9543151855469 / 250.0;
         // Guards a tiny/negative tileWidth during an extreme resize (the
         // shared factory doesn't floor it) so the grid never hands a
         // negative mainAxisExtent to SliverGrid.
