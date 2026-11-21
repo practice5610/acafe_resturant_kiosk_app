@@ -104,8 +104,12 @@ void main() {
       expect(find.text('BACK'), findsOneWidget);
       expect(find.text('CONTINUE'), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
-      expect(find.text('Space'), findsNothing);
-      expect(find.text('Clear'), findsNothing);
+      // The on-screen KioskKeyboard (Figma 2305:16029) is always visible now —
+      // the field suppresses the platform's own soft keyboard instead.
+      expect(find.text('Space'), findsOneWidget);
+      expect(find.text('Clear'), findsOneWidget);
+      expect(find.text('q'), findsOneWidget); // lower-case: shift starts off
+      expect(find.text('1'), findsOneWidget); // digit row, unlike the note popup
       expect(svgKey(Images.kioskCouponQrSvg), findsOneWidget);
     });
   }
@@ -168,6 +172,61 @@ void main() {
     expect(fieldOf(tester).controller!.text, 'A81739');
   });
 
+  // Shift and backspace are drawn from an SVG asset, not a Material Icon
+  // (see _KioskKey in kiosk_keyboard.dart). This screen also has a THIRD
+  // SvgPicture — the QR code in _ScanPanel — so positional first/last would
+  // be ambiguous; find each key by its own asset instead.
+  Finder shiftKey() => svgKey(Images.kioskKeyShiftSvg);
+  Finder backspaceKey() => svgKey(Images.kioskKeyBackspaceSvg);
+
+  testWidgets('tapping on-screen keys types into the field, digits included',
+      (tester) async {
+    await render(tester, const Size(1080, 1920));
+
+    await tester.tap(find.text('1'));
+    await tester.tap(find.text('a'));
+    await tester.pump();
+
+    expect(fieldOf(tester).controller!.text, '1a');
+  });
+
+  testWidgets('shift types upper case for the next letter, then drops back',
+      (tester) async {
+    await render(tester, const Size(1080, 1920));
+
+    await tester.tap(shiftKey());
+    await tester.pump();
+    expect(find.text('A'), findsOneWidget); // board now shows caps
+
+    await tester.tap(find.text('A'));
+    await tester.pump();
+
+    expect(fieldOf(tester).controller!.text, 'A');
+  });
+
+  testWidgets('backspace, space and clear edit the field in place',
+      (tester) async {
+    await render(tester, const Size(1080, 1920));
+
+    await tester.tap(find.text('a'));
+    await tester.tap(find.text('b'));
+    await tester.pump();
+    expect(fieldOf(tester).controller!.text, 'ab');
+
+    await tester.tap(backspaceKey());
+    await tester.pump();
+    expect(fieldOf(tester).controller!.text, 'a');
+
+    await tester.tap(find.text('Space'));
+    await tester.tap(find.text('c'));
+    await tester.pump();
+    expect(fieldOf(tester).controller!.text, 'a c');
+
+    await tester.tap(find.text('Clear'));
+    await tester.pump();
+    expect(fieldOf(tester).controller!.text, isEmpty);
+  });
+
   testWidgets('the field submits on Enter, the way a scanner finishes a code',
       (tester) async {
     // The "SCAN YOUR CODE" panel means a barcode scanner types into this field
@@ -178,8 +237,11 @@ void main() {
     final TextField field = fieldOf(tester);
     expect(field.onSubmitted, isNotNull);
     expect(field.textInputAction, TextInputAction.done);
+    // Not readOnly: a real hardware scanner keystroke still has to reach the
+    // controller. TextInputType.none is what actually suppresses the
+    // platform's own on-screen keyboard — see the KioskCouponScreen class doc.
     expect(field.readOnly, isFalse);
-    expect(field.keyboardType, TextInputType.visiblePassword);
+    expect(field.keyboardType, TextInputType.none);
   });
 
   test('every string the screen asks for exists in all four languages', () {

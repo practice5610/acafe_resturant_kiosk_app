@@ -17,6 +17,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart'
     show kCheckoutErrorRed;
 import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_applied_screen.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_keyboard.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
@@ -25,11 +26,14 @@ import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 
-/// Kiosk coupon entry — Figma POS node 1385:15500 ("07 – Coupon: Enter Code").
+/// Kiosk coupon entry — Figma 2305:16029 ("07 Coupon: enter code").
 ///
-/// Brand mark, prompt, a large code field, the "SCAN YOUR CODE" panel and the
-/// BACK / CONTINUE pair. Customers type with the device keyboard (tap the
-/// field) or scan a barcode into the same field.
+/// Brand mark, prompt, a large code field, an always-visible on-screen
+/// [KioskKeyboard], the "SCAN YOUR CODE" panel, and the BACK / CONTINUE pair.
+/// The field uses `keyboardType: TextInputType.none` rather than `readOnly`,
+/// so it stays genuinely editable: every visible key comes from the on-screen
+/// board, the platform's own soft keyboard never opens, and a barcode
+/// scanner — a hardware keyboard — can still type into the same field.
 ///
 /// CONTINUE (and Enter, which is how a barcode scanner finishes a code) hands
 /// the code to [CouponProvider.applyCouponDetailed]. A code that grants
@@ -66,6 +70,9 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
   /// rather than the transient snackbar a "wrong code" used to get.
   String? _errorText;
 
+  /// Caps-lock state for the on-screen [KioskKeyboard] — Figma 2305:16029.
+  bool _shift = false;
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +86,62 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
   /// — otherwise a red field would sit there through their next attempt.
   void _onCodeChanged(String _) {
     if (_errorText != null) setState(() => _errorText = null);
+  }
+
+  // --- on-screen keyboard editing -------------------------------------------
+  //
+  // The field keeps `keyboardType: TextInputType.none` (not `readOnly`) so it
+  // stays genuinely editable — a barcode scanner is a hardware keyboard that
+  // types into this same field and finishes with Enter (see class doc) — only
+  // the platform's on-screen keyboard is suppressed. Every on-screen key below
+  // edits [_controller] directly, same as the order-note sheet.
+
+  TextSelection get _codeSelection {
+    final TextSelection sel = _controller.selection;
+    if (!sel.isValid) {
+      return TextSelection.collapsed(offset: _controller.text.length);
+    }
+    return sel;
+  }
+
+  void _insertFromKeyboard(String text) {
+    final TextSelection sel = _codeSelection;
+    final String next = _controller.text.replaceRange(sel.start, sel.end, text);
+    if (next.length > _kMaxCodeLength) return;
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: sel.start + text.length),
+    );
+    _onCodeChanged(next);
+  }
+
+  void _backspaceFromKeyboard() {
+    final TextSelection sel = _codeSelection;
+    if (sel.start != sel.end) {
+      final String next = _controller.text.replaceRange(sel.start, sel.end, '');
+      _controller.value = TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: sel.start),
+      );
+      _onCodeChanged(next);
+      return;
+    }
+    if (sel.start <= 0) return;
+    final String next =
+        _controller.text.replaceRange(sel.start - 1, sel.start, '');
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: sel.start - 1),
+    );
+    _onCodeChanged(next);
+  }
+
+  void _clearFromKeyboard() {
+    _controller.value = const TextEditingValue(
+      text: '',
+      selection: TextSelection.collapsed(offset: 0),
+    );
+    _onCodeChanged('');
   }
 
   @override
@@ -225,7 +288,17 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
                     onChanged: _onCodeChanged,
                     errorText: _errorText,
                   ),
-                  SizedBox(height: m.gap(_kFieldToScan)),
+                  SizedBox(height: m.gap(_kFieldToKeyboard)),
+                  KioskKeyboard(
+                    s: m.s,
+                    shift: _shift,
+                    onKey: _insertFromKeyboard,
+                    onShift: () => setState(() => _shift = !_shift),
+                    onBackspace: _backspaceFromKeyboard,
+                    onSpace: () => _insertFromKeyboard(' '),
+                    onClear: _clearFromKeyboard,
+                  ),
+                  SizedBox(height: m.gap(_kKeyboardToScan)),
                   _ScanPanel(m: m),
                   SizedBox(height: m.gap(_kScanToButtons)),
                   _ActionBar(m: m, onBack: _close, onContinue: _submit),
@@ -281,11 +354,14 @@ const Color _kButtonLabel = Color(0xFFFAF9F5);
 const int _kMaxCodeLength = 24;
 
 // Vertical rhythm: whitespace gaps (flexible) and element heights (fixed).
-// Field→scan was field→keyboard (270) + keyboard→scan (190) in the artboard.
+// Field→scan was field→keyboard (270) + keyboard→scan (190) in the artboard —
+// now that the on-screen KioskKeyboard actually sits there (Figma 2305:16029),
+// those two gaps are real and the board's own height joins _kFixedTotal below.
 const double _kTopGap = 136;
 const double _kLogoToTitle = 618.5;
 const double _kTitleToField = 105;
-const double _kFieldToScan = 460;
+const double _kFieldToKeyboard = 270;
+const double _kKeyboardToScan = 190;
 const double _kScanToButtons = 517;
 const double _kBottomGap = 124;
 
@@ -340,15 +416,17 @@ const double _kButtonPadH = 64;
 const double _kGapTotal = _kTopGap +
     _kLogoToTitle +
     _kTitleToField +
-    _kFieldToScan +
+    _kFieldToKeyboard +
+    _kKeyboardToScan +
     _kScanToButtons +
     _kBottomGap; // 1960.5
 
 const double _kFixedTotal = _kLogoHeight +
     _kTitleFont +
     _kFieldHeight +
+    KioskKeyboard.designHeight +
     _kPanelHeight +
-    _kButtonHeight; // 1405.475
+    _kButtonHeight; // 2569.475 (was 1405.475 before the on-screen keyboard)
 
 /// How far the design's whitespace may be squeezed / stretched before the
 /// scale itself has to give way.
@@ -539,7 +617,12 @@ class _CodeField extends StatelessWidget {
             autofocus: true,
             readOnly: false,
             showCursor: true,
-            keyboardType: TextInputType.visiblePassword,
+            // TextInputType.none — not readOnly — so the field stays fully
+            // editable (the barcode scanner is a hardware keyboard that types
+            // into this same field; see the class doc) while the platform's
+            // own on-screen keyboard never opens. Every visible key instead
+            // comes from the on-screen KioskKeyboard docked below.
+            keyboardType: TextInputType.none,
             textAlign: TextAlign.center,
             textAlignVertical: TextAlignVertical.center,
             maxLines: 1,
@@ -575,7 +658,11 @@ class _CodeField extends StatelessWidget {
         if (hasError) ...[
           SizedBox(height: m.px(18)),
           Padding(
-            padding: EdgeInsets.only(left: m.px(_kFieldInsetLeft) + m.px(_kFieldPadH)),
+            // Flush with the field's own left border (_kFieldInsetLeft is
+            // already the Container's margin, above) — not also offset by
+            // the field's inner _kFieldPadH, which pushed the message well
+            // past the border instead of starting at it, per Figma.
+            padding: EdgeInsets.only(left: m.px(_kFieldInsetLeft)),
             child: Text(
               errorText!,
               style: loewMedium.copyWith(
