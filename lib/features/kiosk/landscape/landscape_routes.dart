@@ -1,8 +1,12 @@
 import 'package:flutter/widgets.dart';
 
 import 'package:acafe_customer/features/kiosk/landscape/kiosk_orientation.dart';
+import 'package:acafe_customer/features/kiosk/landscape/screens/landscape_checkout_email_screen.dart';
+import 'package:acafe_customer/features/kiosk/landscape/screens/landscape_checkout_name_screen.dart';
 import 'package:acafe_customer/features/kiosk/landscape/screens/landscape_menu_screen.dart';
+import 'package:acafe_customer/features/kiosk/landscape/screens/landscape_order_summary_screen.dart';
 import 'package:acafe_customer/features/kiosk/landscape/screens/landscape_shell_screen.dart';
+import 'package:acafe_customer/helper/router_helper.dart';
 
 /// Route for the Phase-1 placeholder landscape shell, used to confirm the switch
 /// fires. Landscape-only: in portrait it shows a short "open in landscape" note.
@@ -23,6 +27,10 @@ const String _kioskMenuRoute = '/menu-kiosk';
 final Map<String, WidgetBuilder> landscapeRoutes = <String, WidgetBuilder>{
   kioskLandscapeShellRoute: (_) => const LandscapeShellScreen(),
   _kioskMenuRoute: (_) => const LandscapeMenuScreen(),
+  RouterHelper.kioskCheckoutScreen: (_) => const LandscapeCheckoutNameScreen(),
+  RouterHelper.kioskCheckoutEmailScreen: (_) =>
+      const LandscapeCheckoutEmailScreen(),
+  RouterHelper.kioskConfirmScreen: (_) => const LandscapeOrderSummaryScreen(),
 };
 
 /// Pure screen picker. Portrait always wins. In landscape a route shows its

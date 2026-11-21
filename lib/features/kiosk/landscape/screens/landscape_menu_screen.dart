@@ -15,7 +15,6 @@ import 'package:acafe_customer/features/category/providers/category_provider.dar
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
-import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_deal.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
@@ -23,6 +22,7 @@ import 'package:acafe_customer/features/kiosk/landscape/landscape_menu_logic.dar
 import 'package:acafe_customer/features/kiosk/landscape/landscape_metrics.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_cancel_dialog.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_category_rail.dart';
+import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_coupon_dialog.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_language_sheet.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_order_panel.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_product_card.dart';
@@ -153,16 +153,14 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
     context.go(RouterHelper.kioskWelcomeScreen);
   }
 
-  /// Same entry point the portrait cart uses (`kiosk_coupon_helper.dart`):
-  /// ensures a guest account exists, then pushes the existing (portrait)
-  /// coupon screen as a route. It renders as a portrait design inside the
-  /// landscape window — same category as checkout/customize, no landscape
-  /// Figma exists for it, and this task does not redesign it.
+  /// B-08/09/10 — the landscape "Add a coupon" pop-up (Figma TABLET option B,
+  /// nodes 2305:7603/7939/8275), a small modal over the menu rather than the
+  /// portrait's full-screen coupon flow.
   Future<void> _onCoupon(BuildContext context) async {
     final cart = Provider.of<CartProvider>(context, listen: false);
     final coupon = Provider.of<CouponProvider>(context, listen: false);
     final double total = kioskPayableTotal(cart.cartList, coupon.discount ?? 0);
-    await openKioskCouponScreen(context, orderAmount: total);
+    await showLandscapeCouponDialog(context, orderAmount: total);
   }
 
   @override

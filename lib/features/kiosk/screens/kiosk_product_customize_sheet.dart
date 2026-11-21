@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
@@ -40,6 +41,8 @@ import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_ordering_experience.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/landscape/kiosk_orientation.dart';
+import 'package:acafe_customer/features/kiosk/landscape/landscape_metrics.dart';
 import 'package:provider/provider.dart';
 
 // Version B (the three-step flow) is a `part` of this library rather than a
@@ -47,6 +50,14 @@ import 'package:provider/provider.dart';
 // the variation panels, the add-on grid, the cup/can cards — instead of
 // re-implementing them. Only the navigation shell differs between versions.
 part 'kiosk_product_customize_step_flow.dart';
+
+// The landscape-orientation redesign (Figma egyp8Y2o5BtoJLo8SrcWrX, nodes
+// 2305:4605/4681/4892) is ALSO a `part` of this library, for the same reason:
+// it reuses the section widgets, the colour/border tokens and the
+// [_KioskCustomizeActions] validation mixin below rather than re-deriving any
+// of it. See [classifyKioskLayout] in [_openKioskCustomizeNow] for which
+// screen a given window actually gets.
+part '../landscape/kiosk_product_customize_landscape.dart';
 
 // Shared section split lives in [KioskCustomizeSections] so POS can reuse it.
 
@@ -401,6 +412,27 @@ Future<void> _openKioskCustomizeNow(BuildContext context, Product product,
   productProvider.initData(product, cart);
   productProvider.initProductVariationStatus(
       ProductHelper.effectiveVariations(product)?.length ?? 0);
+
+  // THE LANDSCAPE SWITCH. A window at least as wide as it is tall gets its own
+  // redesigned customize flow (Figma egyp8Y2o5BtoJLo8SrcWrX, nodes
+  // 2305:4605/4681/4892) regardless of the A/B Ordering Experience setting
+  // below — landscape has exactly one flow, not two, because the whole point
+  // of the redesign is the fixed product-identity column beside the question
+  // card, which neither Version A nor Version B's single scrolling/step
+  // column can express. Portrait is completely untouched by this branch.
+  if (classifyKioskLayout(MediaQuery.sizeOf(context)) ==
+      KioskLayoutMode.landscape) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => KioskProductCustomizeLandscapeScreen(
+          product: product,
+          cartIndex: cartIndex,
+          initialInstruction: cart?.instruction,
+          onConfigured: onConfigured,
+        ),
+      ),
+    );
+  }
 
   // THE A/B SWITCH. Which customization flow this kiosk renders is a back-office
   // setting on the device (Device Update -> Ordering Experience), delivered as

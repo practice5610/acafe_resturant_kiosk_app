@@ -2,32 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
+import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_combo_match.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_combo_sheet.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_product_card.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
+import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/theme/text_legibility.dart';
+import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
 // ===========================================================================
-// KIOSK — "WOULD YOU LIKE TO ADD A DRINK?" upsell  (Figma POS 2305:14909)
+// KIOSK — "WOULD YOU LIKE TO ADD A DRINK?" upsell
+// (Figma 05d, node 2305:7334, "TABLET Final Designs (option B)")
 // ===========================================================================
 // Shown when the customer heads for the cart or checkout with a one-sided
 // order. Which question gets asked is decided by [KioskOrderComposition], not
-// here — this file only draws the answer. The cards are the SAME
-// [KioskProductCard] the menu grid uses, with description and (i) switched off.
+// here — this file only draws the answer. [_SuggestionCard] is a dedicated,
+// simpler card (photo + name only) rather than the menu grid's
+// [KioskProductCard] — the 05d mock shows neither price, badge nor
+// description, and reusing the menu's card would also drag along its own
+// fixed aspect ratio / chrome, which does not match this mock's card.
 // ===========================================================================
 
 /// Figma 2305:14909, measured on its 2078px-wide sheet. Every size is the
@@ -53,7 +60,9 @@ class _Spec {
   static const double gridToButton = 74; // last row end (2704) → button (2778)
   static const double buttonW = 571;
   static const double buttonH = 126;
-  static const double buttonText = 36; // Loew Bold
+  // 47 at this basis reads as ~17px on screen (matches Figma 05d's "NO,
+  // THANK YOU!" — bigger than the 05d-predecessor's ~13px).
+  static const double buttonText = 47; // Loew Bold
   static const double padBottom = 129; // button end (2904) → sheet end (3033)
 }
 
@@ -214,14 +223,10 @@ class _KioskUpsellSheet extends StatelessWidget {
                                         for (final product in suggestions)
                                           SizedBox(
                                             width: m.tile,
-                                            child: KioskProductCard(
-                                              s: s,
+                                            child: _SuggestionCard(
                                               tileWidth: m.tile,
                                               product: product,
-                                              badge: kioskCardBadgeFor(product),
                                               showImages: showImages,
-                                              showDescription: false,
-                                              showInfoIcon: false,
                                               onTap: () =>
                                                   _pick(context, product),
                                             ),
@@ -286,6 +291,110 @@ class _Header extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Suggestion card geometry, measured off Figma 05d (node 2305:7334),
+/// "TABLET Final Designs (option B)". Same card footprint as the combo
+/// sheet's option cards (they share the design), so [cardW]/[cardH] match
+/// [_ComboMetrics]'s literal values in kiosk_combo_sheet.dart.
+class _CardSpec {
+  _CardSpec._();
+
+  static const double cardW = 346.385;
+  static const double cardH = 285.13;
+  static const double radius = 10.106;
+  static const double border = 2.166;
+  static const double labelSize = 13;
+  static const Color bg = Color(0xFFFBF8EF);
+  static const Color borderColor = Color(0xFFDED9C7);
+}
+
+/// One suggestion tile: product photo (object-contain, never cropped) over
+/// its name. A deliberately plain card — no price, badge or description —
+/// because Figma 05d shows none; tapping it is handled by [onTap], which the
+/// sheet wires to [_KioskUpsellSheet._pick].
+class _SuggestionCard extends StatelessWidget {
+  final double tileWidth;
+  final Product product;
+  final bool showImages;
+  final VoidCallback onTap;
+
+  const _SuggestionCard({
+    required this.tileWidth,
+    required this.product,
+    required this.showImages,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double ts = tileWidth / _CardSpec.cardW;
+    final double height = tileWidth * (_CardSpec.cardH / _CardSpec.cardW);
+    final double radius = (_CardSpec.radius * ts).clamp(6.0, 24.0);
+    final double borderWidth = (_CardSpec.border * ts).clamp(1.0, 4.0);
+    final double inset = (tileWidth * 0.06).clamp(8.0, 20.0);
+    final double labelSize = (_CardSpec.labelSize * ts).clamp(9.0, 20.0);
+
+    return Material(
+      color: _CardSpec.bg,
+      borderRadius: BorderRadius.circular(radius),
+      clipBehavior: Clip.antiAlias,
+      child: KioskTap(
+        onTap: onTap,
+        child: Container(
+          width: tileWidth,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            border:
+                Border.all(color: _CardSpec.borderColor, width: borderWidth),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(inset),
+            child: showImages
+                ? Column(
+                    children: [
+                      Expanded(child: _image(context)),
+                      SizedBox(height: inset * 0.5),
+                      _label(labelSize),
+                    ],
+                  )
+                : Center(child: _label(labelSize)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _label(double labelSize) => Text(
+        // As given by the data — the mock mixes a lowercase product name with
+        // uppercase ones; that is the product's own stored casing, not a
+        // style rule, so this never forces a case.
+        product.name ?? '',
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: loewBold.copyWith(
+          fontSize: labelSize,
+          height: 1.1,
+          color: Colors.black,
+        ),
+      );
+
+  Widget _image(BuildContext context) {
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    final String url = KioskProductImageHelper.heroImageUrl(
+      product: product,
+      productImageBaseUrl: splash.baseUrls?.productImageUrl,
+    );
+    return CustomImageWidget(
+      placeholder: Images.placeholderImage,
+      image: url,
+      fit: BoxFit.contain,
+      useShimmer: true,
+      cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
     );
   }
 }
