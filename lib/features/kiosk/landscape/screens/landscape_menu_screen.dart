@@ -23,6 +23,7 @@ import 'package:acafe_customer/features/kiosk/landscape/landscape_menu_logic.dar
 import 'package:acafe_customer/features/kiosk/landscape/landscape_metrics.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_cancel_dialog.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_category_rail.dart';
+import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_language_sheet.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_order_panel.dart';
 import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_product_card.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -30,7 +31,6 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_staff_exit_trigger.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart' show openKioskCheckout;
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
@@ -406,7 +406,7 @@ class _HeaderLanguageFlag extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         elevation: 0,
         child: KioskTap(
-          onTap: () => openKioskLanguageSheet(context),
+          onTap: () => showLandscapeLanguageSheet(context, s: s),
           child: Image.asset(
             language.imageUrl!,
             width: px,
