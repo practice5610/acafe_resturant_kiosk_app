@@ -1,28 +1,25 @@
-import 'dart:math' as math;
-
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_keyboard.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
-import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:flutter/material.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_scrim.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-// Palette for this modal only, kept in the kiosk's cream family.
-const Color _kNoteSurface = Color(0xFFFCFAF4);
-const Color _kNoteBorder = Color(0xFFE8E2D5);
-const Color _kNoteInk = Color(0xFF1E1E1E);
-const Color _kNoteText = Color(0xFF2B2B2B);
-const Color _kNoteMuted = TextTones.hint; // was #8A8275 (3.4:1)
-const Color _kNoteCream = Color(0xFFF3F3DD);
+// Figma 2305:15852 ("06b Order note pop-up") palette.
+const Color _kCardBg = Color(0xFFFBF8EF);
+const Color _kCardBorder = Color(0xFFB9B5A6);
+const Color _kTitleInk = Color(0xFF0D0D0D);
+const Color _kInputBg = Color(0xFFFAF9F7);
+const Color _kInputBorder = Color(0xFF0D0D0D);
+const Color _kInputText = Color(0xFF231F20);
+const Color _kInputHint = Color(0xFF706D63);
+const Color _kPanelBg = Color(0xFFF7F1DE);
 
 const int _kNoteMaxLength = 255;
-
-/// Narrowest the note column may get before it stops being usable.
-const double _kNoteMinColumn = 280;
 
 const String _kNoteHint =
     'Anything we should know? Let us know about cutlery, napkins, straws, '
@@ -33,7 +30,8 @@ const String _kNoteHint =
 /// not need the result.
 ///
 /// A full-screen dialog rather than a bottom sheet: the note card floats over
-/// a blurred scrim, and tapping the field opens the device keyboard.
+/// a blurred scrim, with the on-screen [KioskKeyboard] docked to the bottom
+/// of the screen — Figma 2305:15852 ("06b Order note pop-up").
 Future<void> openKioskOrderNote(BuildContext context) {
   return showGeneralDialog<void>(
     context: context,
@@ -66,7 +64,11 @@ class KioskOrderNoteSheet extends StatefulWidget {
 
 class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
   late final TextEditingController _controller;
-  final FocusNode _focusNode = FocusNode();
+
+  /// Caps-lock state for [KioskKeyboard] — this field is typed entirely
+  /// through the on-screen board (see the class doc), so there is no system
+  /// IME shift key to defer to.
+  bool _shift = false;
 
   @override
   void initState() {
@@ -78,7 +80,6 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
 
   @override
   void dispose() {
-    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -91,6 +92,53 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
         .setOrderNote(_controller.text);
     Navigator.of(context).pop();
   }
+
+  // --- Custom keyboard editing ----------------------------------------------
+  //
+  // The field is `readOnly` (tap-to-position-cursor and drag-to-select still
+  // work; only the system IME is suppressed) and every character comes from
+  // [KioskKeyboard] instead, so insert/backspace/clear are hand-rolled here
+  // rather than routed through TextField's own input pipeline.
+
+  TextSelection get _selection {
+    final TextSelection sel = _controller.selection;
+    if (!sel.isValid) {
+      return TextSelection.collapsed(offset: _controller.text.length);
+    }
+    return sel;
+  }
+
+  void _insert(String text) {
+    final TextSelection sel = _selection;
+    final String next =
+        _controller.text.replaceRange(sel.start, sel.end, text);
+    if (next.length > _kNoteMaxLength) return;
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: sel.start + text.length),
+    );
+  }
+
+  void _backspace() {
+    final TextSelection sel = _selection;
+    if (sel.start != sel.end) {
+      _controller.value = TextEditingValue(
+        text: _controller.text.replaceRange(sel.start, sel.end, ''),
+        selection: TextSelection.collapsed(offset: sel.start),
+      );
+      return;
+    }
+    if (sel.start <= 0) return;
+    _controller.value = TextEditingValue(
+      text: _controller.text.replaceRange(sel.start - 1, sel.start, ''),
+      selection: TextSelection.collapsed(offset: sel.start - 1),
+    );
+  }
+
+  void _clear() => _controller.value = const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -110,55 +158,36 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final double width = constraints.maxWidth;
-                final double gutter = (width * 0.035).clamp(10.0, 28.0);
-                final double column = kioskBounded(
-                  width - gutter * 2,
-                  min: math.min(_kNoteMinColumn, width - gutter * 2),
-                  max: math.min(1040.0, math.max(0.0, width - gutter * 2)),
-                );
-
-                final double continueHeight =
-                    (column * 0.1).clamp(48.0, 96.0);
-                final double continueRadius =
-                    (column * 0.018).clamp(6.0, 20.0);
-                final double continueFont =
-                    (column * 0.036).clamp(14.0, 28.0);
-
-                // Room left for the card once CONTINUE and gutters are reserved.
-                final double cardRoom = constraints.maxHeight -
-                    gutter * 3 -
-                    continueHeight;
-
-                return Center(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.all(gutter),
-                    child: SizedBox(
-                      width: column,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GestureDetector(
+                final double s = KioskResponsive.scale(
+                    constraints.maxWidth, constraints.maxHeight);
+                return Column(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: SingleChildScrollView(
+                          padding: EdgeInsets.all(40 * s),
+                          child: GestureDetector(
                             onTap: () {}, // absorb taps inside the card
                             child: _NoteCard(
-                              width: column,
-                              maxHeight: cardRoom,
+                              s: s,
                               controller: _controller,
-                              focusNode: _focusNode,
                               onBack: _cancel,
                             ),
                           ),
-                          SizedBox(height: gutter),
-                          _ContinueButton(
-                            height: continueHeight,
-                            radius: continueRadius,
-                            fontSize: continueFont,
-                            onTap: _save,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                    _KeyboardPanel(
+                      s: s,
+                      shift: _shift,
+                      onKey: _insert,
+                      onShift: () => setState(() => _shift = !_shift),
+                      onBackspace: _backspace,
+                      onSpace: () => _insert(' '),
+                      onClear: _clear,
+                      onContinue: _save,
+                    ),
+                  ],
                 );
               },
             ),
@@ -169,134 +198,117 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
   }
 }
 
-/// The floating card: back button, title, and the note field itself.
+/// The floating "Anything we should know?" card — Figma 2305:15948
+/// ("add-a-note"). Just the back button, title, and the text box; the
+/// keyboard and CONTINUE are docked to the bottom of the screen instead (see
+/// [_KeyboardPanel]), not stacked under this card, matching the Figma frame.
 class _NoteCard extends StatelessWidget {
-  final double width;
-
-  /// Height the card may take. The note field spends whatever is left after
-  /// the card's own chrome, so a short window shrinks the field instead of
-  /// pushing CONTINUE off the bottom of the screen.
-  final double maxHeight;
+  final double s;
   final TextEditingController controller;
-  final FocusNode focusNode;
   final VoidCallback onBack;
 
   const _NoteCard({
-    required this.width,
-    required this.maxHeight,
+    required this.s,
     required this.controller,
-    required this.focusNode,
     required this.onBack,
   });
 
-  static double _padFor(double width) => (width * 0.04).clamp(14.0, 32.0);
-  static double _titleFor(double width) => (width * 0.038).clamp(15.0, 30.0);
-  static double _backFor(double width) => (width * 0.075).clamp(34.0, 60.0);
-
-  static double _bodyFor(double width) => (width * 0.03).clamp(13.0, 22.0);
-
-  /// Everything the card spends on itself: the three paddings and the header
-  /// row, budgeted at two title lines so a long translation cannot grow the
-  /// card after the field has been sized.
-  static double chromeFor(double width) =>
-      _padFor(width) * 3 +
-      math.max(_backFor(width), _titleFor(width) * 1.1 * 2);
-
-  /// Shortest the field BOX may be: its own inner padding plus two lines of
-  /// the note.
-  static double minFieldFor(double width) =>
-      _padFor(width) * 0.8 * 2 + _bodyFor(width) * 1.45 * 2;
+  static const double _cardWidth = 2078;
+  static const double _pad = 96;
+  static const double _gap = 79;
+  static const double _backSize = 141;
+  static const double _titleSize = 72;
+  static const double _inputHeight = 1000;
+  static const double _inputPad = 64;
+  static const double _inputRadius = 28;
+  static const double _inputBorder = 4;
+  static const double _hintSize = 44;
 
   @override
   Widget build(BuildContext context) {
-    final double pad = _padFor(width);
-    final double titleSize = _titleFor(width);
-    final double bodySize = _bodyFor(width);
-    final double backSize = _backFor(width);
-
     return Container(
-      width: width,
-      padding: EdgeInsets.all(pad),
+      width: _cardWidth * s,
+      padding: EdgeInsets.all(_pad * s),
       decoration: BoxDecoration(
-        color: _kNoteSurface,
-        borderRadius: BorderRadius.circular((width * 0.035).clamp(14.0, 28.0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
-            blurRadius: 34,
-            offset: const Offset(0, 14),
-          ),
-        ],
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(30 * s),
+        border:
+            Border.all(color: _kCardBorder, width: (6 * s).clamp(2.0, 6.0)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Back button sits in the flow's leading slot while the title stays
-          // optically centred on the card, not on the space beside the button.
-          Row(
+          Stack(
+            alignment: Alignment.center,
             children: [
-              _CircleBackButton(size: backSize, onTap: onBack),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: pad * 0.4),
-                  child: Text(
-                    getTranslated('anything_we_should_know', context) ??
-                        'Anything we should know?',
-                    textAlign: TextAlign.center,
-                    style: loewBold.copyWith(
-                      fontSize: titleSize,
-                      height: 1.1,
-                      color: _kNoteText,
-                    ),
+              Padding(
+                // Room for the back button so a long translation never
+                // overlaps it — same guard KioskHeaderBar uses.
+                padding: EdgeInsets.symmetric(horizontal: _backSize * s),
+                child: Text(
+                  getTranslated('anything_we_should_know', context) ??
+                      'Anything we should know?',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewExtraBold.copyWith(
+                    fontSize: _titleSize * s,
+                    height: 1.1,
+                    color: _kTitleInk,
                   ),
                 ),
               ),
-              // Mirrors the back button so the title's centre is the card's.
-              SizedBox(width: backSize),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: KioskBackButton.scaled(
+                  s: s,
+                  size: _backSize,
+                  border: 4,
+                  icon: 60,
+                  minBorder: 1.5,
+                  onTap: onBack,
+                ),
+              ),
             ],
           ),
-          SizedBox(height: pad),
+          SizedBox(height: _gap * s),
           Container(
-            height: (maxHeight - chromeFor(width))
-                .clamp(minFieldFor(width), 340.0),
             width: double.infinity,
-            padding: EdgeInsets.all(pad * 0.8),
+            height: _inputHeight * s,
+            padding: EdgeInsets.all(_inputPad * s),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius:
-                  BorderRadius.circular((width * 0.025).clamp(10.0, 20.0)),
-              border: Border.all(color: _kNoteBorder, width: 1.5),
+              color: _kInputBg,
+              borderRadius: BorderRadius.circular(_inputRadius * s),
+              border: Border.all(
+                  color: _kInputBorder,
+                  width: (_inputBorder * s).clamp(1.5, 4.0)),
             ),
             child: TextField(
               controller: controller,
-              focusNode: focusNode,
-              autofocus: true,
-              readOnly: false,
+              // No system IME — every character comes from the on-screen
+              // KioskKeyboard docked below (see _KeyboardPanel). readOnly
+              // only blocks the OS keyboard; tap-to-position-cursor and
+              // drag-to-select keep working.
+              readOnly: true,
               showCursor: true,
               maxLines: null,
               expands: true,
               textAlignVertical: TextAlignVertical.top,
-              keyboardType: TextInputType.multiline,
-              textCapitalization: TextCapitalization.sentences,
-              textInputAction: TextInputAction.newline,
-              inputFormatters: const [
-                _NoteLengthFormatter(_kNoteMaxLength),
-              ],
-              cursorColor: _kNoteInk,
-              cursorWidth: 2,
+              cursorColor: _kTitleInk,
+              cursorWidth: (3 * s).clamp(1.5, 3.0),
               style: loewRegular.copyWith(
-                fontSize: bodySize,
-                height: 1.45,
-                color: _kNoteText,
+                fontSize: _hintSize * s,
+                height: 1.5,
+                color: _kInputText,
               ),
               decoration: InputDecoration(
                 isCollapsed: true,
                 border: InputBorder.none,
                 hintText: _kNoteHint,
                 hintStyle: loewRegular.copyWith(
-                  fontSize: bodySize,
-                  height: 1.45,
-                  color: _kNoteMuted,
+                  fontSize: _hintSize * s,
+                  height: 1.5,
+                  color: _kInputHint,
                 ),
               ),
             ),
@@ -307,76 +319,90 @@ class _NoteCard extends StatelessWidget {
   }
 }
 
-class _CircleBackButton extends StatelessWidget {
-  final double size;
-  final VoidCallback onTap;
-  const _CircleBackButton({required this.size, required this.onTap});
+/// On-screen keyboard + CONTINUE, docked to the bottom of the screen — Figma
+/// 2305:15957 ("Keyboard-Section"). Built on the shared [KioskKeyboard] board
+/// (already tokened for the coupon-code screen at these exact key sizes/
+/// colors) with its digit row hidden, matching this frame.
+class _KeyboardPanel extends StatelessWidget {
+  final double s;
+  final bool shift;
+  final ValueChanged<String> onKey;
+  final VoidCallback onShift;
+  final VoidCallback onBackspace;
+  final VoidCallback onSpace;
+  final VoidCallback onClear;
+  final VoidCallback onContinue;
 
-  @override
-  Widget build(BuildContext context) {
-    return KioskTap(
-      onTap: onTap,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: _kNoteInk, width: 1.5),
-        ),
-        child: Icon(Icons.chevron_left_rounded,
-            size: size * 0.62, color: _kNoteInk),
-      ),
-    );
-  }
-}
-
-class _ContinueButton extends StatelessWidget {
-  final double height;
-  final double radius;
-  final double fontSize;
-  final VoidCallback onTap;
-
-  const _ContinueButton({
-    required this.height,
-    required this.radius,
-    required this.fontSize,
-    required this.onTap,
+  const _KeyboardPanel({
+    required this.s,
+    required this.shift,
+    required this.onKey,
+    required this.onShift,
+    required this.onBackspace,
+    required this.onSpace,
+    required this.onClear,
+    required this.onContinue,
   });
 
   @override
   Widget build(BuildContext context) {
-    return KioskTap(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        height: height,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: _kNoteInk,
-          borderRadius: BorderRadius.circular(radius),
-        ),
-        child: Text(
-          (getTranslated('continue', context) ?? 'CONTINUE').toUpperCase(),
-          style: loewExtraBold.copyWith(
-            fontSize: fontSize,
-            letterSpacing: 2,
-            color: _kNoteCream,
-          ),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _kPanelBg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(46 * s)),
+        border: Border(
+          top: BorderSide(color: _kCardBorder, width: (4 * s).clamp(2.0, 4.0)),
         ),
       ),
+      padding: EdgeInsets.fromLTRB(40 * s, 116 * s, 40 * s, 72 * s),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // FittedBox, not a bare margin guess: the keys-stack's own row math
+          // (10 keys × 223 + 9 gaps × 20 = 2410 design px) is wider than the
+          // 2332px Figma nominally reserves for it (120px margin each side on
+          // a 2572 canvas) — a Figma export quirk that only shows up as a
+          // genuine RenderFlex overflow once Flutter actually lays it out, on
+          // viewports where `s` skews toward the height axis. FittedBox
+          // guarantees the board fits regardless of how that mismatch moves.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: KioskKeyboard(
+              s: s,
+              shift: shift,
+              showDigitRow: false,
+              onKey: onKey,
+              onShift: onShift,
+              onBackspace: onBackspace,
+              onSpace: onSpace,
+              onClear: onClear,
+            ),
+          ),
+          SizedBox(height: 72 * s),
+          KioskTap(
+            onTap: onContinue,
+            child: Container(
+              width: double.infinity,
+              height: 252 * s,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(30 * s),
+              ),
+              child: Text(
+                (getTranslated('continue', context) ?? 'CONTINUE')
+                    .toUpperCase(),
+                style: loewExtraBold.copyWith(
+                  fontSize: 64 * s,
+                  height: 1,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
-  }
-}
-
-/// Caps the note without the character counter a plain `maxLength` would add,
-/// and without truncating mid-edit when the caret is not at the end.
-class _NoteLengthFormatter extends TextInputFormatter {
-  final int max;
-  const _NoteLengthFormatter(this.max);
-
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    return newValue.text.length > max ? oldValue : newValue;
   }
 }

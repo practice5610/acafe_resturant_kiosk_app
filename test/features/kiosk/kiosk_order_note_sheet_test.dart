@@ -2,12 +2,15 @@ import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart'
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_order_note_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// The order-note modal is a note card over CONTINUE — one centred column —
-/// with no on-screen keyboard. Customers type with the device keyboard.
+/// The order-note modal is a note card floating above an on-screen QWERTY
+/// keyboard docked to the bottom of the screen — Figma 2305:15852 ("06b Order
+/// note pop-up"). The field is `readOnly`; every character comes from
+/// [KioskOrderNoteSheet]'s own key handlers, not the system IME.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -17,7 +20,8 @@ void main() {
       (w) => w is Text && (w.data ?? '').toLowerCase() == text.toLowerCase(),
       description: 'Text "$text" (any case)');
 
-  Future<void> pumpSheet(WidgetTester tester, Size viewport) async {
+  Future<void> pumpSheet(WidgetTester tester, Size viewport,
+      {CartProvider? cart}) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
 
@@ -30,6 +34,7 @@ void main() {
         providers: [
           ChangeNotifierProvider<CartProvider>(
               create: (_) =>
+                  cart ??
                   CartProvider(cartRepo: CartRepo(sharedPreferences: prefs))),
         ],
         child: const MaterialApp(home: KioskOrderNoteSheet()),
@@ -52,16 +57,19 @@ void main() {
 
   for (final Size viewport in viewports) {
     testWidgets(
-        'lays out the note card and CONTINUE at '
-        '${viewport.width.toInt()}x${viewport.height.toInt()}', (tester) async {
+        'lays out the note card, keyboard and CONTINUE at '
+        '${viewport.width.toInt()}x${viewport.height.toInt()}',
+        (tester) async {
       await pumpSheet(tester, viewport);
 
       expect(tester.takeException(), isNull);
       expect(find.byType(TextField), findsOneWidget);
       expect(labelled('Continue'), findsOneWidget);
-      expect(labelled('Space'), findsNothing);
-      expect(labelled('Clear'), findsNothing);
-      expect(find.text('Q'), findsNothing);
+      expect(labelled('Space'), findsOneWidget);
+      expect(labelled('Clear'), findsOneWidget);
+      expect(find.text('q'), findsOneWidget); // lower-case: shift starts off
+      // The note popup's board hides the digit row (Figma 2305:15957).
+      expect(find.text('1'), findsNothing);
     });
   }
 
@@ -99,7 +107,7 @@ void main() {
         lessThanOrEqualTo(logicalWidth + 0.5));
   });
 
-  testWidgets('the note sits above CONTINUE, centred on the same column',
+  testWidgets('the note sits above the keyboard panel, centred on the window',
       (tester) async {
     for (final Size viewport in viewports) {
       await pumpSheet(tester, viewport);
@@ -108,10 +116,7 @@ void main() {
       final Rect continueBtn = tester.getRect(labelled('Continue'));
 
       expect(field.bottom, lessThanOrEqualTo(continueBtn.top),
-          reason: 'the note must be above CONTINUE at '
-              '${viewport.width}x${viewport.height}');
-      expect((field.center.dx - continueBtn.center.dx).abs(), lessThan(2.0),
-          reason: 'the card and CONTINUE share a centre line at '
+          reason: 'the note must be above the keyboard panel at '
               '${viewport.width}x${viewport.height}');
     }
   });
@@ -121,12 +126,8 @@ void main() {
     for (final Size viewport in viewports) {
       await pumpSheet(tester, viewport);
 
-      final Rect back = tester.getRect(find.byType(Icon).first);
       final Rect continueBtn = tester.getRect(labelled('Continue'));
 
-      expect(back.top, greaterThanOrEqualTo(-0.5),
-          reason: 'the card is cut off the top at '
-              '${viewport.width}x${viewport.height}');
       expect(continueBtn.bottom, lessThanOrEqualTo(viewport.height + 0.5),
           reason: 'CONTINUE runs to ${continueBtn.bottom} of '
               '${viewport.height} at ${viewport.width}x${viewport.height}');
@@ -138,17 +139,87 @@ void main() {
     }
   });
 
-  testWidgets('the field accepts typed input from a system keyboard',
+  testWidgets('the field is read-only — typing goes through the on-screen keys',
       (tester) async {
     await pumpSheet(tester, const Size(1512, 905));
 
-    await tester.enterText(find.byType(TextField), 'Extra napkins please');
-    await tester.pump();
-
-    expect(find.text('Extra napkins please'), findsOneWidget);
+    final TextField field = tester.widget(find.byType(TextField));
+    expect(field.readOnly, isTrue);
   });
 
-  testWidgets('CONTINUE saves the note to the cart', (tester) async {
+  testWidgets('tapping on-screen letter keys types lower-case by default',
+      (tester) async {
+    await pumpSheet(tester, const Size(1512, 905));
+
+    await tester.tap(find.text('h'));
+    await tester.tap(find.text('i'));
+    await tester.pump();
+
+    final TextField field = tester.widget(find.byType(TextField));
+    expect(field.controller!.text, 'hi');
+  });
+
+  // Shift and backspace are drawn from an SVG asset, not a Material Icon
+  // (see _KioskKey in kiosk_keyboard.dart) — these are the only two SvgPicture
+  // keys on the board, shift first (leads the Z row) then backspace (trails
+  // it), so position is a stable way to find them in tests.
+  Finder shiftKey() => find.byType(SvgPicture).first;
+  Finder backspaceKey() => find.byType(SvgPicture).last;
+
+  testWidgets('shift types upper case for the next letter, then drops back',
+      (tester) async {
+    await pumpSheet(tester, const Size(1512, 905));
+
+    await tester.tap(shiftKey());
+    await tester.pump();
+    expect(find.text('A'), findsOneWidget); // board now shows caps
+
+    await tester.tap(find.text('A'));
+    await tester.pump();
+
+    final TextField field = tester.widget(find.byType(TextField));
+    expect(field.controller!.text, 'A');
+  });
+
+  testWidgets('backspace removes the last character', (tester) async {
+    await pumpSheet(tester, const Size(1512, 905));
+
+    await tester.tap(find.text('h'));
+    await tester.tap(find.text('i'));
+    await tester.pump();
+
+    await tester.tap(backspaceKey());
+    await tester.pump();
+
+    final TextField field = tester.widget(find.byType(TextField));
+    expect(field.controller!.text, 'h');
+  });
+
+  testWidgets('space inserts a blank character', (tester) async {
+    await pumpSheet(tester, const Size(1512, 905));
+
+    await tester.tap(find.text('h'));
+    await tester.tap(labelled('Space'));
+    await tester.tap(find.text('i'));
+    await tester.pump();
+
+    final TextField field = tester.widget(find.byType(TextField));
+    expect(field.controller!.text, 'h i');
+  });
+
+  testWidgets('clear empties the field', (tester) async {
+    await pumpSheet(tester, const Size(1512, 905));
+
+    await tester.tap(find.text('h'));
+    await tester.tap(find.text('i'));
+    await tester.tap(labelled('Clear'));
+    await tester.pump();
+
+    final TextField field = tester.widget(find.byType(TextField));
+    expect(field.controller!.text, isEmpty);
+  });
+
+  testWidgets('CONTINUE saves the typed note to the cart', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final cart = CartProvider(cartRepo: CartRepo(sharedPreferences: prefs));
@@ -175,12 +246,26 @@ void main() {
     openKioskOrderNote(ctx);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'No straw');
+    await tester.tap(find.text('h'));
+    await tester.tap(find.text('i'));
     await tester.pump();
     await tester.tap(labelled('Continue'));
     await tester.pumpAndSettle();
 
-    expect(cart.orderNote, 'No straw');
+    expect(cart.orderNote, 'hi');
     expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('opening the sheet again seeds the field from the saved note',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final cart = CartProvider(cartRepo: CartRepo(sharedPreferences: prefs))
+      ..setOrderNote('No straw');
+
+    await pumpSheet(tester, const Size(1512, 905), cart: cart);
+
+    final TextField field = tester.widget(find.byType(TextField));
+    expect(field.controller!.text, 'No straw');
   });
 }

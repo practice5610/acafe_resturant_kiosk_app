@@ -14,6 +14,8 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart'
+    show kCheckoutErrorRed;
 import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_applied_screen.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -58,6 +60,12 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
   late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
 
+  /// Set when the backend rejects the code (unknown, expired, limit reached)
+  /// — rendered inline under the field (red border + message), matching the
+  /// kiosk's other form screens (`_LoginField`, `kiosk_checkout_widgets.dart`)
+  /// rather than the transient snackbar a "wrong code" used to get.
+  String? _errorText;
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +73,12 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
       text: kioskActiveCouponCode(
           Provider.of<CouponProvider>(context, listen: false)),
     );
+  }
+
+  /// Clears a stale error the moment the customer starts correcting the code
+  /// — otherwise a red field would sit there through their next attempt.
+  void _onCodeChanged(String _) {
+    if (_errorText != null) setState(() => _errorText = null);
   }
 
   @override
@@ -116,6 +130,7 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
     final String code = _controller.text.trim();
     final bool hadCoupon = (coupon.discount ?? 0) > 0;
     coupon.removeCouponData(true);
+    if (_errorText != null) setState(() => _errorText = null);
 
     if (code.isEmpty) {
       if (hadCoupon) {
@@ -165,7 +180,10 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
       return;
     }
 
-    showCustomSnackBarHelper(_failureMessage(result.errorMessage), isError: true);
+    // Shown inline under the field (red border + message), not a snackbar —
+    // this is "your code is wrong," which the customer needs to keep looking
+    // at while they re-read/retype it, not a toast that vanishes in a beat.
+    setState(() => _errorText = _failureMessage(result.errorMessage));
   }
 
   @override
@@ -189,6 +207,10 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
               );
 
               final Widget column = Column(
+                // Needed once the fixed-height SizedBox below is skipped for
+                // the inline-error layout (its natural height, not a design
+                // budget that doesn't know about the error row, decides size).
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(height: m.gap(_kTopGap)),
                   _Logo(m: m, onBack: _close),
@@ -200,6 +222,8 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
                     controller: _controller,
                     focusNode: _focusNode,
                     onSubmit: _submit,
+                    onChanged: _onCodeChanged,
+                    errorText: _errorText,
                   ),
                   SizedBox(height: m.gap(_kFieldToScan)),
                   _ScanPanel(m: m),
@@ -209,15 +233,24 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
                 ],
               );
 
+              // The inline coupon-rejection message (see _CodeField) adds a
+              // line of text the fixed design budget below (m.contentHeight)
+              // was never measured to include, since it only renders when a
+              // code is actually rejected. Rather than teach the static
+              // metrics about a dynamic, state-driven row, size the column to
+              // its own natural height whenever the error is showing, and
+              // always let it scroll — exact on every other screen, safe here.
+              final bool hasInlineError = _errorText != null;
               final Widget content = SizedBox(
                 width: m.contentWidth,
-                height: m.contentHeight,
+                height: hasInlineError ? null : m.contentHeight,
                 child: column,
               );
 
               // Only reachable once the scale has bottomed out on a very small
-              // viewport; everywhere else the column is sized to fit exactly.
-              if (m.contentHeight > constraints.maxHeight) {
+              // viewport, or the inline error needs more room than the design
+              // budgeted; everywhere else the column is sized to fit exactly.
+              if (hasInlineError || m.contentHeight > constraints.maxHeight) {
                 return SingleChildScrollView(
                   child: Center(child: content),
                 );
@@ -462,68 +495,98 @@ class _CodeField extends StatelessWidget {
   /// submit on its own — otherwise a scanned coupon just sat there.
   final Future<void> Function() onSubmit;
 
+  final ValueChanged<String>? onChanged;
+
+  /// Set when the backend rejected the last code (unknown, expired, limit
+  /// reached) — reddens the border and prints the reason below it, matching
+  /// `_LoginField` / `kiosk_checkout_widgets.dart`'s inline-error convention.
+  final String? errorText;
+
   const _CodeField({
     required this.m,
     required this.controller,
     required this.focusNode,
     required this.onSubmit,
+    this.onChanged,
+    this.errorText,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: m.px(_kFieldHeight),
-      margin: EdgeInsets.only(
-        left: m.px(_kFieldInsetLeft),
-        right: m.px(_kFieldInsetRight),
-      ),
-      padding: EdgeInsets.symmetric(horizontal: m.px(_kFieldPadH)),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: _kFieldBg,
-        borderRadius: BorderRadius.circular(m.px(_kFieldRadius)),
-        border: Border.all(
-          color: _kFieldBorder,
-          width: m.stroke(_kFieldBorderWidth),
+    final bool hasError = errorText != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: m.px(_kFieldHeight),
+          margin: EdgeInsets.only(
+            left: m.px(_kFieldInsetLeft),
+            right: m.px(_kFieldInsetRight),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: m.px(_kFieldPadH)),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _kFieldBg,
+            borderRadius: BorderRadius.circular(m.px(_kFieldRadius)),
+            border: Border.all(
+              color: hasError ? kCheckoutErrorRed : _kFieldBorder,
+              width: m.stroke(_kFieldBorderWidth),
+            ),
+          ),
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            autofocus: true,
+            readOnly: false,
+            showCursor: true,
+            keyboardType: TextInputType.visiblePassword,
+            textAlign: TextAlign.center,
+            textAlignVertical: TextAlignVertical.center,
+            maxLines: 1,
+            textCapitalization: TextCapitalization.characters,
+            textInputAction: TextInputAction.done,
+            onChanged: onChanged,
+            onSubmitted: (_) => onSubmit(),
+            // Keep the caret where the customer left it when focus returns
+            // (scanner append / system keyboard). Default web/desktop
+            // select-all would replace the whole code on the next key.
+            selectAllOnFocus: false,
+            autocorrect: false,
+            enableSuggestions: false,
+            smartDashesType: SmartDashesType.disabled,
+            smartQuotesType: SmartQuotesType.disabled,
+            cursorColor: _kInk,
+            cursorWidth: m.stroke(6),
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(_kMaxCodeLength),
+            ],
+            style: loewMedium.copyWith(
+              fontSize: m.px(_kFieldFont),
+              height: 1.0,
+              color: _kInk,
+            ),
+            decoration: const InputDecoration(
+              isCollapsed: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
         ),
-      ),
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        autofocus: true,
-        readOnly: false,
-        showCursor: true,
-        keyboardType: TextInputType.visiblePassword,
-        textAlign: TextAlign.center,
-        textAlignVertical: TextAlignVertical.center,
-        maxLines: 1,
-        textCapitalization: TextCapitalization.characters,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => onSubmit(),
-        // Keep the caret where the customer left it when focus returns (scanner
-        // append / system keyboard). Default web/desktop select-all would
-        // replace the whole code on the next key.
-        selectAllOnFocus: false,
-        autocorrect: false,
-        enableSuggestions: false,
-        smartDashesType: SmartDashesType.disabled,
-        smartQuotesType: SmartQuotesType.disabled,
-        cursorColor: _kInk,
-        cursorWidth: m.stroke(6),
-        inputFormatters: [
-          LengthLimitingTextInputFormatter(_kMaxCodeLength),
+        if (hasError) ...[
+          SizedBox(height: m.px(18)),
+          Padding(
+            padding: EdgeInsets.only(left: m.px(_kFieldInsetLeft) + m.px(_kFieldPadH)),
+            child: Text(
+              errorText!,
+              style: loewMedium.copyWith(
+                fontSize: m.px(40),
+                height: 1.2,
+                color: kCheckoutErrorRed,
+              ),
+            ),
+          ),
         ],
-        style: loewMedium.copyWith(
-          fontSize: m.px(_kFieldFont),
-          height: 1.0,
-          color: _kInk,
-        ),
-        decoration: const InputDecoration(
-          isCollapsed: true,
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.zero,
-        ),
-      ),
+      ],
     );
   }
 }

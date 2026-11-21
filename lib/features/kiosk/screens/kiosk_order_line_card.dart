@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
@@ -198,6 +200,10 @@ class _ScaledLineCard extends StatelessWidget {
     final splash = Provider.of<SplashProvider>(context, listen: false);
     final bool showImages = context.watch<KioskAuthProvider>().showImages;
     final modifiers = _modifierLines(cart);
+    final Set<KioskAllergen> allergens =
+        cart.product == null ? const {} : kioskProductAllergens(cart.product!);
+
+    void onEdit() => openKioskCartLine(context, cart, cartIndex: index);
 
     return Material(
       color: kOrderCardBg,
@@ -210,15 +216,15 @@ class _ScaledLineCard extends StatelessWidget {
               color: kOrderCardBorder, width: (1.5 * s).clamp(1.0, 3.0)),
         ),
         padding: EdgeInsets.all(30 * s),
-        // Stepper is a sibling of the edit tap — not nested inside it — so a
-        // card-body tap never competes with "+" in the gesture arena.
+        // Stepper/EDIT are siblings of the edit tap — not nested inside it —
+        // so a card-body tap never competes with "+"/EDIT in the gesture
+        // arena.
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: KioskTap(
-                onTap: () =>
-                    openKioskCartLine(context, cart, cartIndex: index),
+                onTap: onEdit,
                 child: Row(
                   children: [
                     if (showImages) ...[
@@ -246,14 +252,29 @@ class _ScaledLineCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            cart.isDeal
-                                ? (cart.dealTitle ?? cart.product?.name ?? '')
-                                : (cart.product?.name ?? ''),
-                            style: loewExtraBold.copyWith(
-                                fontSize: 72 * s,
-                                height: 1.05,
-                                color: Colors.black),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  cart.isDeal
+                                      ? (cart.dealTitle ??
+                                          cart.product?.name ??
+                                          '')
+                                      : (cart.product?.name ?? ''),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: loewExtraBold.copyWith(
+                                      fontSize: 72 * s,
+                                      height: 1,
+                                      color: kOrderPriceColor),
+                                ),
+                              ),
+                              if (allergens.isNotEmpty) ...[
+                                SizedBox(width: 28 * s),
+                                _CartAllergenBadges(s: s, allergens: allergens),
+                              ],
+                            ],
                           ),
                           SizedBox(height: 16 * s),
                           KioskLinePriceRow(
@@ -279,29 +300,106 @@ class _ScaledLineCard extends StatelessWidget {
               ),
             ),
             SizedBox(width: 30 * s),
-            _QtyStepper(
-              s: s,
-              quantity: cart.quantity ?? 1,
-              onDecrement: () {
-                final cartProvider =
-                    Provider.of<CartProvider>(context, listen: false);
-                if ((cart.quantity ?? 1) > 1) {
-                  cartProvider.onUpdateCartQuantity(
-                      index: index, product: cart.product!, isRemove: true);
-                } else {
-                  cartProvider.removeFromCart(index);
-                }
-              },
-              onIncrement: () =>
-                  Provider.of<CartProvider>(context, listen: false)
-                      .onUpdateCartQuantity(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _CartEditButton(s: s, onTap: onEdit),
+                SizedBox(height: 40 * s),
+                _QtyStepper(
+                  s: s,
+                  quantity: cart.quantity ?? 1,
+                  onDecrement: () {
+                    final cartProvider =
+                        Provider.of<CartProvider>(context, listen: false);
+                    if ((cart.quantity ?? 1) > 1) {
+                      cartProvider.onUpdateCartQuantity(
                           index: index,
                           product: cart.product!,
-                          isRemove: false),
+                          isRemove: true);
+                    } else {
+                      cartProvider.removeFromCart(index);
+                    }
+                  },
+                  onIncrement: () =>
+                      Provider.of<CartProvider>(context, listen: false)
+                          .onUpdateCartQuantity(
+                              index: index,
+                              product: cart.product!,
+                              isRemove: false),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// "EDIT" affordance (pencil + label) in the top-right of a cart line card —
+/// Figma 2305:15712. Calls the same [openKioskCartLine] the card body's own
+/// tap already uses; this is just an explicit, discoverable target for it.
+class _CartEditButton extends StatelessWidget {
+  final double s;
+  final VoidCallback onTap;
+  const _CartEditButton({required this.s, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return KioskTap(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.edit_outlined, size: 48 * s, color: Colors.black),
+          SizedBox(width: 12 * s),
+          Text(
+            kioskTranslate(context, 'edit', 'EDIT').toUpperCase(),
+            style: loewBold.copyWith(
+                fontSize: 52 * s, height: 1, color: Colors.black),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Allergen glyphs on a cart line — rounded-square swatches (Figma
+/// 2305:15696 "allergen-icon/wheat", 2305:15720 "allergen-icon/dairy"),
+/// distinct from the circular discs [KioskAllergenNotice] draws on the
+/// customize screen. Driven by the same [KioskAllergen] set as every other
+/// allergen surface — no separate mapping to keep in sync.
+class _CartAllergenBadges extends StatelessWidget {
+  final double s;
+  final Set<KioskAllergen> allergens;
+  const _CartAllergenBadges({required this.s, required this.allergens});
+
+  List<KioskAllergen> get _ordered =>
+      KioskAllergen.values.where(allergens.contains).toList();
+
+  @override
+  Widget build(BuildContext context) {
+    final double size = 56 * s;
+    final double glyph = 32 * s;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final allergen in _ordered)
+          Padding(
+            padding: EdgeInsets.only(left: 8 * s),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: allergen.swatch,
+                borderRadius: BorderRadius.circular(28 * s),
+              ),
+              alignment: Alignment.center,
+              child: SvgPicture.asset(allergen.icon, width: glyph, height: glyph),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -425,10 +523,19 @@ class _QtyStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // qty == 1: the only way down is removing the line, so the left control
+    // shows a trash can instead of a minus that would do the same thing.
+    final bool atMinimum = quantity <= 1;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _StepBox(s: s, label: '−', filled: false, onTap: onDecrement),
+        _StepBox(
+          s: s,
+          label: atMinimum ? null : '−',
+          icon: atMinimum ? Icons.delete_outline : null,
+          filled: false,
+          onTap: onDecrement,
+        ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 30 * s),
           child: Text('$quantity',
@@ -443,14 +550,17 @@ class _QtyStepper extends StatelessWidget {
 
 class _StepBox extends StatelessWidget {
   final double s;
-  final String label;
+  final String? label;
+  final IconData? icon;
   final bool filled;
   final VoidCallback onTap;
   const _StepBox(
       {required this.s,
-      required this.label,
+      this.label,
+      this.icon,
       required this.filled,
-      required this.onTap});
+      required this.onTap})
+      : assert(label != null || icon != null, 'need a label or an icon');
 
   @override
   Widget build(BuildContext context) {
@@ -469,13 +579,17 @@ class _StepBox extends StatelessWidget {
             border: Border.all(
                 color: Colors.black, width: (2.25 * s).clamp(1.5, 4.0)),
           ),
-          child: Text(
-            label,
-            style: loewExtraBold.copyWith(
-                fontSize: 90 * s,
-                height: 1,
-                color: filled ? kOrderPlusText : Colors.black),
-          ),
+          child: icon != null
+              ? Icon(icon,
+                  size: 60 * s,
+                  color: filled ? kOrderPlusText : Colors.black)
+              : Text(
+                  label!,
+                  style: loewExtraBold.copyWith(
+                      fontSize: 90 * s,
+                      height: 1,
+                      color: filled ? kOrderPlusText : Colors.black),
+                ),
         ),
       ),
     );

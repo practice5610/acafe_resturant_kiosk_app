@@ -6,28 +6,45 @@ import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
-import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_order_note_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_order_line_card.dart';
-import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
+import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
+import 'package:acafe_customer/main.dart';
 import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
 const Color _kCardBg = Color(0xFFFBF8EF);
 const Color _kCheckoutText = Color(0xFFFAF9F5);
-const Color _kNoteDivider = Color(0xFFDED9C7);
-const Color _kNoteHintText = TextTones.hint; // was #8A8275 (3.4:1)
 
-/// Artboard px a single breakdown line occupies: the 44px row plus the sliver
-/// of air `spaceBetween` needs to keep four of them from touching.
-const double _kBreakdownLine = 46;
+/// "€ 17,50" — the cart TOTAL row (Figma 2305:15652) wants a comma decimal,
+/// unlike the app's usual dot-decimal "€17.50" (`PriceConverterHelper.
+/// convertPrice`). Keeps the same currency symbol/position/decimal-count
+/// config so only the separator and the space after the symbol differ.
+String kioskCommaPrice(double amount) {
+  final BuildContext? ctx = Get.context;
+  final configModel =
+      ctx == null ? null : Provider.of<SplashProvider>(ctx, listen: false).configModel;
+  final int decimals = configModel?.decimalPointSettings ?? 2;
+  final String symbol = configModel?.currencySymbol ?? '€';
+  final String position = configModel?.currencySymbolPosition ?? 'left';
+
+  final List<String> parts = amount.toStringAsFixed(decimals).split('.');
+  final String wholePart = parts[0].replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+    (Match m) => '${m[1]}.',
+  );
+  final String formatted =
+      parts.length > 1 ? '$wholePart,${parts[1]}' : wholePart;
+
+  return position == 'left' ? '$symbol $formatted' : '$formatted $symbol';
+}
 
 /// "MY ORDER" — review the cart, edit/remove lines, then go to checkout.
 ///
@@ -295,10 +312,17 @@ class _OrderNoteBar extends StatelessWidget {
       top: layout.notePad * s,
       bottom: layout.notePad * s,
     );
+    // Design hairline, not a fixed 2 logical px — every other divider in this
+    // screen (header rule, item-list gaps) scales with `s`, and a bare "2"
+    // read as a bold rule next to already-scaled-down 56-72px type.
+    final double borderWidth = (2 * s).clamp(1.0, 2.0);
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: _kNoteDivider)),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Colors.black, width: borderWidth),
+          bottom: BorderSide(color: Colors.black, width: borderWidth),
+        ),
       ),
       child: KioskTap(
         onTap: () => openKioskOrderNote(context),
@@ -306,42 +330,59 @@ class _OrderNoteBar extends StatelessWidget {
           padding: padding,
           child: Row(
             children: [
+              // Empty: "Add an order note" title + muted prompt, two lines.
+              // Written: the row collapses to just the note itself, one line
+              // — the title would be redundant once there is something to
+              // read, and Figma drops it for that state.
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      getTranslated('add_an_order_note', context) ??
-                          'Add an order note',
-                      style: loewBold.copyWith(
-                          fontSize: 46 * s, height: 1.1, color: Colors.black),
-                    ),
-                    SizedBox(height: 10 * s),
-                    Text(
-                      hasNote
-                          ? note
-                          : (getTranslated(
-                                  'anything_we_should_know', context) ??
-                              'Anything we should know?'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: loewRegular.copyWith(
-                        fontSize: 38 * s,
-                        height: 1.25,
-                        color: hasNote ? Colors.black87 : _kNoteHintText,
+                child: hasNote
+                    ? Text(
+                        note,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: loewRegular.copyWith(
+                          fontSize: 56 * s,
+                          height: 1,
+                          color: Colors.black,
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            getTranslated('add_an_order_note', context) ??
+                                'Add an order note',
+                            style: loewExtraBold.copyWith(
+                                fontSize: 72 * s,
+                                height: 1,
+                                color: Colors.black),
+                          ),
+                          SizedBox(height: 20 * s),
+                          Text(
+                            getTranslated(
+                                    'anything_we_should_know', context) ??
+                                'Anything we should know?',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: loewRegular.copyWith(
+                              fontSize: 56 * s,
+                              height: 1,
+                              color: TextTones.hint,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
-              SizedBox(width: 32 * s),
-              // Plus while empty, pencil once written — the affordance changes
-              // with what the tap will actually do.
+              SizedBox(width: 80 * s),
+              // Plus while empty, plain pencil once written — no circular
+              // wrapper on the written state, matching the Figma note row.
               Icon(
                 hasNote ? Icons.edit_outlined : Icons.add,
-                size: (52 * s).clamp(20.0, 40.0),
-                color: Colors.black87,
+                size: (hasNote ? 64 * s : 80 * s).clamp(32.0, 100.0),
+                color: hasNote
+                    ? Colors.black
+                    : Colors.black.withValues(alpha: 0.6),
               ),
             ],
           ),
@@ -375,9 +416,6 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double s = layout.s;
-    final double items = kioskItemsTotal(cartList);
-    final double discount = kioskDiscountTotal(cartList);
-    final double tax = kioskTaxTotal(cartList);
 
     // One full-bleed bar at every size: the summary belongs under the items
     // it totals, lifted off the page by the same rounded lip and shadow the
@@ -399,122 +437,71 @@ class _Footer extends StatelessWidget {
         top: layout.footerPad * s,
         bottom: layout.footerPad * s,
       ),
-      child: _summaryBody(context, items, discount, tax),
+      child: _summaryBody(context),
     );
   }
 
-  /// Breakdown on the left, the two actions on the right, their blocks height
-  /// matched so the divider lands in the gap between the buttons.
-  Widget _summaryBody(
-    BuildContext context,
-    double items,
-    double discount,
-    double tax,
-  ) {
+  /// TOTAL + amount row, then the two pill buttons — Figma 2305:15652.
+  ///
+  /// The old breakdown (ITEMS TOTAL / DISCOUNT / TAX / YOUR PAY) is gone from
+  /// this screen per the new design; those figures are still computed and
+  /// shown on the confirm screen and the printed receipt — see
+  /// [kioskItemsTotal] / [kioskDiscountTotal] / [kioskTaxTotal] in
+  /// `kiosk_cart_totals.dart`, used by `kiosk_confirm_screen.dart` and
+  /// `pos_receipt_print.dart`.
+  Widget _summaryBody(BuildContext context) {
     final double s = layout.s;
-    // The breakdown block and the button stack are the same height so the
-    // divider between ITEMS/TAX and YOUR PAY lands in the gap between the two
-    // buttons. With both a discount AND a coupon row that block is four lines
-    // — more than the landscape button height — so the height is whichever of
-    // the two needs more room, and both columns follow it.
-    final int rows = 2 + (discount > 0 ? 1 : 0) + (couponDiscount > 0 ? 1 : 0);
-    final double blockHeight =
-        math.max(layout.buttonHeight * s, rows * _kBreakdownLine * s);
-    final double blockGap = layout.buttonGap * s;
-    return Row(
+    final double buttonHeight = 252 * s;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left: mirrors the right column's two-block layout so the
-        // divider lands in the same gap as the space between the buttons.
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Block 1: ITEMS TOTAL (top) / TAX (bottom), same height as
-              // the ADD COUPON button.
-              SizedBox(
-                height: blockHeight,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _BreakdownRow(
-                      s: s,
-                      label: (getTranslated('items_total', context) ??
-                              'ITEMS TOTAL')
-                          .toUpperCase(),
-                      value: PriceConverterHelper.convertPrice(items),
-                    ),
-                    if (discount > 0)
-                      _BreakdownRow(
-                        s: s,
-                        label:
-                            (getTranslated('discount', context) ?? 'DISCOUNT')
-                                .toUpperCase(),
-                        value:
-                            '- ${PriceConverterHelper.convertPrice(discount)}',
-                      ),
-                    if (couponDiscount > 0)
-                      _BreakdownRow(
-                        s: s,
-                        label: kioskCouponRowLabel(
-                          discountLabel:
-                              getTranslated('discount', context) ?? 'DISCOUNT',
-                          title: couponTitle,
-                          code: couponCode,
-                        ),
-                        value:
-                            '- ${PriceConverterHelper.convertPrice(couponDiscount)}',
-                      ),
-                    _BreakdownRow(
-                      s: s,
-                      label: (getTranslated('tax', context) ?? 'TAX')
-                          .toUpperCase(),
-                      value: PriceConverterHelper.convertPrice(tax),
-                    ),
-                  ],
-                ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              (getTranslated('total', context) ?? 'TOTAL').toUpperCase(),
+              maxLines: 1,
+              style: loewExtraBold.copyWith(
+                fontSize: 216 * s,
+                height: 1,
+                color: Colors.black,
               ),
-              // Divider sits centered in the same gap that separates the
-              // two buttons on the right.
-              SizedBox(
-                height: blockGap,
-                child: Center(
-                  child: Container(
-                    width: double.infinity,
-                    height: (2 * s).clamp(1.5, 3.0),
-                    color: Colors.black.withValues(alpha: 0.4),
+            ),
+            SizedBox(width: 24 * s),
+            // Expanded + FittedBox(scaleDown), not a bare Flexible(Text(...)):
+            // a Flexible alone caps the Text's width but still lets it WRAP
+            // onto a second line once the glyphs don't fit — which is what
+            // was blowing the footer's height out on narrower viewports (the
+            // amount wrapped "€" / "5,50" onto two lines at this font size).
+            // FittedBox shrinks the whole amount to fit the remaining row
+            // width instead of wrapping it; Expanded gives it everything
+            // left after "TOTAL", matching the original Spacer()-style
+            // left/right split.
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  kioskCommaPrice(total),
+                  maxLines: 1,
+                  style: loewRegular.copyWith(
+                    fontSize: 256 * s,
+                    height: 1,
+                    color: Colors.black,
                   ),
                 ),
               ),
-              // Block 2: YOUR PAY, centered, same height as CHECK OUT.
-              SizedBox(
-                height: blockHeight,
-                child: Center(
-                  child: _BreakdownRow(
-                    s: s,
-                    label: (getTranslated('your_pay', context) ?? 'YOUR PAY')
-                        .toUpperCase(),
-                    value: PriceConverterHelper.convertPrice(total),
-                    emphasized: true,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        SizedBox(width: 48 * s),
-        // Right: ADD COUPON (outlined) stacked over CHECK OUT (filled).
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _couponButton(context, height: blockHeight),
-              SizedBox(height: blockGap),
-              _checkoutButton(context, height: blockHeight),
-            ],
-          ),
+        SizedBox(height: layout.buttonGap * s),
+        Row(
+          children: [
+            Expanded(child: _couponButton(context, height: buttonHeight)),
+            SizedBox(width: layout.buttonGap * s),
+            Expanded(child: _checkoutButton(context, height: buttonHeight)),
+          ],
         ),
       ],
     );
@@ -547,55 +534,6 @@ class _Footer extends StatelessWidget {
       label: (getTranslated('check_out', context) ?? 'CHECK OUT').toUpperCase(),
       filled: true,
       onTap: enabled ? () => openKioskCheckout(context) : null,
-    );
-  }
-}
-
-/// Right-aligned label/value row used by the cart footer's price breakdown.
-class _BreakdownRow extends StatelessWidget {
-  final double s;
-  final String label;
-  final String value;
-  final bool emphasized;
-  const _BreakdownRow({
-    required this.s,
-    required this.label,
-    required this.value,
-    this.emphasized = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // A coupon row carries the offer's name, which can be long; it shrinks
-        // to fit rather than wrapping out of the footer's fixed-height block.
-        Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              label,
-              maxLines: 1,
-              style: loewExtraBold.copyWith(
-                fontSize: emphasized ? 70 * s : 44 * s,
-                height: 1,
-                color: Colors.black,
-              ),
-            ),
-          ),
-        ),
-        Text(
-          value,
-          textAlign: TextAlign.right,
-          style: loewRegular.copyWith(
-            fontSize: emphasized ? 62 * s : 44 * s,
-            height: 1,
-            color: Colors.black,
-          ),
-        ),
-      ],
     );
   }
 }

@@ -32,6 +32,11 @@ class KioskKeyboard extends StatelessWidget {
   final VoidCallback onSpace;
   final VoidCallback onClear;
 
+  /// Hides the leading 1234567890 row — the order-note popup (Figma
+  /// 2305:15957) draws this board without it; the coupon-code screen keeps
+  /// the default `true` so digit entry there is unaffected.
+  final bool showDigitRow;
+
   const KioskKeyboard({
     super.key,
     required this.s,
@@ -41,6 +46,7 @@ class KioskKeyboard extends StatelessWidget {
     required this.onBackspace,
     required this.onSpace,
     required this.onClear,
+    this.showDigitRow = true,
   });
 
   // --- Figma palette -------------------------------------------------------
@@ -68,6 +74,10 @@ class KioskKeyboard extends StatelessWidget {
   static const double designHeight =
       keyH * 4 + rowGap * 3 + spaceRowGap + keyH; // 884 + 80 + 200
 
+  /// [designHeight] with the digit row ([showDigitRow] false) omitted.
+  static const double designHeightNoDigits =
+      designHeight - keyH - rowGap;
+
   static const List<String> _digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
   static const List<String> _rowQ = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'];
   static const List<String> _rowA = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'];
@@ -80,8 +90,10 @@ class KioskKeyboard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _row([for (final d in _digits) _charKey(d)]),
-        SizedBox(height: rowGap * s),
+        if (showDigitRow) ...[
+          _row([for (final d in _digits) _charKey(d)]),
+          SizedBox(height: rowGap * s),
+        ],
         _row([for (final l in _rowQ) _charKey(l)]),
         SizedBox(height: rowGap * s),
         _row([for (final l in _rowA) _charKey(l)]),

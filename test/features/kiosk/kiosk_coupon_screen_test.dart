@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
+import 'package:acafe_customer/features/coupon/domain/models/coupon_apply_result.dart';
 import 'package:acafe_customer/features/coupon/domain/models/coupon_model.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_screen.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
+import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -227,6 +229,77 @@ void main() {
     expect(fieldOf(tester).controller!.text, isEmpty);
   });
 
+  testWidgets(
+      'a rejected code reddens the field and prints the reason inline, '
+      'not as a snackbar', (tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CouponProvider>(
+            create: (_) => _FailingCouponProvider(
+              message: 'This code has expired. Expiry date: 31-08-2026.',
+            ),
+          ),
+          ChangeNotifierProvider(create: (_) => CartProvider(cartRepo: null)),
+        ],
+        child: const MaterialApp(home: KioskCouponScreen(orderAmount: 25)),
+      ),
+    );
+    await settle(tester);
+
+    await tester.enterText(find.byType(TextField), 'EXPIRED1');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await settle(tester);
+
+    expect(
+        find.text('This code has expired. Expiry date: 31-08-2026.'),
+        findsOneWidget);
+    // Inline, not a transient toast — the banner widget used by
+    // showCustomSnackBarHelper never appears.
+    expect(find.byType(SnackBar), findsNothing);
+
+    final BoxDecoration decoration =
+        tester.widget<Container>(find.ancestor(
+      of: find.byType(TextField),
+      matching: find.byType(Container),
+    )).decoration as BoxDecoration;
+    expect((decoration.border as Border).top.color, TextTones.danger);
+  });
+
+  testWidgets('editing the field after a rejection clears the inline error',
+      (tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CouponProvider>(
+            create: (_) => _FailingCouponProvider(message: 'Invalid code'),
+          ),
+          ChangeNotifierProvider(create: (_) => CartProvider(cartRepo: null)),
+        ],
+        child: const MaterialApp(home: KioskCouponScreen(orderAmount: 25)),
+      ),
+    );
+    await settle(tester);
+
+    await tester.enterText(find.byType(TextField), 'WRONG1');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await settle(tester);
+    expect(find.text('Invalid code'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'WRONG12');
+    await tester.pump();
+
+    expect(find.text('Invalid code'), findsNothing);
+  });
+
   testWidgets('prefills only a coupon that is still taking money off',
       (tester) async {
     tester.view.physicalSize = const Size(1080, 1920);
@@ -252,6 +325,20 @@ void main() {
 
     expect(fieldOf(tester).controller!.text, 'SAVE10');
   });
+}
+
+/// Resolves [applyCouponDetailed] to a rejected code without a backend, so
+/// the inline-error path can be exercised offline.
+class _FailingCouponProvider extends CouponProvider {
+  _FailingCouponProvider({required this.message}) : super(couponRepo: null);
+
+  final String message;
+
+  @override
+  Future<CouponApplyResult> applyCouponDetailed(
+          String coupon, double amountWithoutVat,
+          {int? selectedIndex}) async =>
+      CouponApplyResult.failed(message: message);
 }
 
 class _LeftoverCouponProvider extends CouponProvider {
