@@ -15,18 +15,16 @@ import 'package:acafe_customer/utill/styles.dart';
 // KIOSK — TIP THE TEAM
 // ===========================================================================
 // Shown every time the customer taps Pay, over the order summary. Tips are
-// optional: nothing is preselected, and "No, thank you!" continues with €0.
-// Picking 5 / 10 / 15% locks that tip in and returns immediately so Pay can
-// continue to upsells without showing this sheet again.
+// optional: nothing is preselected. Picking a tile (0/5/10/15%) fills it in
+// black and turns the footer into "Go to payment"; the customer confirms
+// there. Until a tile is picked, the footer is an outlined "No, thank you!"
+// that declines the tip immediately.
 // ===========================================================================
 
 const Color _kCardBorder = Color(0xFFE6E0CE);
 const Color _kSubtitle = TextTones.secondary; // was #8A8275 (3.4:1)
 const Color _kInk = Color(0xFF1E1E1E);
-
-/// Brief pause after a tile is tapped so the selected border is visible
-/// before the sheet dismisses. Long enough to read, short enough to not stall.
-const Duration _kSelectHold = Duration(milliseconds: 280);
+const Color _kCream = Color(0xFFFBF8EF);
 
 /// Opens the tip sheet. Resolves to the chosen percent (`0` for no tip),
 /// or `null` when the customer dismissed the scrim without continuing.
@@ -68,17 +66,19 @@ class _KioskTipSheet extends StatefulWidget {
 }
 
 class _KioskTipSheetState extends State<_KioskTipSheet> {
-  /// `null` is the empty state — no tile highlighted, no tip applied.
+  /// `null` is the empty state — no tile highlighted, footer still declines.
   int? _selected;
   bool _closing = false;
 
-  Future<void> _choose(int percent) async {
+  void _choose(int percent) {
     if (_closing) return;
-    setState(() => _selected = percent);
+    setState(() => _selected = _selected == percent ? null : percent);
+  }
+
+  void _confirm() {
+    if (_closing || _selected == null) return;
     _closing = true;
-    await Future<void>.delayed(_kSelectHold);
-    if (!mounted) return;
-    Navigator.of(context).pop(percent);
+    Navigator.of(context).pop(_selected);
   }
 
   void _decline() {
@@ -169,9 +169,10 @@ class _KioskTipSheetState extends State<_KioskTipSheet> {
                               onChoose: _choose,
                             ),
                             SizedBox(height: m.buttonGap),
-                            _DeclineButton(
+                            _FooterButton(
                               metrics: m,
-                              onTap: _decline,
+                              selected: _selected != null,
+                              onTap: _selected == null ? _decline : _confirm,
                             ),
                           ],
                         ),
@@ -276,10 +277,10 @@ class _TipTile extends StatelessWidget {
         : PriceConverterHelper.convertPrice(
             kioskTipAmount(payableTotal, percent),
           );
-    final double borderWidth = selected ? (size * 0.018).clamp(2.5, 4.0) : 1.5;
+    final Color fg = selected ? _kCream : _kInk;
 
     return Material(
-      color: Colors.white,
+      color: selected ? _kInk : Colors.white,
       borderRadius: BorderRadius.circular(radius),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
@@ -291,12 +292,11 @@ class _TipTile extends StatelessWidget {
           height: size,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: selected ? _kInk : Colors.white,
             borderRadius: BorderRadius.circular(radius),
-            border: Border.all(
-              color: selected ? _kInk : _kCardBorder,
-              width: borderWidth,
-            ),
+            border: selected
+                ? null
+                : Border.all(color: _kCardBorder, width: 1.5),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -306,7 +306,7 @@ class _TipTile extends StatelessWidget {
                 style: loewExtraBold.copyWith(
                   fontSize: percentSize,
                   height: 1.0,
-                  color: _kInk,
+                  color: fg,
                 ),
               ),
               SizedBox(height: (captionSize * 0.35).clamp(6.0, 12.0)),
@@ -317,7 +317,7 @@ class _TipTile extends StatelessWidget {
                 style: loewRegular.copyWith(
                   fontSize: captionSize,
                   height: 1.0,
-                  color: _kInk,
+                  color: fg.withValues(alpha: 0.85),
                 ),
               ),
             ],
@@ -328,38 +328,51 @@ class _TipTile extends StatelessWidget {
   }
 }
 
-class _DeclineButton extends StatelessWidget {
+class _FooterButton extends StatelessWidget {
   final _TipMetrics metrics;
+  final bool selected;
   final VoidCallback onTap;
 
-  const _DeclineButton({required this.metrics, required this.onTap});
+  const _FooterButton({
+    required this.metrics,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final String label = selected
+        ? kioskTranslate(context, 'go_to_payment', 'Go to payment')
+        : kioskTranslate(context, 'no_thank_you', 'No, thank you!');
+
     return Material(
-      color: Colors.white,
+      color: selected ? _kInk : Colors.white,
       borderRadius: BorderRadius.circular(metrics.buttonRadius),
       clipBehavior: Clip.antiAlias,
       child: KioskTap(
         onTap: onTap,
-        child: Container(
-          key: const ValueKey('kiosk-tip-decline'),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          key: ValueKey('kiosk-tip-footer-$selected'),
           height: metrics.buttonHeight,
           width: double.infinity,
           alignment: Alignment.center,
           decoration: BoxDecoration(
+            color: selected ? _kInk : Colors.white,
             borderRadius: BorderRadius.circular(metrics.buttonRadius),
-            border: Border.all(color: _kInk, width: metrics.buttonBorder),
+            border: selected
+                ? null
+                : Border.all(color: _kInk, width: metrics.buttonBorder),
           ),
           child: Text(
-            kioskTranslate(context, 'no_thank_you', 'No, thank you!')
-                .toUpperCase(),
+            label.toUpperCase(),
             textAlign: TextAlign.center,
             style: loewExtraBold.copyWith(
               fontSize: metrics.buttonSize,
               height: 1.0,
               letterSpacing: 0.6,
-              color: _kInk,
+              color: selected ? _kCream : _kInk,
             ),
           ),
         ),
