@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +15,7 @@ import 'package:acafe_customer/features/category/providers/category_provider.dar
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_deal.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
@@ -28,7 +30,6 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_staff_exit_trigger.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart' show openKioskCheckout;
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
@@ -68,8 +69,7 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
   List<CartModel?> _prevCart = const [];
   int? _highlightIndex;
   String? _toast;
-  Timer? _highlightTimer;
-  Timer? _toastTimer;
+  Timer? _feedbackTimer;
 
   @override
   void initState() {
@@ -85,8 +85,7 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
   @override
   void dispose() {
     _cart?.removeListener(_onCartChanged);
-    _highlightTimer?.cancel();
-    _toastTimer?.cancel();
+    _feedbackTimer?.cancel();
     super.dispose();
   }
 
@@ -102,9 +101,10 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
     Provider.of<KioskDealProvider>(context, listen: false).fetchDeals();
   }
 
-  /// B-03: a product added from the menu appends a line; show the toast for 3 s
-  /// and outline the new row for 2 s. A panel +/- never grows the list, so it
-  /// never triggers this (see [landscapeJustAddedIndex]).
+  /// B-03: a product added from the menu appends a line; the toast and the
+  /// highlighted row appear together and disappear together, 3 s later. A
+  /// panel +/- never grows the list, so it never triggers this (see
+  /// [landscapeJustAddedIndex]).
   void _onCartChanged() {
     if (_cart == null || !mounted) return;
     final next = _cart!.cartList;
@@ -116,17 +116,20 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
         ? (line?.dealTitle ?? line?.product?.name ?? '')
         : (line?.product?.name ?? '');
 
-    _highlightTimer?.cancel();
-    _toastTimer?.cancel();
+    _feedbackTimer?.cancel();
     setState(() {
       _highlightIndex = added;
-      _toast = '$name ${kioskTranslate(context, 'landscape_added_to_order', 'added to your order')}';
+      _toast = kioskTranslate(
+              context, 'landscape_item_added_toast', '{product} added to your order')
+          .replaceAll('{product}', name);
     });
-    _highlightTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _highlightIndex = null);
-    });
-    _toastTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) setState(() => _toast = null);
+    _feedbackTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _highlightIndex = null;
+          _toast = null;
+        });
+      }
     });
   }
 
@@ -148,6 +151,18 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
     // Back to the existing start screen (SCOPE: B1 stays portrait for now).
     // Hitting a start path also releases the Phase-1 orientation latch.
     context.go(RouterHelper.kioskWelcomeScreen);
+  }
+
+  /// Same entry point the portrait cart uses (`kiosk_coupon_helper.dart`):
+  /// ensures a guest account exists, then pushes the existing (portrait)
+  /// coupon screen as a route. It renders as a portrait design inside the
+  /// landscape window — same category as checkout/customize, no landscape
+  /// Figma exists for it, and this task does not redesign it.
+  Future<void> _onCoupon(BuildContext context) async {
+    final cart = Provider.of<CartProvider>(context, listen: false);
+    final coupon = Provider.of<CouponProvider>(context, listen: false);
+    final double total = kioskPayableTotal(cart.cartList, coupon.discount ?? 0);
+    await openKioskCouponScreen(context, orderAmount: total);
   }
 
   @override
@@ -179,13 +194,14 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
                         highlightIndex: _highlightIndex,
                         onCheckout: () => openKioskCheckout(context),
                         onCancelOrder: () => _onCancelOrder(s),
-                        onCoupon: () {}, // TODO(phase4): coupon pop-up
-                        onCombo: () {}, // TODO(phase4): combo steps
+                        onCoupon: () => _onCoupon(context),
+                        onCombo: () {}, // TODO: combo "+" (see docs/landscape/01-audit.md — no reusable "add this bundle outright" logic exists in portrait; stopped for sign-off)
                       ),
                     ),
                   ],
                 ),
-                if (_toast != null) _ToastBar(s: s, message: _toast!),
+                if (_toast != null)
+                  _ToastBar(s: s, message: _toast!, panelWidth: panelWidth),
               ],
             );
           },
@@ -314,7 +330,12 @@ class _Header extends StatelessWidget {
               _HeaderLanguageFlag(s: s, size: 49.6),
             ],
           ),
-          SizedBox(height: 37 * s),
+          // Measured against the rendered tree (not guessed): logo top 28,
+          // header line top must land at 115 — gap tuned to hit that exactly
+          // at the 1366x1024 reference (TextPainter-free: font ascent/descent
+          // vary by platform, so this is corrected empirically against the
+          // test, not derived from a formula).
+          SizedBox(height: 35.61 * s),
           Container(height: 2 * s, color: Colors.black),
         ],
       ),
@@ -607,38 +628,50 @@ class _ProductGrid extends StatelessWidget {
 
 /// B-03 toast: a dark pill with a green dot, centred near the bottom of the
 /// menu, shown for 3 s above the grid.
+/// Figma B-03 toast (`2305:4353`): bg #0D0D0D, pill radius 40, 26/16 padding,
+/// 12 gap, a 26px circle asset + one line of text. Centered on the MENU
+/// PANE only (x180..966 at the 1366 reference, center ≈573) — [panelWidth]
+/// is subtracted from the right edge so it never centers across the order
+/// panel too. `IgnorePointer` so it never blocks a tap on the grid beneath it.
 class _ToastBar extends StatelessWidget {
   final double s;
   final String message;
-  const _ToastBar({required this.s, required this.message});
+  final double panelWidth;
+  const _ToastBar({required this.s, required this.message, required this.panelWidth});
 
   @override
   Widget build(BuildContext context) {
+    // Centered on the grid's own content region (x180..966 at the 1366
+    // reference — the category rail and panel paddings are excluded), not
+    // the whole left Expanded area, matching how `_menuArea` insets its row:
+    // Padding(20) -> rail(140) -> gap(20) -> content -> Padding(24).
     return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 28 * s,
+      left: (20 + 140 + 20) * s,
+      right: panelWidth + 24 * s,
+      bottom: 16 * s,
       child: IgnorePointer(
         child: Center(
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 22 * s, vertical: 14 * s),
+            key: const Key('landscape-toast'),
+            padding: EdgeInsets.symmetric(horizontal: 26 * s, vertical: 16 * s),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(999),
+              color: const Color(0xFF0D0D0D),
+              borderRadius: BorderRadius.circular(40 * s),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 14 * s,
-                  height: 14 * s,
-                  decoration: const BoxDecoration(
-                      color: KioskUI.popularGreen, shape: BoxShape.circle),
+                SvgPicture.asset(
+                  'assets/svg/landscape_toast_circle.svg',
+                  width: 26 * s,
+                  height: 26 * s,
                 ),
                 SizedBox(width: 12 * s),
                 Text(
                   message,
-                  style: loewBold.copyWith(fontSize: 16 * s, color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: loewBold.copyWith(fontSize: 17 * s, color: Colors.white),
                 ),
               ],
             ),

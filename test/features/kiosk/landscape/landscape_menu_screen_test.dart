@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
+import 'package:acafe_customer/common/providers/product_provider.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/dio/logging_interceptor.dart';
+import 'package:acafe_customer/features/branch/providers/branch_provider.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/domain/category_model.dart';
@@ -116,6 +118,10 @@ void main() {
               ..replaceCartList(cartLines ?? const [])),
         ChangeNotifierProvider<CouponProvider>(
             create: (_) => CouponProvider(couponRepo: null)),
+        ChangeNotifierProvider<BranchProvider>(
+            create: (_) => BranchProvider(splashRepo: null)),
+        ChangeNotifierProvider<ProductProvider>(
+            create: (_) => ProductProvider(productRepo: null)),
         ChangeNotifierProvider<SplashProvider>(
             create: (_) => _StubSplash(splashRepo: null)),
         ChangeNotifierProvider<KioskAuthProvider>(
@@ -192,6 +198,30 @@ void main() {
     expect(logoTopLeft.dx, 40);
   });
 
+  testWidgets('header and panel dividers sit at Figma y115/y118 at the 1366x1024 reference',
+      (tester) async {
+    tester.view.physicalSize = const Size(1366, 1024);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(await harness(tester));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final headerLine = find.byWidgetPredicate((w) =>
+        w is Container && w.color == Colors.black && (w.constraints?.maxHeight ?? 0) == 2);
+    expect(tester.getTopLeft(headerLine).dy, closeTo(115, 1));
+
+    expect(tester.getTopLeft(find.text('Your order')).dy, closeTo(36, 1));
+    expect(tester.getTopLeft(find.text('0 items')).dy, closeTo(78, 1));
+
+    final panelLine = find.byWidgetPredicate((w) =>
+        w is Container &&
+        w.color == const Color(0xFFDED8C6) &&
+        (w.constraints?.maxHeight ?? 0) == 1.5);
+    expect(tester.getTopLeft(panelLine).dy, closeTo(118, 1));
+  });
+
   group('resize (Phase 3B P1 fix)', () {
     testWidgets(
         'landscape -> narrow portrait-shaped -> landscape never throws and always matches the CURRENT window',
@@ -264,5 +294,103 @@ void main() {
       // switch), so the line the customer added is still there.
       expect(find.text('1 item'), findsOneWidget);
     });
+  });
+
+  group('B-03 item just added (toast + highlight)', () {
+    testWidgets('adding a product shows the toast and the highlight together',
+        (tester) async {
+      tester.view.physicalSize = const Size(1366, 1024);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(await harness(tester));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final cart = Provider.of<CartProvider>(
+          tester.element(find.text('Your order')),
+          listen: false);
+      cart.addToCart(
+        CartModel(6.0, 6.0, const [], 0, 1, 0, const [],
+            Product(id: 1, name: 'Iced Mango Matcha', image: '', price: 6.0), const []),
+        null,
+        showMessage: false,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.textContaining('Iced Mango Matcha added to your order'),
+          findsOneWidget);
+      expect(find.text('1 item'), findsOneWidget);
+
+      // Toast is horizontally centered on the MENU pane, not the whole
+      // screen (the order panel sits to its right).
+      final double toastCenterX =
+          tester.getCenter(find.byKey(const Key('landscape-toast'))).dx;
+      expect(toastCenterX, lessThan(683)); // < half of 1366 (whole-screen center)
+      expect(toastCenterX, closeTo(573, 40));
+      final double toastBottomGap =
+          1024 - tester.getBottomLeft(find.byKey(const Key('landscape-toast'))).dy;
+      expect(toastBottomGap, closeTo(16, 2));
+
+      // Toast + highlight disappear together after the single 3 s timer.
+      await tester.pump(const Duration(seconds: 3, milliseconds: 100));
+      expect(find.textContaining('added to your order'), findsNothing);
+    });
+
+    testWidgets('a panel +/- never shows the toast', (tester) async {
+      tester.view.physicalSize = const Size(1366, 1024);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final cartLines = [
+        CartModel(6.0, 6.0, const [], 0, 1, 0, const [],
+            Product(id: 1, name: 'Iced Mango Matcha', image: '', price: 6.0), const []),
+      ];
+      await tester.pumpWidget(await harness(tester, cartLines: cartLines));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.text('+'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.textContaining('added to your order'), findsNothing);
+    });
+  });
+
+  testWidgets(
+      'resize with items in the cart and the toast visible: no exception',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    tester.view.physicalSize = const Size(1366, 1024);
+    await tester.pumpWidget(await harness(tester));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final cart = Provider.of<CartProvider>(
+        tester.element(find.text('Your order')),
+        listen: false);
+    cart.addToCart(
+      CartModel(6.0, 6.0, const [], 0, 1, 0, const [],
+          Product(id: 1, name: 'Iced Mango Matcha', image: '', price: 6.0), const []),
+      null,
+      showMessage: false,
+    );
+    await tester.pump();
+    expect(find.textContaining('added to your order'), findsOneWidget);
+
+    tester.view.physicalSize = const Size(500, 1000);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    tester.view.physicalSize = const Size(1920, 1080);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    // Let the feedback timer fire so no Timer is pending when the test ends.
+    await tester.pump(const Duration(seconds: 4));
   });
 }

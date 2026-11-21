@@ -84,6 +84,7 @@ Future<Widget> _harness(
   VoidCallback? onCoupon,
   VoidCallback? onCombo,
   List<KioskDeal> deals = const [],
+  int? highlightIndex,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
@@ -126,6 +127,7 @@ Future<Widget> _harness(
               onCancelOrder: onCancelOrder,
               onCoupon: onCoupon ?? () {},
               onCombo: onCombo ?? () {},
+              highlightIndex: highlightIndex,
             ),
           ),
         ),
@@ -177,6 +179,35 @@ void main() {
       expect(find.text('Iced Mango Matcha'), findsOneWidget);
       expect(find.text('Your order is empty'), findsNothing);
       expect(find.textContaining('Cancel order'), findsOneWidget);
+    });
+
+    testWidgets('8+ lines scroll, and the newest (highlighted) line is scrolled into view',
+        (tester) async {
+      final lines = [
+        for (int i = 0; i < 9; i++) _line('Drink number $i with a long name', 5.0 + i),
+      ];
+      // Mirrors the real flow: the list first renders with nothing
+      // highlighted, then the newest line is highlighted on a later build —
+      // exactly the transition `_ItemList.didUpdateWidget` reacts to.
+      await tester.pumpWidget(await _harness(
+        tester,
+        lines: lines,
+        onCheckout: () {},
+        onCancelOrder: () {},
+      ));
+      await tester.pump();
+      await tester.pumpWidget(await _harness(
+        tester,
+        lines: lines,
+        onCheckout: () {},
+        onCancelOrder: () {},
+        highlightIndex: lines.length - 1,
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Drink number 8 with a long name'), findsOneWidget);
     });
 
     testWidgets('CHECK OUT fires when there are items', (tester) async {

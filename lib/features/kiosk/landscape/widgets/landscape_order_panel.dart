@@ -9,9 +9,8 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_deal.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_product_image_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
-import 'package:acafe_customer/features/kiosk/screens/kiosk_order_line_card.dart';
+import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_order_line_card.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -75,7 +74,9 @@ class LandscapeOrderPanel extends StatelessWidget {
                     count: count,
                     hasItems: hasItems,
                     onCancelOrder: onCancelOrder),
-                SizedBox(height: 18 * s),
+                // Gap measured against the rendered tree so the divider's
+                // top lands at exactly 118 (Figma `Rectangle`, 2305:3860).
+                SizedBox(height: 16 * s),
                 Container(height: 1.5 * s, color: _kPanelBorder),
                 Expanded(
                   child: hasItems
@@ -122,7 +123,9 @@ class _Header extends StatelessWidget {
           style: loewBold.copyWith(
               fontSize: 24 * s, height: 1.0, color: const Color(0xFF0D0D0D)),
         ),
-        SizedBox(height: 10 * s),
+        // Title top is 36 (matches Figma); "items" label top must land at
+        // 78 — gap measured against the rendered tree to hit that exactly.
+        SizedBox(height: 18 * s),
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -190,33 +193,60 @@ class _EmptyState extends StatelessWidget {
 }
 
 /// Scrolling item list. Newest item is at the bottom (B-02); the combo card,
-/// coupon link and CHECK OUT stay fixed below it.
-class _ItemList extends StatelessWidget {
+/// coupon link and CHECK OUT stay fixed below it. Scrolls the newest line
+/// into view when [highlight] starts pointing at it (B-03) — never on a
+/// plain +/- tap, since the caller only ever sets [highlight] when the list
+/// actually grew (see `landscape_menu_screen.dart`'s `landscapeJustAddedIndex`).
+class _ItemList extends StatefulWidget {
   final double s;
   final int count;
   final int? highlight;
   const _ItemList({required this.s, required this.count, this.highlight});
 
   @override
+  State<_ItemList> createState() => _ItemListState();
+}
+
+class _ItemListState extends State<_ItemList> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void didUpdateWidget(covariant _ItemList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.highlight != null && widget.highlight != oldWidget.highlight) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_controller.hasClients) return;
+        _controller.animateTo(
+          _controller.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cart = Provider.of<CartProvider>(context, listen: false);
     return ListView.separated(
-      padding: EdgeInsets.symmetric(vertical: 16 * s),
-      itemCount: count,
-      separatorBuilder: (_, __) => SizedBox(height: 12 * s),
+      controller: _controller,
+      padding: EdgeInsets.symmetric(vertical: 16 * widget.s),
+      itemCount: widget.count,
+      separatorBuilder: (_, __) => SizedBox(height: 12 * widget.s),
       itemBuilder: (context, index) {
         final line = cart.cartList[index];
         if (line == null) return const SizedBox.shrink();
-        final bool highlighted = highlight == index;
-        final Widget card =
-            KioskOrderLineCard(compact: true, cart: line, index: index);
-        if (!highlighted) return card;
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(KioskUI.radius),
-            border: Border.all(color: KioskUI.popularGreen, width: 2),
-          ),
-          child: card,
+        return LandscapeOrderLineCard(
+          cart: line,
+          index: index,
+          s: widget.s,
+          highlighted: widget.highlight == index,
         );
       },
     );
