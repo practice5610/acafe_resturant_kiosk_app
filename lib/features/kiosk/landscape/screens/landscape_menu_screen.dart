@@ -181,7 +181,7 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
             // a narrow (near-portrait) width during a resize.
             final double panelUpper = math.max(c.maxWidth * 0.4, 0.0);
             final double panelLower = math.min(220.0, panelUpper);
-            final double panelWidth = (350 * s).clamp(panelLower, panelUpper);
+            final double panelWidth = (390 * s).clamp(panelLower, panelUpper);
             return Stack(
               children: [
                 Row(
@@ -557,7 +557,7 @@ class _ProductGrid extends StatelessWidget {
         // locally and used for the sliver's mainAxisExtent;
         // LandscapeProductCard already lays its image out with Expanded, so
         // it fills whatever height it is given.
-        const double kCardAspect = 1.2;
+        const double kCardAspect = 1.0;
         // Guards a tiny/negative tileWidth during an extreme resize (the
         // shared factory doesn't floor it) so the grid never hands a
         // negative mainAxisExtent to SliverGrid.
