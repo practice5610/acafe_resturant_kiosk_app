@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_combo_match.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
@@ -117,9 +118,16 @@ class _KioskUpsellSheet extends StatelessWidget {
         if (line?.product?.id != null) line!.product!.id!,
     };
 
+    // Honour the customer's allergen filter — same rule as the menu and the
+    // add-on list: products containing an avoided allergen are hidden, not
+    // greyed out.
+    final Set<KioskAllergen> avoided =
+        KioskAllergenPreferences.instance.avoided;
+
     final matches = category.allPrefetchedProducts
         .where((p) => KioskCourse.of(p) == course)
         .where((p) => p.id == null || !inCart.contains(p.id))
+        .where((p) => !kioskProductHasAllergen(p, avoided))
         .toList()
       ..sort((a, b) =>
           (b.popularityCount ?? 0).compareTo(a.popularityCount ?? 0));
