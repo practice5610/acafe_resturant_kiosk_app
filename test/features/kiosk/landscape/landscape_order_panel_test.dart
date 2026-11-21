@@ -273,6 +273,50 @@ void main() {
       expect(find.textContaining('COMBO'), findsNothing);
       expect(find.text('Enter code'), findsOneWidget);
     });
+
+    group('kLandscapeComboEnabled flag (Phase 5 Part C — "+" not wired to anything)', () {
+      final bundleDeal = [
+        KioskDeal(
+          id: 1,
+          dealType: KioskDeal.typeProductBundle,
+          title: 'Strawberry Matcha Meal',
+          bundlePrice: 16.0,
+          originalPrice: 20.0,
+          savings: 4.0,
+          savingsPercent: 20,
+          available: true,
+          items: [],
+        ),
+      ];
+
+      tearDown(() => kLandscapeComboEnabled = true);
+
+      testWidgets('true (default): combo card renders when a bundle exists',
+          (tester) async {
+        kLandscapeComboEnabled = true;
+        await tester.pumpWidget(await _harness(tester,
+            lines: [_line('Latte', 6)],
+            onCheckout: () {},
+            onCancelOrder: () {},
+            deals: bundleDeal));
+        await tester.pump();
+
+        expect(find.textContaining('COMBO'), findsWidgets);
+      });
+
+      testWidgets('false: the whole combo block is hidden even with a bundle available',
+          (tester) async {
+        kLandscapeComboEnabled = false;
+        await tester.pumpWidget(await _harness(tester,
+            lines: [_line('Latte', 6)],
+            onCheckout: () {},
+            onCancelOrder: () {},
+            deals: bundleDeal));
+        await tester.pump();
+
+        expect(find.textContaining('COMBO'), findsNothing);
+      });
+    });
   });
 
   group('B-04 cancel dialog', () {

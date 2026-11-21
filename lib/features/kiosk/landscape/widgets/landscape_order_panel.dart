@@ -16,6 +16,19 @@ import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/utill/images.dart';
 import 'package:acafe_customer/utill/styles.dart';
 
+/// Phase 5 Part C: "+" is NOT wired to anything — the only combo logic that
+/// exists in this app (`findKioskComboUpgrade` / `CartProvider.applyComboUpgrade`
+/// / `openKioskComboSheet`) is an UPGRADE that only fires when the cart
+/// already contains every product of a bundle; it cannot do "add this bundle
+/// outright," which is what the Figma card and this constant's name mean. Set
+/// to `false` before shipping to production unless that behaviour has been
+/// built and reviewed — see docs/landscape/02-status.md ("Combo "+" — pending
+/// decision") for the two proposed designs. `true` for now only so the card
+/// still matches Figma during development. A plain mutable top-level (not
+/// `const`) so a test can flip it and restore it — the value is still only
+/// ever meant to be set once, at build/deploy time, not toggled at runtime.
+bool kLandscapeComboEnabled = true;
+
 const Color _kPanelBg = Color(0xFFFBF8EF);
 const Color _kPanelBorder = Color(0xFFDED8C6);
 const Color _kMutedText = Color(0xFF73736E);
@@ -266,6 +279,7 @@ class _ComboCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!kLandscapeComboEnabled) return const SizedBox.shrink();
     return Consumer<KioskDealProvider>(
       builder: (context, dealsProvider, _) {
         List<KioskDeal> deals = const <KioskDeal>[];

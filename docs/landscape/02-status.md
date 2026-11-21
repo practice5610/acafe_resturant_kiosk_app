@@ -75,6 +75,70 @@ the one additive hook in `lib/helper/router_helper.dart` and the 8
   handful of already-broken test files unrelated to this feature); confirmed
   via `git stash` that these fail identically with or without this work.
 
+## The portrait/landscape switch rule (exact)
+
+`classifyKioskLayout(window)` in `kiosk_orientation.dart`:
+
+> **Landscape when `window.width >= window.height`. A square window counts as
+> landscape. There is no minimum width floor on the decision itself** — a
+> 300×200 window is still classified landscape; it just renders small
+> (`LandscapeMetrics.scaleFor` has its own floor, `minScale = 0.1`, for the
+> render *scale*, not for which layout is chosen).
+
+Evaluated fresh on every build via `KioskLandscapeSwitch.resolve` (no lock,
+no memory across calls — see "Done" above). Everything that is `width <
+height` renders the untouched portrait screen.
+
+## Combo "+" — pending decision
+
+`kLandscapeComboEnabled` (`landscape_order_panel.dart`) gates the whole
+"MAKE IT A COMBO" block — `true` by default so it still matches Figma during
+development; set to `false` before shipping unless one of the designs below
+is built and reviewed. "+" is not wired to anything either way.
+
+**What supplies the data today:** `KioskDealProvider.deals` (fetched/cached
+per branch+device by the backend already, no new fetch needed) — each
+`KioskDeal` carries `title`/`bundlePrice`/`originalPrice`/`image`/`available`
+and its `items` (the bundle's products). The card currently shows the first
+`available && dealType == typeProductBundle` deal — same simple pick as
+before; "best match for the current cart" would need new ranking logic with
+no portrait precedent to copy.
+
+**How a deal line is priced/sent (read only, unchanged):** `CartModel.deal(
+dealId, title, image, bundlePrice, originalPrice, components)` builds the
+cart line; `components` are per-product sub-lines. The *only* place that
+builds one today (`kiosk_combo_match.dart`) populates `components` by
+**copying configuration off cart lines that already exist** (it slices
+existing lines down to qty-1 copies) — it has never had to decide a bundled
+product's variation/add-on choices from scratch, because the upgrade path
+only ever fires when the customer already configured and added those
+products themselves.
+
+**Proposal 1 — instant add (closest to what Figma's "+" implies):**
+tapping "+" builds a fresh `CartModel.deal(...)` directly from `deal.items`
+(no existing cart lines involved) and calls `cart.addToCart(dealLine, null)`
+— the same method a normal product add already uses, so toast/highlight/
+count/total all update for free via the existing cart-change listener.
+*Risk:* building `components` from scratch means deciding each bundled
+product's variation/add-on configuration with no customer input and no
+portrait precedent for that decision — a product with a required paid
+variation could price the bundle wrong. *Files:* `landscape_order_panel.dart`
+only.
+
+**Proposal 2 — confirm-then-add:** same construction as Proposal 1, but
+"+" opens a confirmation step first (visually modeled on portrait's existing
+`_KioskComboSheet` chrome) showing the bundle before adding it. *Risk:* same
+component-construction risk as Proposal 1, plus reusing or forking
+`kiosk_combo_sheet.dart`'s private sheet widget means either editing a
+shared file (stop condition) or duplicating its chrome into a new landscape
+file. *Files:* `landscape_order_panel.dart` + a new
+`landscape_combo_confirm_sheet.dart` (if not editing the shared one).
+
+Both proposals reuse `cart.addToCart` and existing pricing helpers only —
+neither touches order-writing, payment, the API or any model. Whichever is
+chosen (or neither, if `false` ships), the component-construction risk above
+needs an explicit answer first.
+
 ## Known limitations
 
 - Local widget state (selected filter pills, grid scroll position) is not
