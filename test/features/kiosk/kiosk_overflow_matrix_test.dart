@@ -57,10 +57,9 @@ void main() {
           tester,
           size,
           const KioskOrderSuccessScreen(
-            orderNumber: '#832',
-            thankYouText: 'THANK YOU, DYLAN!',
-            pickupMessage:
-                'Grab it at the counter when your name shows up enjoy!',
+            orderNumber: '832',
+            customerName: 'Dylan',
+            receiptUrl: 'https://acafepos.com/order-details?id=832',
           ),
         );
         await tester.pump(const Duration(milliseconds: 950));

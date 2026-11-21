@@ -99,23 +99,54 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
 
       final String name = KioskSession.instance.customerName;
       final String rawId = result.orderId ?? '';
-      final String orderNumber = rawId.isEmpty || rawId == '-1'
-          ? '#'
-          : (rawId.startsWith('#') ? rawId : '#$rawId');
+      final String orderNumber =
+          rawId.isEmpty || rawId == '-1' ? '' : rawId.replaceFirst('#', '');
 
       await Navigator.of(context).push(KioskOrderSuccessScreen.route(
         orderNumber: orderNumber,
-        thankYouText: _thankYouLabel(context, name),
-        pickupMessage: kioskTranslate(
-          context,
-          'grab_it_at_the_counter',
-          'Grab it at the counter when your name shows up enjoy!',
-        ),
+        customerName: name,
+        receiptUrl: 'https://acafepos.com/order-details?id=$rawId',
         confirmedText: kioskTranslate(
           context,
           'order_confirmed',
           'Order confirmed!',
         ).toUpperCase(),
+        thankYouHeadline: kioskTranslate(
+          context,
+          'thank_you_headline',
+          'Thank you!',
+        ).toUpperCase(),
+        thankYouSubtitle: kioskTranslate(
+          context,
+          'order_paid_making_it',
+          "Your order is paid. We're making it now.",
+        ),
+        nameCardLabel: kioskTranslate(
+          context,
+          'we_call_your_name',
+          'We call your name at the counter',
+        ).toUpperCase(),
+        receiptHeadline: kioskTranslate(
+          context,
+          'scan_for_your_receipt',
+          'Scan for your receipt',
+        ),
+        receiptSubtitle: kioskTranslate(
+          context,
+          'open_on_phone_follow_order',
+          'Open it on your phone and follow your order live.',
+        ),
+        noPaperLabel: kioskTranslate(
+          context,
+          'no_paper_receipt_printed',
+          'No paper receipt is printed',
+        ),
+        placeNewOrderLabel: kioskTranslate(
+          context,
+          'place_new_order',
+          'Place new order',
+        ).toUpperCase(),
+        closesInLabel: kioskTranslate(context, 'closes_in', 'Closes in'),
       ));
 
       // Providers are app-scoped — always clear, even if confirm unmounted.
@@ -284,15 +315,6 @@ class _ConfirmLayout {
   double get lineImageAspect => landscape ? 1 : kOrderLineImageAspect;
 }
 
-String _thankYouLabel(BuildContext context, String name) {
-  final String trimmed = name.trim();
-  if (trimmed.isEmpty) {
-    return kioskTranslate(context, 'thank_you', 'Thank you!').toUpperCase();
-  }
-  return kioskTranslate(context, 'thank_you_name', 'Thank you, {name}!')
-      .replaceAll('{name}', trimmed)
-      .toUpperCase();
-}
 
 class _ConfirmLineList extends StatelessWidget {
   final _ConfirmLayout layout;

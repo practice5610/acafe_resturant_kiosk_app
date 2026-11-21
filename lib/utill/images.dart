@@ -280,6 +280,16 @@ class Images {
   /// wider than it is tall (60.495 x 50) — size it on that ratio.
   static const String kioskCheckSvg = 'assets/svg/kiosk_check.svg';
 
+  /// Success badge tick on the kiosk Thank You screen (Figma POS node
+  /// `2305:17138`, icon/check, 110x110 square — distinct from [kioskCheckSvg]).
+  static const String kioskThankYouCheckSvg =
+      'assets/svg/kiosk_thank_you_check.svg';
+
+  /// Outline phone icon in the "No paper receipt is printed" pill on the
+  /// Thank You screen (Figma POS node `2305:17304`, icon/phone, 50x50).
+  static const String kioskThankYouPhoneSvg =
+      'assets/svg/kiosk_thank_you_phone.svg';
+
 
   static const String halalIconSvg = 'assets/svg/halal_icon.svg';
   static const String congratulationIconSvg = 'assets/svg/congratulation_icon.svg';

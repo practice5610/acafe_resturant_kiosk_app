@@ -45,10 +45,9 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: KioskOrderSuccessScreen(
-          orderNumber: '#832',
-          thankYouText: 'THANK YOU, DYLAN!',
-          pickupMessage:
-              'Grab it at the counter when your name shows up enjoy!',
+          orderNumber: '832',
+          customerName: 'Dylan',
+          receiptUrl: 'https://acafepos.com/order-details?id=832',
           confirmedText: 'ORDER CONFIRMED!',
         ),
       ),
@@ -67,7 +66,8 @@ void main() {
     expect(find.byType(CustomPaint), findsWidgets);
   });
 
-  testWidgets('advances to the order-number thank-you beat', (tester) async {
+  testWidgets('advances to the thank-you beat with name, order and receipt',
+      (tester) async {
     await render(tester);
     await tester.pump(const Duration(milliseconds: 950));
 
@@ -75,12 +75,50 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 900));
 
-    expect(find.text('#832'), findsOneWidget);
-    expect(find.text('THANK YOU, DYLAN!'), findsOneWidget);
-    expect(
-      find.text('Grab it at the counter when your name shows up enjoy!'),
-      findsOneWidget,
+    expect(find.text('THANK YOU!'), findsOneWidget);
+    expect(find.text('DYLAN'), findsOneWidget);
+    expect(find.text('Order /832'), findsOneWidget);
+    expect(find.text('Scan for your receipt'), findsOneWidget);
+    expect(find.text('No paper receipt is printed'), findsOneWidget);
+    expect(find.text('PLACE NEW ORDER'), findsOneWidget);
+    expect(find.text('30'), findsOneWidget);
+  });
+
+  testWidgets('countdown ticks down and auto-leaves at zero', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                KioskOrderSuccessScreen.route(
+                  orderNumber: '832',
+                  customerName: 'Dylan',
+                  receiptUrl: 'https://acafepos.com/order-details?id=832',
+                  countdownSeconds: 3,
+                ),
+              ),
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      ),
     );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 950));
+    await tester.pump(const Duration(milliseconds: 900));
+
+    expect(find.text('3'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('2'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+
+    expect(find.text('go'), findsOneWidget);
+    expect(find.byType(KioskOrderSuccessScreen), findsNothing);
   });
 
   testWidgets('survives a short landscape viewport', (tester) async {
@@ -92,7 +130,7 @@ void main() {
     await tester.tap(find.byType(KioskOrderSuccessScreen));
     await tester.pump(const Duration(milliseconds: 900));
     expect(tester.takeException(), isNull);
-    expect(find.text('#832'), findsOneWidget);
+    expect(find.text('DYLAN'), findsOneWidget);
   });
 
   testWidgets('tapping the thank-you beat leaves immediately', (tester) async {
@@ -103,10 +141,9 @@ void main() {
             body: TextButton(
               onPressed: () => Navigator.of(context).push(
                 KioskOrderSuccessScreen.route(
-                  orderNumber: '#832',
-                  thankYouText: 'THANK YOU, DYLAN!',
-                  pickupMessage:
-                      'Grab it at the counter when your name shows up enjoy!',
+                  orderNumber: '832',
+                  customerName: 'Dylan',
+                  receiptUrl: 'https://acafepos.com/order-details?id=832',
                 ),
               ),
               child: const Text('go'),
