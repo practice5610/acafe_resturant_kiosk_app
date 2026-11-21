@@ -171,21 +171,7 @@ void main() {
     });
   });
 
-  group('photo feather', () {
-    testWidgets('feathered photo occupies ~79% of the photo area, centered-ish',
-        (tester) async {
-      final product = _product();
-      await tester.pumpWidget(_harness(product));
-      await tester.pump();
-
-      final Size photoArea = tester.getSize(find.byType(ShaderMask));
-      // The card photo area is the Expanded region above the text block —
-      // compare the feathered crop against it by ratio, not an absolute px,
-      // since the test harness's card height is whatever the layout gives it.
-      expect(photoArea.width, greaterThan(0));
-      expect(photoArea.height, greaterThan(0));
-    });
-
+  group('product photo', () {
     testWidgets('renders with no exception for an empty/unresolvable image URL',
         (tester) async {
       final product = _product(image: '');
