@@ -15,6 +15,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_trimmed_image.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
@@ -428,19 +429,14 @@ class KioskProductCard extends StatelessWidget {
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // a. Image area — contained, 12 padding.
+        // a. Image area — 200 tall on a 304-wide card (= 197 at 300), 8
+        // padding. The photo is contained by its visible content, not its
+        // transparent canvas (see KioskTrimmedImage), at full resolution.
         SizedBox(
-          height: 195 * cu,
+          height: 197 * cu,
           child: Padding(
-            padding: EdgeInsets.all(12 * cu),
-            child: CustomImageWidget(
-              emptyWhenMissing: true,
-              placeholder: Images.placeholderImage,
-              image: image,
-              fit: BoxFit.contain,
-              useShimmer: true,
-              cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
-            ),
+            padding: EdgeInsets.all(8 * cu),
+            child: KioskTrimmedImage(image: image),
           ),
         ),
         // b. Divider under the image.
