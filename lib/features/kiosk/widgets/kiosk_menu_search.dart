@@ -23,6 +23,10 @@ class KioskMenuSearch extends StatefulWidget {
   final VoidCallback onOpen;
   final VoidCallback onClose;
 
+  /// Redesigned menu header look: a white circle with a soft shadow when
+  /// collapsed and a borderless white pill when open. Visual only.
+  final bool flat;
+
   const KioskMenuSearch({
     super.key,
     required this.s,
@@ -33,6 +37,7 @@ class KioskMenuSearch extends StatefulWidget {
     required this.focusNode,
     required this.onOpen,
     required this.onClose,
+    this.flat = false,
   });
 
   @override
@@ -91,6 +96,35 @@ class _KioskMenuSearchState extends State<KioskMenuSearch>
 
         // Fully collapsed: the original circular SVG button, pixel-identical
         // to the filter button beside it.
+        if (t == 0 && widget.flat) {
+          return Container(
+            width: d,
+            height: d,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: d * 0.2,
+                  offset: Offset(0, d * 0.04),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: KioskTap(
+                onTap: widget.onOpen,
+                child: Center(
+                  child:
+                      Icon(Icons.search, size: d * 0.48, color: KioskUI.dark),
+                ),
+              ),
+            ),
+          );
+        }
         if (t == 0) {
           return SizedBox(
             width: d,
@@ -109,10 +143,13 @@ class _KioskMenuSearchState extends State<KioskMenuSearch>
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(d / 2),
-            border: Border.all(color: Colors.black, width: stroke),
+            border: widget.flat
+                ? null
+                : Border.all(color: Colors.black, width: stroke),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08 * t),
+                color: Colors.black
+                    .withValues(alpha: widget.flat ? 0.10 : 0.08 * t),
                 blurRadius: 24 * s,
                 offset: Offset(0, 8 * s),
               ),
@@ -122,9 +159,9 @@ class _KioskMenuSearchState extends State<KioskMenuSearch>
           child: Row(
             children: [
               SizedBox(
-                width: d - stroke * 2,
+                width: widget.flat ? d : d - stroke * 2,
                 child: Icon(Icons.search_rounded,
-                    size: 56 * s, color: KioskUI.dark),
+                    size: widget.flat ? d * 0.48 : 56 * s, color: KioskUI.dark),
               ),
               Expanded(
                 // Left-to-right wipe: the field is laid out at full width and
