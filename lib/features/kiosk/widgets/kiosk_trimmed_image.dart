@@ -69,7 +69,8 @@ class _KioskTrimmedImageState extends State<KioskTrimmedImage> {
   }
 
   void _resolve() {
-    if (_known || !CustomImageWidget.showProductImages || widget.image.isEmpty) return;
+    if (_known || !CustomImageWidget.showProductImages || widget.image.isEmpty)
+      return;
     if (CustomImageWidget.isDefaultImage(widget.image) ||
         widget.image.endsWith('/') ||
         widget.image.endsWith('/null')) {
@@ -162,29 +163,28 @@ class _KioskTrimmedImageState extends State<KioskTrimmedImage> {
         final double dispW = dispH * b.aspect;
         final double left = bw / 2 - (b.l + b.r) / 2 * dispW;
         final double top = bh / 2 - (b.t + b.b) / 2 * dispH;
-        return ClipRect(
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              Positioned(
-                left: left,
-                top: top,
+        // No clip: only transparent canvas margin extends past the box, so
+        // the visible photo is never cut.
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: left,
+              top: top,
+              width: dispW,
+              height: dispH,
+              child: CustomImageWidget(
+                emptyWhenMissing: true,
+                placeholder: Images.placeholderImage,
+                image: widget.image,
                 width: dispW,
                 height: dispH,
-                child: CustomImageWidget(
-                  emptyWhenMissing: true,
-                  placeholder: Images.placeholderImage,
-                  image: widget.image,
-                  width: dispW,
-                  height: dispH,
-                  fit: BoxFit.fill,
-                ),
+                fit: BoxFit.fill,
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
   }
 }
-

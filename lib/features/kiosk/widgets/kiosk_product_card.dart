@@ -448,11 +448,17 @@ class KioskProductCard extends StatelessWidget {
             // a. Image area — 200 tall on a 304-wide card (= 197 at 300), 8
             // padding. The photo is contained by its visible content, not its
             // transparent canvas (see KioskTrimmedImage), at full resolution.
+            // The visible photo is contained in a centred bounding box of
+            // 78% of the card width x 88% of the area height, so wide cups
+            // get the same white space around them as tall glasses.
             SizedBox(
               height: 197 * cu,
-              child: Padding(
-                padding: EdgeInsets.all(8 * cu),
-                child: KioskTrimmedImage(image: image),
+              child: Center(
+                child: SizedBox(
+                  width: tileWidth * 0.78,
+                  height: 197 * cu * 0.88,
+                  child: KioskTrimmedImage(image: image),
+                ),
               ),
             ),
             // b. Divider under the image.
