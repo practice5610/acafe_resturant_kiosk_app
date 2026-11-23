@@ -25,6 +25,7 @@ import 'package:acafe_customer/main.dart' show navigatorKey;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:acafe_customer/features/kiosk/landscape/landscape_metrics.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -184,7 +185,7 @@ void main() {
     });
   });
 
-  testWidgets('header logo sits at Figma x40 at the 1366x1024 reference',
+  testWidgets('logo is centred at the top of the cream sidebar at the 1366x1024 reference',
       (tester) async {
     tester.view.physicalSize = const Size(1366, 1024);
     tester.view.devicePixelRatio = 1.0;
@@ -194,11 +195,16 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    final Offset logoTopLeft = tester.getTopLeft(find.text('A/CAFÉ'));
-    expect(logoTopLeft.dx, 40);
+    // Redesign: the logo moved from the header into the portrait-style
+    // sidebar (130 wide at the 1190x680 reference, scaled with the screen).
+    final double u = 1 / LandscapeMetrics.scaleFor(1190, 680);
+    final double sidebarWidth = 130 * u;
+    final Offset logoCenter = tester.getCenter(find.text('A/CAFÉ'));
+    expect(logoCenter.dx, closeTo(sidebarWidth / 2, 1));
+    expect(logoCenter.dy, lessThan(80));
   });
 
-  testWidgets('header and panel dividers sit at Figma y115/y118 at the 1366x1024 reference',
+  testWidgets('header line sits under the header buttons; panel divider stays at Figma y118',
       (tester) async {
     tester.view.physicalSize = const Size(1366, 1024);
     tester.view.devicePixelRatio = 1.0;
@@ -210,7 +216,9 @@ void main() {
 
     final headerLine = find.byWidgetPredicate((w) =>
         w is Container && w.color == Colors.black && (w.constraints?.maxHeight ?? 0) == 2);
-    expect(tester.getTopLeft(headerLine).dy, closeTo(115, 1));
+    // Header no longer carries the logo, so its line sits right under the
+    // search/filter/language buttons (was y115 under the logo).
+    expect(tester.getTopLeft(headerLine).dy, inInclusiveRange(80, 100));
 
     expect(tester.getTopLeft(find.text('Your order')).dy, closeTo(36, 1));
     expect(tester.getTopLeft(find.text('0 items')).dy, closeTo(78, 1));
