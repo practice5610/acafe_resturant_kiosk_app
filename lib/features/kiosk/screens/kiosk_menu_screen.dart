@@ -396,7 +396,7 @@ class _MenuSpec {
       ];
 }
 
-/// Two thin short rules above the category title (reference ornament).
+/// One thin short rule above the category title, left of centre.
 class _DecorativeLines extends StatelessWidget {
   final double u;
   const _DecorativeLines({required this.u});
@@ -407,7 +407,9 @@ class _DecorativeLines extends StatelessWidget {
         Container(width: 80 * u, height: 1 * u, color: _MenuSpec.decoLine);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [line(), SizedBox(width: 240 * u), line()],
+      // Left rule only; the right one sat under the search button. The
+      // trailing spacer keeps the left rule exactly where it was.
+      children: [line(), SizedBox(width: 240 * u + 80 * u)],
     );
   }
 }
