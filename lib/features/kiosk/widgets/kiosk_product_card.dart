@@ -89,6 +89,9 @@ class KioskCardDesign {
   static const double cardHeight = 823;
   static const double cardRadius = 33;
   static const double cardBorderWidth = 5.5;
+  /// Gentle card lift (Material elevation), kept faint on purpose.
+  static const double cardElevation = 3;
+  static const Color cardElevationColor = Color(0x33A89F82);
 
   // Photo feather mask
   static const double photoTop = -11;
@@ -225,6 +228,9 @@ class KioskProductCard extends StatelessWidget {
 
     final card = Material(
       color: Colors.white,
+      // Gentle lift: low elevation, very faint warm tint (no dark drop shadow).
+      elevation: KioskCardDesign.cardElevation,
+      shadowColor: KioskCardDesign.cardElevationColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(cardRadius),
         side: BorderSide(color: BrandColors.cardBorder, width: cardBorderWidth),
@@ -232,6 +238,7 @@ class KioskProductCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: cardContent,
     );
+
 
     // Out-of-stock: fade the card and block taps (but keep the info icon live).
     // The info icon is positioned OUTSIDE the card's tap area via a separate
