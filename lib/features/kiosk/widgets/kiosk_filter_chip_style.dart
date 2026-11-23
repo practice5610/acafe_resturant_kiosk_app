@@ -22,15 +22,20 @@ class KioskFilterChipStyle {
 
   static double gap(double fontSize) => 8 * fontSize / _refFont;
 
+  /// [borderColor] / [borderWidth] let one screen refine the outline
+  /// (portrait uses a hairline); left null, they give the landscape look.
   static BoxDecoration decoration({
     required bool selected,
     required double fontSize,
+    Color? borderColor,
+    double? borderWidth,
   }) =>
       BoxDecoration(
         color: selected ? ink : Colors.transparent,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-            color: ink, width: (1.2 * fontSize / _refFont).clamp(1.0, 2.0)),
+            color: selected ? ink : (borderColor ?? ink),
+            width: borderWidth ?? (1.2 * fontSize / _refFont).clamp(1.0, 2.0)),
       );
 
   static Color textColor(bool selected) => selected ? selectedText : ink;

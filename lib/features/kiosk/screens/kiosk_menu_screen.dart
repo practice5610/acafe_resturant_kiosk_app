@@ -645,14 +645,20 @@ class _FilterPill extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: KioskFilterChipStyle.padding(font),
-        decoration:
-            KioskFilterChipStyle.decoration(selected: selected, fontSize: font),
+        // Portrait refinement: a hairline outline in soft ink (the shared
+        // 1.2 black read heavy at this size) and light tracking on the caps.
+        decoration: KioskFilterChipStyle.decoration(
+          selected: selected,
+          fontSize: font,
+          borderColor: Colors.black.withValues(alpha: 0.35),
+          borderWidth: (0.8 * u).clamp(0.75, 1.0),
+        ),
         child: Text(
           label,
           style: poppinsMedium.copyWith(
             fontSize: font,
             height: 1,
-            letterSpacing: 0,
+            letterSpacing: 0.6 * u,
             color: KioskFilterChipStyle.textColor(selected),
           ),
         ),
