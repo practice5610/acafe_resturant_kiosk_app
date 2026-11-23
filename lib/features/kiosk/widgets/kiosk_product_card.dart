@@ -70,7 +70,6 @@ Color? _kioskColorFromHex(String? hex) {
   return Color(0xFF000000 | parsed);
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Product card — Figma node 2305:12471 redesign
 //
@@ -89,6 +88,7 @@ class KioskCardDesign {
   static const double cardHeight = 823;
   static const double cardRadius = 33;
   static const double cardBorderWidth = 5.5;
+
   /// Gentle card lift (Material elevation), kept faint on purpose.
   static const double cardElevation = 3;
   static const Color cardElevationColor = Color(0x33A89F82);
@@ -167,6 +167,11 @@ class KioskProductCard extends StatelessWidget {
   /// sheet once the item has actually been added.
   final VoidCallback? onTap;
 
+  /// Menu-grid redesign (300×340 reference card: contained image, divider,
+  /// name / description / allergens / price stacked). The upsell sheet leaves
+  /// this off and keeps card 02 unchanged. Same data, same taps.
+  final bool menuStyle;
+
   const KioskProductCard({
     super.key,
     required this.s,
@@ -177,6 +182,7 @@ class KioskProductCard extends StatelessWidget {
     this.showDescription = true,
     this.showInfoIcon = true,
     this.onTap,
+    this.menuStyle = false,
   });
 
   void _handleTap(BuildContext context) =>
@@ -186,17 +192,24 @@ class KioskProductCard extends StatelessWidget {
   /// A null [BranchProduct] means the product has no branch override — treat
   /// it as available (the backend would not include it otherwise).
   bool get _isOutOfStock =>
-      product.branchProduct != null && product.branchProduct!.isAvailable != true;
+      product.branchProduct != null &&
+      product.branchProduct!.isAvailable != true;
 
   @override
   Widget build(BuildContext context) {
     // Picture-less device: use the compact text-only card.
-    if (!showImages) return _buildTextOnlyCard(context);
+    if (!showImages) {
+      return menuStyle
+          ? _buildMenuTextOnlyCard(context)
+          : _buildTextOnlyCard(context);
+    }
+    if (menuStyle) return _buildMenuCard(context);
 
     final double ts = tileWidth / KioskCardDesign.cardWidth;
     final double cardRadius = KioskCardDesign.cardRadius * ts;
     final double cardBorderWidth = KioskCardDesign.cardBorderWidth * ts;
-    final double tileHeight = tileWidth * (KioskCardDesign.cardHeight / KioskCardDesign.cardWidth);
+    final double tileHeight =
+        tileWidth * (KioskCardDesign.cardHeight / KioskCardDesign.cardWidth);
 
     final cardContent = SizedBox(
       width: tileWidth,
@@ -239,7 +252,6 @@ class KioskProductCard extends StatelessWidget {
       child: cardContent,
     );
 
-
     // Out-of-stock: fade the card and block taps (but keep the info icon live).
     // The info icon is positioned OUTSIDE the card's tap area via a separate
     // Stack layer, so AbsorbPointer on the card does not kill it.
@@ -260,6 +272,247 @@ class KioskProductCard extends StatelessWidget {
         if (showInfoIcon) _buildInfoIcon(context, ts),
       ],
     );
+  }
+
+  // ── Menu-grid redesign ────────────────────────────────────────────────
+  // Authored against a 300×340 reference card; `cu` = tileWidth / 300.
+
+  static const Color _menuInk = Color(0xFF111111);
+  // Reference ~#8E8E8E fails 4.5:1 on white; nearest passing grey.
+  static const Color _menuDescInk = Color(0xFF767676);
+  static const Color _menuPriceInk = Color(0xFF333333);
+  static const Color _menuDivider = Color(0xFFEFEFEF);
+
+  String _priceText() => PriceConverterHelper.convertPrice(
+        product.price,
+        discount: product.discount,
+        discountType: product.discountType,
+      );
+
+  BoxDecoration _menuCardDecoration(double cu) => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14 * cu),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10 * cu,
+            offset: Offset(0, 2 * cu),
+          ),
+        ],
+      );
+
+  /// Wraps a menu card body with the out-of-stock fade/tap-block and the info
+  /// icon, exactly as the original card does.
+  Widget _menuShell(BuildContext context, double cu, Widget body,
+      {required bool withInfo}) {
+    final card = Container(
+      decoration: _menuCardDecoration(cu),
+      clipBehavior: Clip.antiAlias,
+      child: Material(color: Colors.transparent, child: body),
+    );
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: _isOutOfStock ? KioskCardDesign.outOfStockOpacity : 1.0,
+            child: _isOutOfStock
+                ? AbsorbPointer(child: card)
+                : KioskTap(onTap: () => _handleTap(context), child: card),
+          ),
+        ),
+        if (badge != null && !_isOutOfStock)
+          _menuBadge(cu, badge!.label.toUpperCase(), badge!.color),
+        if (_isOutOfStock)
+          _menuBadge(cu, 'OUT OF STOCK', KioskCardDesign.outOfStockBadgeColor),
+        if (withInfo && showInfoIcon)
+          Positioned(
+            top: 8 * cu,
+            right: 8 * cu,
+            child: KioskTap(
+              onTap: () => _showProductInfoDialog(context),
+              // Generous hit box around a small, quiet glyph.
+              child: Padding(
+                padding: EdgeInsets.all(4 * cu),
+                child: Container(
+                  width: 16 * cu,
+                  height: 16 * cu,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    'i',
+                    style: poppinsMedium.copyWith(
+                      fontSize: 10 * cu,
+                      height: 1,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _menuBadge(double cu, String label, Color color) => Positioned(
+        top: 10 * cu,
+        left: 10 * cu,
+        child: Container(
+          height: 22 * cu,
+          padding: EdgeInsets.symmetric(horizontal: 10 * cu),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(11 * cu),
+          ),
+          child: Text(
+            label,
+            style: poppinsMedium.copyWith(
+                fontSize: 11 * cu, height: 1, color: Colors.white),
+          ),
+        ),
+      );
+
+  Widget _menuName(double cu) => Text(
+        product.name ?? '',
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: poppinsMedium.copyWith(
+          fontSize: 15 * cu,
+          height: 1.3,
+          color: _isOutOfStock ? KioskCardDesign.outOfStockTextColor : _menuInk,
+        ),
+      );
+
+  Widget _menuPrice(double cu) => Text(
+        _priceText(),
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: poppinsRegular.copyWith(
+          fontSize: 14 * cu,
+          height: 1.3,
+          color: _isOutOfStock
+              ? KioskCardDesign.outOfStockTextColor
+              : _menuPriceInk,
+        ),
+      );
+
+  Widget _buildMenuCard(BuildContext context) {
+    final double cu = tileWidth / 300;
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    final String image = '${splash.baseUrls?.productImageUrl}/${product.image}';
+    final Set<KioskAllergen> allergens = kioskProductAllergens(product);
+    final double icon = 22 * cu;
+
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // a. Image area — contained, 12 padding.
+        SizedBox(
+          height: 195 * cu,
+          child: Padding(
+            padding: EdgeInsets.all(12 * cu),
+            child: CustomImageWidget(
+              emptyWhenMissing: true,
+              placeholder: Images.placeholderImage,
+              image: image,
+              fit: BoxFit.contain,
+              useShimmer: true,
+              cacheWidth: CustomImageWidget.kKioskProductCacheWidth,
+            ),
+          ),
+        ),
+        // b. Divider under the image.
+        Container(height: 1 * cu, color: _menuDivider),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16 * cu, 14 * cu, 16 * cu, 16 * cu),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // c. Name.
+                _menuName(cu),
+                // d. Description — fixed 2-line box so prices line up.
+                if (showDescription) ...[
+                  SizedBox(height: 4 * cu),
+                  SizedBox(
+                    height: 11 * cu * 1.3 * 2,
+                    child: Text(
+                      product.description ?? '',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: poppinsRegular.copyWith(
+                        fontSize: 11 * cu,
+                        height: 1.3,
+                        color: _menuDescInk,
+                      ),
+                    ),
+                  ),
+                ],
+                // e. Allergen / dietary icons (row reserved even if empty).
+                SizedBox(height: 10 * cu),
+                SizedBox(
+                  height: icon,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (int i = 0; i < allergens.length; i++) ...[
+                        if (i > 0) SizedBox(width: 6 * cu),
+                        Container(
+                          width: icon,
+                          height: icon,
+                          decoration: BoxDecoration(
+                            color: allergens.elementAt(i).swatch,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: CustomAssetImageWidget(
+                              allergens.elementAt(i).icon,
+                              width: icon * 0.57,
+                              height: icon * 0.57,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                // f. Price — pinned 16 above the card bottom.
+                const Spacer(),
+                _menuPrice(cu),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    return _menuShell(context, cu, body, withInfo: true);
+  }
+
+  /// Picture-less device, menu style: name + price on the new card surface.
+  Widget _buildMenuTextOnlyCard(BuildContext context) {
+    final double cu = tileWidth / 300;
+    final body = Padding(
+      padding: EdgeInsets.fromLTRB(16 * cu, 12 * cu, 16 * cu, 12 * cu),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _menuName(cu),
+          SizedBox(height: 6 * cu),
+          _menuPrice(cu),
+        ],
+      ),
+    );
+    return _menuShell(context, cu, body, withInfo: false);
   }
 
   /// Compact text-only card (picture-less device / show-images off).
@@ -457,8 +710,10 @@ class KioskProductCard extends StatelessWidget {
 
   /// Product description — 1 line with ellipsis.
   Widget _buildDescription(double ts) {
-    final double descTop =
-        (KioskCardDesign.nameTop + KioskCardDesign.nameHeight + KioskCardDesign.descGap) * ts;
+    final double descTop = (KioskCardDesign.nameTop +
+            KioskCardDesign.nameHeight +
+            KioskCardDesign.descGap) *
+        ts;
     final double textInset = KioskCardDesign.textInset * ts;
 
     return Positioned(
@@ -484,8 +739,7 @@ class KioskProductCard extends StatelessWidget {
 
   /// Price — single line.
   Widget _buildPrice(double ts) {
-    final double priceTop =
-        (KioskCardDesign.nameTop +
+    final double priceTop = (KioskCardDesign.nameTop +
             KioskCardDesign.nameHeight +
             (showDescription
                 ? KioskCardDesign.descGap + KioskCardDesign.descHeight
