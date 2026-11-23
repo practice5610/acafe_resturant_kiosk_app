@@ -21,7 +21,15 @@ class KioskLogoutButton extends StatefulWidget {
   /// menu screen passes its own top-bar circle diameter.
   final double size;
 
-  const KioskLogoutButton({super.key, this.size = PosNavBarSpec.avatarSize});
+  /// Optional trigger shown instead of the avatar (the kiosk menu sidebar
+  /// footer). Purely visual: the dropdown + confirmation are unchanged.
+  final Widget? child;
+
+  const KioskLogoutButton({
+    super.key,
+    this.size = PosNavBarSpec.avatarSize,
+    this.child,
+  });
 
   static const Key buttonKey = Key('kiosk-logout-button');
 
@@ -80,7 +88,8 @@ class _KioskLogoutButtonState extends State<KioskLogoutButton> {
       itemBuilder: (context) => const [
         PopupMenuItem<String>(value: 'logout', child: Text('Logout')),
       ],
-      child: PosAvatar(initial: _initial(auth), size: widget.size),
+      child:
+          widget.child ?? PosAvatar(initial: _initial(auth), size: widget.size),
     );
   }
 }
