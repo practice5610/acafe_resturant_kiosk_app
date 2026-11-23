@@ -30,6 +30,7 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_filter_chip_style.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_menu_search.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_equal_height_row.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart'
@@ -70,6 +71,30 @@ class LandscapeMenuScreen extends StatefulWidget {
 class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
   final Set<String> _selectedTagPills = <String>{};
 
+  /// Inline header search — the same widget and behaviour as the portrait
+  /// menu (kiosk_menu_screen.dart): the circle grows into a field in place
+  /// and the grid filters across the whole menu; no route push.
+  final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  bool _searchOpen = false;
+
+  void _openSearch() => setState(() => _searchOpen = true);
+
+  void _closeSearch() {
+    _searchFocus.unfocus();
+    _searchCtrl.clear();
+    setState(() => _searchOpen = false);
+  }
+
+  void _onSearchFocusChange() {
+    // Keyboard dismissed with nothing typed -> fold back to the circle.
+    if (!_searchFocus.hasFocus &&
+        _searchOpen &&
+        _searchCtrl.text.trim().isEmpty) {
+      setState(() => _searchOpen = false);
+    }
+  }
+
   CartProvider? _cart;
   List<CartModel?> _prevCart = const [];
   int? _highlightIndex;
@@ -79,6 +104,7 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
   @override
   void initState() {
     super.initState();
+    _searchFocus.addListener(_onSearchFocusChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
       _cart = Provider.of<CartProvider>(context, listen: false);
@@ -89,6 +115,9 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
 
   @override
   void dispose() {
+    _searchFocus.removeListener(_onSearchFocusChange);
+    _searchFocus.dispose();
+    _searchCtrl.dispose();
     _cart?.removeListener(_onCartChanged);
     _feedbackTimer?.cancel();
     super.dispose();
@@ -139,6 +168,8 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
   }
 
   Future<void> _onSelectCategory(int id) async {
+    // Picking a category is leaving search (portrait behaviour).
+    if (_searchOpen || _searchCtrl.text.isNotEmpty) _closeSearch();
     final category = Provider.of<CategoryProvider>(context, listen: false);
     category.setSelectedCategoryHighlight('$id');
     await category.selectKioskCategory('$id');
@@ -230,7 +261,21 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(s: s),
+                _Header(
+                  s: s,
+                  search: KioskMenuSearch(
+                    // KioskMenuSearch sizes its glyphs/text against a 124
+                    // design-px circle; derive its scale from our diameter.
+                    s: 49.79 * s / 124,
+                    diameter: 49.79 * s,
+                    expandedWidth: 340 * s,
+                    open: _searchOpen,
+                    controller: _searchCtrl,
+                    focusNode: _searchFocus,
+                    onOpen: _openSearch,
+                    onClose: _closeSearch,
+                  ),
+                ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(16 * u, 12 * u, 16 * u, 0),
                   child: _FilterPills(
@@ -246,7 +291,15 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
                 Expanded(
                   child: Stack(
                     children: [
-                      _ProductGrid(s: s, u: u, tagFilters: _selectedTagPills),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _searchCtrl,
+                        builder: (context, value, _) => _ProductGrid(
+                          s: s,
+                          u: u,
+                          tagFilters: _selectedTagPills,
+                          searchQuery: value.text.trim(),
+                        ),
+                      ),
                       // Figma "Bottom fade": transparent -> content bg.
                       // Ignores pointer events so scroll/taps reach the grid.
                       Positioned(
@@ -287,7 +340,8 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
 /// x40→x986 while the menu content below spans x180→x966.
 class _Header extends StatelessWidget {
   final double s;
-  const _Header({required this.s});
+  final Widget search;
+  const _Header({required this.s, required this.search});
 
   @override
   Widget build(BuildContext context) {
@@ -308,11 +362,7 @@ class _Header extends StatelessWidget {
               // against filter/language (31.5) — reproduced exactly.
               Padding(
                 padding: EdgeInsets.only(top: 1.6 * s),
-                child: _HeaderIconButton(
-                    s: s,
-                    size: 49.79,
-                    assetPath: Images.searchSvg,
-                    onTap: () => RouterHelper.getSearchRoute()),
+                child: search,
               ),
               SizedBox(width: 15.01 * s),
               _HeaderIconButton(
@@ -479,8 +529,12 @@ class _ProductGrid extends StatelessWidget {
   final double s;
   final double u;
   final Set<String> tagFilters;
+  final String searchQuery;
   const _ProductGrid(
-      {required this.s, required this.u, required this.tagFilters});
+      {required this.s,
+      required this.u,
+      required this.tagFilters,
+      this.searchQuery = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -489,11 +543,21 @@ class _ProductGrid extends StatelessWidget {
       listenable: KioskAllergenPreferences.instance,
       builder: (context, _) => Consumer2<CategoryProvider, SearchProvider>(
         builder: (context, category, search, _) {
-          final bool filtersActive = kioskMenuFiltersActive(category, search);
-          List<Product> products = filtersActive
-              ? applyKioskMenuFilters(
-                  categoryProvider: category, searchProvider: search)
-              : (category.categoryProductModel?.products ?? const []);
+          // Same derivation as the portrait grid: a search query spans the
+          // whole menu, then the filter sheet's sort/price apply.
+          final bool searching = searchQuery.isNotEmpty;
+          final bool filtersActive =
+              searching || kioskMenuFiltersActive(category, search);
+          List<Product> products = searching
+              ? filterKioskProducts(
+                  products: searchKioskProducts(
+                      category.allPrefetchedProducts, searchQuery),
+                  searchProvider: search,
+                )
+              : filtersActive
+                  ? applyKioskMenuFilters(
+                      categoryProvider: category, searchProvider: search)
+                  : (category.categoryProductModel?.products ?? const []);
           products = filterKioskProductsByTag(
               products: products, pillLabels: tagFilters);
           products = filterKioskProductsByAllergens(
@@ -506,7 +570,9 @@ class _ProductGrid extends StatelessWidget {
           if (products.isEmpty) {
             return Center(
               child: Text(
-                kioskTranslate(context, 'no_items', 'No items'),
+                searching
+                    ? '${kioskTranslate(context, 'no_search_results', 'No products found for')} "$searchQuery"'
+                    : kioskTranslate(context, 'no_items', 'No items'),
                 style:
                     loewBold.copyWith(fontSize: 18 * s, color: Colors.black54),
               ),
