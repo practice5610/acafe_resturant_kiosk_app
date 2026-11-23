@@ -29,9 +29,10 @@ import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_produc
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_staff_exit_trigger.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_equal_height_row.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart' show openKioskCheckout;
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart'
+    show openKioskCheckout;
 import 'package:acafe_customer/features/language/providers/localization_provider.dart';
 import 'package:acafe_customer/features/search/providers/search_provider.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
@@ -50,6 +51,9 @@ const List<String> _kFilterPillLabels = [
 ];
 
 const Color _kPageBg = Color(0xFFF7F1DE);
+
+/// Menu content background (portrait redesign).
+const Color _kContentBg = Color(0xFFF6F5F5);
 
 /// B2 landscape menu (Option B): menu on the left, a persistent order panel on
 /// the right, no cart screen. Reuses the shared category/product/cart state and
@@ -119,8 +123,8 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
     _feedbackTimer?.cancel();
     setState(() {
       _highlightIndex = added;
-      _toast = kioskTranslate(
-              context, 'landscape_item_added_toast', '{product} added to your order')
+      _toast = kioskTranslate(context, 'landscape_item_added_toast',
+              '{product} added to your order')
           .replaceAll('{product}', name);
     });
     _feedbackTimer = Timer(const Duration(seconds: 3), () {
@@ -193,7 +197,8 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
                         onCheckout: () => openKioskCheckout(context),
                         onCancelOrder: () => _onCancelOrder(s),
                         onCoupon: () => _onCoupon(context),
-                        onCombo: () {}, // TODO: combo "+" (see docs/landscape/01-audit.md — no reusable "add this bundle outright" logic exists in portrait; stopped for sign-off)
+                        onCombo:
+                            () {}, // TODO: combo "+" (see docs/landscape/01-audit.md — no reusable "add this bundle outright" logic exists in portrait; stopped for sign-off)
                       ),
                     ),
                   ],
@@ -208,64 +213,59 @@ class _LandscapeMenuScreenState extends State<LandscapeMenuScreen> {
     );
   }
 
+  /// Redesign unit: 1.0 at the 1190×680 reference (sidebar 130, circle 60…).
+  static double _unit(double s) => s / LandscapeMetrics.scaleFor(1190, 680);
+
   Widget _menuArea(double s) {
-    final double railWidth = 140 * s;
-    final double gap = 20 * s;
-    return Column(
+    final double u = _unit(s);
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(s: s),
+        // Portrait-style cream sidebar: logo, categories, pinned logout.
+        LandscapeCategoryRail(u: u, onSelect: _onSelectCategory),
         Expanded(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(20 * s, 16 * s, 24 * s, 0),
-            child: Row(
+          child: ColoredBox(
+            color: _kContentBg,
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                LandscapeCategoryRail(
-                    s: s, width: railWidth, onSelect: _onSelectCategory),
-                SizedBox(width: gap),
+                _Header(s: s),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16 * u, 12 * u, 16 * u, 0),
+                  child: _FilterPills(
+                    s: s,
+                    selected: _selectedTagPills,
+                    onToggle: (label) => setState(() {
+                      if (!_selectedTagPills.remove(label)) {
+                        _selectedTagPills.add(label);
+                      }
+                    }),
+                  ),
+                ),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Stack(
                     children: [
-                      _FilterPills(
-                        s: s,
-                        selected: _selectedTagPills,
-                        onToggle: (label) => setState(() {
-                          if (!_selectedTagPills.remove(label)) {
-                            _selectedTagPills.add(label);
-                          }
-                        }),
-                      ),
-                      SizedBox(height: 16 * s),
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            _ProductGrid(s: s, tagFilters: _selectedTagPills),
-                            // Figma "Bottom fade": transparent -> page bg,
-                            // 836x140 at the reference size. Ignores pointer
-                            // events so scroll/taps reach the grid beneath it.
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              height: 140 * s,
-                              child: IgnorePointer(
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        _kPageBg.withValues(alpha: 0),
-                                        _kPageBg,
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                      _ProductGrid(s: s, u: u, tagFilters: _selectedTagPills),
+                      // Figma "Bottom fade": transparent -> content bg.
+                      // Ignores pointer events so scroll/taps reach the grid.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 60 * u,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  _kContentBg.withValues(alpha: 0),
+                                  _kContentBg,
+                                ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ],
@@ -291,19 +291,14 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(40 * s, 28 * s, 30 * s, 0),
+      padding: EdgeInsets.fromLTRB(24 * s, 24 * s, 30 * s, 0),
       child: Column(
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              KioskStaffExitTrigger(
-                child: Text(
-                  'A/CAFÉ',
-                  style: loewExtraBold.copyWith(
-                      fontSize: 34 * s, height: 1, letterSpacing: 0.6 * s, color: Colors.black),
-                ),
-              ),
+              // The A/CAFÉ logo (and its staff-exit triple tap) moved into
+              // the sidebar.
               const Spacer(),
               // Same assets the portrait header uses (kiosk_menu_screen.dart
               // _CircleIconButton / _LanguageFlagButton) — the SVGs already
@@ -333,7 +328,7 @@ class _Header extends StatelessWidget {
           // at the 1366x1024 reference (TextPainter-free: font ascent/descent
           // vary by platform, so this is corrected empirically against the
           // test, not derived from a formula).
-          SizedBox(height: 35.61 * s),
+          SizedBox(height: 18 * s),
           Container(height: 2 * s, color: Colors.black),
         ],
       ),
@@ -399,7 +394,8 @@ class _HeaderLanguageFlag extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         shape: CircleBorder(
-          side: BorderSide(color: Colors.black, width: (1.6 * s).clamp(1.0, 3.0)),
+          side:
+              BorderSide(color: Colors.black, width: (1.6 * s).clamp(1.0, 3.0)),
         ),
         clipBehavior: Clip.antiAlias,
         elevation: 0,
@@ -463,7 +459,8 @@ class _Pill extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? Colors.black : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.black, width: (1.2 * s).clamp(1.0, 2.0)),
+          border:
+              Border.all(color: Colors.black, width: (1.2 * s).clamp(1.0, 2.0)),
         ),
         child: Text(
           label,
@@ -482,8 +479,10 @@ class _Pill extends StatelessWidget {
 /// inserted after the first two rows.
 class _ProductGrid extends StatelessWidget {
   final double s;
+  final double u;
   final Set<String> tagFilters;
-  const _ProductGrid({required this.s, required this.tagFilters});
+  const _ProductGrid(
+      {required this.s, required this.u, required this.tagFilters});
 
   @override
   Widget build(BuildContext context) {
@@ -497,8 +496,8 @@ class _ProductGrid extends StatelessWidget {
               ? applyKioskMenuFilters(
                   categoryProvider: category, searchProvider: search)
               : (category.categoryProductModel?.products ?? const []);
-          products =
-              filterKioskProductsByTag(products: products, pillLabels: tagFilters);
+          products = filterKioskProductsByTag(
+              products: products, pillLabels: tagFilters);
           products = filterKioskProductsByAllergens(
               products: products,
               avoided: KioskAllergenPreferences.instance.avoided);
@@ -510,7 +509,8 @@ class _ProductGrid extends StatelessWidget {
             return Center(
               child: Text(
                 kioskTranslate(context, 'no_items', 'No items'),
-                style: loewBold.copyWith(fontSize: 18 * s, color: Colors.black54),
+                style:
+                    loewBold.copyWith(fontSize: 18 * s, color: Colors.black54),
               ),
             );
           }
@@ -523,60 +523,56 @@ class _ProductGrid extends StatelessWidget {
   Widget _grid(BuildContext context, List<Product> products, bool showImages) {
     return LayoutBuilder(
       builder: (context, c) {
-        // Figma B-01: columns sit 268px apart (x180/448/716) at a 250px card
-        // width, i.e. an 18px gap — not the 22px this screen used before.
-        // Row 1 (y190) to the promo banner (y578.95) and banner to row 2
-        // (y795.14) both measure a 14px gap. Confirmed against the live node
-        // via get_metadata, not estimated.
-        final double colGap = 18 * s;
-        final double bannerGap = 14 * s;
-        // Figma B-01 is exactly 3 columns at every size — not the dynamic
-        // width-driven column count portrait's grid uses. No per-device
-        // "products per row" setting exists yet (checked: no such field on
-        // the device/branch model), so this pins the shared factory to a
-        // fixed 3 via its existing min/max-columns parameters rather than
-        // changing the factory's default algorithm, which portrait relies on.
+        // Grid: 16 padding, 16 gaps (redesign), scaled with the screen.
+        final double pad = 16 * u;
+        final double gap = 16 * u;
+        // Columns: UNCHANGED logic — landscape is pinned to 3 per row through
+        // the shared factory's min/max (no per-device setting exists for
+        // landscape; see git history for the Figma B-01 reasoning).
         const int kColumns = 3;
         final geo = KioskProductGridGeometry.resolve(
-          areaWidth: c.maxWidth,
-          gap: colGap,
+          areaWidth: math.max(c.maxWidth - pad * 2, 1.0),
+          gap: gap,
           landscape: true,
           showImages: showImages,
           minColumns: kColumns,
           maxColumns: kColumns,
         );
         final int columns = geo.columns;
-        // Figma's exact card ratio (`get_metadata` on 2305:3756: 374.9543
-        // tall at a 250 wide card — a tall rectangle, not square). Figma's
-        // OWN 1366x1024 canvas only shows row 1 + the promo banner too —
-        // row 2 starts at y795 and ends at y1170, past the 1024 reference
-        // height, which is exactly why the design has a "Bottom fade" layer
-        // at y884: row 2 is meant to scroll into view, same as this screen
-        // already does, not fit on one screen uncropped. A browser window
-        // taller than the 1366x1024 reference simply shows more of the
-        // scrollable grid, which is correct, not a bug. That ratio lives in
-        // a file shared with portrait (common/responsive/kiosk_responsive.dart),
-        // so rather than change the shared factory's assumption, the card
-        // height is computed locally and used for the sliver's
-        // mainAxisExtent; LandscapeProductCard already lays its image out
-        // with Expanded, so it fills whatever height it is given.
-        const double kCardAspect = 374.9543151855469 / 250.0;
-        // Guards a tiny/negative tileWidth during an extreme resize (the
-        // shared factory doesn't floor it) so the grid never hands a
-        // negative mainAxisExtent to SliverGrid.
         final double tileWidth = math.max(geo.tileWidth, 1.0);
-        final double tileHeight = tileWidth * kCardAspect;
 
         final int firstCount =
             products.length >= columns * 2 ? columns * 2 : products.length;
         final List<Product> rest = products.sublist(firstCount);
 
-        final gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          crossAxisSpacing: colGap,
-          mainAxisSpacing: bannerGap,
-          mainAxisExtent: tileHeight,
-        );
+        // Rows of equal-height, content-sized cards (portrait grid): each row
+        // is as tall as its tallest card; a short last row stays left aligned.
+        Widget rows(List<Product> list) {
+          final int rowCount = (list.length + columns - 1) ~/ columns;
+          return SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, r) {
+                final int start = r * columns;
+                final int end = math.min(start + columns, list.length);
+                return Padding(
+                  padding: EdgeInsets.only(top: r == 0 ? 0 : gap),
+                  child: PosEqualHeightRow(
+                    columns: columns,
+                    spacing: gap,
+                    children: [
+                      for (final p in list.sublist(start, end))
+                        LandscapeProductCard(
+                            tileWidth: tileWidth,
+                            product: p,
+                            showImages: showImages),
+                    ],
+                  ),
+                );
+              },
+              childCount: rowCount,
+            ),
+          );
+        }
 
         return Consumer<KioskDealProvider>(
           builder: (context, dealsProvider, _) {
@@ -586,40 +582,27 @@ class _ProductGrid extends StatelessWidget {
             } catch (_) {}
             final bool showPromo = deals.isNotEmpty && showImages;
             final int splitAt = showPromo ? firstCount : products.length;
-            final List<Product> tail =
-                showPromo ? rest : const <Product>[];
+            final List<Product> tail = showPromo ? rest : const <Product>[];
 
             return CustomScrollView(
               slivers: [
-                SliverGrid(
-                  gridDelegate: gridDelegate,
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => LandscapeProductCard(
-                        tileWidth: tileWidth,
-                        product: products[i],
-                        showImages: showImages),
-                    childCount: splitAt,
-                  ),
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
+                  sliver: rows(products.sublist(0, splitAt)),
                 ),
                 if (showPromo)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: bannerGap),
+                      padding: EdgeInsets.fromLTRB(pad, gap, pad, 0),
                       child: KioskDealPromoBanner(s: s, deals: deals),
                     ),
                   ),
                 if (tail.isNotEmpty)
-                  SliverGrid(
-                    gridDelegate: gridDelegate,
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) => LandscapeProductCard(
-                          tileWidth: tileWidth,
-                          product: tail[i],
-                          showImages: showImages),
-                      childCount: tail.length,
-                    ),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(pad, gap, pad, 0),
+                    sliver: rows(tail),
                   ),
-                SliverToBoxAdapter(child: SizedBox(height: 24 * s)),
+                SliverToBoxAdapter(child: SizedBox(height: 60 * u)),
               ],
             );
           },
@@ -640,7 +623,8 @@ class _ToastBar extends StatelessWidget {
   final double s;
   final String message;
   final double panelWidth;
-  const _ToastBar({required this.s, required this.message, required this.panelWidth});
+  const _ToastBar(
+      {required this.s, required this.message, required this.panelWidth});
 
   @override
   Widget build(BuildContext context) {
@@ -649,8 +633,9 @@ class _ToastBar extends StatelessWidget {
     // the whole left Expanded area, matching how `_menuArea` insets its row:
     // Padding(20) -> rail(140) -> gap(20) -> content -> Padding(24).
     return Positioned(
-      left: (20 + 140 + 20) * s,
-      right: panelWidth + 24 * s,
+      left: LandscapeCategoryRail.widthFor(
+          s / LandscapeMetrics.scaleFor(1190, 680)),
+      right: panelWidth,
       bottom: 16 * s,
       child: IgnorePointer(
         child: Center(
@@ -674,7 +659,8 @@ class _ToastBar extends StatelessWidget {
                   message,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: loewBold.copyWith(fontSize: 17 * s, color: Colors.white),
+                  style:
+                      loewBold.copyWith(fontSize: 17 * s, color: Colors.white),
                 ),
               ],
             ),
