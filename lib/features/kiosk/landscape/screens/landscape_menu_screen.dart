@@ -29,6 +29,7 @@ import 'package:acafe_customer/features/kiosk/landscape/widgets/landscape_produc
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_filter_chip_style.dart';
 import 'package:acafe_customer/features/pos/widgets/pos_equal_height_row.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart'
@@ -423,9 +424,10 @@ class _FilterPills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double gap = KioskFilterChipStyle.gap(14 * s);
     return Wrap(
-      spacing: 8 * s,
-      runSpacing: 8 * s,
+      spacing: gap,
+      runSpacing: gap,
       children: [
         for (final label in _kFilterPillLabels)
           _Pill(
@@ -455,19 +457,15 @@ class _Pill extends StatelessWidget {
     return KioskTap(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 14 * s, vertical: 8 * s),
-        decoration: BoxDecoration(
-          color: selected ? Colors.black : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-          border:
-              Border.all(color: Colors.black, width: (1.2 * s).clamp(1.0, 2.0)),
-        ),
+        padding: KioskFilterChipStyle.padding(14 * s),
+        decoration: KioskFilterChipStyle.decoration(
+            selected: selected, fontSize: 14 * s),
         child: Text(
           label,
           style: loewMedium.copyWith(
               fontSize: 14 * s,
               height: 1.0,
-              color: selected ? Colors.white : Colors.black),
+              color: KioskFilterChipStyle.textColor(selected)),
         ),
       ),
     );

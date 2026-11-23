@@ -12,6 +12,7 @@ import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_deal_banner.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_filter_chip_style.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_product_card.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_image_helper.dart';
@@ -67,6 +68,9 @@ const List<String> _kFilterPillLabels = [
   'PURE',
 ];
 const String _kFilterPillSecondRowLabel = 'CEROMONIAL';
+
+/// Portrait chip font size at the 864 reference (font family stays Poppins).
+const double _kChipFont = 12;
 
 /// Removes the overscroll glow/stretch so dragging the grid past its top edge
 /// doesn't paint a grey "shadow" over the page (matches a clean kiosk look).
@@ -601,10 +605,11 @@ class _FilterPillsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     // Wrap (not a sideways scroll): on the portrait frame every pill fits on
     // one line; a narrower window reflows instead of clipping a pill mid-word.
+    final double gap = KioskFilterChipStyle.gap(_kChipFont * u);
     return Wrap(
       alignment: WrapAlignment.center,
-      spacing: 8 * u,
-      runSpacing: 8 * u,
+      spacing: gap,
+      runSpacing: gap,
       children: [
         for (final label in [..._kFilterPillLabels, _kFilterPillSecondRowLabel])
           _FilterPill(
@@ -632,34 +637,23 @@ class _FilterPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double height = 30 * u;
-    final BorderRadius radius = BorderRadius.circular(height / 2);
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: selected ? _MenuSpec.ink : Colors.white,
-        borderRadius: radius,
-        boxShadow: _MenuSpec.softShadow(u),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: radius,
-        clipBehavior: Clip.antiAlias,
-        child: KioskTap(
-          onTap: onTap,
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14 * u),
-            child: Center(
-              widthFactor: 1,
-              child: Text(
-                label,
-                style: poppinsMedium.copyWith(
-                  fontSize: 12 * u,
-                  height: 1,
-                  color: selected ? Colors.white : _MenuSpec.ink,
-                ),
-              ),
-            ),
+    // Shared landscape chip look (KioskFilterChipStyle): black outline, full
+    // pill, transparent, no shadow; selected = black with white text.
+    // Portrait keeps its own font (Poppins 12).
+    final double font = _kChipFont * u;
+    return KioskTap(
+      onTap: onTap,
+      child: Container(
+        padding: KioskFilterChipStyle.padding(font),
+        decoration:
+            KioskFilterChipStyle.decoration(selected: selected, fontSize: font),
+        child: Text(
+          label,
+          style: poppinsMedium.copyWith(
+            fontSize: font,
+            height: 1,
+            letterSpacing: 0,
+            color: KioskFilterChipStyle.textColor(selected),
           ),
         ),
       ),
