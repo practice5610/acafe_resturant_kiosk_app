@@ -27,6 +27,7 @@ import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart
 import 'package:acafe_customer/features/pos/domain/pos_category_layout.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_deal_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_allergen_filter_screen.dart';
+import 'package:acafe_customer/features/pos/widgets/pos_equal_height_row.dart';
 // Used only by the commented-out manager-access lock below (ownership
 // moved to POS Settings). Restore together with that block.
 // import 'package:acafe_customer/features/kiosk/widgets/kiosk_pin_entry_sheet.dart';
@@ -442,6 +443,7 @@ class _CategoryTitle extends StatelessWidget {
             style: poppinsMedium.copyWith(
               fontSize: _MenuSpec.titleSize * u,
               height: 1.2,
+              letterSpacing: 0,
               color: _MenuSpec.ink,
             ),
           ),
@@ -1093,6 +1095,32 @@ class _ProductGrid extends StatelessWidget {
               menuStyle: true,
             );
 
+        // Rows, not a fixed-extent grid: each row is as tall as its tallest
+        // card (content-sized cards), rows may differ, and a short last row
+        // keeps its column width, left aligned.
+        Widget cardRows(List<Product> list) {
+          final int rowCount = (list.length + columns - 1) ~/ columns;
+          return SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, r) {
+                final int start = r * columns;
+                final int end = (start + columns).clamp(0, list.length);
+                return Padding(
+                  padding: EdgeInsets.only(top: r == 0 ? 0 : geo.gap),
+                  child: PosEqualHeightRow(
+                    columns: columns,
+                    spacing: geo.gap,
+                    children: [
+                      for (final p in list.sublist(start, end)) card(p),
+                    ],
+                  ),
+                );
+              },
+              childCount: rowCount,
+            ),
+          );
+        }
+
         return ScrollConfiguration(
           behavior: const _NoGlowScrollBehavior(),
           child: Consumer<KioskDealProvider>(
@@ -1118,13 +1146,7 @@ class _ProductGrid extends StatelessWidget {
                   SliverPadding(
                     padding:
                         EdgeInsets.fromLTRB(pad.left, pad.top, pad.right, 0),
-                    sliver: SliverGrid(
-                      gridDelegate: geo.delegate,
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => card(products[index]),
-                        childCount: splitAt,
-                      ),
-                    ),
+                    sliver: cardRows(products.sublist(0, splitAt)),
                   ),
                   if (showPromo)
                     SliverToBoxAdapter(
@@ -1142,13 +1164,7 @@ class _ProductGrid extends StatelessWidget {
                     SliverPadding(
                       padding:
                           EdgeInsets.only(left: pad.left, right: pad.right),
-                      sliver: SliverGrid(
-                        gridDelegate: geo.delegate,
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) => card(rest[index]),
-                          childCount: rest.length,
-                        ),
-                      ),
+                      sliver: cardRows(rest),
                     ),
                   SliverToBoxAdapter(child: SizedBox(height: pad.bottom)),
                 ],

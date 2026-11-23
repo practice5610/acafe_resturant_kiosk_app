@@ -324,16 +324,17 @@ class KioskProductCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Material(color: Colors.transparent, child: body),
     );
+    // The card body sizes the Stack (passthrough keeps the grid row's minimum
+    // height, so every card in a row is as tall as the tallest).
     return Stack(
       clipBehavior: Clip.none,
+      fit: StackFit.passthrough,
       children: [
-        Positioned.fill(
-          child: Opacity(
-            opacity: _isOutOfStock ? KioskCardDesign.outOfStockOpacity : 1.0,
-            child: _isOutOfStock
-                ? AbsorbPointer(child: card)
-                : KioskTap(onTap: () => _handleTap(context), child: card),
-          ),
+        Opacity(
+          opacity: _isOutOfStock ? KioskCardDesign.outOfStockOpacity : 1.0,
+          child: _isOutOfStock
+              ? AbsorbPointer(child: card)
+              : KioskTap(onTap: () => _handleTap(context), child: card),
         ),
         if (badge != null && !_isOutOfStock)
           _menuBadge(cu, badge!.label.toUpperCase(), badge!.color),
@@ -386,7 +387,10 @@ class KioskProductCard extends StatelessWidget {
           child: Text(
             label,
             style: poppinsMedium.copyWith(
-                fontSize: 11 * cu, height: 1, color: Colors.white),
+                fontSize: 11 * cu,
+                height: 1,
+                letterSpacing: 0,
+                color: Colors.white),
           ),
         ),
       );
@@ -398,8 +402,9 @@ class KioskProductCard extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         // legibility: out-of-stock (disabled) state, same grey as before
         style: poppinsMedium.copyWith(
-          fontSize: 15 * cu,
+          fontSize: 14 * cu,
           height: 1.3,
+          letterSpacing: 0,
           color: _isOutOfStock ? KioskCardDesign.outOfStockTextColor : _menuInk,
         ),
       );
@@ -413,6 +418,7 @@ class KioskProductCard extends StatelessWidget {
         style: poppinsRegular.copyWith(
           fontSize: 14 * cu,
           height: 1.3,
+          letterSpacing: 0,
           color: _isOutOfStock
               ? KioskCardDesign.outOfStockTextColor
               : _menuPriceInk,
@@ -424,86 +430,97 @@ class KioskProductCard extends StatelessWidget {
     final splash = Provider.of<SplashProvider>(context, listen: false);
     final String image = '${splash.baseUrls?.productImageUrl}/${product.image}';
     final Set<KioskAllergen> allergens = kioskProductAllergens(product);
-    final double icon = 22 * cu;
+    final double icon = 21 * cu;
 
+    // Height comes from the content. Inside a grid row the card receives a
+    // MINIMUM height (the row's tallest card); the min-size Column then puts
+    // that slack between the text and the price (spaceBetween), so prices
+    // line up at the bottom of the row. No fixed heights, no empty slots.
     final body = Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // a. Image area — 200 tall on a 304-wide card (= 197 at 300), 8
-        // padding. The photo is contained by its visible content, not its
-        // transparent canvas (see KioskTrimmedImage), at full resolution.
-        SizedBox(
-          height: 197 * cu,
-          child: Padding(
-            padding: EdgeInsets.all(8 * cu),
-            child: KioskTrimmedImage(image: image),
-          ),
-        ),
-        // b. Divider under the image.
-        Container(height: 1 * cu, color: _menuDivider),
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16 * cu, 14 * cu, 16 * cu, 16 * cu),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // c. Name.
-                _menuName(cu),
-                // d. Short description (old card's field). Hidden when
-                // empty or a repeat of the name.
-                if (showDescription && _menuDescription != null) ...[
-                  SizedBox(height: 4 * cu),
-                  Text(
-                    _menuDescription!,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: poppinsRegular.copyWith(
-                      fontSize: 11 * cu,
-                      height: 1.3,
-                      // legibility: reference grey #8E8E8E, requested by design
-                      color: _menuDescInk,
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // a. Image area — 200 tall on a 304-wide card (= 197 at 300), 8
+            // padding. The photo is contained by its visible content, not its
+            // transparent canvas (see KioskTrimmedImage), at full resolution.
+            SizedBox(
+              height: 197 * cu,
+              child: Padding(
+                padding: EdgeInsets.all(8 * cu),
+                child: KioskTrimmedImage(image: image),
+              ),
+            ),
+            // b. Divider under the image.
+            Container(height: 1 * cu, color: _menuDivider),
+            Padding(
+              padding: EdgeInsets.fromLTRB(16 * cu, 16 * cu, 16 * cu, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // c. Name.
+                  _menuName(cu),
+                  // d. Short description. Hidden (with its gap) when empty
+                  // or a repeat of the name.
+                  if (showDescription && _menuDescription != null) ...[
+                    SizedBox(height: 4 * cu),
+                    Text(
+                      _menuDescription!,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: poppinsRegular.copyWith(
+                        fontSize: 11 * cu,
+                        height: 1.35,
+                        letterSpacing: 0,
+                        // legibility: reference grey #8E8E8E, requested by design
+                        color: _menuDescInk,
+                      ),
                     ),
-                  ),
-                ],
-                // Free space sits here so the allergen row + price stay
-                // pinned to the card bottom whatever the text above.
-                const Spacer(),
-                // e. Allergen / dietary icons — same data and conditions as the
-                // old card (kioskProductAllergens), centred directly above the
-                // price. Hidden when the product has none.
-                if (allergens.isNotEmpty) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (int i = 0; i < allergens.length; i++) ...[
-                        if (i > 0) SizedBox(width: 6 * cu),
-                        Container(
-                          width: icon,
-                          height: icon,
-                          decoration: BoxDecoration(
-                            color: allergens.elementAt(i).swatch,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: CustomAssetImageWidget(
-                              allergens.elementAt(i).icon,
-                              width: icon * 0.57,
-                              height: icon * 0.57,
-                              color: Colors.white,
+                  ],
+                  // e. Allergen / dietary icons (kioskProductAllergens), 21
+                  // with 6 gaps. Hidden (with its gap) when there are none.
+                  if (allergens.isNotEmpty) ...[
+                    SizedBox(height: 8 * cu),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (int i = 0; i < allergens.length; i++) ...[
+                          if (i > 0) SizedBox(width: 6 * cu),
+                          Container(
+                            width: icon,
+                            height: icon,
+                            decoration: BoxDecoration(
+                              color: allergens.elementAt(i).swatch,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: CustomAssetImageWidget(
+                                allergens.elementAt(i).icon,
+                                width: icon * 0.57,
+                                height: icon * 0.57,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                  SizedBox(height: 10 * cu),
+                    ),
+                  ],
                 ],
-                // f. Price — 16 above the card bottom.
-                _menuPrice(cu),
-              ],
+              ),
             ),
-          ),
+          ],
+        ),
+        // f. Price — 8 below the content above, 16 above the card bottom.
+        Padding(
+          padding: EdgeInsets.fromLTRB(16 * cu, 8 * cu, 16 * cu, 16 * cu),
+          child: _menuPrice(cu),
         ),
       ],
     );
@@ -516,6 +533,7 @@ class KioskProductCard extends StatelessWidget {
     final body = Padding(
       padding: EdgeInsets.fromLTRB(16 * cu, 12 * cu, 16 * cu, 12 * cu),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
