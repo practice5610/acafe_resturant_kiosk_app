@@ -999,8 +999,9 @@ class _EmptyProductArea extends StatelessWidget {
   }
 }
 
-/// Menu grid geometry: two cards per row (or the device's per-category
-/// override), fixed 300×340 reference card scaled to the column width.
+/// Menu grid geometry: the device's per-category column count (see
+/// [_MenuGridGeometry.resolve]); the 300×340 reference card is scaled to the
+/// column width, so 2 and 3 per row are the same design at different sizes.
 class _MenuGridGeometry {
   final int columns;
   final double gap;
@@ -1017,14 +1018,22 @@ class _MenuGridGeometry {
     required bool showImages,
     int? columnsOverride,
   }) {
-    // Admin's per-device, per-category "products per row" still wins; with
-    // no override the redesign's 2-per-row applies.
-    final int columns =
-        (columnsOverride ?? 2).clamp(1, KioskResponsive.maxProductColumns);
     final double gap = _MenuSpec.gridGap * u;
     final EdgeInsets padding = EdgeInsets.fromLTRB(
         _MenuSpec.gridPadLeft * u, 4 * u, _MenuSpec.gridPadRight * u, 24 * u);
     final double inner = areaWidth - padding.horizontal;
+    // Column count = the pre-redesign logic, unchanged: the admin's
+    // per-device, per-category "Products Per Row" override when one is stored,
+    // else the responsive count (min 3). The admin form treats 3 as "automatic"
+    // and the backend never stores it (Device::sanitizeCategoryColumns drops
+    // it), so a category set to 3 arrives here as NO override -- the fallback
+    // must stay the responsive count, never a hardcoded 2.
+    final int columns = KioskProductGridGeometry.resolve(
+      areaWidth: inner,
+      gap: gap,
+      showImages: showImages,
+      columnsOverride: columnsOverride,
+    ).columns;
     final double tileWidth = (inner - gap * (columns - 1)) / columns;
     final double tileHeight = showImages
         ? tileWidth * (_MenuSpec.cardHeight / _MenuSpec.cardWidth)
@@ -1046,7 +1055,7 @@ class _ProductGrid extends StatelessWidget {
   final List<Product> products;
 
   /// Per-device, per-category products-per-row override for the category being
-  /// shown. Null = no override, so the grid keeps 2 per row.
+  /// shown. Null = no override, so the grid keeps its responsive column count.
   final int? columnsOverride;
   const _ProductGrid({
     required this.s,
