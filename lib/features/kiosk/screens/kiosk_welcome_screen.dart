@@ -155,9 +155,8 @@ class KioskIntroMetrics {
       circle: circle,
       chosen: chosen,
       pitch: pitch,
-      // Like the Acafe device: 84% of the virtual 9:16 frame, which on the
-      // real kiosk panel is 84% of the screen, ~8% free on each side.
-      buttonWidth: 0.84 * s,
+      // 0.84 * 1.1 * 1.1, kept inside the side padding so it never overflows.
+      buttonWidth: math.min(1.0164 * s, room > 0 ? room : s),
       buttonHeight: buttonHeight,
       buttonFont: math.max(0.026 * s, 14),
       flagCentreFromBottom: flagCentre,
