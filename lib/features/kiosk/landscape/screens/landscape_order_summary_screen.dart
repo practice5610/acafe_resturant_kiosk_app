@@ -456,6 +456,7 @@ class _SummaryLineCard extends StatelessWidget {
               height: 160 * s,
               color: _kPageBg,
               child: CustomImageWidget(
+                emptyWhenMissing: true,
                 placeholder: Images.placeholderImage,
                 image: image,
                 fit: BoxFit.cover,

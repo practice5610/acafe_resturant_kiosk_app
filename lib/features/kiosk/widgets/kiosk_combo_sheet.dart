@@ -370,6 +370,7 @@ class _OptionCard extends StatelessWidget {
     Widget photo(String url, double w, double h) => ClipRRect(
           borderRadius: BorderRadius.circular(radius * 0.4),
           child: CustomImageWidget(
+            emptyWhenMissing: true,
             placeholder: Images.placeholderImage,
             image: url,
             fit: BoxFit.contain,

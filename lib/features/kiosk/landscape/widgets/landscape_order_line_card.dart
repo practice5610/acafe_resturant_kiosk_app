@@ -112,6 +112,7 @@ class LandscapeOrderLineCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(5.386 * s),
               child: CustomImageWidget(
+                emptyWhenMissing: true,
                 placeholder: Images.placeholderImage,
                 image: image,
                 width: 78.676 * s,

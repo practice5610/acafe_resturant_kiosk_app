@@ -104,6 +104,7 @@ class _CompactLineCard extends StatelessWidget {
                           width: 88,
                           height: 88,
                           child: CustomImageWidget(
+                            emptyWhenMissing: true,
                             placeholder: Images.placeholderImage,
                             image: KioskProductImageHelper.cartLineImageUrl(
                               cart: cart,
@@ -234,6 +235,7 @@ class _ScaledLineCard extends StatelessWidget {
                           width: 473 * s,
                           height: (473 * s) / imageAspect,
                           child: CustomImageWidget(
+                            emptyWhenMissing: true,
                             placeholder: Images.placeholderImage,
                             image: KioskProductImageHelper.cartLineImageUrl(
                               cart: cart,

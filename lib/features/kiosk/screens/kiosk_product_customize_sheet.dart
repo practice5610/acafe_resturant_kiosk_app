@@ -3272,6 +3272,7 @@ class _OptionImageSlot extends StatelessWidget {
       return const SizedBox.expand();
     }
     return CustomImageWidget(
+      emptyWhenMissing: true,
       placeholder: Images.placeholderImage,
       image: image,
       fit: fit,

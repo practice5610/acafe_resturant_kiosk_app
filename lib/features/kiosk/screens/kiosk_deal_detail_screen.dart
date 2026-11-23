@@ -407,6 +407,7 @@ class _DealSlotCard extends StatelessWidget {
                       width: 72,
                       height: 72,
                       child: CustomImageWidget(
+                        emptyWhenMissing: true,
                         placeholder: Images.placeholderImage,
                         image: KioskProductImageHelper.heroImageUrl(
                           product: product,

@@ -118,6 +118,7 @@ class _RailTile extends StatelessWidget {
               Expanded(
                 child: Center(
                   child: CustomImageWidget(
+                    emptyWhenMissing: true,
                     placeholder: Images.placeholderImage,
                     image: imageUrl!,
                     fit: BoxFit.contain,

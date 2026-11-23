@@ -338,6 +338,7 @@ class _ComboCard extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6 * s),
                       child: CustomImageWidget(
+                        emptyWhenMissing: true,
                         placeholder: Images.placeholderImage,
                         image: image,
                         width: 56 * s,

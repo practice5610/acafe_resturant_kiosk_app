@@ -1393,6 +1393,7 @@ class _LatestItemCard extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(40 * s),
                         child: CustomImageWidget(
+                          emptyWhenMissing: true,
                           placeholder: Images.placeholderImage,
                           image: image,
                           fit: BoxFit.cover,

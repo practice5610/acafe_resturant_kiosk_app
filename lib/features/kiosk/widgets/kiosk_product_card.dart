@@ -374,6 +374,7 @@ class KioskProductCard extends StatelessWidget {
         ).createShader(bounds),
         blendMode: BlendMode.dstIn,
         child: CustomImageWidget(
+          emptyWhenMissing: true,
           placeholder: Images.placeholderImage,
           image: image,
           fit: BoxFit.cover,

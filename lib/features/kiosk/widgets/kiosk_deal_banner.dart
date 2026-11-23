@@ -180,6 +180,7 @@ Widget _dealBannerCard({
     child: imageUrl.isEmpty || !CustomImageWidget.showProductImages
         ? fallback
         : CustomImageWidget(
+            emptyWhenMissing: true,
             placeholder: Images.placeholderImage,
             image: imageUrl,
             width: box.width,

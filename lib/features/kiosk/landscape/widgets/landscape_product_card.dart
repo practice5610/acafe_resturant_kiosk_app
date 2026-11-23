@@ -85,6 +85,7 @@ class LandscapeProductCard extends StatelessWidget {
                   children: [
                     Positioned.fill(
                       child: CustomImageWidget(
+                        emptyWhenMissing: true,
                         placeholder: Images.placeholderImage,
                         image: image,
                         fit: BoxFit.cover,

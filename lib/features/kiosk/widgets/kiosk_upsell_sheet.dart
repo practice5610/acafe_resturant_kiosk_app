@@ -393,6 +393,7 @@ class _SuggestionCard extends StatelessWidget {
       productImageBaseUrl: splash.baseUrls?.productImageUrl,
     );
     return CustomImageWidget(
+      emptyWhenMissing: true,
       placeholder: Images.placeholderImage,
       image: url,
       fit: BoxFit.contain,

@@ -30,6 +30,11 @@ class CustomImageWidget extends StatelessWidget {
   /// the exact one the grid reads back (memCacheWidth changes the cache key).
   final int? cacheWidth;
 
+  /// When true, a missing / default / failed image renders NOTHING (an empty
+  /// slot) instead of the coffee-cup placeholder. Kiosk product surfaces use
+  /// this so products without a photo show a clean blank space.
+  final bool emptyWhenMissing;
+
   /// Shared decode width (px) for kiosk product images — used by BOTH the grid
   /// cards and the precache so they warm/read the identical cache entry.
   static const int kKioskProductCacheWidth = 600;
@@ -47,6 +52,7 @@ class CustomImageWidget extends StatelessWidget {
     this.placeholder = '',
     this.useShimmer = false,
     this.cacheWidth,
+    this.emptyWhenMissing = false,
   });
 
   /// Global safety net for the per-device "Show Product Images" toggle. When a
@@ -70,6 +76,10 @@ class CustomImageWidget extends StatelessWidget {
       ),
     );
   }
+
+  /// URL built as `base/` + an empty / null product image, or the default.
+  static bool _hasNoFile(String image) =>
+      image.endsWith('/') || image.endsWith('/null') || isDefaultImage(image);
 
   static bool isDefaultImage(String image) {
     if (image.isEmpty) return true;
@@ -114,10 +124,12 @@ class CustomImageWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final placeholderWidget = Image.asset(
-      placeholder.isNotEmpty ? placeholder : Images.placeholderImage,
-      height: height, width: width, fit: fit,
-    );
+    final Widget placeholderWidget = emptyWhenMissing
+        ? SizedBox(height: height, width: width)
+        : Image.asset(
+            placeholder.isNotEmpty ? placeholder : Images.placeholderImage,
+            height: height, width: width, fit: fit,
+          );
 
     // Skeleton shown while the network image is loading (only when requested).
     final loadingWidget =
@@ -125,7 +137,8 @@ class CustomImageWidget extends StatelessWidget {
 
     // Picture-less device: never fetch. Render the placeholder so any surface
     // not yet collapsed degrades to the static asset instead of a network hit.
-    if (!showProductImages || image.isEmpty || (kIsWeb && isDefaultImage(image))) {
+    if (!showProductImages || image.isEmpty || (kIsWeb && isDefaultImage(image)) ||
+        (emptyWhenMissing && _hasNoFile(image))) {
       return placeholderWidget;
     }
 
