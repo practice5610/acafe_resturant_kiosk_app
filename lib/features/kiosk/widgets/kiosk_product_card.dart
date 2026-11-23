@@ -470,11 +470,14 @@ class KioskProductCard extends StatelessWidget {
                     ),
                   ),
                 ],
-                // e. Allergen / dietary icons (row reserved even if empty).
-                SizedBox(height: 10 * cu),
-                SizedBox(
-                  height: icon,
-                  child: Row(
+                // Free space sits here so the allergen row + price stay
+                // pinned to the card bottom whatever the text above.
+                const Spacer(),
+                // e. Allergen / dietary icons — same data and conditions as the
+                // old card (kioskProductAllergens), centred directly above the
+                // price. Hidden when the product has none.
+                if (allergens.isNotEmpty) ...[
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       for (int i = 0; i < allergens.length; i++) ...[
@@ -498,9 +501,9 @@ class KioskProductCard extends StatelessWidget {
                       ],
                     ],
                   ),
-                ),
-                // f. Price — pinned 16 above the card bottom.
-                const Spacer(),
+                  SizedBox(height: 10 * cu),
+                ],
+                // f. Price — 16 above the card bottom.
                 _menuPrice(cu),
               ],
             ),
