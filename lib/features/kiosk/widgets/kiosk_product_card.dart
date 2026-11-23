@@ -278,8 +278,21 @@ class KioskProductCard extends StatelessWidget {
   // Authored against a 300×340 reference card; `cu` = tileWidth / 300.
 
   static const Color _menuInk = Color(0xFF111111);
-  // Reference ~#8E8E8E fails 4.5:1 on white; nearest passing grey.
-  static const Color _menuDescInk = Color(0xFF767676);
+  // Reference grey, as specified (3.3:1 on white — below the 4.5:1 guard;
+  // opted out at the style call by request).
+  static const Color _menuDescInk = Color(0xFF8E8E8E);
+
+  /// The short description the old card showed (`product.description`), or
+  /// null when it is empty or only repeats the product name.
+  String? get _menuDescription {
+    final String desc = (product.description ?? '').trim();
+    if (desc.isEmpty) return null;
+    String norm(String v) =>
+        v.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (norm(desc) == norm(product.name ?? '')) return null;
+    return desc;
+  }
+
   static const Color _menuPriceInk = Color(0xFF333333);
   static const Color _menuDivider = Color(0xFFEFEFEF);
 
@@ -382,6 +395,7 @@ class KioskProductCard extends StatelessWidget {
         textAlign: TextAlign.center,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        // legibility: out-of-stock (disabled) state, same grey as before
         style: poppinsMedium.copyWith(
           fontSize: 15 * cu,
           height: 1.3,
@@ -394,6 +408,7 @@ class KioskProductCard extends StatelessWidget {
         textAlign: TextAlign.center,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        // legibility: out-of-stock (disabled) state, same grey as before
         style: poppinsRegular.copyWith(
           fontSize: 14 * cu,
           height: 1.3,
@@ -438,21 +453,20 @@ class KioskProductCard extends StatelessWidget {
               children: [
                 // c. Name.
                 _menuName(cu),
-                // d. Description — fixed 2-line box so prices line up.
-                if (showDescription) ...[
+                // d. Short description (old card's field). Hidden when
+                // empty or a repeat of the name.
+                if (showDescription && _menuDescription != null) ...[
                   SizedBox(height: 4 * cu),
-                  SizedBox(
-                    height: 11 * cu * 1.3 * 2,
-                    child: Text(
-                      product.description ?? '',
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: poppinsRegular.copyWith(
-                        fontSize: 11 * cu,
-                        height: 1.3,
-                        color: _menuDescInk,
-                      ),
+                  Text(
+                    _menuDescription!,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: poppinsRegular.copyWith(
+                      fontSize: 11 * cu,
+                      height: 1.3,
+                      // legibility: reference grey #8E8E8E, requested by design
+                      color: _menuDescInk,
                     ),
                   ),
                 ],
