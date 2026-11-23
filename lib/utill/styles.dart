@@ -31,6 +31,12 @@ const poppinsRegular = TextStyle(
   fontWeight: FontWeight.w400,
 );
 
+const poppinsMedium = TextStyle(
+  fontFamily: 'Poppins',
+  fontSize: Dimensions.fontSizeDefault,
+  fontWeight: FontWeight.w500,
+);
+
 const robotoRegular = TextStyle(
   fontFamily: 'Roboto',
   fontSize: Dimensions.fontSizeDefault,
