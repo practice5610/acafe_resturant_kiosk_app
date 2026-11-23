@@ -73,6 +73,36 @@ void main() {
     });
   }
 
+  testWidgets('a tap beside the card closes the note', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    late BuildContext ctx;
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<CartProvider>(
+            create: (_) =>
+                CartProvider(cartRepo: CartRepo(sharedPreferences: prefs))),
+      ],
+      child: MaterialApp(
+        home: Builder(builder: (context) {
+          ctx = context;
+          return const Scaffold(body: SizedBox.expand());
+        }),
+      ),
+    ));
+    openKioskOrderNote(ctx);
+    await tester.pumpAndSettle();
+    expect(labelled('Continue'), findsOneWidget);
+
+    await tester.tapAt(const Offset(20, 40));
+    await tester.pumpAndSettle();
+    expect(labelled('Continue'), findsNothing);
+  });
+
   testWidgets('no overflow through openKioskOrderNote at Retina scale',
       (tester) async {
     SharedPreferences.setMockInitialValues({});

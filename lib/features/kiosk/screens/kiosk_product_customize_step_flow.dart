@@ -1144,7 +1144,7 @@ class _ChoiceEntry {
     required VoidCallback onTap,
   }) =>
       _ChoiceEntry._(
-        label: '',
+        label: 'More',
         filled: false,
         isOverflow: true,
         overflowText: '+$count',
@@ -1315,7 +1315,9 @@ class _ChoiceTile extends StatelessWidget {
                     style: loewBold.copyWith(
                       fontSize: _labelSize * s,
                       height: 1.05,
-                      color: filled ? Colors.black : const Color(0xFF8C877A),
+                      color: (filled || overflow)
+                          ? Colors.black
+                          : const Color(0xFF8C877A),
                     ),
                   ),
                 ),

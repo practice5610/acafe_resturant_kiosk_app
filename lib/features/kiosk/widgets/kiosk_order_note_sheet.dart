@@ -110,8 +110,7 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
 
   void _insert(String text) {
     final TextSelection sel = _selection;
-    final String next =
-        _controller.text.replaceRange(sel.start, sel.end, text);
+    final String next = _controller.text.replaceRange(sel.start, sel.end, text);
     if (next.length > _kNoteMaxLength) return;
     _controller.value = TextEditingValue(
       text: next,
@@ -151,8 +150,8 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
         fit: StackFit.expand,
         children: [
           KioskScrim(
-            animation: ModalRoute.of(context)?.animation ??
-                kAlwaysCompleteAnimation,
+            animation:
+                ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation,
             onDismiss: _cancel,
           ),
           SafeArea(
@@ -165,6 +164,10 @@ class _KioskOrderNoteSheetState extends State<KioskOrderNoteSheet> {
                     Expanded(
                       child: Center(
                         child: SingleChildScrollView(
+                          // The scroll view spans the whole screen; by default it
+                          // would swallow taps beside the card, so the scrim under
+                          // it could never close the modal.
+                          hitTestBehavior: HitTestBehavior.deferToChild,
                           padding: EdgeInsets.all(40 * s),
                           child: GestureDetector(
                             onTap: () {}, // absorb taps inside the card
@@ -232,8 +235,7 @@ class _NoteCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kCardBg,
         borderRadius: BorderRadius.circular(30 * s),
-        border:
-            Border.all(color: _kCardBorder, width: (6 * s).clamp(2.0, 6.0)),
+        border: Border.all(color: _kCardBorder, width: (6 * s).clamp(2.0, 6.0)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

@@ -138,8 +138,8 @@ class _KioskUpsellSheet extends StatelessWidget {
         .where((p) => p.id == null || !inCart.contains(p.id))
         .where((p) => !kioskProductHasAllergen(p, avoided))
         .toList()
-      ..sort((a, b) =>
-          (b.popularityCount ?? 0).compareTo(a.popularityCount ?? 0));
+      ..sort(
+          (a, b) => (b.popularityCount ?? 0).compareTo(a.popularityCount ?? 0));
 
     return matches.take(_kMaxSuggestions).toList();
   }
@@ -163,7 +163,8 @@ class _KioskUpsellSheet extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           KioskScrim(
-            animation: ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation,
+            animation:
+                ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation,
             onDismiss: () => Navigator.of(context).pop(),
           ),
           SafeArea(
@@ -184,6 +185,10 @@ class _KioskUpsellSheet extends StatelessWidget {
 
                 return Center(
                   child: SingleChildScrollView(
+                    // The scroll view spans the whole screen; by default it
+                    // would swallow taps beside the card, so the scrim under
+                    // it could never close the modal.
+                    hitTestBehavior: HitTestBehavior.deferToChild,
                     // On a short window the sheet scrolls inside the scrim
                     // instead of overflowing.
                     padding: EdgeInsets.symmetric(vertical: 24 * s),
@@ -198,8 +203,7 @@ class _KioskUpsellSheet extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: _Spec.bg,
-                          borderRadius:
-                              BorderRadius.circular(_Spec.radius * k),
+                          borderRadius: BorderRadius.circular(_Spec.radius * k),
                           border: Border.all(
                             color: _Spec.borderColor,
                             width: (_Spec.border * k).clamp(0.5, 2.0),
@@ -211,8 +215,7 @@ class _KioskUpsellSheet extends StatelessWidget {
                             _Header(k: k, title: _title(context)),
                             SizedBox(height: _Spec.titleToGrid * k),
                             Padding(
-                              padding:
-                                  EdgeInsets.symmetric(horizontal: m.pad),
+                              padding: EdgeInsets.symmetric(horizontal: m.pad),
                               child: suggestions.isEmpty
                                   ? _Empty(s: s)
                                   : Wrap(
@@ -690,4 +693,3 @@ class KioskUpsellGridMetrics {
   /// The invariant the old code violated.
   bool get fits => rowWidth < available;
 }
-

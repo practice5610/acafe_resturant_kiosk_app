@@ -264,14 +264,15 @@ void main() {
 
   testWidgets(
       'the chosen flag sits in a solid white circle of the same size; the rest '
-      'in a soft see-through one', (tester) async {
+      'in the grey device scrim', (tester) async {
     await pumpWelcome(tester);
 
     expect(decorationOf(tester, 'en').color, Colors.white);
     expect(decorationOf(tester, 'en').border, isNull, reason: 'no ring');
     for (final String other in allCodes.where((c) => c != 'en')) {
       final BoxDecoration d = decorationOf(tester, other);
-      expect(d.color!.a, closeTo(0.30, 0.01), reason: '$other is 30% white');
+      expect(d.color, const Color(0x80BDBDBD),
+          reason: '$other wears the device grey scrim');
       expect(d.border, isNull);
       expect(tester.getSize(circleOf('en')).width,
           tester.getSize(circleOf(other)).width,
@@ -279,7 +280,7 @@ void main() {
     }
   });
 
-  testWidgets('the flag is 72% of its circle, centred, and from the round set',
+  testWidgets('the flag is a small 4:3 rectangle inside its circle, centred',
       (tester) async {
     await pumpWelcome(tester);
 
@@ -289,9 +290,17 @@ void main() {
       final Image img = tester.widget<Image>(image);
       expect((img.image as AssetImage).assetName,
           'assets/image/flags_round/$c.png');
-      expect(tester.getSize(image).width,
-          closeTo(tester.getSize(circleOf(c)).width * 0.72, 0.01));
-      expect((tester.getCenter(image) - tester.getCenter(circleOf(c))).distance,
+      final Finder clip =
+          find.descendant(of: flag(c), matching: find.byType(ClipRRect));
+      final Size box = tester.getSize(clip);
+      final double d = tester.getSize(circleOf(c)).width;
+      expect(box.width, closeTo(d * 0.46, 0.01));
+      expect(box.width / box.height, closeTo(4 / 3, 0.01));
+      // Every corner stays inside the circular artwork (no clear corners).
+      final double r = tester.getSize(image).width / 2;
+      expect(math.sqrt(math.pow(box.width / 2, 2) + math.pow(box.height / 2, 2)),
+          lessThan(r));
+      expect((tester.getCenter(clip) - tester.getCenter(circleOf(c))).distance,
           lessThan(0.01));
     }
   });
@@ -310,7 +319,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     // The solid white circle follows.
     expect(decorationOf(tester, 'fr').color, Colors.white);
-    expect(decorationOf(tester, 'en').color!.a, closeTo(0.30, 0.01));
+    expect(decorationOf(tester, 'en').color, const Color(0x80BDBDBD));
   });
 
   testWidgets('every flag switches to its own language', (tester) async {
@@ -666,7 +675,7 @@ void main() {
         expect(m.s, closeTo(s, 0.001));
 
         final Rect pill = tester.getRect(orderButton);
-        expect(pill.width, closeTo(math.min(0.78 * s, size.width - 32), 0.5));
+        expect(pill.width, closeTo(0.84 * s, 0.5));
         expect(pill.height, closeTo(math.max(0.085 * s, 48), 0.5));
         expect(pill.center.dx, closeTo(size.width / 2, 0.5));
 
@@ -675,7 +684,7 @@ void main() {
         expect(row.left, greaterThanOrEqualTo(0));
         expect(row.right, lessThanOrEqualTo(size.width));
         expect(row.center.dx, closeTo(size.width / 2, 0.5));
-        expect(pill.width, lessThanOrEqualTo(0.78 * s + 0.01),
+        expect(pill.width, lessThanOrEqualTo(0.84 * s + 0.01),
             reason: 'never wider than the frame allows');
 
         for (final String c in allCodes) {
@@ -748,7 +757,7 @@ void main() {
 
       // Button: spec width/height, centred.
       final Rect pill = tester.getRect(orderButton);
-      expect(pill.width, closeTo(math.min(0.78 * s, size.width - 32), 0.5));
+      expect(pill.width, closeTo(0.84 * s, 0.5));
       expect(pill.height, closeTo(math.max(0.085 * s, 48), 0.5));
       expect(pill.center.dx, closeTo(size.width / 2, 0.5));
 
@@ -773,9 +782,11 @@ void main() {
             reason: '$c centre');
       }
 
-      // Button sits 0.07 s above the selected circle; nothing overlaps.
+      // Button rests 0.07 s above the selected circle, breathing up and
+      // down around that rest by its bob amplitude; nothing overlaps.
       final Rect chosen = tester.getRect(circleOf('en'));
-      expect(chosen.top - pill.bottom, closeTo(0.07 * s, 0.5));
+      final double bob = (0.006 * s).clamp(3.0, 6.0);
+      expect(chosen.top - pill.bottom, closeTo(0.07 * s, bob + 0.5));
       expect(tester.getSize(circleOf('en')).width,
           tester.getSize(circleOf('nl')).width);
     });

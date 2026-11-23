@@ -6,6 +6,7 @@ import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_logout_button.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_menu_search.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
@@ -39,7 +40,6 @@ import 'package:acafe_customer/features/search/providers/search_provider.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
-import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -117,9 +117,32 @@ class KioskMenuScreen extends StatefulWidget {
 class _KioskMenuScreenState extends State<KioskMenuScreen> {
   LocalizationProvider? _localization;
   String? _lastLocale;
+
   /// Pills the customer has toggled on. Multi-select: the grid shows products
   /// carrying ANY of them (see [filterKioskProductsByTag]).
   final Set<String> _selectedTagPills = <String>{};
+
+  /// Inline top-bar search (replaces the old push to the search route).
+  final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  bool _searchOpen = false;
+
+  void _openSearch() => setState(() => _searchOpen = true);
+
+  void _closeSearch() {
+    _searchFocus.unfocus();
+    _searchCtrl.clear();
+    setState(() => _searchOpen = false);
+  }
+
+  void _onSearchFocusChange() {
+    // Keyboard dismissed with nothing typed -> fold back to the circle.
+    if (!_searchFocus.hasFocus &&
+        _searchOpen &&
+        _searchCtrl.text.trim().isEmpty) {
+      setState(() => _searchOpen = false);
+    }
+  }
 
   @override
   void initState() {
@@ -129,12 +152,16 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
     // Refetch menu data when the language changes while this screen is open, so
     // the product grid updates instantly (not only after navigating away/back).
     _localization!.addListener(_onLocaleChanged);
+    _searchFocus.addListener(_onSearchFocusChange);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
   @override
   void dispose() {
     _localization?.removeListener(_onLocaleChanged);
+    _searchFocus.removeListener(_onSearchFocusChange);
+    _searchFocus.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -196,6 +223,8 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
   }
 
   Future<void> _onSelectCategory(int id) async {
+    // Picking a category is leaving search.
+    if (_searchOpen || _searchCtrl.text.isNotEmpty) _closeSearch();
     final categoryProvider =
         Provider.of<CategoryProvider>(context, listen: false);
     final splash = Provider.of<SplashProvider>(context, listen: false);
@@ -245,7 +274,21 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
             return Column(
               children: [
                 _KioskTopBar(
-                    s: s, sideMargin: sideMargin, landscape: landscape),
+                  s: s,
+                  sideMargin: sideMargin,
+                  landscape: landscape,
+                  search: KioskMenuSearch(
+                    s: s,
+                    diameter: _topBarActionDiameter(s),
+                    expandedWidth: (constraints.maxWidth * 0.42)
+                        .clamp(_topBarActionDiameter(s) * 3, 760 * s),
+                    open: _searchOpen,
+                    controller: _searchCtrl,
+                    focusNode: _searchFocus,
+                    onOpen: _openSearch,
+                    onClose: _closeSearch,
+                  ),
+                ),
                 SizedBox(height: 28 * s * chrome),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: sideMargin),
@@ -290,10 +333,16 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                                   ),
                                   SizedBox(height: 61 * s * chrome),
                                   Expanded(
-                                      child: _ProductArea(
-                                          s: s,
-                                          landscape: landscape,
-                                          tagFilters: _selectedTagPills)),
+                                      child: ValueListenableBuilder<
+                                          TextEditingValue>(
+                                    valueListenable: _searchCtrl,
+                                    builder: (context, value, _) =>
+                                        _ProductArea(
+                                            s: s,
+                                            landscape: landscape,
+                                            tagFilters: _selectedTagPills,
+                                            searchQuery: value.text.trim()),
+                                  )),
                                 ],
                               ),
                             ),
@@ -303,8 +352,7 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                     ),
                   ),
                 ),
-                _CartBar(
-                    s: s, sideMargin: sideMargin, landscape: landscape),
+                _CartBar(s: s, sideMargin: sideMargin, landscape: landscape),
               ],
             );
           },
@@ -320,9 +368,11 @@ class _KioskTopBar extends StatelessWidget {
   final double s;
   final double sideMargin;
   final bool landscape;
+  final Widget search;
   const _KioskTopBar({
     required this.s,
     required this.sideMargin,
+    required this.search,
     this.landscape = false,
   });
 
@@ -372,10 +422,7 @@ class _KioskTopBar extends StatelessWidget {
           //       onTap: () => openKioskManagerAccess(context)),
           //   SizedBox(width: 38 * s),
           // ],
-          _CircleIconButton(
-              s: s,
-              assetPath: Images.searchSvg,
-              onTap: () => RouterHelper.getSearchRoute()),
+          search,
           SizedBox(width: 38 * s),
           _CircleIconButton(
               s: s,
@@ -720,10 +767,12 @@ class _ProductArea extends StatelessWidget {
   final double s;
   final bool landscape;
   final Set<String> tagFilters;
+  final String searchQuery;
   const _ProductArea({
     required this.s,
     this.landscape = false,
     this.tagFilters = const <String>{},
+    this.searchQuery = '',
   });
 
   @override
@@ -736,13 +785,22 @@ class _ProductArea extends StatelessWidget {
       listenable: KioskAllergenPreferences.instance,
       builder: (context, _) => Consumer2<CategoryProvider, SearchProvider>(
         builder: (context, category, search, _) {
-          final bool filtersActive = kioskMenuFiltersActive(category, search);
-          List<Product> products = filtersActive
-              ? applyKioskMenuFilters(
-                  categoryProvider: category,
+          final bool searching = searchQuery.isNotEmpty;
+          final bool filtersActive =
+              searching || kioskMenuFiltersActive(category, search);
+          List<Product> products = searching
+              // Search spans the whole menu, then the sheet's sort/price apply.
+              ? filterKioskProducts(
+                  products: searchKioskProducts(
+                      category.allPrefetchedProducts, searchQuery),
                   searchProvider: search,
                 )
-              : (category.categoryProductModel?.products ?? const []);
+              : filtersActive
+                  ? applyKioskMenuFilters(
+                      categoryProvider: category,
+                      searchProvider: search,
+                    )
+                  : (category.categoryProductModel?.products ?? const []);
           products = filterKioskProductsByTag(
             products: products,
             pillLabels: tagFilters,
@@ -758,7 +816,7 @@ class _ProductArea extends StatelessWidget {
           return category.categoryProductModel == null && !filtersActive
               ? _ProductGridSkeleton(s: s, landscape: landscape)
               : products.isEmpty
-                  ? _EmptyProductArea(s: s)
+                  ? _EmptyProductArea(s: s, searchQuery: searchQuery)
                   : _ProductGrid(
                       s: s,
                       products: products,
@@ -788,7 +846,8 @@ class _ProductArea extends StatelessWidget {
 /// cannot do is notice which products are missing.
 class _EmptyProductArea extends StatelessWidget {
   final double s;
-  const _EmptyProductArea({required this.s});
+  final String searchQuery;
+  const _EmptyProductArea({required this.s, this.searchQuery = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -799,11 +858,13 @@ class _EmptyProductArea extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            byAllergen
-                // "No items" reads as a broken menu. Name the cause.
-                ? kioskTranslate(context, 'allergen_no_matching_items',
-                    'No items match your allergen filters')
-                : (getTranslated('no_items', context) ?? 'No items'),
+            searchQuery.isNotEmpty && !byAllergen
+                ? '${kioskTranslate(context, 'no_search_results', 'No products found for')} "$searchQuery"'
+                : byAllergen
+                    // "No items" reads as a broken menu. Name the cause.
+                    ? kioskTranslate(context, 'allergen_no_matching_items',
+                        'No items match your allergen filters')
+                    : (getTranslated('no_items', context) ?? 'No items'),
             textAlign: TextAlign.center,
             style: rubikRegular.copyWith(
                 fontSize: 32 * s, color: Theme.of(context).hintColor),
@@ -813,8 +874,8 @@ class _EmptyProductArea extends StatelessWidget {
             KioskTap(
               onTap: () => showKioskAllergenFilter(context),
               child: Padding(
-                padding: EdgeInsets.symmetric(
-                    horizontal: 32 * s, vertical: 16 * s),
+                padding:
+                    EdgeInsets.symmetric(horizontal: 32 * s, vertical: 16 * s),
                 child: Text(
                   kioskTranslate(context, 'allergen_change_filters',
                       'Change allergen filters'),
@@ -1034,6 +1095,7 @@ class _SkeletonCard extends StatelessWidget {
     );
   }
 }
+
 // Dark button fill + cream text used by the filled cart bar (from the design).
 const Color _kDarkButton = Color(0xFF1E1E1E);
 const Color _kCreamText = Color(0xFFFFFFFF);

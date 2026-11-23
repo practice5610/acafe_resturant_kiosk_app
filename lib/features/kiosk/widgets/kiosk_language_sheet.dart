@@ -1,4 +1,3 @@
-
 import 'package:acafe_customer/common/models/language_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
@@ -143,8 +142,8 @@ class _KioskLanguageSheetState extends State<KioskLanguageSheet> {
         fit: StackFit.expand,
         children: [
           KioskScrim(
-            animation: ModalRoute.of(context)?.animation ??
-                kAlwaysCompleteAnimation,
+            animation:
+                ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation,
             // Inert mid-save: dismissing while the choice is being written
             // would leave the kiosk on a language it never finished applying.
             onDismiss: _saving ? null : () => Navigator.of(context).pop(),
@@ -156,13 +155,16 @@ class _KioskLanguageSheetState extends State<KioskLanguageSheet> {
                 final bool landscape =
                     KioskLayout.isLandscape(context, constraints);
                 return SingleChildScrollView(
+                  // The scroll view spans the whole screen; by default it
+                  // would swallow taps beside the card, so the scrim under
+                  // it could never close the modal.
+                  hitTestBehavior: HitTestBehavior.deferToChild,
                   child: Padding(
                     padding: EdgeInsets.only(
                         top: (landscape ? 24 : _kCardTopMargin) * s),
                     child: Align(
-                      alignment: landscape
-                          ? Alignment.center
-                          : Alignment.topCenter,
+                      alignment:
+                          landscape ? Alignment.center : Alignment.topCenter,
                       child: GestureDetector(
                         onTap: () {}, // absorb taps inside the card
                         child: ConstrainedBox(
@@ -223,79 +225,79 @@ class KioskLanguageCard extends StatelessWidget {
         final List<LanguageModel> languages =
             KioskLanguageOffering.forThisDevice();
         return Container(
-      width: (_kCardWidth * s).clamp(280.0, maxW),
-      // Height is content-driven rather than the Figma frame's fixed 1356: that
-      // frame reserves scroll room for a longer list, and pinning it here would
-      // leave dead space under four rows.
-      padding: EdgeInsets.all(_kCardPadding * s),
-      decoration: BoxDecoration(
-        color: _kSheetSurface,
-        borderRadius: BorderRadius.circular(_kCardRadius * s),
-        border: Border.all(
-          color: _kSheetBorder,
-          width: (_kCardBorder * s).clamp(1.0, _kCardBorder),
-        ),
-        // Lifts the card off the blurred backdrop.
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
-            blurRadius: 120 * s,
-            offset: Offset(0, 40 * s),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              _CircleBackButton(s: s, onTap: onClose ?? () {}),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24 * s),
-                  child: Text(
-                    _t(context, 'select_language', 'Select language')
-                        .toUpperCase(),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: loewExtraBold.copyWith(
-                      fontSize: _kTitleSize * s,
-                      height: 1.1,
-                      color: _kSheetText,
-                    ),
-                  ),
-                ),
+          width: (_kCardWidth * s).clamp(280.0, maxW),
+          // Height is content-driven rather than the Figma frame's fixed 1356: that
+          // frame reserves scroll room for a longer list, and pinning it here would
+          // leave dead space under four rows.
+          padding: EdgeInsets.all(_kCardPadding * s),
+          decoration: BoxDecoration(
+            color: _kSheetSurface,
+            borderRadius: BorderRadius.circular(_kCardRadius * s),
+            border: Border.all(
+              color: _kSheetBorder,
+              width: (_kCardBorder * s).clamp(1.0, _kCardBorder),
+            ),
+            // Lifts the card off the blurred backdrop.
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 120 * s,
+                offset: Offset(0, 40 * s),
               ),
-              // Mirrors the back button so the title centres on the card.
-              SizedBox(width: _kBackButtonSize * s),
             ],
           ),
-          SizedBox(height: _kCardGap * s),
-          Text(
-            _t(context, 'choose_your_preferred_language',
-                'Choose your preferred language'),
-            textAlign: TextAlign.center,
-            style: loewRegular.copyWith(
-              fontSize: _kSubtitleSize * s,
-              height: 1.3,
-              color: TextTones.secondary,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  _CircleBackButton(s: s, onTap: onClose ?? () {}),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24 * s),
+                      child: Text(
+                        _t(context, 'select_language', 'Select language')
+                            .toUpperCase(),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: loewExtraBold.copyWith(
+                          fontSize: _kTitleSize * s,
+                          height: 1.1,
+                          color: _kSheetText,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Mirrors the back button so the title centres on the card.
+                  SizedBox(width: _kBackButtonSize * s),
+                ],
+              ),
+              SizedBox(height: _kCardGap * s),
+              Text(
+                _t(context, 'choose_your_preferred_language',
+                    'Choose your preferred language'),
+                textAlign: TextAlign.center,
+                style: loewRegular.copyWith(
+                  fontSize: _kSubtitleSize * s,
+                  height: 1.3,
+                  color: TextTones.secondary,
+                ),
+              ),
+              SizedBox(height: _kCardGap * s),
+              for (int i = 0; i < languages.length; i++) ...[
+                if (i > 0) SizedBox(height: _kRowGap * s),
+                _LanguageRow(
+                  s: s,
+                  language: languages[i],
+                  selected: languages[i].languageCode == current,
+                  enabled: !saving,
+                  onTap: () => onSelect(languages[i]),
+                ),
+              ],
+            ],
           ),
-          SizedBox(height: _kCardGap * s),
-          for (int i = 0; i < languages.length; i++) ...[
-            if (i > 0) SizedBox(height: _kRowGap * s),
-            _LanguageRow(
-              s: s,
-              language: languages[i],
-              selected: languages[i].languageCode == current,
-              enabled: !saving,
-              onTap: () => onSelect(languages[i]),
-            ),
-          ],
-        ],
-      ),
-    );
+        );
       },
     );
   }

@@ -686,12 +686,12 @@ class _LandscapeVariationStep extends StatelessWidget {
     int variationIndex,
     int valueIndex,
   ) {
-    final List<Variation> variations = ProductHelper.effectiveVariations(product) ?? [];
+    final List<Variation> variations =
+        ProductHelper.effectiveVariations(product) ?? [];
     final Variation variation = variations[variationIndex];
     final VariationValue value = variation.variationValues![valueIndex];
     final bool selected =
-        productProvider.selectedVariations[variationIndex][valueIndex] ??
-            false;
+        productProvider.selectedVariations[variationIndex][valueIndex] ?? false;
     final String image = _choiceImageUrl(
       KioskProductImageHelper.optionCardImageUrl(
         value: value,
@@ -841,10 +841,9 @@ class _LandscapeAddOnsStep extends StatelessWidget {
               final bool selected =
                   index < productProvider.addOnActiveList.length &&
                       productProvider.addOnActiveList[index];
-              final int quantity =
-                  index < productProvider.addOnQtyList.length
-                      ? (productProvider.addOnQtyList[index] ?? 1)
-                      : 1;
+              final int quantity = index < productProvider.addOnQtyList.length
+                  ? (productProvider.addOnQtyList[index] ?? 1)
+                  : 1;
               final bool isDefault = addon.isDefault;
               return _AddOnCard(
                 width: fitted,
@@ -973,8 +972,8 @@ class _LandscapeCupCanStep extends StatelessWidget {
                           value: values[i],
                           productImageBaseUrl: splash.baseUrls?.productImageUrl,
                         ),
-                        selected: productProvider
-                                .selectedVariations[entry.key][i] ??
+                        selected: productProvider.selectedVariations[entry.key]
+                                [i] ??
                             false,
                         onTap: () {
                           // Same selection + analytics as
@@ -1306,28 +1305,23 @@ class _LandscapeYourChoicesRow extends StatelessWidget {
     showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
-      barrierLabel:
-          getTranslated('your_choices', context) ?? 'Your choices',
+      barrierLabel: getTranslated('your_choices', context) ?? 'Your choices',
       barrierColor: Colors.black.withValues(alpha: 0.5),
       transitionDuration: const Duration(milliseconds: 160),
       pageBuilder: (dialogContext, _, __) => LandscapeScaled(
         child: Builder(builder: (innerContext) {
           final LandscapeMetrics popupM = LandscapeMetrics.of(innerContext);
-          return Stack(
-            children: [
-              Positioned(
-                left: popupM.px(354.5),
-                top: popupM.px(139.9),
-                width: popupM.px(657.08),
-                height: popupM.px(744.19),
-                child: _LandscapeChoicesModal(
-                  steps: steps,
-                  sections: sections,
-                  product: product,
-                  onStepTap: onStepTap,
-                ),
+          return Center(
+            child: SizedBox(
+              width: popupM.px(657.08),
+              height: popupM.px(744.19),
+              child: _LandscapeChoicesModal(
+                steps: steps,
+                sections: sections,
+                product: product,
+                onStepTap: onStepTap,
               ),
-            ],
+            ),
           );
         }),
       ),
@@ -1378,8 +1372,9 @@ class _LandscapeChoicesModal extends StatelessWidget {
     final LandscapeMetrics m = LandscapeMetrics.of(context);
     final ProductProvider pp = context.watch<ProductProvider>();
 
-    final Widget? addOnsBlock =
-        steps.contains(_CustomizeStep.addOns) ? _addOnsBlock(context, m, pp) : null;
+    final Widget? addOnsBlock = steps.contains(_CustomizeStep.addOns)
+        ? _addOnsBlock(context, m, pp)
+        : null;
     final List<Widget> blocks = [
       if (steps.contains(_CustomizeStep.milks)) ..._milkBlocks(context, m, pp),
       if (addOnsBlock != null) addOnsBlock,
@@ -1403,8 +1398,8 @@ class _LandscapeChoicesModal extends StatelessWidget {
           padding: EdgeInsets.all(m.px(30.356)),
           decoration: BoxDecoration(
             color: _kPanelBg,
-            border: Border.all(
-                color: _kInkText, width: _border(1.897, m.scale)),
+            border:
+                Border.all(color: _kInkText, width: _border(1.897, m.scale)),
             borderRadius: BorderRadius.circular(m.px(9.486)),
             boxShadow: [
               BoxShadow(
@@ -1491,8 +1486,7 @@ class _LandscapeChoicesModal extends StatelessWidget {
                   m,
                   thumb: _popupVariationThumb(context, m, values[j]),
                   name: (values[j].level ?? entry.value.name ?? '').trim(),
-                  onChange: () =>
-                      _jumpToStep(context, _CustomizeStep.milks),
+                  onChange: () => _jumpToStep(context, _CustomizeStep.milks),
                 ),
             ];
       out.add(_popupBlock(m, '$title:', rows));
@@ -1672,8 +1666,7 @@ class _LandscapeChoicesModal extends StatelessWidget {
         children: [
           KioskTap(
             onTap: () => _removeAddOn(context, pp, addon, index),
-            child: Icon(Icons.delete_outline,
-                size: m.px(18), color: _kInkText),
+            child: Icon(Icons.delete_outline, size: m.px(18), color: _kInkText),
           ),
           SizedBox(width: m.px(8)),
           Text('$qty',
@@ -1685,7 +1678,8 @@ class _LandscapeChoicesModal extends StatelessWidget {
 
     return _popupRowShell(
       m,
-      thumb: _popupImageThumb(m, _choiceImageUrl(_addonImageUrl(context, addon))),
+      thumb:
+          _popupImageThumb(m, _choiceImageUrl(_addonImageUrl(context, addon))),
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1831,11 +1825,12 @@ Widget _popupRowShell(
     Container(
       decoration: BoxDecoration(
         color: _kPopupRowBg,
-        border: Border.all(color: _kPopupDivider, width: _border(0.949, m.scale)),
+        border:
+            Border.all(color: _kPopupDivider, width: _border(0.949, m.scale)),
         borderRadius: BorderRadius.circular(m.px(7.589)),
       ),
-      padding: EdgeInsets.symmetric(
-          vertical: m.px(8.85), horizontal: m.px(15.18)),
+      padding:
+          EdgeInsets.symmetric(vertical: m.px(8.85), horizontal: m.px(15.18)),
       child: Row(
         children: [
           thumb,
@@ -1897,8 +1892,7 @@ Widget _popupActionButton(
     KioskTap(
       onTap: onTap,
       child: Container(
-        padding:
-            EdgeInsets.symmetric(horizontal: m.px(14), vertical: m.px(7)),
+        padding: EdgeInsets.symmetric(horizontal: m.px(14), vertical: m.px(7)),
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border.all(color: _kInkText, width: _border(0.791, m.scale)),
@@ -1931,8 +1925,8 @@ Widget _popupDoneButton(BuildContext context, LandscapeMetrics m) => KioskTap(
         ),
         child: Text(
           (getTranslated('done', context) ?? 'Done').toUpperCase(),
-          style:
-              loewExtraBold.copyWith(fontSize: m.px(17), height: 1.0, color: Colors.white),
+          style: loewExtraBold.copyWith(
+              fontSize: m.px(17), height: 1.0, color: Colors.white),
         ),
       ),
     );

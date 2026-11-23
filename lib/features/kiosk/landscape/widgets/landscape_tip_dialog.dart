@@ -90,8 +90,23 @@ class _LandscapeTipDialogState extends State<_LandscapeTipDialog> {
     Navigator.of(context).pop(0);
   }
 
+  /// A tap beside the card closes without choosing, like the portrait sheet.
+  void _dismiss() {
+    if (_closing) return;
+    _closing = true;
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _dismiss,
+      child: _scrim(context),
+    );
+  }
+
+  Widget _scrim(BuildContext context) {
     return Container(
       color: Colors.black.withValues(alpha: 0.5),
       width: double.infinity,
@@ -130,7 +145,8 @@ class _LandscapeTipDialogState extends State<_LandscapeTipDialog> {
                         // underline under these sentences.
                         ExcludeSemantics(
                           child: Text(
-                            kioskTranslate(context,
+                            kioskTranslate(
+                                context,
                                 'enjoying_your_visit_tip_the_team',
                                 'Enjoying your visit? Tip the team'),
                             textAlign: TextAlign.center,
@@ -144,7 +160,8 @@ class _LandscapeTipDialogState extends State<_LandscapeTipDialog> {
                         SizedBox(height: _kHeaderGap * s),
                         ExcludeSemantics(
                           child: Text(
-                            kioskTranslate(context,
+                            kioskTranslate(
+                                context,
                                 'your_tip_goes_directly_to_the_team',
                                 'Your tip goes directly to the team'),
                             textAlign: TextAlign.center,
@@ -157,8 +174,8 @@ class _LandscapeTipDialogState extends State<_LandscapeTipDialog> {
                         ),
                         Expanded(
                           child: Padding(
-                            padding: EdgeInsets.symmetric(
-                                vertical: _kHeaderGap * s),
+                            padding:
+                                EdgeInsets.symmetric(vertical: _kHeaderGap * s),
                             child: _TipGrid(
                               s: s,
                               payableTotal: widget.payableTotal,
@@ -268,17 +285,14 @@ class _TipTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: selected ? _kInk : Colors.white,
             borderRadius: BorderRadius.circular(_kTileRadius * s),
-            border:
-                selected ? null : Border.all(color: _kTileBorder, width: s),
+            border: selected ? null : Border.all(color: _kTileBorder, width: s),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('$percent%',
                   style: loewBold.copyWith(
-                      fontSize: _kTilePercentFont * s,
-                      height: 1.0,
-                      color: fg)),
+                      fontSize: _kTilePercentFont * s, height: 1.0, color: fg)),
               SizedBox(height: 6 * s),
               Text(
                 caption,
@@ -301,7 +315,8 @@ class _FooterButton extends StatelessWidget {
   final double s;
   final bool selected;
   final VoidCallback onTap;
-  const _FooterButton({required this.s, required this.selected, required this.onTap});
+  const _FooterButton(
+      {required this.s, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

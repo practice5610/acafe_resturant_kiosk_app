@@ -24,7 +24,7 @@ import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 /// Kiosk intro screen: the looping intro video filling the whole screen, an
-/// "ORDER HERE" pill and a row of round language flags. Tapping anywhere that
+/// gently bobbing "ORDER HERE" pill and a row of language flags in circles. Tapping anywhere that
 /// is not a flag goes to the menu.
 ///
 /// The languages are the ones Settings → Hardware offers on this device;
@@ -155,10 +155,9 @@ class KioskIntroMetrics {
       circle: circle,
       chosen: chosen,
       pitch: pitch,
-      buttonWidth: math.min(
-        0.78 * s,
-        math.max(0, screen.width - 2 * sidePadding),
-      ),
+      // Like the Acafe device: 84% of the virtual 9:16 frame, which on the
+      // real kiosk panel is 84% of the screen, ~8% free on each side.
+      buttonWidth: 0.84 * s,
       buttonHeight: buttonHeight,
       buttonFont: math.max(0.026 * s, 14),
       flagCentreFromBottom: flagCentre,
@@ -506,12 +505,15 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: _OrderHereButton(
-                    width: m.buttonWidth,
-                    height: m.buttonHeight,
-                    fontSize: m.buttonFont,
-                    loading: _orderLoading,
-                    onPressed: _onContinue,
+                  child: _GentleBob(
+                    amplitude: (0.006 * m.s).clamp(3.0, 6.0),
+                    child: _OrderHereButton(
+                      width: m.buttonWidth,
+                      height: m.buttonHeight,
+                      fontSize: m.buttonFont,
+                      loading: _orderLoading,
+                      onPressed: _onContinue,
+                    ),
                   ),
                 ),
               ),
@@ -611,6 +613,52 @@ class _VideoLayerState extends State<_VideoLayer> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Floats its child gently up and down, like the pill on the Acafe kiosk:
+/// a slow, small sine bob that draws the eye without demanding it. Honours
+/// the platform's reduced-motion setting by standing still.
+class _GentleBob extends StatefulWidget {
+  final double amplitude;
+  final Widget child;
+
+  const _GentleBob({required this.amplitude, required this.child});
+
+  /// One half-cycle: bottom to top. A full breath takes twice this.
+  static const Duration halfCycle = Duration(milliseconds: 1200);
+
+  @override
+  State<_GentleBob> createState() => _GentleBobState();
+}
+
+class _GentleBobState extends State<_GentleBob>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _GentleBob.halfCycle,
+  )..repeat(reverse: true);
+
+  late final Animation<double> _eased =
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
+    return AnimatedBuilder(
+      animation: _eased,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, (_eased.value * 2 - 1) * widget.amplitude),
+        child: child,
+      ),
+      child: widget.child,
     );
   }
 }
@@ -780,8 +828,21 @@ class _FlagSlot extends StatelessWidget {
     required this.onTap,
   });
 
-  /// Flag diameter as a share of its circle.
-  static const double _flagShare = 0.72;
+  /// Unselected circles wear the Acafe device's grey scrim: a half-opaque
+  /// neutral grey that reads as a visible grey disc over any video frame,
+  /// light or dark, where translucent white used to vanish on pale frames.
+  static const Color _unselectedScrim = Color(0x80BDBDBD);
+
+  /// The flag is a small rectangle inside its circle, like the Acafe
+  /// kiosk device: width as a share of the circle, 4:3, softly rounded.
+  static const double _flagWidthShare = 0.46;
+  static const double _flagAspect = 4 / 3;
+  static const double _flagRadius = 2;
+
+  /// The bundled flags are 1:1 artwork clipped to a circle. Scaling the image
+  /// up by 1/this keeps every corner of the rectangle inside that circle, so
+  /// no transparent corner ever shows.
+  static const double _cropShare = 0.78;
 
   @override
   Widget build(BuildContext context) {
@@ -807,30 +868,42 @@ class _FlagSlot extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isSelected
-                    ? Colors.white
-                    : Colors.white.withValues(alpha: 0.30),
+                color: isSelected ? Colors.white : _unselectedScrim,
               ),
-              child: Container(
-                width: size * _flagShare,
-                height: size * _flagShare,
-                foregroundDecoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  // Faint rim so white-edged flags (Japan) read as full size.
-                  border: Border.all(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    width: 1,
-                  ),
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    Images.roundFlagFor(language.languageCode)!,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
-                  ),
-                ),
-              ),
+              child: _flag(),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _flag() {
+    final double w = size * _flagWidthShare;
+    final double h = w / _flagAspect;
+    final double img = w / _cropShare;
+    return Container(
+      width: w,
+      height: h,
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_flagRadius),
+        // Faint rim so white-edged flags (Japan) read as full size.
+        border: Border.all(
+          color: Colors.black.withValues(alpha: 0.12),
+          width: 0.5,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_flagRadius),
+        child: OverflowBox(
+          minWidth: img,
+          maxWidth: img,
+          minHeight: img,
+          maxHeight: img,
+          child: Image.asset(
+            Images.roundFlagFor(language.languageCode)!,
+            fit: BoxFit.fill,
+            filterQuality: FilterQuality.high,
           ),
         ),
       ),

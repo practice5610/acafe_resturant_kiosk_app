@@ -126,6 +126,10 @@ class _KioskComboSheetState extends State<_KioskComboSheet> {
                 final _ComboImages images = _comboImages(context);
                 return Center(
                   child: SingleChildScrollView(
+                    // The scroll view spans the whole screen; by default it
+                    // would swallow taps beside the card, so the scrim under
+                    // it could never close the modal.
+                    hitTestBehavior: HitTestBehavior.deferToChild,
                     padding: EdgeInsets.symmetric(vertical: 24 * s),
                     child: GestureDetector(
                       onTap: () {},
@@ -151,7 +155,10 @@ class _KioskComboSheetState extends State<_KioskComboSheet> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _Header(s: s, backSize: m.backSize, titleSize: m.titleSize),
+                            _Header(
+                                s: s,
+                                backSize: m.backSize,
+                                titleSize: m.titleSize),
                             SizedBox(height: m.optionTopGap),
                             Row(
                               children: [
@@ -261,7 +268,8 @@ class _KioskComboSheetState extends State<_KioskComboSheet> {
       final Product? product = cart[index]?.product;
       if (product == null) continue;
       firstProduct ??= product;
-      if (drinkProduct == null && KioskCourse.of(product) == KioskCourse.drink) {
+      if (drinkProduct == null &&
+          KioskCourse.of(product) == KioskCourse.drink) {
         drinkProduct = product;
       }
     }
@@ -276,10 +284,8 @@ class _KioskComboSheetState extends State<_KioskComboSheet> {
   String _yesCaption(BuildContext context) {
     final String price = PriceConverterHelper.convertPrice(
         kioskLineTotal(widget.match.dealLine));
-    final String saved =
-        PriceConverterHelper.convertPrice(widget.match.saving);
-    final String saveLabel =
-        kioskTranslate(context, 'you_save', 'You save');
+    final String saved = PriceConverterHelper.convertPrice(widget.match.saving);
+    final String saveLabel = kioskTranslate(context, 'you_save', 'You save');
     return '$price · $saveLabel $saved';
   }
 }
@@ -305,7 +311,8 @@ class _Header extends StatelessWidget {
         ),
         Expanded(
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: (12 * s).clamp(6.0, 12.0)),
+            padding:
+                EdgeInsets.symmetric(horizontal: (12 * s).clamp(6.0, 12.0)),
             child: Text(
               kioskTranslate(
                 context,
@@ -394,14 +401,14 @@ class _OptionCard extends StatelessWidget {
                         top: metrics.foodY,
                         width: metrics.foodW,
                         height: metrics.foodH,
-                        child: photo(
-                            foodImageUrl!, metrics.foodW, metrics.foodH),
+                        child:
+                            photo(foodImageUrl!, metrics.foodW, metrics.foodH),
                       ),
                     ],
                   )
                 : Center(
-                    child: photo(
-                        imageUrl, metrics.loneDrinkW, metrics.loneDrinkH),
+                    child:
+                        photo(imageUrl, metrics.loneDrinkW, metrics.loneDrinkH),
                   ),
           );
 
@@ -432,8 +439,8 @@ class _OptionCard extends StatelessWidget {
                 children: [
                   if (CustomImageWidget.showProductImages) imageArea,
                   Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: metrics.cardInset),
+                    padding:
+                        EdgeInsets.symmetric(horizontal: metrics.cardInset),
                     child: Column(
                       children: [
                         SizedBox(height: metrics.cardInset * 0.4),

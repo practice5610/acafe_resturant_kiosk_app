@@ -89,6 +89,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('a tap beside the card closes the sheet', (tester) async {
+    final cartList = [line(latte), line(food)];
+    final cart = CartProvider(cartRepo: null)..replaceCartList(cartList);
+    final match = findKioskComboUpgrade(cartList, [deal()])!;
+    await openSheet(tester, cart: cart, match: match);
+    expect(find.text('MAKE IT A COMBO MEAL?'), findsOneWidget);
+
+    await tester.tapAt(const Offset(20, 1900));
+    await tester.pumpAndSettle();
+    expect(find.text('MAKE IT A COMBO MEAL?'), findsNothing);
+    expect(cart.cartList, hasLength(2), reason: 'closing changes nothing');
+  });
+
   testWidgets('starts with neither option selected and NEXT disabled',
       (tester) async {
     final cartList = [line(latte), line(food)];

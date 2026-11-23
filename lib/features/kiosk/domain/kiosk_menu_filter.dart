@@ -223,3 +223,52 @@ bool kioskMenuFiltersActive(
   return searchProvider.filtersCommitted &&
       searchProvider.hasActiveFilters(categoryProvider.selectedCategoryList);
 }
+
+/// Inline menu search across EVERY prefetched product, not just the selected
+/// category. Case/accent-insensitive; every word typed must appear in the
+/// name, description or a tag. Name hits rank above description-only hits.
+/// A product listed in several categories is returned once.
+List<Product> searchKioskProducts(Iterable<Product> products, String query) {
+  final List<String> words = _foldForSearch(query)
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  if (words.isEmpty) return const <Product>[];
+
+  final Set<Object> seen = <Object>{};
+  final List<Product> nameHits = <Product>[];
+  final List<Product> otherHits = <Product>[];
+  for (final Product p in products) {
+    final Object key = p.id ?? identityHashCode(p);
+    if (!seen.add(key)) continue;
+    final String name = _foldForSearch(p.name ?? '');
+    final String haystack = [
+      name,
+      _foldForSearch(p.description ?? ''),
+      for (final ProductTag t in p.tags ?? const <ProductTag>[])
+        if (t.isAllergen != true) _foldForSearch(t.tag ?? ''),
+    ].join(' ');
+    if (!words.every(haystack.contains)) continue;
+    (words.every(name.contains) ? nameHits : otherHits).add(p);
+  }
+  int byName(Product a, Product b) =>
+      (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase());
+  nameHits.sort(byName);
+  otherHits.sort(byName);
+  return [...nameHits, ...otherHits];
+}
+
+String _foldForSearch(String value) {
+  const Map<String, String> folds = {
+    'à': 'a', 'á': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a',
+    'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+    'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
+    'ò': 'o', 'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+    'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u', 'ç': 'c', 'ñ': 'n',
+  };
+  final StringBuffer out = StringBuffer();
+  for (final String ch in value.toLowerCase().split('')) {
+    out.write(folds[ch] ?? ch);
+  }
+  return out.toString();
+}
