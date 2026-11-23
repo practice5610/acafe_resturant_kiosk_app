@@ -4,6 +4,7 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_remove_item_dialog.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
@@ -168,7 +169,7 @@ class _CompactLineCard extends StatelessWidget {
                   cartProvider.onUpdateCartQuantity(
                       index: index, product: cart.product!, isRemove: true);
                 } else {
-                  cartProvider.removeFromCart(index);
+                  _confirmRemove(context, cart, index);
                 }
               },
               onIncrement: () =>
@@ -320,7 +321,7 @@ class _ScaledLineCard extends StatelessWidget {
                           product: cart.product!,
                           isRemove: true);
                     } else {
-                      cartProvider.removeFromCart(index);
+                      _confirmRemove(context, cart, index);
                     }
                   },
                   onIncrement: () =>
@@ -595,5 +596,33 @@ class _StepBox extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Asks before deleting the line; removes it only on REMOVE.
+Future<void> _confirmRemove(
+    BuildContext context, CartModel cart, int index) async {
+  final cartProvider = Provider.of<CartProvider>(context, listen: false);
+  final splash = Provider.of<SplashProvider>(context, listen: false);
+  final bool showImages = context.read<KioskAuthProvider>().showImages;
+  final String name = cart.isDeal
+      ? (cart.dealTitle ?? cart.product?.name ?? '')
+      : (cart.product?.name ?? '');
+  final bool confirmed = await showKioskRemoveItemDialog(
+    context,
+    productName: name,
+    imageUrl: showImages
+        ? KioskProductImageHelper.cartLineImageUrl(
+            cart: cart,
+            productImageBaseUrl: splash.baseUrls?.productImageUrl,
+            dealImageBaseUrl: splash.baseUrls?.dealImageUrl,
+          )
+        : null,
+  );
+  if (!confirmed) return;
+  // Guard: the line may have shifted while the dialog was open.
+  if (index < cartProvider.cartList.length &&
+      identical(cartProvider.cartList[index], cart)) {
+    cartProvider.removeFromCart(index);
   }
 }
