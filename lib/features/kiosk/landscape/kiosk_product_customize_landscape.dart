@@ -64,8 +64,8 @@ class _LandscapeCustomizeSpec {
   static const double stepBarFactor = 0.34;
 
   // -- left column -----------------------------------------------------------
-  static const double heroWidth = 238;
-  static const double heroHeight = 357;
+  static const double heroWidth = 280;
+  static const double heroHeight = 420;
   static const double heroToAllergen = 16;
 
   /// Fed to [_AllergenIconRow]'s `s`.

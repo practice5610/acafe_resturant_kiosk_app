@@ -35,6 +35,9 @@ enum PrepStatus {
       case 'preparing':
         return PrepStatus.preparing;
       case 'ready':
+      // The kitchen's last step (ready AND handed over). The POS has no
+      // separate state for it: it reads, counts and draws as Ready.
+      case 'collected':
         return PrepStatus.ready;
       default:
         return PrepStatus.pending;

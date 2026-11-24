@@ -36,7 +36,7 @@ const Duration _kThanksEnter = Duration(milliseconds: 850);
 
 /// Default length of the PLACE NEW ORDER countdown. Back Office
 /// configurability is a follow-up; callers may override.
-const int kKioskThankYouCountdownSeconds = 30;
+const int kKioskThankYouCountdownSeconds = 10;
 
 const Color _kInk = Color(0xFF0D0D0D);
 const Color _kCardBorder = Color(0xFFDED8C6);
