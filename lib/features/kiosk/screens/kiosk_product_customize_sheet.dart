@@ -89,6 +89,7 @@ const Color _kVesselIdleBorder = Color(0xFFE2D9C8);
 
 /// Selected outline + the design's near-black ink.
 const Color _kCardBorderSelected = Color(0xFF000000);
+
 /// Brand tan (BRAND_PALETTE `brand-accent`). Marks an add-on that is INCLUDED
 /// with the product rather than one the customer picked — see [_AddOnCard].
 const Color _kCardBorderIncluded = Color(0xFFC8A97E);
@@ -170,10 +171,11 @@ double _choiceTileWidth({
   required double panelWidth,
   required double s,
   required double gap,
+  double artboardCard = KioskCustomizeSpec.choiceCardWidth,
 }) {
   final double filled = _cardWidthFor(
     width: panelWidth,
-    artboardCard: KioskCustomizeSpec.choiceCardWidth,
+    artboardCard: artboardCard,
     s: s,
     gap: gap,
   );
@@ -197,12 +199,14 @@ double _choiceGridTileWidth({
   required double panelWidth,
   required double s,
   required double gap,
+  double artboardCard = KioskCustomizeSpec.choiceCardWidth,
 }) {
   final double capped = _choiceTileWidth(
     viewportWidth: viewportWidth,
     panelWidth: panelWidth,
     s: s,
     gap: gap,
+    artboardCard: artboardCard,
   );
   // Kiosk-sized viewports never hit the cap: their cards already divide the row.
   if (viewportWidth >= KioskResponsive.compactMax) return capped;
@@ -758,8 +762,9 @@ mixin _KioskCustomizeActions<T extends StatefulWidget> on State<T> {
     BuildContext context,
     ProductProvider productProvider, {
     bool silent = false,
+    Iterable<AddOnGroup>? only,
   }) {
-    for (final group in product.effectiveAddOnGroups) {
+    for (final group in only ?? product.effectiveAddOnGroups) {
       final List<int> indexes = [];
       for (final addon in group.addons) {
         final int? i = product.indexOfAddOn(addon.id);
@@ -984,9 +989,8 @@ class _KioskProductCustomizeScreenState
                 // as a no-options product would draw it — so Size / Milk /
                 // add-ons never shrink the photo on a MacBook window; those
                 // panels scroll under a large product shot instead.
-                final double heroTarget =
-                    kioskCustomizeHeroTargetArtboard(
-                        hasDescription: hasDescription);
+                final double heroTarget = kioskCustomizeHeroTargetArtboard(
+                    hasDescription: hasDescription);
                 // Picture-less device: collapse the hero to zero height. A zero
                 // heroFactor removes the photo box AND its spacing from both the
                 // artboard math and [_Header], so the options move up with no
@@ -1050,9 +1054,9 @@ class _KioskProductCustomizeScreenState
                 final Widget? allergenNotice = KioskAllergenNotice.maybe(
                   s: s,
                   product: product,
-                  enabled: Provider.of<KioskAuthProvider>(context,
-                          listen: false)
-                      .allergenTagEnabled,
+                  enabled:
+                      Provider.of<KioskAuthProvider>(context, listen: false)
+                          .allergenTagEnabled,
                 );
 
                 // Section keys for scroll-to-error. Kiosk draws ALL size
@@ -1061,7 +1065,8 @@ class _KioskProductCustomizeScreenState
                 // dietary and cup/can get a key each.
                 final GlobalKey? sizeKey = sizeVariations.isEmpty
                     ? null
-                    : _sectionKey(ProductSectionRef.size(sizeVariations.first.key));
+                    : _sectionKey(
+                        ProductSectionRef.size(sizeVariations.first.key));
                 for (final entry in sizeVariations) {
                   _sectionKeys[ProductSectionRef.size(entry.key)] = sizeKey!;
                 }
@@ -1071,7 +1076,8 @@ class _KioskProductCustomizeScreenState
                         product.effectiveAddOnGroups.first.id ?? -1));
                 for (final group in product.effectiveAddOnGroups) {
                   if (group.id != null) {
-                    _sectionKeys[ProductSectionRef.addOn(group.id!)] = addOnsKey!;
+                    _sectionKeys[ProductSectionRef.addOn(group.id!)] =
+                        addOnsKey!;
                   }
                 }
 
@@ -1280,6 +1286,10 @@ class _Header extends StatelessWidget {
   /// B passes the bare allergen icon row here (Figma 2305-13009 et al.), so it
   /// shows on every step. Version A passes nothing and is unchanged.
   final Widget? belowHero;
+
+  /// Version B: the "Your Choices" row, which Figma (2305-13009 et al.) puts
+  /// between the description and the quantity stepper.
+  final Widget? aboveStepper;
   const _Header({
     required this.s,
     required this.product,
@@ -1288,10 +1298,14 @@ class _Header extends StatelessWidget {
     this.showImages = true,
     this.showBackButton = true,
     this.belowHero,
+    this.aboveStepper,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Version B description: Swiss 721 Light 36, max 1174 wide (Figma
+    // 2305-13009). Version A keeps its 48 full-width line.
+    final bool stepFlow = _StepFlowScope.of(context);
     final splash = Provider.of<SplashProvider>(context, listen: false);
     final String heroImage = KioskProductImageHelper.heroImageUrl(
       product: product,
@@ -1345,19 +1359,28 @@ class _Header extends StatelessWidget {
             ),
             if (description.isNotEmpty) ...[
               SizedBox(height: KioskCustomizeSpec.titleToDescription * s),
-              Text(
-                description,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                // (inspect) Swiss 721 Light / 48px.
-                style: swiss721Light.copyWith(
-                  fontSize: KioskCustomizeSpec.descriptionSize * s,
-                  height: KioskCustomizeSpec.descriptionLineHeight,
-                  color: Colors.black,
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                      maxWidth: stepFlow ? 1174 * s : double.infinity),
+                  child: Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    // (inspect) Swiss 721 Light / 48px (Version B: 36px).
+                    style: swiss721Light.copyWith(
+                      fontSize:
+                          (stepFlow ? 36 : KioskCustomizeSpec.descriptionSize) *
+                              s,
+                      height: KioskCustomizeSpec.descriptionLineHeight,
+                      color: Colors.black,
+                    ),
+                  ),
                 ),
               ),
             ],
+            if (aboveStepper != null) aboveStepper!,
             SizedBox(height: KioskCustomizeSpec.descriptionToStepper * s),
             _QuantityStepper(s: s, productProvider: productProvider),
           ],
@@ -1598,11 +1621,9 @@ class _CardQtyStepper extends StatelessWidget {
 class _FittedColumn extends StatefulWidget {
   /// Page scale, for the scroll indicator's thickness only.
   final double s;
-  final EdgeInsets padding;
   final List<Widget> children;
   const _FittedColumn({
     required this.s,
-    this.padding = EdgeInsets.zero,
     required this.children,
   });
 
@@ -1652,7 +1673,7 @@ class _FittedColumnState extends State<_FittedColumn> {
         // step body, both of which sit in an Expanded) simply gets the plain
         // content height.
         final double room = constraints.maxHeight.isFinite
-            ? math.max(0.0, constraints.maxHeight - widget.padding.vertical)
+            ? math.max(0.0, constraints.maxHeight)
             : 0.0;
         return ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
@@ -1672,7 +1693,6 @@ class _FittedColumnState extends State<_FittedColumn> {
             thumbColor: _kScrollThumb,
             child: SingleChildScrollView(
               controller: _controller,
-              padding: widget.padding,
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: room),
                 child: Column(
@@ -1703,12 +1723,37 @@ class _HorizontalOptionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Portrait Version B (Figma 2305-13009): cards flow top->bottom in a
+    // wrapping grid at Figma's 407.8 width, scrolling vertically with the
+    // panel — never sideways, never clipped at the right edge.
+    if (_StepFlowScope.of(context)) {
+      return LayoutBuilder(builder: (context, constraints) {
+        final double cardWidth = math.min(
+            KioskCustomizeSpec.optionCardWidth * s, constraints.maxWidth);
+        final double cardHeight = heightOf(cardWidth);
+        final List<Widget> children = builder(cardWidth, cardHeight);
+        return SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: gap,
+            runSpacing: gap,
+            children: children,
+          ),
+        );
+      });
+    }
     return LayoutBuilder(builder: (context, constraints) {
       final double cardWidth = _choiceTileWidth(
         viewportWidth: MediaQuery.sizeOf(context).width,
         panelWidth: constraints.maxWidth,
         s: s,
         gap: gap,
+        // Version B step 1 (Figma 2305-13009): the full 407.8x449.4 option
+        // card, five across the panel — not the add-on-sized choice tile.
+        artboardCard: _StepFlowScope.of(context)
+            ? KioskCustomizeSpec.optionCardWidth
+            : KioskCustomizeSpec.choiceCardWidth,
       );
       final double cardHeight = heightOf(cardWidth);
       final List<Widget> children = builder(cardWidth, cardHeight);
@@ -1758,10 +1803,15 @@ class _AddOnScrollBox extends StatefulWidget {
   final double s;
   final Widget child;
   final bool showIndicator;
+
+  /// Draw the thumb OVER the content instead of reserving a strip for it, so
+  /// the grid stays symmetric inside the panel (Version B).
+  final bool overlay;
   const _AddOnScrollBox({
     required this.s,
     required this.child,
     this.showIndicator = true,
+    this.overlay = false,
   });
 
   @override
@@ -1812,7 +1862,7 @@ class _AddOnScrollBoxState extends State<_AddOnScrollBox> {
       // The reserved strip belongs to the thumb. Without one the cards take
       // the full panel width, so hiding the indicator never leaves a margin
       // with nothing in it.
-      padding: widget.showIndicator
+      padding: widget.showIndicator && !widget.overlay
           ? EdgeInsets.only(right: thickness + _addOnGap(s) * 2)
           : EdgeInsets.zero,
       child: widget.child,
@@ -1828,7 +1878,8 @@ class _AddOnScrollBoxState extends State<_AddOnScrollBox> {
             ? RawScrollbar(
                 controller: _controller,
                 thumbVisibility: true,
-                trackVisibility: true,
+                // Overlay mode has no strip of its own, so no track either.
+                trackVisibility: !widget.overlay,
                 interactive: true,
                 thickness: thickness,
                 radius: Radius.circular(_kScrollbarRadius * s),
@@ -1858,6 +1909,11 @@ class _SectionPanel extends StatelessWidget {
   /// Tighter title/padding chrome. Used by cup/can so the last section
   /// shrinks as a whole, not only its inner cards.
   final bool compact;
+
+  /// Version B only: when the panel is given a bounded height, its body
+  /// scrolls INSIDE the panel (title pinned) instead of the page scrolling.
+  /// Off for a child that already scrolls itself (the add-ons grid).
+  final bool scrollInStepFlow;
   final Widget child;
   const _SectionPanel({
     required this.s,
@@ -1865,12 +1921,19 @@ class _SectionPanel extends StatelessWidget {
     required this.child,
     this.fill = false,
     this.compact = false,
+    this.scrollInStepFlow = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final double padScale = compact ? 0.55 : 1.0;
-    final double bottomScale = compact ? 0.35 : 1.0;
+    // Version B (Figma 2305-13009/13161/13433): heading centred, body scrolls
+    // inside the panel. Version A keeps its left heading and plain child.
+    final bool stepFlow = _StepFlowScope.of(context);
+    // Version B spaces every step's heading identically (Figma 2305-13433
+    // matches 13009/13161), so the cup/can panel drops its compact chrome there.
+    final bool tight = compact && !stepFlow;
+    final double padScale = tight ? 0.55 : 1.0;
+    final double bottomScale = tight ? 0.35 : 1.0;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
@@ -1884,23 +1947,48 @@ class _SectionPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(KioskCustomizeSpec.panelRadius * s),
         border: Border.all(color: _kPanelBorder, width: _border(1, s)),
       ),
-      child: Column(
-        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: loewExtraBold.copyWith(
-              fontSize: KioskCustomizeSpec.panelTitleSize * s,
-              height: 1.0,
-              color: Colors.black,
-            ),
-          ),
-          SizedBox(height: KioskCustomizeSpec.panelTitleGap * padScale * s),
-          if (fill) Expanded(child: child) else child,
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Version B (Figma 2305-13009/13161/13433): a bounded panel FILLS
+          // its slot down to the footer and scrolls inside itself, leaving
+          // empty space under few cards — it never hugs its content.
+          final bool innerScroll = stepFlow &&
+              scrollInStepFlow &&
+              !fill &&
+              constraints.maxHeight.isFinite;
+          return Column(
+            mainAxisSize:
+                fill || innerScroll ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: stepFlow
+                ? CrossAxisAlignment.stretch
+                : CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: stepFlow ? TextAlign.center : TextAlign.start,
+                style: loewExtraBold.copyWith(
+                  fontSize: KioskCustomizeSpec.panelTitleSize * s,
+                  height: 1.0,
+                  color: Colors.black,
+                ),
+              ),
+              SizedBox(height: KioskCustomizeSpec.panelTitleGap * padScale * s),
+              if (fill)
+                Expanded(child: child)
+              else if (innerScroll)
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: _AddOnScrollBox(s: s, overlay: true, child: child),
+                  ),
+                )
+              else
+                child,
+            ],
+          );
+        },
       ),
     );
   }
@@ -2101,6 +2189,13 @@ class _DietaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Portrait Version B: a value with no artwork of its own uses the
+    // text-only layout — name + price dead centre — exactly like an add-on
+    // card without art. The device flag alone left an empty image slot and
+    // pushed the text to the bottom.
+    final bool stepFlow = _StepFlowScope.of(context);
+    final bool showImage =
+        this.showImage && (!stepFlow || _hasOptionArt(image));
     final double k = width / KioskCustomizeSpec.choiceCardWidth;
     final double radius = KioskCustomizeSpec.optionCardRadius * k;
     final double padTop = showImage
@@ -2203,7 +2298,11 @@ class _DietaryCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 label,
-                                if (showPrice) ...[
+                                // An empty price line would still take a
+                                // line of height and pull the name off
+                                // centre (Version B only).
+                                if (showPrice &&
+                                    (priceDelta > 0 || !stepFlow)) ...[
                                   SizedBox(
                                       height:
                                           KioskCustomizeSpec.optionImageGap *
@@ -2244,6 +2343,23 @@ class _RadioDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Version B (Figma 2305-13009 / 13433, measured): idle = thin #B9B5A6
+    // ring; selected = heavy black ring (~0.22 of the dot) around a page-cream
+    // centre — no inner dot.
+    if (_StepFlowScope.of(context)) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? KioskUI.pageBg : Colors.transparent,
+          border: Border.all(
+            color: selected ? Colors.black : _kCardIdleBorder,
+            width: _border(size * (selected ? 0.22 : 0.08), 1),
+          ),
+        ),
+      );
+    }
     return Container(
       width: size,
       height: size,
@@ -2278,21 +2394,6 @@ class _AddOnsSection extends StatelessWidget {
   /// sizes to its content instead of nesting a second scroller inside one.
   final bool scrollable;
 
-  /// Height the panel may occupy, when the caller knows it — the three-step
-  /// flow, where this panel has a whole column to itself.
-  ///
-  /// Given it, the panel keeps only as many WHOLE rows of cards as that height
-  /// allows and scrolls the rest inside itself, so a large display shows a
-  /// compact two-row grid with the design's own indicator beside it rather than
-  /// a panel stretched the full height of the screen with a row sliced through
-  /// the middle at the fold. Whatever height it does not use goes back to the
-  /// step, which centres the panel in it — that is where the air above and
-  /// below the panel comes from.
-  ///
-  /// Null (Version A) leaves the panel exactly as it was: [scrollable] alone
-  /// decides between filling its slot and sizing to its content.
-  final double? maxHeight;
-
   /// Draw the design's scroll thumb beside the cards. The three-step flow does
   /// — the add-ons are a step of their own there, and the indicator is what
   /// says the grid continues past the last visible row. The single screen does
@@ -2304,27 +2405,24 @@ class _AddOnsSection extends StatelessWidget {
   /// Version B (the three-step flow) opts in; Version A leaves it off so the
   /// single screen is unchanged.
   final bool reserveQuantity;
+
+  /// Portrait Version B pages add-on groups one per screen: render only this
+  /// group. Null (default) renders every group, as before.
+  final AddOnGroup? onlyGroup;
   const _AddOnsSection({
     required this.s,
     required this.product,
     required this.productProvider,
+    this.onlyGroup,
     this.scrollable = true,
-    this.maxHeight,
     this.showIndicator = true,
     this.reserveQuantity = false,
   });
 
-  /// Height of the panel's chrome — padding, title, and the gap under it.
-  /// Mirrors [_SectionPanel.build] for the non-compact case this panel uses.
-  double get _chrome =>
-      KioskCustomizeSpec.panelPadTop * s +
-      KioskCustomizeSpec.panelTitleSize * 1.295 * s +
-      KioskCustomizeSpec.panelTitleGap * s +
-      KioskCustomizeSpec.panelPadBottom * s;
-
   @override
   Widget build(BuildContext context) {
-    final groups = product.effectiveAddOnGroups;
+    final groups =
+        onlyGroup != null ? [onlyGroup!] : product.effectiveAddOnGroups;
 
     // One panel for the whole add-on area, with the scroller INSIDE it — so the
     // indicator sits within the panel box next to the cards, the way the design
@@ -2365,100 +2463,26 @@ class _AddOnsSection extends StatelessWidget {
       ],
     );
 
-    final Widget panelChild = scrollable || maxHeight != null
-        ? _AddOnScrollBox(s: s, showIndicator: showIndicator, child: content)
+    final Widget panelChild = scrollable
+        ? _AddOnScrollBox(
+            s: s,
+            showIndicator: showIndicator,
+            // Version B: thumb over the grid, no reserved right strip.
+            overlay: _StepFlowScope.of(context),
+            child: content)
         : content;
 
     return _SectionPanel(
       s: s,
+      scrollInStepFlow: false,
       // A capped panel hugs the box below; only the uncapped pinned layout
       // still stretches to fill its slot.
-      fill: scrollable && maxHeight == null,
+      fill: scrollable,
       title: single
           ? _addonGroupTitle(context, groups.first)
           : (getTranslated('add_add_ons', context) ?? 'Add add-ons'),
-      child: maxHeight == null
-          ? panelChild
-          : LayoutBuilder(
-              builder: (context, constraints) => SizedBox(
-                height: _boxHeight(
-                  context,
-                  gridWidth: constraints.maxWidth,
-                  groups: groups,
-                  single: single,
-                ),
-                child: panelChild,
-              ),
-            ),
+      child: panelChild,
     );
-  }
-
-  /// Visible height of the card area: the tallest whole number of card rows
-  /// that fits [maxHeight], never more than the grid actually needs.
-  ///
-  /// Snapping to whole rows is the point. A box sized to whatever height was
-  /// left over cuts the last row in half at the fold, which is the one thing a
-  /// grid of tappable cards must not do — a half card reads as a broken image,
-  /// not as "scroll for more". The indicator does that job instead.
-  double _boxHeight(
-    BuildContext context, {
-    required double gridWidth,
-    required List<AddOnGroup> groups,
-    required bool single,
-  }) {
-    final double gap = _choiceGap(s);
-    // [_AddOnScrollBox] reserves this much on the right for its indicator, so
-    // the cards divide what is left — the same width they will actually get.
-    // No indicator, no strip.
-    final double cardsWidth = math.max(
-        1.0,
-        gridWidth -
-            (showIndicator ? _kScrollbarWidth * s + _addOnGap(s) * 2 : 0));
-    // The same tile [_GroupedAddOnCards] will build, or the row pitch measured
-    // here would not be the pitch on screen.
-    final double cardWidth = _choiceGridTileWidth(
-      viewportWidth: MediaQuery.sizeOf(context).width,
-      panelWidth: cardsWidth,
-      s: s,
-      gap: gap,
-    );
-    final double cardHeight = _choiceCardHeight(cardWidth);
-    // How many of THAT tile the Wrap will actually put on a line. Asking
-    // [kioskOptionColumns] for the design's density instead would answer for a
-    // card the grid is not building — on a phone, where the cap has already
-    // decided the density, it says six where three go across.
-    final int columns =
-        math.max(1, ((cardsWidth + gap) / (cardWidth + gap)).floor());
-
-    // What the grid needs in full, headings included.
-    final double headingHeight =
-        KioskCustomizeSpec.optionLabelSize * s * 1.2 + _addOnGap(s);
-    double content = 0;
-    int cardRows = 0;
-    for (int i = 0; i < groups.length; i++) {
-      if (!single) {
-        if (i > 0) content += KioskCustomizeSpec.panelTitleGap * 0.5 * s;
-        content += headingHeight;
-      }
-      final int shown = [
-        for (final addon in groups[i].addons)
-          if (product.indexOfAddOn(addon.id) != null) addon,
-      ].length;
-      final int rows = (shown / columns).ceil();
-      cardRows += rows;
-      content += rows * cardHeight + math.max(0, rows - 1) * gap;
-    }
-
-    final double room = math.max(0.0, (maxHeight ?? 0) - _chrome);
-    if (content <= room) return content;
-
-    // Several groups interleave headings with rows, so there is no single row
-    // pitch to snap to; those take the room as given.
-    if (!single) return room;
-
-    final int fit = math.max(1, ((room + gap) / (cardHeight + gap)).floor());
-    final int rows = math.min(fit, math.max(1, cardRows));
-    return rows * cardHeight + math.max(0, rows - 1) * gap;
   }
 }
 
@@ -2525,6 +2549,11 @@ class _GroupedAddOnCards extends StatelessWidget {
         panelWidth: constraints.maxWidth,
         s: s,
         gap: gap,
+        // Version B step 2 (Figma 2305-13161): 539-wide add-on cards, four
+        // across — not the 288 choice tile, which packed seven per row.
+        artboardCard: _StepFlowScope.of(context)
+            ? KioskCustomizeSpec.addOnCardWidth
+            : KioskCustomizeSpec.choiceCardWidth,
       );
       const bool showPrice = true;
       // Image is always reserved, so a selected multi add-on absorbs the
@@ -2536,12 +2565,17 @@ class _GroupedAddOnCards extends StatelessWidget {
       // (reuses the art-less compact path). The height still budgets the image
       // box so the grid and the artboard scale math stay in agreement.
       final bool showImage = context.watch<KioskAuthProvider>().showImages;
-      final double cardHeight = _addOnCardHeight(
-        cardWidth,
-        showImage: true,
-        showPrice: showPrice,
-        reserveQuantity: reserveQuantity,
-      );
+      // Version B: Figma's 539x535 card. Version A keeps the choice-tile box.
+      final double cardHeight = _StepFlowScope.of(context)
+          ? cardWidth *
+              (KioskCustomizeSpec.addOnCardHeight /
+                  KioskCustomizeSpec.addOnCardWidth)
+          : _addOnCardHeight(
+              cardWidth,
+              showImage: true,
+              showPrice: showPrice,
+              reserveQuantity: reserveQuantity,
+            );
 
       return Wrap(
         alignment: WrapAlignment.start,
@@ -2670,7 +2704,19 @@ class _AddOnCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double k = width / KioskCustomizeSpec.choiceCardWidth;
+    // Portrait Version B: an add-on with no artwork of its own centres its
+    // name and price in the card (the art-less layout) instead of leaving an
+    // empty image slot above low text.
+    final bool showImage =
+        this.showImage && (!_StepFlowScope.of(context) || _hasOptionArt(image));
+    final bool textOnlyCentred = _StepFlowScope.of(context) && !showImage;
+    // Version B (Figma 2305-13161) measures the card against its own 539
+    // artboard width, so radius, padding and the 72px counter are true design
+    // units; against the 288 choice tile they grew ~1.9x with the card.
+    final double k = width /
+        (_StepFlowScope.of(context)
+            ? KioskCustomizeSpec.addOnCardWidth
+            : KioskCustomizeSpec.choiceCardWidth);
     final double radius = KioskCustomizeSpec.addOnCardRadius * k;
     final double innerGap = KioskCustomizeSpec.addOnInnerGap * k;
     // "Included" reads as a property of the item, not a surcharge, so it
@@ -2682,12 +2728,11 @@ class _AddOnCard extends StatelessWidget {
     // Figma: a chosen card with no stepper moves its price to the top-right
     // (`card-whipped-cream/Selected`); one WITH a stepper keeps the price
     // inline above it (`card-vanilla-syrup/Selected`).
-    final bool priceOnTop =
-        showImage &&
-            !isDefault &&
-            selected &&
-            !showQuantity &&
-            priceLabel.isNotEmpty;
+    final bool priceOnTop = showImage &&
+        !isDefault &&
+        selected &&
+        !showQuantity &&
+        priceLabel.isNotEmpty;
 
     final double nameSize = _choiceLabelSize(context, width);
     final TextStyle priceStyle = swiss721Light.copyWith(
@@ -2820,10 +2865,47 @@ class _AddOnCard extends StatelessWidget {
                 KioskCustomizeSpec.addOnPadH * k,
                 KioskCustomizeSpec.addOnPadBottom * k,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: body,
-              ),
+              child: textOnlyCentred
+                  // Portrait Version B, no artwork: name + price sit on the
+                  // card's TRUE centre, the same as a text-only variation
+                  // card. The counter is laid over the bottom edge, so it
+                  // appearing or not never moves the text.
+                  ? Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                label,
+                                if (price != null && priceLabel.isNotEmpty) ...[
+                                  SizedBox(height: innerGap),
+                                  price,
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (showQuantity)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: KioskCustomizeSpec.addOnQtyButton * k,
+                            child: _CardQtyStepper(
+                              quantity: quantity,
+                              k: k,
+                              onIncrement: onIncrement,
+                              onDecrement: onDecrement,
+                            ),
+                          ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: body,
+                    ),
             ),
           ),
         ),
@@ -2925,7 +3007,9 @@ class _CupCanSection extends StatelessWidget {
             ? cardWidth *
                 (KioskCustomizeSpec.vesselCardHeight /
                     KioskCustomizeSpec.vesselCardWidth) *
-                KioskCustomizeSpec.vesselHeightFactor
+                // Version B: the design's full 1099x790 card (Figma
+                // 2305-13433); Version A keeps its shortened section.
+                (redesigned ? 1.0 : KioskCustomizeSpec.vesselHeightFactor)
             : KioskCustomizeSpec.panelTitleSize * s * (anyPriced ? 3.2 : 2.2);
 
         return SizedBox(
@@ -3038,6 +3122,19 @@ class _CupCanCard extends StatelessWidget {
         width * KioskCustomizeSpec.vesselLabelMaxWidthShare,
       );
 
+  /// Figma 2305-13433 sizes each vessel on its own (cup 250x340, can
+  /// 155x424) so the label sits right under its artwork; Version A and any
+  /// unrecognised vessel keep the shared 290x380 slot.
+  Size get _vesselImageSize {
+    if (redesigned) {
+      final String v = name.toLowerCase();
+      if (v.contains('cup')) return const Size(250, 340);
+      if (v.contains('can')) return const Size(155, 424);
+    }
+    return const Size(KioskCustomizeSpec.vesselImageWidth,
+        KioskCustomizeSpec.vesselImageHeight);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Scale interiors from the shorter card so the vessel image shrinks
@@ -3088,68 +3185,71 @@ class _CupCanCard extends StatelessWidget {
                   ),
                 ),
               Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (showImages) ...[
-                SizedBox(
-                  width: KioskCustomizeSpec.vesselImageWidth * k,
-                  height: KioskCustomizeSpec.vesselImageHeight * k,
-                  child: _VesselImage(assetImage: assetImage, image: image),
-                ),
-                SizedBox(height: KioskCustomizeSpec.vesselImageGap * kW),
-              ],
-              // Version B (Figma 2305-13433): a small Loew Bold 28 caption with
-              // heavy 3.36 tracking under the vessel image. Version A keeps the
-              // heading-sized ExtraBold word that matches its other section
-              // titles (see below).
-              redesigned
-                  ? Text(
-                      name.toUpperCase(),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: loewBold.copyWith(
-                        fontSize: KioskCustomizeSpec.vesselLabelSize * s,
-                        letterSpacing: KioskCustomizeSpec.vesselLabelSize *
-                            s *
-                            KioskCustomizeSpec.vesselLabelTrackingRatio,
-                        height: 1.0,
-                        color: _kInkText,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (showImages) ...[
+                      SizedBox(
+                        width: _vesselImageSize.width * k,
+                        height: _vesselImageSize.height * k,
+                        child:
+                            _VesselImage(assetImage: assetImage, image: image),
                       ),
-                    )
-                  : Text(
-                      name.toUpperCase(),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      // ONE family of labels. "Size", "Add add-ons" and "CUP" sit
-                      // in the same column and read as the same kind of thing, so
-                      // they share the section-heading size and weight exactly.
-                      style: loewExtraBold.copyWith(
-                        fontSize: _vesselLabelSize,
-                        letterSpacing: _vesselLabelSize *
-                            KioskCustomizeSpec.vesselLabelTrackingRatio,
-                        height: 1.0,
-                        color: _kInkText,
+                      SizedBox(height: KioskCustomizeSpec.vesselImageGap * kW),
+                    ],
+                    // Version B (Figma 2305-13433): a small Loew Bold 28 caption with
+                    // heavy 3.36 tracking under the vessel image. Version A keeps the
+                    // heading-sized ExtraBold word that matches its other section
+                    // titles (see below).
+                    redesigned
+                        ? Text(
+                            name.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: loewBold.copyWith(
+                              fontSize: KioskCustomizeSpec.vesselLabelSize * s,
+                              letterSpacing: KioskCustomizeSpec
+                                      .vesselLabelSize *
+                                  s *
+                                  KioskCustomizeSpec.vesselLabelTrackingRatio,
+                              height: 1.0,
+                              color: _kInkText,
+                            ),
+                          )
+                        : Text(
+                            name.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            // ONE family of labels. "Size", "Add add-ons" and "CUP" sit
+                            // in the same column and read as the same kind of thing, so
+                            // they share the section-heading size and weight exactly.
+                            style: loewExtraBold.copyWith(
+                              fontSize: _vesselLabelSize,
+                              letterSpacing: _vesselLabelSize *
+                                  KioskCustomizeSpec.vesselLabelTrackingRatio,
+                              height: 1.0,
+                              color: _kInkText,
+                            ),
+                          ),
+                    if (showPrice) ...[
+                      SizedBox(
+                          height: KioskCustomizeSpec.vesselImageGap * 0.5 * kW),
+                      Text(
+                        priceDelta > 0 ? _addonPriceLabel(priceDelta) : '',
+                        style: swiss721Light.copyWith(
+                          fontSize: math.max(
+                            KioskCustomizeSpec.vesselLabelMinSize * 0.75,
+                            KioskCustomizeSpec.addOnPriceSize * kW,
+                          ),
+                          height: 1.0,
+                          color: Colors.black,
+                        ),
                       ),
-                    ),
-              if (showPrice) ...[
-                SizedBox(height: KioskCustomizeSpec.vesselImageGap * 0.5 * kW),
-                Text(
-                  priceDelta > 0 ? _addonPriceLabel(priceDelta) : '',
-                  style: swiss721Light.copyWith(
-                    fontSize: math.max(
-                      KioskCustomizeSpec.vesselLabelMinSize * 0.75,
-                      KioskCustomizeSpec.addOnPriceSize * kW,
-                    ),
-                    height: 1.0,
-                    color: Colors.black,
-                  ),
+                    ],
+                  ],
                 ),
-              ],
-            ],
-          ),
               ),
             ],
           ),

@@ -350,7 +350,7 @@ class _KioskProductCustomizeLandscapeScreenState
             valueListenable: _stepIndex,
             builder: (context, current, _) => ValueListenableBuilder<int>(
               valueListenable: _furthestStep,
-              builder: (context, furthest, _) => _StepProgressBar(
+              builder: (context, furthest, _) => _LegacyStepProgressBar(
                 s: m.scale * _LandscapeCustomizeSpec.stepBarFactor,
                 steps: _steps,
                 currentStep: current,
@@ -1215,7 +1215,7 @@ class _LandscapeYourChoicesRow extends StatelessWidget {
           _tilesForStep(context, splash, step, stepIdx);
       if (stepTiles.isEmpty) {
         placeholders.add(_ChoiceEntry.placeholder(
-          label: step.label(context),
+          label: step.legacyLabel(context),
           onTap: () => onStepTap(stepIdx),
         ));
       } else {

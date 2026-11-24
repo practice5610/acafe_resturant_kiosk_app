@@ -10,7 +10,6 @@ import 'package:acafe_customer/features/auth/providers/auth_provider.dart';
 import 'package:acafe_customer/features/cart/domain/reposotories/cart_repo.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
-import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -512,7 +511,7 @@ void main() {
   // half at the fold. It is told the height it may take now, keeps the whole
   // rows that fit, and hands the rest back to be centred — so the panel is
   // compact, has air above and below it, and scrolls inside itself.
-  testWidgets('the add-ons panel keeps whole rows and its own indicator',
+  testWidgets('the add-ons panel fills to the footer and scrolls inside itself',
       (tester) async {
     // Add-ons only, so the flow opens straight on the step under test rather
     // than having to be driven through Size first.
@@ -552,32 +551,25 @@ void main() {
       final Rect bar = tester.getRect(find.byType(KioskCheckoutButton).first);
       final Rect back = tester.getRect(find.byType(KioskBackButton).first);
 
-      // Air on both sides of it: the panel is centred in its column, not
-      // stretched to the full height of the screen.
+      // Figma 2305-13161: the panel sits under the stepper and always runs
+      // down to the action bar, scrolling INSIDE itself — never under it.
       expect(panel.top, greaterThan(back.bottom),
-          reason: 'the panel starts below the progress bar, not against it, '
+          reason: 'the panel starts below the progress bar, '
               'at ${viewport.width}x${viewport.height}');
-      expect(bar.top - panel.bottom, greaterThan(8),
-          reason: 'the panel ran to ${panel.bottom}, against a bar at '
+      expect(panel.bottom, lessThanOrEqualTo(bar.top),
+          reason: 'the panel ran to ${panel.bottom}, under a bar at '
               '${bar.top} at ${viewport.width}x${viewport.height}');
 
-      // Whole rows: the card area is an exact number of card pitches tall, so
-      // the fold can never land through the middle of a row.
       final Rect first = tester.getRect(find.text('TEST ADDON 1'));
       final ScrollableState grid = tester.state(find
           .descendant(of: find.byType(RawScrollbar), matching: find.byType(Scrollable))
           .last);
-      final Rect card = tester.getRect(find
-          .ancestor(of: find.text('TEST ADDON 1'), matching: find.byType(Container))
-          .first);
-      final double gap = KioskCustomizeSpec.choiceCardGap *
-          (card.width / KioskCustomizeSpec.choiceCardWidth);
-      final double pitch = card.height + gap;
-      final double rows = (grid.position.viewportDimension + gap) / pitch;
-      expect((rows - rows.roundToDouble()).abs(), lessThan(0.05),
-          reason: 'the card area is $rows rows tall at '
-              '${viewport.width}x${viewport.height} — a fraction of a row '
-              'means the fold cuts one in half');
+      // Fills (Figma 2305-13161): the panel runs down to the action bar's
+      // top gap, whatever the number of cards.
+      expect(bar.top - panel.bottom, lessThan(bar.height),
+          reason: 'the panel stopped at ${panel.bottom}, short of the bar at '
+              '${bar.top} at ${viewport.width}x${viewport.height}');
+      expect(grid.position.maxScrollExtent, greaterThanOrEqualTo(0));
       expect(first.top, greaterThan(panel.top),
           reason: 'the first row sits inside the panel');
     }

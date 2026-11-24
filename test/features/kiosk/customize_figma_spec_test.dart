@@ -373,8 +373,10 @@ void main() {
 
     test('there is exactly one add-on scroller', () {
       // Several stacked scrollers is what made the page and the group both
-      // scroll at once. One declaration + one usage.
-      expect('_AddOnScrollBox('.allMatches(source).length, 2);
+      // scroll at once. One declaration + the add-ons usage + the Version B
+      // panel-body scroller in _SectionPanel (only built when the panel has a
+      // bounded height, i.e. the page itself is NOT scrolling).
+      expect('_AddOnScrollBox('.allMatches(source).length, 3);
     });
 
     test('the scroll indicator lives INSIDE the add-ons panel', () {
@@ -396,13 +398,10 @@ void main() {
           reason: 'the scroller must be a child of the panel, not its sibling');
       expect(body.contains('return _AddOnScrollBox'), isFalse,
           reason: 'the scroller is never the section\'s own root');
-      expect(body, contains('fill: scrollable && maxHeight == null'),
-          reason: 'the pinned panel gives the scroller its remaining height; '
-              'a panel capped to whole rows (`maxHeight`) hugs that box '
-              'instead, and still carries the scroller inside itself');
-      expect(body, contains('scrollable || maxHeight != null'),
-          reason: 'a capped panel keeps the indicator too — it is the only '
-              'sign that there are more add-ons below the last whole row');
+      expect(body, contains('fill: scrollable'),
+          reason: 'a scrolling add-ons panel fills its slot and carries the '
+              'scroller inside itself (both versions; Version B no longer '
+              'caps it to whole rows — Figma 2305-13161 fills to the footer)');
     });
 
     test('cup/can is pinned outside the scroll area, above the action bar', () {
@@ -464,8 +463,13 @@ void main() {
       final int end = source.indexOf('\nclass ', start + 10);
       final String body = source.substring(start, end);
       expect(body, contains('_addonPriceLabel('));
+      // The condition also carries `showImage` (picture-less mode) and
+      // `!isDefault` (default add-ons keep "Included" inline), so match the
+      // rule's parts, whitespace-insensitive, rather than one exact line.
+      final String flat = body.replaceAll(RegExp(r'\s+'), ' ');
       expect(
-          body, contains('selected && !showQuantity && priceLabel.isNotEmpty'));
+          flat,
+          contains('selected && !showQuantity && priceLabel.isNotEmpty'));
       expect(body, contains('textAlign: TextAlign.right'));
     });
 

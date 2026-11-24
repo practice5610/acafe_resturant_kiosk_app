@@ -14,15 +14,12 @@ part of 'kiosk_product_customize_sheet.dart';
 // [KioskAuthProvider.orderingExperience]. See [openKioskCustomize].
 // ===========================================================================
 
-/// Colour of a step circle / connector that the customer has not reached.
-const Color _kStepUpcoming = Color(0xFFB9B5A6);
-
 /// Artboard height of Version B's own chrome: the top inset plus the progress
-/// bar (a 165px circle over a 30px label plus the choices row). Version A has
+/// bar (a 165px circle, 16px gap, 46px label) plus the choices row. Version A has
 /// no equivalent, so it is added to the shared page height before the scale is
 /// chosen — otherwise the bar would eat the room the header was measured for.
 const double _kStepProgressArtboardHeight =
-    KioskCustomizeSpec.backButtonTop + 211 + _kChoicesRowArtboard;
+    KioskCustomizeSpec.backButtonTop + 227 + _kChoicesRowArtboard;
 
 /// "Your Choices" row: 20px top pad + 160px thumb + 17.5px gap + 73.75px label.
 const double _kChoicesRowArtboard = 271;
@@ -41,6 +38,57 @@ const double _kAllergenRowGap = 24;
 /// single-scale math stays correct.
 const double _kAllergenRowArtboard = _kAllergenRowGap + _kAllergenDiscSize;
 
+/// Marks the subtree as Version B so shared section widgets ([_SectionPanel],
+/// [_RadioDot]) draw the 2305-130xx/134xx variants without threading a flag
+/// through every section constructor. Version A never inserts it.
+class _StepFlowScope extends InheritedWidget {
+  const _StepFlowScope({required super.child});
+
+  static bool of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_StepFlowScope>() != null;
+
+  @override
+  bool updateShouldNotify(_StepFlowScope oldWidget) => false;
+}
+
+/// Data rule for the portrait flow (no name matching): a MULTI-select
+/// variation group is an add-on list ("Extras", "Classic Toppings", "Syrup Add
+/// On"... — no live product uses the add-on table), a single-select one is a
+/// real choice (Iced/Hot, Size, Alternative Milk).
+List<MapEntry<int, Variation>> _singleSelect(
+        List<MapEntry<int, Variation>> groups) =>
+    [
+      for (final g in groups)
+        if (g.value.isMultiSelect != true) g
+    ];
+List<MapEntry<int, Variation>> _multiSelect(
+        List<MapEntry<int, Variation>> groups) =>
+    [
+      for (final g in groups)
+        if (g.value.isMultiSelect == true) g
+    ];
+
+/// One screen of the portrait flow: exactly ONE option group. A phase
+/// ([_CustomizeStep]) with several groups is paged through one group at a time
+/// (e.g. Hojicha Latte: Iced/Hot -> Alternative Milk -> Extras -> Cup/Can).
+class _StepPage {
+  final _CustomizeStep step;
+
+  /// Variation groups on this page: every Size entry together (they render as
+  /// one Size panel), or exactly one dietary / cup-can group.
+  final List<MapEntry<int, Variation>> variations;
+  final bool isSize;
+
+  /// The single add-on group on an add-ons page.
+  final AddOnGroup? addOnGroup;
+
+  /// A multi-select variation group shown on the ADD-ONS step as add-on cards.
+  bool get isVariationAddOn =>
+      step == _CustomizeStep.addOns && variations.isNotEmpty;
+  const _StepPage(this.step,
+      {this.variations = const [], this.isSize = false, this.addOnGroup});
+}
+
 /// The three questions Version B asks, in order.
 enum _CustomizeStep {
   milks,
@@ -49,7 +97,36 @@ enum _CustomizeStep {
 
   /// Label under the step circle. Falls back to English when a locale has no
   /// translation, matching how the rest of the kiosk handles missing keys.
-  String label(BuildContext context) => switch (this) {
+  ///
+  /// Step 1 holds every non-cup/can group, so its label comes from the data:
+  /// exactly one group -> that group's name ("ALTERNATIVE MILK", "POFFERTJES
+  /// SIZE"); several -> "OPTIONS".
+  // TODO(back-office): replace with a per-category step-label field so the
+  // café can name step 1 itself ("MILKS") instead of deriving it here.
+  String label(BuildContext context, KioskCustomizeSections sections) =>
+      switch (this) {
+        _CustomizeStep.milks => () {
+            final groups = [
+              ...sections.size,
+              ..._singleSelect(sections.dietary),
+            ];
+            final String name = groups.length == 1
+                ? (groups.single.value.name ?? '').trim()
+                : '';
+            return (name.isNotEmpty
+                    ? name
+                    : kioskTranslate(context, 'options', 'Options'))
+                .toUpperCase();
+          }(),
+        _CustomizeStep.addOns =>
+          kioskTranslate(context, 'add_ons', 'Add-ons').toUpperCase(),
+        _CustomizeStep.cupOrCan =>
+          kioskTranslate(context, 'cup_or_can', 'Cup or Can').toUpperCase(),
+      };
+
+  /// The original label (landscape shell only): fixed keys, as before the
+  /// portrait redesign.
+  String legacyLabel(BuildContext context) => switch (this) {
         _CustomizeStep.milks =>
           kioskTranslate(context, 'variation', 'Variation').toUpperCase(),
         _CustomizeStep.addOns =>
@@ -116,6 +193,16 @@ class _KioskProductCustomizeStepScreenState
   /// a completed step stays completed.
   final ValueNotifier<int> _furthestStep = ValueNotifier<int>(0);
 
+  /// One page per option group, in phase order. [_stepIndex] always holds the
+  /// PHASE of the current page, so the top stepper only advances when the
+  /// phase changes.
+  late final List<_StepPage> _pages;
+  final ValueNotifier<int> _pageIndex = ValueNotifier<int>(0);
+
+  /// Direction of the last page change, for the slide (forward = new group
+  /// enters from the right).
+  bool _forward = true;
+
   @override
   Product get product => widget.product;
   @override
@@ -133,9 +220,34 @@ class _KioskProductCustomizeStepScreenState
 
     _sections = KioskCustomizeSections.of(product);
     _steps = [
-      if (_sections.hasMilkStep) _CustomizeStep.milks,
-      if (product.effectiveAddOnGroups.isNotEmpty) _CustomizeStep.addOns,
+      if (_sections.size.isNotEmpty ||
+          _singleSelect(_sections.dietary).isNotEmpty)
+        _CustomizeStep.milks,
+      if (product.effectiveAddOnGroups.isNotEmpty ||
+          _multiSelect(_sections.dietary).isNotEmpty)
+        _CustomizeStep.addOns,
       if (_sections.cupCan.isNotEmpty) _CustomizeStep.cupOrCan,
+    ];
+    _pages = [
+      for (final step in _steps)
+        ...switch (step) {
+          _CustomizeStep.milks => [
+              if (_sections.size.isNotEmpty)
+                _StepPage(step, variations: _sections.size, isSize: true),
+              for (final e in _singleSelect(_sections.dietary))
+                _StepPage(step, variations: [e]),
+            ],
+          _CustomizeStep.addOns => [
+              for (final e in _multiSelect(_sections.dietary))
+                _StepPage(step, variations: [e]),
+              for (final g in product.effectiveAddOnGroups)
+                _StepPage(step, addOnGroup: g),
+            ],
+          _CustomizeStep.cupOrCan => [
+              for (final e in _sections.cupCan)
+                _StepPage(step, variations: [e]),
+            ],
+        },
     ];
 
     // After the first frame: `track` reads providers. Skipped entirely when
@@ -172,73 +284,81 @@ class _KioskProductCustomizeStepScreenState
     unawaited(KioskCustomizeAnalytics.instance.flush());
     _stepIndex.dispose();
     _furthestStep.dispose();
+    _pageIndex.dispose();
     super.dispose();
   }
 
-  /// Variation indexes owned by [step], so Next gates on that step's questions
-  /// only. Add-ons have no variation indexes — they validate through
-  /// [_validateAddOnGroups] instead.
-  Iterable<int> _variationIndexesFor(_CustomizeStep step) => switch (step) {
-        _CustomizeStep.milks => [
-            ..._sections.size.map((e) => e.key),
-            ..._sections.dietary.map((e) => e.key),
-          ],
-        _CustomizeStep.cupOrCan => _sections.cupCan.map((e) => e.key),
-        _CustomizeStep.addOns => const <int>[],
-      };
-
-  /// Whether [step]'s required questions are answered.
+  /// Whether [page]'s group is answered. Single-select required groups must
+  /// have a pick; optional / add-on groups can be skipped.
   ///
   /// [silent] is true when this only decides if Next looks enabled — showing a
-  /// snackbar on every rebuild would fire on each add-on tap.
-  bool _isStepSatisfied(
+  /// snackbar on every rebuild would fire on each tap.
+  bool _isPageSatisfied(
     BuildContext context,
     ProductProvider productProvider,
-    _CustomizeStep step, {
+    _StepPage page, {
     bool silent = true,
   }) {
-    if (step == _CustomizeStep.addOns) {
-      return _validateAddOnGroups(context, productProvider, silent: silent);
+    if (page.addOnGroup != null) {
+      return _validateAddOnGroups(context, productProvider,
+          silent: silent, only: [page.addOnGroup!]);
     }
     return _validateVariations(
       context,
       productProvider,
-      _variationIndexesFor(step),
+      page.variations.map((e) => e.key),
       silent: silent,
     );
   }
 
-  void _goToStep(int index) {
-    if (index < 0 || index >= _steps.length) return;
-    _stepIndex.value = index;
-    if (index > _furthestStep.value) _furthestStep.value = index;
+  /// Moves to page [index] (one option group) and keeps the phase notifiers
+  /// in step with it. Selections live in ProductProvider, so they survive.
+  void _goToPage(int index) {
+    if (index < 0 || index >= _pages.length) return;
+    _forward = index >= _pageIndex.value;
+    final int phase = _steps.indexOf(_pages[index].step);
+    _pageIndex.value = index;
+    _stepIndex.value = phase;
+    if (phase > _furthestStep.value) _furthestStep.value = phase;
   }
 
-  /// Forward navigation. Blocked — with a message — while the current step's
-  /// required questions are unanswered, so a customer can never skip ahead.
+  /// Jump to the FIRST group of phase [index] — the stepper circles and the
+  /// "Your Choices" placeholders address phases, not groups.
+  void _goToStep(int index) {
+    if (index < 0 || index >= _steps.length) return;
+    _goToPage(_pages.indexWhere((p) => p.step == _steps[index]));
+  }
+
+  /// Forward navigation. Blocked — with a message — while the current group's
+  /// required question is unanswered, so a customer can never skip ahead.
   void _next(BuildContext context, ProductProvider productProvider) {
-    final int index = _stepIndex.value;
-    if (!_isStepSatisfied(context, productProvider, _steps[index],
+    final int index = _pageIndex.value;
+    if (!_isPageSatisfied(context, productProvider, _pages[index],
         silent: false)) {
       return;
     }
-    track(context, KioskCustomizeEvent.stepCompleted,
-        step: _steps[index].analyticsName);
-    _goToStep(index + 1);
-    if (index + 1 < _steps.length) {
-      track(context, KioskCustomizeEvent.stepViewed,
-          step: _steps[index + 1].analyticsName);
+    if (index + 1 >= _pages.length) return;
+    final _CustomizeStep from = _pages[index].step;
+    final _CustomizeStep to = _pages[index + 1].step;
+    _goToPage(index + 1);
+    if (from != to) {
+      track(context, KioskCustomizeEvent.stepCompleted,
+          step: from.analyticsName);
+      track(context, KioskCustomizeEvent.stepViewed, step: to.analyticsName);
     }
   }
 
-  /// Back button behaviour: step back through the flow first, and only leave
-  /// the screen from the first step — otherwise the hardware/undo back gesture
-  /// would drop the whole customization from step 3.
+  /// Back steps to the previous GROUP (across phases); only the first group
+  /// leaves the screen.
   void _back(BuildContext context) {
-    if (_stepIndex.value > 0) {
-      _stepIndex.value = _stepIndex.value - 1;
-      track(context, KioskCustomizeEvent.stepViewed,
-          step: _steps[_stepIndex.value].analyticsName);
+    final int index = _pageIndex.value;
+    if (index > 0) {
+      final _CustomizeStep from = _pages[index].step;
+      _goToPage(index - 1);
+      if (_pages[index - 1].step != from) {
+        track(context, KioskCustomizeEvent.stepViewed,
+            step: _pages[index - 1].step.analyticsName);
+      }
       return;
     }
     KioskNavigationHelper.popOrNavigate(
@@ -306,10 +426,8 @@ class _KioskProductCustomizeStepScreenState
                         {required bool split}) =>
                     kioskCustomizeArtboardHeight(
                       hasDescription: hasDescription,
-                      variationPanels: step == _CustomizeStep.milks
-                          ? (_sections.size.isEmpty ? 0 : 1) +
-                              _sections.dietary.length
-                          : 0,
+                      // One group per screen, so a milks page is one panel.
+                      variationPanels: step == _CustomizeStep.milks ? 1 : 0,
                       hasAddOns: step == _CustomizeStep.addOns,
                       hasVessel: step == _CustomizeStep.cupOrCan,
                       // `landscape: true` is the OLD two-column budget — the
@@ -344,9 +462,8 @@ class _KioskProductCustomizeStepScreenState
                 // Shared with Version A: the photo matches a no-options product
                 // on this window so a step with milks/add-ons does not shrink
                 // it. See [kioskCustomizeResolvedHeroFactor].
-                final double heroTarget =
-                    kioskCustomizeHeroTargetArtboard(
-                        hasDescription: hasDescription);
+                final double heroTarget = kioskCustomizeHeroTargetArtboard(
+                    hasDescription: hasDescription);
                 // Picture-less device: collapse the hero (see Version A).
                 final bool showImages =
                     context.watch<KioskAuthProvider>().showImages;
@@ -381,103 +498,138 @@ class _KioskProductCustomizeStepScreenState
 
                 return KioskCenteredContent(
                   maxWidth: column,
-                  child: Column(
-                    children: [
-                      // Progress bar + back button. Rebuilt on step change,
-                      // which is exactly what it displays.
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(gutter,
-                            KioskCustomizeSpec.backButtonTop * s, gutter, 0),
-                        child: ValueListenableBuilder<int>(
-                          valueListenable: _stepIndex,
-                          builder: (context, current, _) =>
-                              ValueListenableBuilder<int>(
-                            valueListenable: _furthestStep,
-                            builder: (context, furthest, _) => _StepProgressBar(
-                              s: s,
-                              steps: _steps,
-                              currentStep: current,
-                              furthestStep: furthest,
-                              onStepTap: (i) {
-                                _goToStep(i);
-                                track(context, KioskCustomizeEvent.stepViewed,
-                                    step: _steps[i].analyticsName);
-                              },
-                              onBack: () => _back(context),
+                  child: _StepFlowScope(
+                    child: Column(
+                      children: [
+                        // Progress bar + back button. Rebuilt on step change,
+                        // which is exactly what it displays.
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(gutter,
+                              KioskCustomizeSpec.backButtonTop * s, gutter, 0),
+                          child: ValueListenableBuilder<int>(
+                            valueListenable: _stepIndex,
+                            builder: (context, current, _) =>
+                                ValueListenableBuilder<int>(
+                              valueListenable: _furthestStep,
+                              builder: (context, furthest, _) =>
+                                  _StepProgressBar(
+                                s: s,
+                                steps: _steps,
+                                sections: _sections,
+                                currentStep: current,
+                                furthestStep: furthest,
+                                onStepTap: (i) {
+                                  _goToStep(i);
+                                  track(context, KioskCustomizeEvent.stepViewed,
+                                      step: _steps[i].analyticsName);
+                                },
+                                onBack: () => _back(context),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      // Identity block — identical on every step, so it sits
-                      // OUTSIDE the step listeners and is never rebuilt by a
-                      // step change or an add-on tap.
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: gutter),
-                        child: _Header(
-                          s: s,
-                          heroFactor: heroFactor,
-                          showImages: showImages,
-                          product: product,
-                          productProvider: productProvider,
-                          showBackButton: false,
-                          // Bare allergen icon row under the hero, shown on
-                          // every step (Figma 2305-13009/13161/13433).
-                          belowHero: hasAllergenRow
-                              ? _AllergenIconRow(
-                                  s: s,
-                                  allergens: kioskProductAllergens(product),
-                                )
-                              : null,
-                        ),
-                      ),
-                      // "Your Choices" row: a summary tile per step showing
-                      // what the customer picked (or a placeholder). Tapping a
-                      // filled tile jumps back to its step; tapping an empty
-                      // one advances to it.
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: gutter),
-                        child: ValueListenableBuilder<int>(
-                          valueListenable: _stepIndex,
-                          builder: (context, current, _) => _YourChoicesRow(
+                        // Identity block — identical on every step, so it sits
+                        // OUTSIDE the step listeners and is never rebuilt by a
+                        // step change or an add-on tap.
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: gutter),
+                          child: _Header(
                             s: s,
-                            steps: _steps,
-                            currentStep: current,
-                            sections: _sections,
+                            heroFactor: heroFactor,
+                            showImages: showImages,
                             product: product,
                             productProvider: productProvider,
-                            onStepTap: _goToStep,
+                            showBackButton: false,
+                            // Bare allergen icon row under the hero, shown on
+                            // every step (Figma 2305-13009/13161/13433).
+                            belowHero: hasAllergenRow
+                                ? _AllergenIconRow(
+                                    s: s,
+                                    allergens: kioskProductAllergens(product),
+                                  )
+                                : null,
+                            // "Your Choices" sits between the description and
+                            // the quantity stepper (Figma 2305-13009 et al.).
+                            // Only this listener rebuilds on a step change.
+                            aboveStepper: ValueListenableBuilder<int>(
+                              valueListenable: _stepIndex,
+                              builder: (context, current, _) => _YourChoicesRow(
+                                s: s,
+                                steps: _steps,
+                                currentStep: current,
+                                sections: _sections,
+                                product: product,
+                                productProvider: productProvider,
+                                onStepTap: _goToStep,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      SizedBox(height: KioskCustomizeSpec.headerToPanels * s),
-                      // The step body takes the remaining height. Only this and
-                      // the action bar below react to a step change.
-                      Expanded(
-                        child: ValueListenableBuilder<int>(
-                          valueListenable: _stepIndex,
-                          builder: (context, current, _) => _stepBody(
-                            s,
-                            _steps[current],
-                            productProvider,
-                            padding: EdgeInsets.symmetric(horizontal: gutter),
+                        SizedBox(height: KioskCustomizeSpec.headerToPanels * s),
+                        // The step body takes the remaining height. Only this and
+                        // the action bar below react to a step change.
+                        // One group per screen, sliding horizontally between
+                        // groups. Only this panel region animates; header,
+                        // stepper and footer stay still.
+                        Expanded(
+                          child: ClipRect(
+                            child: ValueListenableBuilder<int>(
+                              valueListenable: _pageIndex,
+                              builder: (context, current, _) =>
+                                  AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 280),
+                                switchInCurve: Curves.easeInOut,
+                                switchOutCurve: Curves.easeInOut,
+                                layoutBuilder: (currentChild, previous) =>
+                                    Stack(children: [
+                                  ...previous,
+                                  if (currentChild != null) currentChild,
+                                ]),
+                                transitionBuilder: (child, animation) {
+                                  final bool incoming =
+                                      child.key == ValueKey<int>(current);
+                                  final double from = incoming
+                                      ? (_forward ? 1.0 : -1.0)
+                                      : (_forward ? -1.0 : 1.0);
+                                  return SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: Offset(from, 0),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  );
+                                },
+                                child: KeyedSubtree(
+                                  key: ValueKey<int>(current),
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: gutter),
+                                    child: SizedBox.expand(
+                                      child: _pageBody(
+                                          s, _pages[current], productProvider),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      ValueListenableBuilder<int>(
-                        valueListenable: _stepIndex,
-                        builder: (context, current, _) => _StepActionBar(
-                          s: s,
-                          product: product,
-                          productProvider: productProvider,
-                          isLastStep: current == _steps.length - 1,
-                          canAdvance: _isStepSatisfied(
-                              context, productProvider, _steps[current]),
-                          onNext: () => _next(context, productProvider),
-                          onAddToCart: () =>
-                              _addToCart(context, productProvider),
+                        ValueListenableBuilder<int>(
+                          valueListenable: _pageIndex,
+                          builder: (context, current, _) => _StepActionBar(
+                            s: s,
+                            product: product,
+                            productProvider: productProvider,
+                            isLastStep: current == _pages.length - 1,
+                            canAdvance: _isPageSatisfied(
+                                context, productProvider, _pages[current]),
+                            onNext: () => _next(context, productProvider),
+                            onAddToCart: () =>
+                                _addToCart(context, productProvider),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
@@ -488,102 +640,56 @@ class _KioskProductCustomizeStepScreenState
     );
   }
 
-  /// The body of one step — the very same section widgets Version A stacks.
-  /// [padding] is handed to the step rather than wrapped around it: a
-  /// [_FittedColumn] applies it INSIDE its scroll view, which keeps the scroll
-  /// thumb out in the page gutter instead of over the panel's right edge.
-  Widget _stepBody(
-      double s, _CustomizeStep step, ProductProvider productProvider,
-      {EdgeInsets padding = EdgeInsets.zero}) {
-    switch (step) {
-      case _CustomizeStep.milks:
-        // The allergen row is drawn once in the shell (under the hero, every
-        // step), so it is NOT repeated here — see [_AllergenIconRow] and
-        // [_Header.belowHero].
-        final List<Widget> panels = [
-          if (_sections.size.isNotEmpty)
-            _SizeOptionsPanel(
-              s: s,
-              entries: _sections.size,
-              product: product,
-              productProvider: productProvider,
-            ),
-          for (final entry in _sections.dietary)
-            _VariationSection(
-              s: s,
-              variation: entry.value,
-              variationIndex: entry.key,
-              product: product,
-              productProvider: productProvider,
-            ),
-        ];
-        // One step's worth of panels is short — a Size row, or a couple of
-        // dietary groups — while the body is given the whole page between the
-        // progress bar and the action bar. Top-aligned that stranded the panel
-        // against the bar with the rest of the screen empty; centred it sits
-        // in its own space. See [_FittedColumn].
-        return _FittedColumn(
-          s: s,
-          padding: padding,
-          children: [
-            for (int i = 0; i < panels.length; i++) ...[
-              if (i > 0) SizedBox(height: KioskCustomizeSpec.panelGap * s),
-              panels[i],
-            ],
-          ],
-        );
-      case _CustomizeStep.addOns:
-        // The panel is told the height it may take (`maxHeight`) rather than
-        // being left to fill it. It keeps the whole rows that fit — two of
-        // them on a large landscape display — and scrolls the remainder inside
-        // itself, beside the design's own indicator. What it does not use comes
-        // back here, and [_FittedColumn] centres it, which is where the space
-        // above and below the panel comes from.
-        //
-        // Filling the column was the Version A behaviour and the wrong one
-        // here: it stretched the panel the full height of the screen and its
-        // scroller then cut a row of cards in half at the fold. Version A can
-        // fill because its panel sits under a header and above cup/can in one
-        // long page, where the leftover height has nowhere better to go.
-        return LayoutBuilder(
-          builder: (context, constraints) => _FittedColumn(
-            s: s,
-            padding: padding,
-            children: [
-              _AddOnsSection(
-                s: s,
-                product: product,
-                productProvider: productProvider,
-                maxHeight: constraints.maxHeight.isFinite
-                    ? constraints.maxHeight - padding.vertical
-                    : null,
-                // Step 2: reserve the counter row on every card so a selected
-                // card and an idle one keep identical layout.
-                reserveQuantity: true,
-              ),
-            ],
-          ),
-        );
-      case _CustomizeStep.cupOrCan:
-        return _FittedColumn(
-          s: s,
-          padding: padding,
-          children: [
-            for (int i = 0; i < _sections.cupCan.length; i++) ...[
-              if (i > 0) SizedBox(height: KioskCustomizeSpec.panelGap * s),
-              _CupCanSection(
-                s: s,
-                variation: _sections.cupCan[i].value,
-                variationIndex: _sections.cupCan[i].key,
-                product: product,
-                productProvider: productProvider,
-                // Step 3: Figma 2305-13433 cards (radio + small tracked label).
-                redesigned: true,
-              ),
-            ],
-          ],
-        );
+  /// The ONE group of [page], as a panel that fills the slot between header
+  /// and footer (Figma 2305-13009/13161/13433) and scrolls inside itself.
+  Widget _pageBody(double s, _StepPage page, ProductProvider productProvider) {
+    if (page.addOnGroup != null) {
+      return _AddOnsSection(
+        s: s,
+        product: product,
+        productProvider: productProvider,
+        onlyGroup: page.addOnGroup,
+        // Reserve the counter row on every card so a selected card and an
+        // idle one keep identical layout.
+        reserveQuantity: true,
+      );
     }
+    if (page.isSize) {
+      return _SizeOptionsPanel(
+        s: s,
+        entries: page.variations,
+        product: product,
+        productProvider: productProvider,
+      );
+    }
+    final MapEntry<int, Variation> group = page.variations.single;
+    if (page.isVariationAddOn) {
+      return _VariationAddOnSection(
+        s: s,
+        variation: group.value,
+        variationIndex: group.key,
+        product: product,
+        productProvider: productProvider,
+      );
+    }
+    if (page.step == _CustomizeStep.cupOrCan) {
+      return _CupCanSection(
+        s: s,
+        variation: group.value,
+        variationIndex: group.key,
+        product: product,
+        productProvider: productProvider,
+        // Figma 2305-13433 cards (radio + small tracked label).
+        redesigned: true,
+      );
+    }
+    return _VariationSection(
+      s: s,
+      variation: group.value,
+      variationIndex: group.key,
+      product: product,
+      productProvider: productProvider,
+    );
   }
 }
 
@@ -596,6 +702,7 @@ class _KioskProductCustomizeStepScreenState
 class _StepProgressBar extends StatelessWidget {
   final double s;
   final List<_CustomizeStep> steps;
+  final KioskCustomizeSections sections;
   final int currentStep;
   final int furthestStep;
   final ValueChanged<int> onStepTap;
@@ -603,6 +710,7 @@ class _StepProgressBar extends StatelessWidget {
   const _StepProgressBar({
     required this.s,
     required this.steps,
+    required this.sections,
     required this.currentStep,
     required this.furthestStep,
     required this.onStepTap,
@@ -617,6 +725,7 @@ class _StepProgressBar extends StatelessWidget {
         _StepCircle(
           s: s,
           step: steps[i],
+          sections: sections,
           isCurrent: i == currentStep,
           // Completed = behind the customer's furthest point AND not where they
           // are standing. Only these accept a tap.
@@ -627,7 +736,10 @@ class _StepProgressBar extends StatelessWidget {
         ),
       );
       if (i < steps.length - 1) {
-        row.add(Expanded(
+        // Figma: fixed 252 connectors, so the three circles sit as one compact
+        // centred group rather than spreading to the screen edges.
+        row.add(SizedBox(
+          width: 252 * s,
           child: _StepConnector(s: s, filled: i < currentStep),
         ));
       }
@@ -645,8 +757,13 @@ class _StepProgressBar extends StatelessWidget {
         ),
         SizedBox(width: 48 * s),
         Expanded(
-          child:
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: row),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: row,
+            ),
+          ),
         ),
         // Balances the back button so the bar stays optically centred.
         SizedBox(width: KioskCustomizeSpec.backButton * s),
@@ -658,12 +775,14 @@ class _StepProgressBar extends StatelessWidget {
 class _StepCircle extends StatelessWidget {
   final double s;
   final _CustomizeStep step;
+  final KioskCustomizeSections sections;
   final bool isCurrent;
   final bool isCompleted;
   final VoidCallback? onTap;
   const _StepCircle({
     required this.s,
     required this.step,
+    required this.sections,
     required this.isCurrent,
     required this.isCompleted,
     this.onTap,
@@ -673,8 +792,10 @@ class _StepCircle extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool filled = isCurrent || isCompleted;
     final double d = 165 * s;
-    final Color line = filled ? _kDarkButton : _kStepUpcoming;
-    final Color iconColor = filled ? _kCreamText : _kStepUpcoming;
+    // Figma 2305-13009/13161/13433: current + completed = solid black disc,
+    // light icon; upcoming = black OUTLINE with a black icon (not grey).
+    const Color line = _kDarkButton;
+    final Color iconColor = filled ? _kCreamText : _kDarkButton;
 
     final Widget iconWidget;
     final String? svg = step.svgAsset;
@@ -721,11 +842,11 @@ class _StepCircle extends StatelessWidget {
               ),
         SizedBox(height: 16 * s),
         Text(
-          step.label(context),
+          step.label(context, sections),
           style: loewExtraBold.copyWith(
-            fontSize: 30 * s,
+            fontSize: 46 * s,
             height: 1.0,
-            color: filled ? Colors.black : TextTones.hint,
+            color: Colors.black,
           ),
         ),
       ],
@@ -750,7 +871,180 @@ class _StepConnector extends StatelessWidget {
       ),
       child: Container(
         height: _border(4, s),
-        color: filled ? _kDarkButton : _kStepUpcoming,
+        // Figma draws every connector black.
+        color: _kDarkButton,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// LANDSCAPE-ONLY step bar: the pre-2026-11-24 bar, kept byte-for-byte so the
+// landscape shell (kiosk_product_customize_landscape.dart) is unaffected by
+// the portrait Version B redesign (Figma 2305-13009/13161/13433).
+// ---------------------------------------------------------------------------
+
+/// Colour of a step circle / connector that the customer has not reached.
+const Color _kLegacyStepUpcoming = Color(0xFFB9B5A6);
+
+class _LegacyStepProgressBar extends StatelessWidget {
+  final double s;
+  final List<_CustomizeStep> steps;
+  final int currentStep;
+  final int furthestStep;
+  final ValueChanged<int> onStepTap;
+  final VoidCallback onBack;
+  const _LegacyStepProgressBar({
+    required this.s,
+    required this.steps,
+    required this.currentStep,
+    required this.furthestStep,
+    required this.onStepTap,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> row = [];
+    for (int i = 0; i < steps.length; i++) {
+      row.add(
+        _LegacyStepCircle(
+          s: s,
+          step: steps[i],
+          isCurrent: i == currentStep,
+          // Completed = behind the customer's furthest point AND not where they
+          // are standing. Only these accept a tap.
+          isCompleted: i < furthestStep && i != currentStep,
+          onTap: (i < furthestStep && i != currentStep)
+              ? () => onStepTap(i)
+              : null,
+        ),
+      );
+      if (i < steps.length - 1) {
+        row.add(Expanded(
+          child: _LegacyStepConnector(s: s, filled: i < currentStep),
+        ));
+      }
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        KioskBackButton(
+          size: KioskCustomizeSpec.backButton * s,
+          borderWidth: _border(KioskCustomizeSpec.backButtonBorder, s),
+          iconSize: KioskCustomizeSpec.backButtonIcon * s,
+          onTap: onBack,
+          fallback: RouterHelper.getKioskMenuRoute,
+        ),
+        SizedBox(width: 48 * s),
+        Expanded(
+          child:
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: row),
+        ),
+        // Balances the back button so the bar stays optically centred.
+        SizedBox(width: KioskCustomizeSpec.backButton * s),
+      ],
+    );
+  }
+}
+
+class _LegacyStepCircle extends StatelessWidget {
+  final double s;
+  final _CustomizeStep step;
+  final bool isCurrent;
+  final bool isCompleted;
+  final VoidCallback? onTap;
+  const _LegacyStepCircle({
+    required this.s,
+    required this.step,
+    required this.isCurrent,
+    required this.isCompleted,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool filled = isCurrent || isCompleted;
+    final double d = 165 * s;
+    final Color line = filled ? _kDarkButton : _kLegacyStepUpcoming;
+    final Color iconColor = filled ? _kCreamText : _kLegacyStepUpcoming;
+
+    final Widget iconWidget;
+    final String? svg = step.svgAsset;
+    if (svg != null) {
+      iconWidget = SvgPicture.asset(
+        svg,
+        width: d * 0.48,
+        height: d * 0.48,
+        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+      );
+    } else {
+      iconWidget = Text(
+        step.glyph,
+        style: loewExtraBold.copyWith(
+          fontSize: d * 0.6,
+          height: 1.0,
+          color: iconColor,
+        ),
+      );
+    }
+
+    final Widget circle = Container(
+      width: d,
+      height: d,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: filled ? _kDarkButton : Colors.transparent,
+        border: Border.all(color: line, width: _border(6, s)),
+      ),
+      child: iconWidget,
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        onTap == null
+            ? circle
+            : Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: KioskTap(onTap: onTap, child: circle),
+              ),
+        SizedBox(height: 16 * s),
+        Text(
+          step.legacyLabel(context),
+          style: loewExtraBold.copyWith(
+            fontSize: 30 * s,
+            height: 1.0,
+            color: filled ? Colors.black : TextTones.hint,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LegacyStepConnector extends StatelessWidget {
+  final double s;
+  final bool filled;
+  const _LegacyStepConnector({required this.s, required this.filled});
+
+  @override
+  Widget build(BuildContext context) {
+    final double d = 165 * s;
+    return Padding(
+      // Sit on the circle's vertical centre.
+      padding: EdgeInsets.only(
+        top: d / 2,
+        left: 20 * s,
+        right: 20 * s,
+      ),
+      child: Container(
+        height: _border(4, s),
+        color: filled ? _kDarkButton : _kLegacyStepUpcoming,
       ),
     );
   }
@@ -961,7 +1255,7 @@ class _YourChoicesRow extends StatelessWidget {
           _tilesForStep(context, splash, step, stepIdx);
       if (stepTiles.isEmpty) {
         placeholders.add(_ChoiceEntry.placeholder(
-          label: step.label(context),
+          label: step.label(context, sections),
           onTap: () => onStepTap(stepIdx),
         ));
       } else {
@@ -980,13 +1274,19 @@ class _YourChoicesRow extends StatelessWidget {
   ) {
     switch (step) {
       case _CustomizeStep.milks:
-        // Size panel then dietary groups — the same order Step 1 stacks them.
-        return _variationTiles(
-            splash, [...sections.size, ...sections.dietary], stepIdx);
+        // Size panel then the single-select groups — the same order step 1
+        // pages them.
+        return _variationTiles(splash,
+            [...sections.size, ..._singleSelect(sections.dietary)], stepIdx);
       case _CustomizeStep.cupOrCan:
         return _variationTiles(splash, sections.cupCan, stepIdx);
       case _CustomizeStep.addOns:
-        return _addOnTiles(context, stepIdx);
+        // Multi-select variation extras first (their pages come first), then
+        // add-on-table items.
+        return [
+          ..._variationTiles(splash, _multiSelect(sections.dietary), stepIdx),
+          ..._addOnTiles(context, stepIdx),
+        ];
     }
   }
 
@@ -1006,8 +1306,8 @@ class _YourChoicesRow extends StatelessWidget {
       final values = group.value.variationValues ?? [];
       // A required single-select choice can only be swapped, never emptied, so
       // it carries no × — the provider would just re-select it.
-      final bool removable =
-          !(group.value.isRequired == true && group.value.isMultiSelect != true);
+      final bool removable = !(group.value.isRequired == true &&
+          group.value.isMultiSelect != true);
       for (int j = 0; j < values.length; j++) {
         if (j < sel[gi].length && sel[gi][j] == true) {
           out.add(_ChoiceEntry.filled(
@@ -1061,7 +1361,8 @@ class _YourChoicesRow extends StatelessWidget {
         backgroundColor: KioskUI.pageBg,
         insetPadding: EdgeInsets.all(48 * s),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KioskCustomizeSpec.panelRadius * s),
+          borderRadius:
+              BorderRadius.circular(KioskCustomizeSpec.panelRadius * s),
         ),
         child: Padding(
           padding: EdgeInsets.all(40 * s),
@@ -1081,8 +1382,7 @@ class _YourChoicesRow extends StatelessWidget {
                     alignment: WrapAlignment.center,
                     children: [
                       for (final entry in tiles)
-                        if (!entry.isOverflow)
-                          _ChoiceTile(s: s, entry: entry),
+                        if (!entry.isOverflow) _ChoiceTile(s: s, entry: entry),
                     ],
                   ),
                 ),
@@ -1354,7 +1654,8 @@ class _DashedBorderDecoration extends Decoration {
 
   @override
   BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
-      _DashedBorderPainter(color: color, strokeWidth: strokeWidth, radius: radius);
+      _DashedBorderPainter(
+          color: color, strokeWidth: strokeWidth, radius: radius);
 
   @override
   bool operator ==(Object other) =>
@@ -1405,5 +1706,100 @@ class _DashedBorderPainter extends BoxPainter {
       );
       distance = end + dashOff;
     }
+  }
+}
+
+/// Portrait Version B: a MULTI-select variation group ("Extras", "Classic
+/// Toppings"...) drawn as the ADD-ONS step's cards (Figma 2305-13161) — the very
+/// same [_AddOnCard], 539x535, toggled on/off by a tap (no +/- counter).
+///
+/// No counter: a variation pick is a yes/no on the order, and
+/// the backend prices it with `in_array(label, ...)`, so sending a value twice
+/// would be charged once. Real quantities need backend support first.
+class _VariationAddOnSection extends StatelessWidget {
+  final double s;
+  final Variation variation;
+  final int variationIndex;
+  final Product product;
+  final ProductProvider productProvider;
+  const _VariationAddOnSection({
+    required this.s,
+    required this.variation,
+    required this.variationIndex,
+    required this.product,
+    required this.productProvider,
+  });
+
+  void _toggle(int i) {
+    productProvider.setCartVariationIndex(
+        variationIndex, i, product, variation.isMultiSelect!);
+    productProvider.checkIsRequiredSelected(
+      index: variationIndex,
+      isMultiSelect: variation.isMultiSelect!,
+      variations: productProvider.selectedVariations[variationIndex],
+      min: variation.min,
+      max: variation.max,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final splash = Provider.of<SplashProvider>(context, listen: false);
+    final values = variation.variationValues ?? const <VariationValue>[];
+    final bool showImage = context.watch<KioskAuthProvider>().showImages;
+    final String title = (variation.name ?? '').trim().isNotEmpty
+        ? variation.name!.trim()
+        : (getTranslated('add_add_ons', context) ?? 'Add add-ons');
+
+    return _SectionPanel(
+      s: s,
+      title: title,
+      child: LayoutBuilder(builder: (context, constraints) {
+        final double gap = _choiceGap(s);
+        final double cardWidth = _choiceGridTileWidth(
+          viewportWidth: MediaQuery.sizeOf(context).width,
+          panelWidth: constraints.maxWidth,
+          s: s,
+          gap: gap,
+          artboardCard: KioskCustomizeSpec.addOnCardWidth,
+        );
+        final double cardHeight = cardWidth *
+            (KioskCustomizeSpec.addOnCardHeight /
+                KioskCustomizeSpec.addOnCardWidth);
+        return Wrap(
+          alignment: WrapAlignment.start,
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (int i = 0; i < values.length; i++)
+              Builder(builder: (context) {
+                final bool selected =
+                    productProvider.selectedVariations[variationIndex][i] ??
+                        false;
+                return _AddOnCard(
+                  width: cardWidth,
+                  height: cardHeight,
+                  name: (values[i].level ?? '').trim(),
+                  priceDelta: values[i].optionPrice ?? 0,
+                  image: _choiceImageUrl(
+                    KioskProductImageHelper.optionCardImageUrl(
+                      value: values[i],
+                      productImageBaseUrl: splash.baseUrls?.productImageUrl,
+                    ),
+                  ),
+                  showImage: showImage,
+                  showPrice: true,
+                  selected: selected,
+                  // A variation pick is yes/no (see the class doc), so no
+                  // −/qty/+ stepper: tapping the card toggles it on and off.
+                  showQuantity: false,
+                  reserveQuantity: false,
+                  onTap: () => _toggle(i),
+                );
+              }),
+          ],
+        );
+      }),
+    );
   }
 }
