@@ -144,7 +144,7 @@ class _LandscapeOrderSummaryScreenState
         coupon: couponProvider,
       );
       if (!mounted) return;
-      RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
+      RouterHelper.goKioskMenu();
     } finally {
       if (mounted) {
         setState(() {

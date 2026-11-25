@@ -23,7 +23,14 @@ class KioskSession {
   /// later Pay tap in the same flow.
   int? tipPercent;
 
+  /// Bumped once per finished customer. The /menu-kiosk page key carries it,
+  /// so `go(menu)` inside one customer's visit (back, payment cancelled)
+  /// returns to the SAME, already-painted menu page, while the next customer
+  /// gets a freshly built one (search, filters and scroll reset).
+  int menuEpoch = 0;
+
   void reset() {
+    menuEpoch++;
     customerName = '';
     customerEmail = '';
     lastOrderNumber = null;

@@ -457,7 +457,7 @@ class _KioskWelcomeScreenState extends State<KioskWelcomeScreen> {
 
     setState(() => _orderLoading = false);
 
-    RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
+    RouterHelper.goKioskMenu();
   }
 
   @override

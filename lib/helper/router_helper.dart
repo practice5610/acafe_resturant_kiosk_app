@@ -5,6 +5,9 @@ import 'package:acafe_customer/common/models/config_model.dart';
 import 'package:acafe_customer/common/enums/data_source_enum.dart';
 import 'package:acafe_customer/features/force_update/screens/force_update_screen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
+import 'package:acafe_customer/theme/app_page_transitions.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_welcome_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_login_screen.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_bootstrap_screen.dart';
@@ -101,6 +104,13 @@ class RouterHelper {
   static String getKioskWelcomeRoute({RouteAction? action}) =>
       _navigateRoute(kioskWelcomeScreen, route: action);
   static String getKioskMenuRoute({RouteAction? action}) => _navigateRoute(kioskMenuScreen, route: action);
+
+  /// Makes the menu the whole stack. Within one customer's visit this lands
+  /// on the live, already-painted menu (one clean slide, no rebuild); after
+  /// [KioskSession.reset] it builds a fresh menu for the next customer. Use
+  /// this — not push / pushReplacement — whenever a screen "returns to the
+  /// menu", or the pages under it pile up for the rest of the day.
+  static void goKioskMenu() => goRoutes.go(kioskMenuScreen);
   static String getKioskCartRoute({RouteAction? action}) => _navigateRoute(kioskCartScreen, route: action);
   static String getKioskCouponRoute({double? orderAmount, RouteAction? action}) =>
       _navigateRoute('$kioskCouponScreen?amount=${orderAmount ?? 0}', route: action);
@@ -198,6 +208,53 @@ class RouterHelper {
 
   static String? _getPath(GoRouterState state)=> '${state.fullPath}?${state.uri.query}';
 
+  /// The menu page. Its key is stable for one customer's visit, so
+  /// `go(kioskMenuScreen)` from deep in the order flow (payment cancelled,
+  /// order placed) lands on the SAME live menu page: go_router slides only
+  /// the top page away and drops the ones between without animating them.
+  /// [KioskSession.menuEpoch] moves on when a customer finishes, which makes
+  /// the next `go` build a fresh menu for the next person.
+  ///
+  /// [GoRouterState.pageKey] is kept in the key so a menu that is ever
+  /// *pushed* (unique imperative key) can never collide with the stack's one.
+  static Page<void> _kioskMenuPage(GoRouterState state, Widget child) {
+    return MaterialPage<void>(
+      key: ValueKey<String>(
+          '${state.pageKey.value}#${KioskSession.instance.menuEpoch}'),
+      name: state.path,
+      child: child,
+    );
+  }
+
+  /// Cart, coupon, checkout, confirm and payment: the pages a customer stacks
+  /// on top of the menu and backs out of again.
+  ///
+  /// Non-opaque on purpose. An opaque route takes the menu out of the paint
+  /// tree once it has slid in, and the web engine then drops the GPU textures
+  /// of every product photo on it. Backing out re-uploaded them all in ONE
+  /// frame (~200 ms of texImage2D in a profile build), so the 250 ms slide
+  /// froze and the menu "blinked" in. Kept painted underneath, the menu is
+  /// still warm when it is revealed and the slide runs at full frame rate.
+  ///
+  /// The cream [Material] guarantees the page covers and absorbs everything
+  /// below even before its own Scaffold has painted.
+  static Page<void> _kioskFlowPage(GoRouterState state, Widget child) {
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
+      name: state.path,
+      opaque: false,
+      transitionDuration: const AppSlidePageTransitionsBuilder().transitionDuration,
+      reverseTransitionDuration: const AppSlidePageTransitionsBuilder().transitionDuration,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          AppSlideTransition(
+            animation: animation,
+            secondaryAnimation: secondaryAnimation,
+            child: child,
+          ),
+      child: Material(color: KioskUI.pageBg, child: child),
+    );
+  }
+
   static final goRoutes = GoRouter(
 
     navigatorKey: navigatorKey,
@@ -210,13 +267,14 @@ class RouterHelper {
       GoRoute(path: kioskBootstrapScreen, builder: (context, state) => const KioskBootstrapScreen()),
       GoRoute(path: kioskLoginScreen, builder: (context, state) => const KioskLoginScreen()),
       GoRoute(path: kioskWelcomeScreen, builder: (context, state) => const KioskWelcomeScreen()),
-      GoRoute(path: kioskMenuScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskMenuScreen())),
-      GoRoute(path: kioskCartScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskCartScreen())),
-      GoRoute(path: kioskCouponScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), KioskCouponScreen(orderAmount: double.tryParse(state.uri.queryParameters['amount'] ?? '') ?? 0))),
-      GoRoute(path: kioskCheckoutScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskCheckoutNameScreen())),
-      GoRoute(path: kioskCheckoutEmailScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskCheckoutEmailScreen())),
-      GoRoute(path: kioskConfirmScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskConfirmScreen())),
-      GoRoute(path: kioskPaymentScreen, builder: (context, state) => _routeHandler(context, path: _getPath(state), const KioskPaymentScreen())),
+      GoRoute(path: kioskMenuScreen, pageBuilder: (context, state) => _kioskMenuPage(state, _routeHandler(context, path: _getPath(state), const KioskMenuScreen()))),
+      // The order flow above the menu: see [_kioskFlowPage].
+      GoRoute(path: kioskCartScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskCartScreen()))),
+      GoRoute(path: kioskCouponScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), KioskCouponScreen(orderAmount: double.tryParse(state.uri.queryParameters['amount'] ?? '') ?? 0)))),
+      GoRoute(path: kioskCheckoutScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskCheckoutNameScreen()))),
+      GoRoute(path: kioskCheckoutEmailScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskCheckoutEmailScreen()))),
+      GoRoute(path: kioskConfirmScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskConfirmScreen()))),
+      GoRoute(path: kioskPaymentScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskPaymentScreen()))),
       // Kiosk success/QR screen is disabled — after an order the flow returns
       // straight to the menu (see kiosk_confirm_screen / kiosk_payment_screen).
       // Kept as a redirect so any lingering navigation to /success-kiosk is

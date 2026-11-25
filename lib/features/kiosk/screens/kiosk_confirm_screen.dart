@@ -156,7 +156,7 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
         coupon: couponProvider,
       );
       if (!mounted) return;
-      RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
+      RouterHelper.goKioskMenu();
     } finally {
       if (mounted) {
         setState(() {

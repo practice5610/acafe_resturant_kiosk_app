@@ -23,7 +23,7 @@ class AppSlidePageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    return _AppSlideTransition(
+    return AppSlideTransition(
       animation: animation,
       secondaryAnimation: secondaryAnimation,
       child: child,
@@ -44,24 +44,28 @@ const PageTransitionsTheme appPageTransitionsTheme = PageTransitionsTheme(
   },
 );
 
+/// The slide itself, public so a page that builds its own route (the kiosk's
+/// non-opaque order-flow pages) moves exactly like every themed page.
+///
 /// Stateful so the curved animations — which listen to the route's — are
 /// disposed with the route instead of piling up on every rebuild.
-class _AppSlideTransition extends StatefulWidget {
+class AppSlideTransition extends StatefulWidget {
   final Animation<double> animation;
   final Animation<double> secondaryAnimation;
   final Widget child;
 
-  const _AppSlideTransition({
+  const AppSlideTransition({
+    super.key,
     required this.animation,
     required this.secondaryAnimation,
     required this.child,
   });
 
   @override
-  State<_AppSlideTransition> createState() => _AppSlideTransitionState();
+  State<AppSlideTransition> createState() => _AppSlideTransitionState();
 }
 
-class _AppSlideTransitionState extends State<_AppSlideTransition> {
+class _AppSlideTransitionState extends State<AppSlideTransition> {
   static final Animatable<Offset> _enter = Tween<Offset>(
     begin: const Offset(1, 0),
     end: Offset.zero,
@@ -83,7 +87,7 @@ class _AppSlideTransitionState extends State<_AppSlideTransition> {
   }
 
   @override
-  void didUpdateWidget(_AppSlideTransition oldWidget) {
+  void didUpdateWidget(AppSlideTransition oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.animation != widget.animation) {
       _primary.dispose();

@@ -24,7 +24,6 @@ import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/utill/styles.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 enum _Phase { processing, submitting, failed }
@@ -216,7 +215,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
           coupon: couponProvider,
         );
         if (!mounted) return;
-        RouterHelper.getKioskMenuRoute(action: RouteAction.pushReplacement);
+        RouterHelper.goKioskMenu();
       } else if (mounted) {
         // Payment succeeded but the order didn't post — let Retry re-submit the
         // order (not re-charge), since the customer has already paid.
@@ -260,7 +259,7 @@ class _KioskPaymentScreenState extends State<KioskPaymentScreen> {
 
   void _exitToCart() {
     // Preserve the cart and return to the menu so the customer can retry/adjust.
-    if (mounted) context.go(RouterHelper.kioskMenuScreen);
+    if (mounted) RouterHelper.goKioskMenu();
   }
 
   @override
