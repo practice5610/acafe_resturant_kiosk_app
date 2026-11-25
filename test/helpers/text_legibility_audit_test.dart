@@ -147,11 +147,11 @@ void main() {
       tester,
       Text('reopen copy',
           style: loewRegular.copyWith(
-              fontFamily: 'Swiss721Light', color: TextTones.primary)),
+              fontFamily: 'Swiss721Bogus', color: TextTones.primary)),
     );
 
     expect(auditTextLegibility(tester).single.problem,
-        contains('"Swiss721Light" is not registered'));
+        contains('"Swiss721Bogus" is not registered'));
   });
 
   testWidgets('flags a bold the family cannot draw without synthesising',
@@ -198,7 +198,8 @@ void main() {
   test('reads every registered family and weight from pubspec.yaml', () {
     final Map<String, Set<int>> families = registeredFontFamilies;
     expect(families['Loew'], {400, 500, 700, 800});
-    expect(families['Swiss721'], {400, 500});
+    expect(families['Swiss721Light'], {300});
+    expect(families['NunitoSans'], {400, 500});
     expect(families['Inter'], {400, 600, 700, 800});
     expect(families['Roboto'], {400});
   });

@@ -43,10 +43,10 @@ const robotoRegular = TextStyle(
   fontWeight: FontWeight.w400,
 );
 
-// Figma kiosk fonts, registered in pubspec.yaml: Loew 400/500/700/800 and
-// "Swiss721" 400/500. The Swiss721 family is really Nunito Sans (see the note
-// in pubspec.yaml), so `swiss721Light` draws Nunito Sans Regular and
-// `swiss721Medium` Nunito Sans Medium.
+// Figma kiosk fonts, registered in pubspec.yaml: Loew 400/500/700/800,
+// Swiss721Light 300 (real Swiss 721 BT Light) and NunitoSans 400/500.
+// `swiss721Light` is real Swiss 721; it has no Euro glyph, so "€" falls back to
+// Nunito Sans per glyph. `swiss721Medium` is Nunito Sans Medium (unchanged).
 const loewRegular = TextStyle(
   fontFamily: 'Loew',
   fontSize: Dimensions.fontSizeDefault,
@@ -84,7 +84,8 @@ const loewExtraBold = TextStyle(
 );
 
 const swiss721Light = TextStyle(
-  fontFamily: 'Swiss721',
+  fontFamily: 'Swiss721Light',
+  fontFamilyFallback: ['NunitoSans'],
   fontSize: Dimensions.fontSizeDefault,
   fontWeight: FontWeight.w300,
 );
@@ -93,7 +94,7 @@ const swiss721Light = TextStyle(
 /// heavier than [swiss721Light], so 11–12 px strokes stay solid on 1× kiosk
 /// and desktop displays instead of anti-aliasing to grey.
 const swiss721Medium = TextStyle(
-  fontFamily: 'Swiss721',
+  fontFamily: 'NunitoSans',
   fontSize: Dimensions.fontSizeDefault,
   fontWeight: FontWeight.w500,
 );

@@ -51,23 +51,6 @@ class _StepFlowScope extends InheritedWidget {
   bool updateShouldNotify(_StepFlowScope oldWidget) => false;
 }
 
-/// Data rule for the portrait flow (no name matching): a MULTI-select
-/// variation group is an add-on list ("Extras", "Classic Toppings", "Syrup Add
-/// On"... — no live product uses the add-on table), a single-select one is a
-/// real choice (Iced/Hot, Size, Alternative Milk).
-List<MapEntry<int, Variation>> _singleSelect(
-        List<MapEntry<int, Variation>> groups) =>
-    [
-      for (final g in groups)
-        if (g.value.isMultiSelect != true) g
-    ];
-List<MapEntry<int, Variation>> _multiSelect(
-        List<MapEntry<int, Variation>> groups) =>
-    [
-      for (final g in groups)
-        if (g.value.isMultiSelect == true) g
-    ];
-
 /// One screen of the portrait flow: exactly ONE option group. A phase
 /// ([_CustomizeStep]) with several groups is paged through one group at a time
 /// (e.g. Hojicha Latte: Iced/Hot -> Alternative Milk -> Extras -> Cup/Can).
@@ -82,9 +65,6 @@ class _StepPage {
   /// The single add-on group on an add-ons page.
   final AddOnGroup? addOnGroup;
 
-  /// A multi-select variation group shown on the ADD-ONS step as add-on cards.
-  bool get isVariationAddOn =>
-      step == _CustomizeStep.addOns && variations.isNotEmpty;
   const _StepPage(this.step,
       {this.variations = const [], this.isSize = false, this.addOnGroup});
 }
@@ -108,7 +88,7 @@ enum _CustomizeStep {
         _CustomizeStep.milks => () {
             final groups = [
               ...sections.size,
-              ..._singleSelect(sections.dietary),
+              ...sections.dietary,
             ];
             final String name = groups.length == 1
                 ? (groups.single.value.name ?? '').trim()
@@ -220,12 +200,13 @@ class _KioskProductCustomizeStepScreenState
 
     _sections = KioskCustomizeSections.of(product);
     _steps = [
-      if (_sections.size.isNotEmpty ||
-          _singleSelect(_sections.dietary).isNotEmpty)
-        _CustomizeStep.milks,
-      if (product.effectiveAddOnGroups.isNotEmpty ||
-          _multiSelect(_sections.dietary).isNotEmpty)
-        _CustomizeStep.addOns,
+      // Phases come straight from the backend's own categories — a phase
+      // exists only when the product has data for it:
+      //   variation groups (single- AND multi-select) -> variations step,
+      //   add-on groups                                 -> ADD-ONS step,
+      //   cup/can                                       -> CUP OR CAN step.
+      if (_sections.hasMilkStep) _CustomizeStep.milks,
+      if (product.effectiveAddOnGroups.isNotEmpty) _CustomizeStep.addOns,
       if (_sections.cupCan.isNotEmpty) _CustomizeStep.cupOrCan,
     ];
     _pages = [
@@ -234,12 +215,10 @@ class _KioskProductCustomizeStepScreenState
           _CustomizeStep.milks => [
               if (_sections.size.isNotEmpty)
                 _StepPage(step, variations: _sections.size, isSize: true),
-              for (final e in _singleSelect(_sections.dietary))
+              for (final e in _sections.dietary)
                 _StepPage(step, variations: [e]),
             ],
           _CustomizeStep.addOns => [
-              for (final e in _multiSelect(_sections.dietary))
-                _StepPage(step, variations: [e]),
               for (final g in product.effectiveAddOnGroups)
                 _StepPage(step, addOnGroup: g),
             ],
@@ -663,15 +642,6 @@ class _KioskProductCustomizeStepScreenState
       );
     }
     final MapEntry<int, Variation> group = page.variations.single;
-    if (page.isVariationAddOn) {
-      return _VariationAddOnSection(
-        s: s,
-        variation: group.value,
-        variationIndex: group.key,
-        product: product,
-        productProvider: productProvider,
-      );
-    }
     if (page.step == _CustomizeStep.cupOrCan) {
       return _CupCanSection(
         s: s,
@@ -1276,17 +1246,12 @@ class _YourChoicesRow extends StatelessWidget {
       case _CustomizeStep.milks:
         // Size panel then the single-select groups — the same order step 1
         // pages them.
-        return _variationTiles(splash,
-            [...sections.size, ..._singleSelect(sections.dietary)], stepIdx);
+        return _variationTiles(
+            splash, [...sections.size, ...sections.dietary], stepIdx);
       case _CustomizeStep.cupOrCan:
         return _variationTiles(splash, sections.cupCan, stepIdx);
       case _CustomizeStep.addOns:
-        // Multi-select variation extras first (their pages come first), then
-        // add-on-table items.
-        return [
-          ..._variationTiles(splash, _multiSelect(sections.dietary), stepIdx),
-          ..._addOnTiles(context, stepIdx),
-        ];
+        return _addOnTiles(context, stepIdx);
     }
   }
 
@@ -1706,100 +1671,5 @@ class _DashedBorderPainter extends BoxPainter {
       );
       distance = end + dashOff;
     }
-  }
-}
-
-/// Portrait Version B: a MULTI-select variation group ("Extras", "Classic
-/// Toppings"...) drawn as the ADD-ONS step's cards (Figma 2305-13161) — the very
-/// same [_AddOnCard], 539x535, toggled on/off by a tap (no +/- counter).
-///
-/// No counter: a variation pick is a yes/no on the order, and
-/// the backend prices it with `in_array(label, ...)`, so sending a value twice
-/// would be charged once. Real quantities need backend support first.
-class _VariationAddOnSection extends StatelessWidget {
-  final double s;
-  final Variation variation;
-  final int variationIndex;
-  final Product product;
-  final ProductProvider productProvider;
-  const _VariationAddOnSection({
-    required this.s,
-    required this.variation,
-    required this.variationIndex,
-    required this.product,
-    required this.productProvider,
-  });
-
-  void _toggle(int i) {
-    productProvider.setCartVariationIndex(
-        variationIndex, i, product, variation.isMultiSelect!);
-    productProvider.checkIsRequiredSelected(
-      index: variationIndex,
-      isMultiSelect: variation.isMultiSelect!,
-      variations: productProvider.selectedVariations[variationIndex],
-      min: variation.min,
-      max: variation.max,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final splash = Provider.of<SplashProvider>(context, listen: false);
-    final values = variation.variationValues ?? const <VariationValue>[];
-    final bool showImage = context.watch<KioskAuthProvider>().showImages;
-    final String title = (variation.name ?? '').trim().isNotEmpty
-        ? variation.name!.trim()
-        : (getTranslated('add_add_ons', context) ?? 'Add add-ons');
-
-    return _SectionPanel(
-      s: s,
-      title: title,
-      child: LayoutBuilder(builder: (context, constraints) {
-        final double gap = _choiceGap(s);
-        final double cardWidth = _choiceGridTileWidth(
-          viewportWidth: MediaQuery.sizeOf(context).width,
-          panelWidth: constraints.maxWidth,
-          s: s,
-          gap: gap,
-          artboardCard: KioskCustomizeSpec.addOnCardWidth,
-        );
-        final double cardHeight = cardWidth *
-            (KioskCustomizeSpec.addOnCardHeight /
-                KioskCustomizeSpec.addOnCardWidth);
-        return Wrap(
-          alignment: WrapAlignment.start,
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (int i = 0; i < values.length; i++)
-              Builder(builder: (context) {
-                final bool selected =
-                    productProvider.selectedVariations[variationIndex][i] ??
-                        false;
-                return _AddOnCard(
-                  width: cardWidth,
-                  height: cardHeight,
-                  name: (values[i].level ?? '').trim(),
-                  priceDelta: values[i].optionPrice ?? 0,
-                  image: _choiceImageUrl(
-                    KioskProductImageHelper.optionCardImageUrl(
-                      value: values[i],
-                      productImageBaseUrl: splash.baseUrls?.productImageUrl,
-                    ),
-                  ),
-                  showImage: showImage,
-                  showPrice: true,
-                  selected: selected,
-                  // A variation pick is yes/no (see the class doc), so no
-                  // −/qty/+ stepper: tapping the card toggles it on and off.
-                  showQuantity: false,
-                  reserveQuantity: false,
-                  onTap: () => _toggle(i),
-                );
-              }),
-          ],
-        );
-      }),
-    );
   }
 }

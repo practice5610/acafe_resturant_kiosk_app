@@ -138,7 +138,7 @@ void main() {
       'Extra hot',
     ]) {
       final TextStyle style = styleOf(tester, text);
-      expect(style.fontFamily, 'Swiss721', reason: text);
+      expect(style.fontFamily, 'NunitoSans', reason: text);
       expect(style.fontWeight, FontWeight.w500, reason: text);
     }
     // The price line and the kitchen note stay secondary; the add-on picks

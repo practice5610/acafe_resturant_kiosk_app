@@ -5,6 +5,7 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_order_note_sheet.dart';
@@ -140,9 +141,9 @@ class _CartLayout {
         width: width,
         band: band,
         landscape: landscape,
-        // Figma gutters: 132 left (the list's optical margin), 60 right.
-        portraitLeft: 132 * s,
-        portraitRight: 60 * s,
+        // Figma 2305:16932: cards run 96 in from both edges.
+        portraitLeft: 96 * s,
+        portraitRight: 96 * s,
         minGutter: _minGutter * s,
       ),
     );
@@ -164,14 +165,15 @@ class _CartLayout {
   // Artboard px. Landscape values are denser: the same layout, less air.
   double get headerPad => landscape ? 40 : 60;
   double get headerRow => landscape ? 120 : 141;
-  double get titleSize => landscape ? 76 : 100;
-  double get titleGap => landscape ? 16 : 22;
-  double get subtitleSize => landscape ? 44 : 68;
+  double get titleSize => landscape ? 76 : 92;
+  double get titleGap => landscape ? 16 : 18;
+  double get subtitleSize => landscape ? 44 : 60;
   double get listGap => landscape ? 32 : 40;
-  double get lineGap => landscape ? 32 : 42;
-  double get notePad => landscape ? 34 : 46;
-  double get footerPad => landscape ? 64 : 100;
-  double get buttonHeight => landscape ? 150 : 180;
+  double get lineGap => landscape ? 32 : 56;
+  double get notePad => landscape ? 34 : 80;
+  double get footerTop => landscape ? 48 : 69;
+  double get footerBottom => landscape ? 56 : 86;
+  double get buttonHeight => landscape ? 180 : 252;
 
   /// Gap between the two footer buttons — and, on the left, the gap the
   /// breakdown's divider is centred in.
@@ -225,15 +227,19 @@ class _CartBody extends StatelessWidget {
                   child: ListView(
                     padding: layout.padded(bottom: layout.listGap * s),
                     children: [
-                      Text(getTranslated('my_order', context) ?? 'MY ORDER',
+                      Text(
+                          (getTranslated('my_order', context) ?? 'MY ORDER')
+                              .toUpperCase(),
                           style: loewExtraBold.copyWith(
                               fontSize: layout.titleSize * s,
                               height: 1,
                               color: Colors.black)),
                       SizedBox(height: layout.titleGap * s),
                       Text(
-                        '${getTranslated('dine_in', context) ?? 'Dine in'} / $itemCount ${getTranslated('items', context) ?? 'items'}',
-                        style: scotchDisplayCondLight.copyWith(
+                        // Figma uses the plain body sans here (not the condensed
+                        // display face) and a lowercase "items".
+                        '${getTranslated('dine_in', context) ?? 'Dine in'} / $itemCount ${(getTranslated('items', context) ?? 'items').toLowerCase()}',
+                        style: loewRegular.copyWith(
                             fontSize: layout.subtitleSize * s,
                             height: 1,
                             color: Colors.black),
@@ -308,9 +314,14 @@ class _OrderNoteBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final double s = layout.s;
     final bool hasNote = note.trim().isNotEmpty;
-    final EdgeInsets padding = layout.pagePadded(
+    // Figma 2305:16923: text 128 in, plus 80 from the right edge.
+    final EdgeInsets base = layout.pagePadded(
       top: layout.notePad * s,
       bottom: layout.notePad * s,
+    );
+    final EdgeInsets padding = base.copyWith(
+      left: base.left + 32 * s,
+      right: math.max(0, base.right - 16 * s),
     );
     // Design hairline, not a fixed 2 logical px — every other divider in this
     // screen (header rule, item-list gaps) scales with `s`, and a bare "2"
@@ -319,6 +330,7 @@ class _OrderNoteBar extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
+        color: _kCardBg,
         border: Border(
           top: BorderSide(color: Colors.black, width: borderWidth),
           bottom: BorderSide(color: Colors.black, width: borderWidth),
@@ -356,7 +368,7 @@ class _OrderNoteBar extends StatelessWidget {
                             style: loewExtraBold.copyWith(
                                 fontSize: 72 * s,
                                 height: 1,
-                                color: Colors.black),
+                                color: const Color(0xFF231F20)),
                           ),
                           SizedBox(height: 20 * s),
                           Text(
@@ -413,9 +425,12 @@ class _Footer extends StatelessWidget {
     required this.enabled,
   });
 
+  /// Footer drawn at 80% of the Figma artboard (user asked for smaller).
+  double get _s => layout.s * 0.80;
+
   @override
   Widget build(BuildContext context) {
-    final double s = layout.s;
+    final double s = _s;
 
     // One full-bleed bar at every size: the summary belongs under the items
     // it totals, lifted off the page by the same rounded lip and shadow the
@@ -423,19 +438,22 @@ class _Footer extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: _kCardBg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(40 * s)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30 * s)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.25),
-            offset: const Offset(0, 50),
-            blurRadius: 40.3,
-            spreadRadius: 20,
+            offset: Offset(0, 22 * s),
+            blurRadius: 20.15 * s,
           ),
         ],
       ),
+      // Figma 2305:16922: 107 left / 57 right around the summary.
       padding: layout.pagePadded(
-        top: layout.footerPad * s,
-        bottom: layout.footerPad * s,
+        top: layout.footerTop * s,
+        bottom: layout.footerBottom * s,
+      ).copyWith(
+        left: layout.pagePadded().left + 11 * layout.s,
+        right: math.max(0, layout.pagePadded().right - 39 * layout.s),
       ),
       child: _summaryBody(context),
     );
@@ -443,15 +461,12 @@ class _Footer extends StatelessWidget {
 
   /// TOTAL + amount row, then the two pill buttons — Figma 2305:15652.
   ///
-  /// The old breakdown (ITEMS TOTAL / DISCOUNT / TAX / YOUR PAY) is gone from
-  /// this screen per the new design; those figures are still computed and
-  /// shown on the confirm screen and the printed receipt — see
-  /// [kioskItemsTotal] / [kioskDiscountTotal] / [kioskTaxTotal] in
-  /// `kiosk_cart_totals.dart`, used by `kiosk_confirm_screen.dart` and
-  /// `pos_receipt_print.dart`.
+  /// No ITEMS TOTAL / TAX breakdown on this screen: the cart design shows the
+  /// grand TOTAL only. Those figures are still computed and shown on the
+  /// confirm screen and the printed receipt.
   Widget _summaryBody(BuildContext context) {
-    final double s = layout.s;
-    final double buttonHeight = 252 * s;
+    final double s = _s;
+    final double buttonHeight = layout.buttonHeight * s;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,15 +484,8 @@ class _Footer extends StatelessWidget {
               ),
             ),
             SizedBox(width: 24 * s),
-            // Expanded + FittedBox(scaleDown), not a bare Flexible(Text(...)):
-            // a Flexible alone caps the Text's width but still lets it WRAP
-            // onto a second line once the glyphs don't fit — which is what
-            // was blowing the footer's height out on narrower viewports (the
-            // amount wrapped "€" / "5,50" onto two lines at this font size).
-            // FittedBox shrinks the whole amount to fit the remaining row
-            // width instead of wrapping it; Expanded gives it everything
-            // left after "TOTAL", matching the original Spacer()-style
-            // left/right split.
+            // Expanded + FittedBox(scaleDown): shrink a long amount to the
+            // row instead of letting it wrap and blow the footer's height.
             Expanded(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -495,7 +503,7 @@ class _Footer extends StatelessWidget {
             ),
           ],
         ),
-        SizedBox(height: layout.buttonGap * s),
+        SizedBox(height: 85 * s),
         Row(
           children: [
             Expanded(child: _couponButton(context, height: buttonHeight)),
@@ -509,7 +517,7 @@ class _Footer extends StatelessWidget {
 
   Widget _couponButton(BuildContext context, {required double height}) {
     return _FooterButton(
-      s: layout.s,
+      s: _s,
       height: height,
       label: (couponDiscount > 0
               ? (couponCode ??
@@ -529,7 +537,7 @@ class _Footer extends StatelessWidget {
 
   Widget _checkoutButton(BuildContext context, {required double height}) {
     return _FooterButton(
-      s: layout.s,
+      s: _s,
       height: height,
       label: (getTranslated('check_out', context) ?? 'CHECK OUT').toUpperCase(),
       filled: true,
@@ -570,11 +578,12 @@ class _FooterButton extends StatelessWidget {
               border: filled
                   ? null
                   : Border.all(
-                      color: Colors.black, width: (8 * s).clamp(2.0, 10.0)),
+                      color: Colors.black, width: (4 * s).clamp(1.5, 4.0)),
             ),
             child: Text(
               label,
               textAlign: TextAlign.center,
+              maxLines: 1,
               style: (filled ? loewRegular800 : loewRegular700).copyWith(
                 fontSize: 52 * s,
                 letterSpacing: 1,

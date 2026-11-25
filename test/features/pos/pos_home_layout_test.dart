@@ -50,11 +50,15 @@ Future<void> _loadFonts() async {
   // The receipt's Subtotal/Discount rows are Swiss721. Without it the test
   // font draws every glyph a full em wide and a 1024 window's 285px receipt
   // "overflows" on text that fits with room to spare on a real device.
-  final swiss = FontLoader('Swiss721')
-    ..addFont(File('assets/fonts/Swiss721-Light.ttf')
-        .readAsBytes()
-        .then((bytes) => ByteData.view(Uint8List.fromList(bytes).buffer)));
-  await swiss.load();
+  ByteData bytesOf(String path) => ByteData.view(
+      Uint8List.fromList(File(path).readAsBytesSync()).buffer);
+  await (FontLoader('Swiss721Light')
+        ..addFont(Future.value(bytesOf('assets/fonts/Swiss 721 Light.otf'))))
+      .load();
+  await (FontLoader('NunitoSans')
+        ..addFont(Future.value(bytesOf('assets/fonts/NunitoSans-Regular.ttf')))
+        ..addFont(Future.value(bytesOf('assets/fonts/NunitoSans-Medium.ttf'))))
+      .load();
 }
 
 /// The branch's real top-level categories, from the screenshot that reported

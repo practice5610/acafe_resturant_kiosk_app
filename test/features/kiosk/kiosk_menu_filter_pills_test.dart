@@ -66,7 +66,11 @@ Future<void> _fonts() async {
       'assets/fonts/Loew-Bold.ttf',
       'assets/fonts/Loew-ExtraBold.ttf'
     ],
-    'Swiss721': ['assets/fonts/Swiss721-Light.ttf'],
+    'Swiss721Light': ['assets/fonts/Swiss 721 Light.otf'],
+    'NunitoSans': [
+      'assets/fonts/NunitoSans-Regular.ttf',
+      'assets/fonts/NunitoSans-Medium.ttf',
+    ],
   };
   for (final e in f.entries) {
     final l = FontLoader(e.key);

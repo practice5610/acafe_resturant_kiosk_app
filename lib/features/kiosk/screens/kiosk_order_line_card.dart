@@ -31,7 +31,10 @@ const Color kOrderWasPriceColor = Color(0xFF888480);
 /// Figma's cart thumbnail is a 473×660 portrait crop. That crop is what makes
 /// a line card a third of a 16:9 viewport tall, so wide layouts pass 1.0 and
 /// get a square instead — the same trade the product grid already makes.
-const double kOrderLineImageAspect = 473 / 660;
+/// Card size relative to the Figma artboard (user asked for smaller cards).
+const double kOrderCardScale = 0.74;
+
+const double kOrderLineImageAspect = 467 / 700;
 
 /// One cart line: product image, name, price, modifier lines and a qty stepper.
 /// Tapping the card opens the edit sheet; the stepper updates the cart live.
@@ -207,34 +210,47 @@ class _ScaledLineCard extends StatelessWidget {
 
     void onEdit() => openKioskCartLine(context, cart, cartIndex: index);
 
+    // Whole card drawn at 80% of the Figma artboard — full size read as
+    // oversized on the kiosk.
+    final double s = this.s * kOrderCardScale;
+
+    // Figma 2305:16932 — 729-tall card, 1px #B9B5A6 rule, radius 30. The
+    // product photo nearly fills the card's height (467×700, inset 75/14);
+    // the text column is TOP-aligned on the name (87 down), EDIT sits on the
+    // name's line at the right, and the stepper is centred vertically.
+    final double minHeight = showImages ? 729 * s : 0;
+    // Room the right-hand controls need, so long names ellipsize before
+    // running under the stepper: 70 inset + 150 box + 180 qty + 150 box.
+    final double controlsReserve = 70 * s + 480 * s + 40 * s;
+
     return Material(
       color: kOrderCardBg,
       borderRadius: BorderRadius.circular(30 * s),
       clipBehavior: Clip.antiAlias,
       child: Container(
+        constraints: BoxConstraints(minHeight: minHeight),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30 * s),
-          border: Border.all(
-              color: kOrderCardBorder, width: (1.5 * s).clamp(1.0, 3.0)),
+          border: Border.all(color: kOrderCardBorder, width: 1),
         ),
-        padding: EdgeInsets.all(30 * s),
-        // Stepper/EDIT are siblings of the edit tap — not nested inside it —
-        // so a card-body tap never competes with "+"/EDIT in the gesture
-        // arena.
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Stepper/EDIT are positioned siblings of the edit tap — not nested
+        // inside it — so a card-body tap never competes with "+"/EDIT in the
+        // gesture arena.
+        child: Stack(
           children: [
-            Expanded(
-              child: KioskTap(
-                onTap: onEdit,
-                child: Row(
-                  children: [
-                    if (showImages) ...[
-                      ClipRRect(
+            KioskTap(
+              onTap: onEdit,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (showImages) ...[
+                    Padding(
+                      padding: EdgeInsets.only(left: 75 * s, top: 14 * s),
+                      child: ClipRRect(
                         borderRadius: BorderRadius.circular(33 * s),
                         child: SizedBox(
-                          width: 473 * s,
-                          height: (473 * s) / imageAspect,
+                          width: 467 * s,
+                          height: (467 * s) / imageAspect,
                           child: CustomImageWidget(
                             emptyWhenMissing: true,
                             placeholder: Images.placeholderImage,
@@ -248,9 +264,17 @@ class _ScaledLineCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      SizedBox(width: 50 * s),
-                    ],
-                    Expanded(
+                    ),
+                    SizedBox(width: 50 * s),
+                  ],
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: showImages ? 0 : 75 * s,
+                        top: 87 * s,
+                        bottom: 60 * s,
+                        right: controlsReserve,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -265,7 +289,7 @@ class _ScaledLineCard extends StatelessWidget {
                                           cart.product?.name ??
                                           '')
                                       : (cart.product?.name ?? ''),
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: loewExtraBold.copyWith(
                                       fontSize: 72 * s,
@@ -279,37 +303,40 @@ class _ScaledLineCard extends StatelessWidget {
                               ],
                             ],
                           ),
-                          SizedBox(height: 16 * s),
+                          SizedBox(height: 45 * s),
                           KioskLinePriceRow(
                             cart: cart,
-                            fontSize: 90 * s,
+                            fontSize: 96 * s,
                             gap: 24 * s,
                           ),
-                          SizedBox(height: 24 * s),
+                          SizedBox(height: 49 * s),
                           for (final line in modifiers)
                             Padding(
-                              padding: EdgeInsets.only(bottom: 14 * s),
+                              padding: EdgeInsets.only(bottom: 22 * s),
                               child: Text(line,
                                   style: loewRegular.copyWith(
                                       fontSize: 64 * s,
-                                      height: 1.1,
+                                      height: 1,
                                       color: Colors.black)),
                             ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            SizedBox(width: 30 * s),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _CartEditButton(s: s, onTap: onEdit),
-                SizedBox(height: 40 * s),
-                _QtyStepper(
+            Positioned(
+              top: 87 * s - 9 * s,
+              right: 58 * s,
+              child: _CartEditButton(s: s, onTap: onEdit),
+            ),
+            Positioned(
+              top: 0,
+              bottom: 0,
+              right: 70 * s,
+              child: Center(
+                child: _QtyStepper(
                   s: s,
                   quantity: cart.quantity ?? 1,
                   onDecrement: () {
@@ -331,7 +358,7 @@ class _ScaledLineCard extends StatelessWidget {
                               product: cart.product!,
                               isRemove: false),
                 ),
-              ],
+              ),
             ),
           ],
         ),
@@ -535,15 +562,19 @@ class _QtyStepper extends StatelessWidget {
         _StepBox(
           s: s,
           label: atMinimum ? null : '−',
-          icon: atMinimum ? Icons.delete_outline : null,
+          // Figma 2305:16967: a bare filled bin, no box, at qty 1.
+          icon: atMinimum ? Icons.delete : null,
+          bare: atMinimum,
           filled: false,
           onTap: onDecrement,
         ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 30 * s),
+        // Figma 2305:16936: the count sits centred in a 180-wide slot.
+        SizedBox(
+          width: 180 * s,
           child: Text('$quantity',
+              textAlign: TextAlign.center,
               style: loewExtraBold.copyWith(
-                  fontSize: 90 * s, color: Colors.black)),
+                  fontSize: 96 * s, height: 1, color: Colors.black)),
         ),
         _StepBox(s: s, label: '+', filled: true, onTap: onIncrement),
       ],
@@ -556,11 +587,13 @@ class _StepBox extends StatelessWidget {
   final String? label;
   final IconData? icon;
   final bool filled;
+  final bool bare;
   final VoidCallback onTap;
   const _StepBox(
       {required this.s,
       this.label,
       this.icon,
+      this.bare = false,
       required this.filled,
       required this.onTap})
       : assert(label != null || icon != null, 'need a label or an icon');
@@ -575,21 +608,23 @@ class _StepBox extends StatelessWidget {
         onTap: onTap,
         child: Container(
           width: 150 * s,
-          height: 114 * s,
+          height: 111 * s,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15 * s),
-            border: Border.all(
-                color: Colors.black, width: (2.25 * s).clamp(1.5, 4.0)),
+            border: bare
+                ? null
+                : Border.all(
+                    color: Colors.black, width: (2.25 * s).clamp(1.5, 4.0)),
           ),
           child: icon != null
               ? Icon(icon,
-                  size: 60 * s,
+                  size: (bare ? 80 : 60) * s,
                   color: filled ? kOrderPlusText : Colors.black)
               : Text(
                   label!,
                   style: loewExtraBold.copyWith(
-                      fontSize: 90 * s,
+                      fontSize: 96 * s,
                       height: 1,
                       color: filled ? kOrderPlusText : Colors.black),
                 ),

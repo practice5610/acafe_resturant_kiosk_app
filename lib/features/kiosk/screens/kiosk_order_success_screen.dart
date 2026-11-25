@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_intro_image.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/utill/images.dart';
@@ -98,7 +97,8 @@ class KioskOrderSuccessScreen extends StatefulWidget {
     String thankYouSubtitle = "Your order is paid. We're making it now.",
     String nameCardLabel = 'WE CALL YOUR NAME AT THE COUNTER',
     String receiptHeadline = 'Scan for your receipt',
-    String receiptSubtitle = 'Open it on your phone and follow your order live.',
+    String receiptSubtitle =
+        'Open it on your phone and follow your order live.',
     String noPaperLabel = 'No paper receipt is printed',
     String placeNewOrderLabel = 'PLACE NEW ORDER',
     String closesInLabel = 'Closes in',
@@ -257,52 +257,66 @@ class _KioskOrderSuccessScreenState extends State<KioskOrderSuccessScreen>
                 constraints.maxHeight,
               );
 
-              return Stack(
-                children: [
-                  Positioned(
-                    top: m.logoTop,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: _reveal(
-                        controller: _confirm,
-                        begin: 0.0,
-                        end: 0.28,
-                        s: m.s,
-                        rise: 16,
-                        child: SvgPicture.asset(
-                          Images.kioskLogoWhiteSvg,
-                          width: m.logoWidth,
-                          height: m.logoHeight,
-                          fit: BoxFit.contain,
-                          colorFilter: const ColorFilter.mode(
-                            _kInk,
-                            BlendMode.srcIn,
+              // The whole screen is the Figma artboard (2572 x 4530) scaled
+              // by ONE factor and centred, so every element keeps its exact
+              // Figma position and proportion on any kiosk size.
+              return Center(
+                child: SizedBox(
+                  width: m.px(_kArtboardW),
+                  height: m.px(_kArtboardH),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: m.logoTop,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: _reveal(
+                            controller: _confirm,
+                            begin: 0.0,
+                            end: 0.28,
+                            s: m.s,
+                            rise: 16,
+                            child: SvgPicture.asset(
+                              Images.kioskLogoWhiteSvg,
+                              width: m.logoWidth,
+                              height: m.logoHeight,
+                              fit: BoxFit.contain,
+                              colorFilter: const ColorFilter.mode(
+                                _kInk,
+                                BlendMode.srcIn,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    top: m.logoTop + m.logoHeight,
-                    left: 0,
-                    right: 0,
-                    bottom: _beat == _Beat.thankYou ? m.buttonAreaHeight : 0,
-                    child: Center(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.symmetric(vertical: m.px(40)),
+                      Positioned.fill(
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 420),
                           switchInCurve: Curves.easeOutCubic,
                           switchOutCurve: Curves.easeInCubic,
+                          layoutBuilder: (current, previous) => Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ...previous,
+                              if (current != null) current
+                            ],
+                          ),
                           child: _beat == _Beat.confirmed
                               ? KeyedSubtree(
                                   key: const ValueKey('confirmed'),
-                                  child: _ConfirmedBeat(
-                                    metrics: m,
-                                    text: widget.confirmedText,
-                                    progress: _confirm,
-                                    reveal: _reveal,
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      top: m.logoTop + m.logoHeight,
+                                    ),
+                                    child: Center(
+                                      child: _ConfirmedBeat(
+                                        metrics: m,
+                                        text: widget.confirmedText,
+                                        progress: _confirm,
+                                        reveal: _reveal,
+                                      ),
+                                    ),
                                   ),
                                 )
                               : KeyedSubtree(
@@ -324,23 +338,23 @@ class _KioskOrderSuccessScreenState extends State<KioskOrderSuccessScreen>
                                 ),
                         ),
                       ),
-                    ),
+                      if (_beat == _Beat.thankYou)
+                        Positioned(
+                          left: m.sidePad,
+                          width: m.cardWidth,
+                          top: m.buttonTop,
+                          child: _PlaceNewOrderButton(
+                            metrics: m,
+                            label: widget.placeNewOrderLabel,
+                            closesInLabel: widget.closesInLabel,
+                            secondsLeft: _secondsLeft,
+                            totalSeconds: widget.countdownSeconds,
+                            onTap: _leave,
+                          ),
+                        ),
+                    ],
                   ),
-                  if (_beat == _Beat.thankYou)
-                    Positioned(
-                      left: m.sidePad,
-                      right: m.sidePad,
-                      bottom: m.buttonBottomInset,
-                      child: _PlaceNewOrderButton(
-                        metrics: m,
-                        label: widget.placeNewOrderLabel,
-                        closesInLabel: widget.closesInLabel,
-                        secondsLeft: _secondsLeft,
-                        totalSeconds: widget.countdownSeconds,
-                        onTap: _leave,
-                      ),
-                    ),
-                ],
+                ),
               );
             },
           ),
@@ -385,7 +399,8 @@ class _ConfirmedBeat extends StatelessWidget {
           rise: 24,
           builder: (t) {
             // Draw the Figma check, then settle the scale.
-            final double scale = 0.86 + (0.14 * Curves.easeOutBack.transform(t));
+            final double scale =
+                0.86 + (0.14 * Curves.easeOutBack.transform(t));
             return Transform.scale(
               scale: scale,
               child: SizedBox(
@@ -467,12 +482,46 @@ class _ThanksBeat extends StatelessWidget {
         ? ''
         : 'Order /${orderNumber.trim().replaceFirst(RegExp(r'^#'), '')}';
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: m.sidePad),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          reveal(
+    // Every block sits at its Figma artboard coordinate (frame 2305:17116).
+    return Stack(
+      children: [
+        // success-badge — 220px black disc, 110px white check (2305:17137).
+        Positioned(
+          top: m.badgeTop,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: reveal(
+              controller: progress,
+              begin: 0.0,
+              end: 0.42,
+              s: m.s,
+              rise: 24,
+              builder: (t) => Transform.scale(
+                scale: 0.86 + (0.14 * Curves.easeOutBack.transform(t)),
+                child: Container(
+                  width: m.badgeSize,
+                  height: m.badgeSize,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: Colors.black,
+                    shape: BoxShape.circle,
+                  ),
+                  child: SvgPicture.asset(
+                    Images.kioskThankYouCheckSvg,
+                    width: m.badgeIconSize,
+                    height: m.badgeIconSize,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: m.thankYouTop,
+          left: m.sidePad,
+          width: m.cardWidth,
+          child: reveal(
             controller: progress,
             begin: 0.1,
             end: 0.5,
@@ -480,6 +529,7 @@ class _ThanksBeat extends StatelessWidget {
             child: Text(
               headline,
               textAlign: TextAlign.center,
+              maxLines: 1,
               style: loewExtraBold.copyWith(
                 fontSize: m.thankYouSize,
                 height: 1.0,
@@ -487,8 +537,12 @@ class _ThanksBeat extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(height: m.subtitleGap),
-          reveal(
+        ),
+        Positioned(
+          top: m.subtitleTop,
+          left: m.sidePad,
+          width: m.cardWidth,
+          child: reveal(
             controller: progress,
             begin: 0.18,
             end: 0.58,
@@ -503,8 +557,13 @@ class _ThanksBeat extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(height: m.cardGap),
-          reveal(
+        ),
+        // Order number card (2305:17142).
+        Positioned(
+          top: m.nameCardTop,
+          left: m.sidePad,
+          width: m.cardWidth,
+          child: reveal(
             controller: progress,
             begin: 0.22,
             end: 0.68,
@@ -568,8 +627,13 @@ class _ThanksBeat extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(height: m.cardGap),
-          reveal(
+        ),
+        // Receipt card (2305:17146).
+        Positioned(
+          top: m.receiptTop,
+          left: m.sidePad,
+          width: m.cardWidth,
+          child: reveal(
             controller: progress,
             begin: 0.32,
             end: 0.78,
@@ -583,8 +647,8 @@ class _ThanksBeat extends StatelessWidget {
               receiptUrl: receiptUrl,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -609,7 +673,6 @@ class _ReceiptCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = metrics;
-    final bool stacked = m.cardWidth < m.px(1600);
 
     final Widget qr = Container(
       padding: EdgeInsets.all(m.qrPad),
@@ -639,7 +702,7 @@ class _ReceiptCard extends StatelessWidget {
       children: [
         Text(
           headline,
-          textAlign: stacked ? TextAlign.center : TextAlign.start,
+          textAlign: TextAlign.start,
           style: loewExtraBold.copyWith(
             fontSize: m.receiptHeadlineSize,
             height: 1.0,
@@ -649,7 +712,7 @@ class _ReceiptCard extends StatelessWidget {
         SizedBox(height: m.receiptGap),
         Text(
           subtitle,
-          textAlign: stacked ? TextAlign.center : TextAlign.start,
+          textAlign: TextAlign.start,
           style: swiss721Light.copyWith(
             fontSize: m.receiptSubtitleSize,
             height: 1.12,
@@ -658,9 +721,11 @@ class _ReceiptCard extends StatelessWidget {
         ),
         SizedBox(height: m.receiptGap),
         Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: m.pillPadH,
-            vertical: m.pillPadV,
+          padding: EdgeInsets.fromLTRB(
+            m.pillPadH,
+            m.pillPadV,
+            m.px(44),
+            m.pillPadV,
           ),
           decoration: BoxDecoration(
             color: KioskUI.pageBg,
@@ -693,32 +758,25 @@ class _ReceiptCard extends StatelessWidget {
 
     return Container(
       width: m.cardWidth,
-      padding: EdgeInsets.symmetric(
-        horizontal: m.receiptPadH,
-        vertical: m.receiptPadV,
+      padding: EdgeInsets.fromLTRB(
+        m.receiptPadH,
+        m.receiptPadV,
+        m.px(90),
+        m.receiptPadV,
       ),
       decoration: BoxDecoration(
         color: const Color(0xFFFBF8EF),
         border: Border.all(color: _kCardBorder, width: m.px(4)),
         borderRadius: BorderRadius.circular(m.receiptRadius),
       ),
-      child: stacked
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                qr,
-                SizedBox(height: m.receiptGap),
-                text,
-              ],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                qr,
-                SizedBox(width: m.receiptCardGap),
-                Expanded(child: text),
-              ],
-            ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          qr,
+          SizedBox(width: m.receiptCardGap),
+          Expanded(child: text),
+        ],
+      ),
     );
   }
 }
@@ -795,7 +853,7 @@ class _PlaceNewOrderButton extends StatelessWidget {
                     color: const Color(0xFFBFBAAD),
                   ),
                 ),
-                SizedBox(width: m.buttonGap * 0.6),
+                SizedBox(width: m.buttonGap),
                 SizedBox(
                   width: m.ringSize,
                   height: m.ringSize,
@@ -909,179 +967,92 @@ class _CheckPainter extends CustomPainter {
       oldDelegate.progress != progress;
 }
 
+/// Figma "14 Thank you" artboard (POS node `2305:17116`).
+const double _kArtboardW = 2572;
+const double _kArtboardH = 4530;
+
+/// Every value is an artboard pixel times ONE scale [s] — no per-element
+/// floors, so the composition is the Figma frame at any kiosk size.
 class _SuccessMetrics {
   final double s;
-  final double logoTop;
-  final double logoWidth;
-  final double logoHeight;
-  final double checkWidth;
-  final double checkHeight;
-  final double checkGap;
-  final double confirmedSize;
-  final double sidePad;
+  const _SuccessMetrics(this.s);
 
-  final double thankYouSize;
-  final double subtitleGap;
-  final double subtitleSize;
-  final double cardGap;
-  final double cardWidth;
-
-  final double namePadH;
-  final double namePadV;
-  final double nameRadius;
-  final double nameLabelSize;
-  final double nameInnerGap;
-  final double nameSize;
-  final double orderLabelSize;
-
-  final double receiptPadH;
-  final double receiptPadV;
-  final double receiptRadius;
-  final double receiptCardGap;
-  final double receiptGap;
-  final double receiptHeadlineSize;
-  final double receiptSubtitleSize;
-  final double qrPad;
-  final double qrRadius;
-  final double qrSize;
-  final double pillPadH;
-  final double pillPadV;
-  final double pillRadius;
-  final double pillIconSize;
-  final double pillGap;
-  final double pillTextSize;
-
-  final double buttonAreaHeight;
-  final double buttonBottomInset;
-  final double buttonHeight;
-  final double buttonPadH;
-  final double buttonGap;
-  final double buttonLabelSize;
-  final double dividerWidth;
-  final double dividerHeight;
-  final double closesInSize;
-  final double ringSize;
-  final double ringStroke;
-  final double ringTextSize;
-
-  const _SuccessMetrics({
-    required this.s,
-    required this.logoTop,
-    required this.logoWidth,
-    required this.logoHeight,
-    required this.checkWidth,
-    required this.checkHeight,
-    required this.checkGap,
-    required this.confirmedSize,
-    required this.sidePad,
-    required this.thankYouSize,
-    required this.subtitleGap,
-    required this.subtitleSize,
-    required this.cardGap,
-    required this.cardWidth,
-    required this.namePadH,
-    required this.namePadV,
-    required this.nameRadius,
-    required this.nameLabelSize,
-    required this.nameInnerGap,
-    required this.nameSize,
-    required this.orderLabelSize,
-    required this.receiptPadH,
-    required this.receiptPadV,
-    required this.receiptRadius,
-    required this.receiptCardGap,
-    required this.receiptGap,
-    required this.receiptHeadlineSize,
-    required this.receiptSubtitleSize,
-    required this.qrPad,
-    required this.qrRadius,
-    required this.qrSize,
-    required this.pillPadH,
-    required this.pillPadV,
-    required this.pillRadius,
-    required this.pillIconSize,
-    required this.pillGap,
-    required this.pillTextSize,
-    required this.buttonAreaHeight,
-    required this.buttonBottomInset,
-    required this.buttonHeight,
-    required this.buttonPadH,
-    required this.buttonGap,
-    required this.buttonLabelSize,
-    required this.dividerWidth,
-    required this.dividerHeight,
-    required this.closesInSize,
-    required this.ringSize,
-    required this.ringStroke,
-    required this.ringTextSize,
-  });
+  /// The whole artboard fits the available box (width- or height-bound).
+  factory _SuccessMetrics.resolve(double width, double height) {
+    final double s = math.min(
+      math.min(width / _kArtboardW, height / _kArtboardH),
+      1.0,
+    );
+    return _SuccessMetrics(s);
+  }
 
   /// A designed measurement, in logical pixels.
   double px(double design) => design * s;
 
-  factory _SuccessMetrics.resolve(double width, double height) {
-    // One bounded scale for the whole composition — the artboard is the same
-    // 2572px-wide design every kiosk screen shares.
-    final double s = math
-        .min(KioskResponsive.scale(width), height / 2300)
-        .clamp(KioskResponsive.minScale, 1.0);
-    final double logoWidth = 681 * s;
-    final double logoHeight = logoWidth * (179 / 681);
-    final double checkWidth = 420 * s;
-    final double checkHeight = checkWidth * (50 / 60.495);
-    final double buttonHeight = 252 * s;
-    final double sidePad = math.min(96 * s, math.max(0, (width - 48) / 2));
+  // Wordmark (2305:17118): 680.8 x 178.5 at y 136, centred.
+  double get logoTop => px(136);
+  double get logoWidth => px(680.803);
+  double get logoHeight => px(178.5);
 
-    return _SuccessMetrics(
-      s: s,
-      logoTop: 200 * s,
-      logoWidth: logoWidth,
-      logoHeight: logoHeight,
-      checkWidth: checkWidth,
-      checkHeight: checkHeight,
-      checkGap: 48 * s,
-      confirmedSize: 120 * s,
-      sidePad: sidePad,
-      thankYouSize: 200 * s,
-      subtitleGap: 32 * s,
-      subtitleSize: 84 * s,
-      cardGap: 60 * s,
-      cardWidth: math.min(2380 * s, math.max(0, width - 2 * sidePad)),
-      namePadH: 120 * s,
-      namePadV: 170 * s,
-      nameRadius: 64 * s,
-      nameLabelSize: 60 * s,
-      nameInnerGap: 30 * s,
-      nameSize: 560 * s,
-      orderLabelSize: 96 * s,
-      receiptPadH: 80 * s,
-      receiptPadV: 80 * s,
-      receiptRadius: 56 * s,
-      receiptCardGap: 90 * s,
-      receiptGap: 30 * s,
-      receiptHeadlineSize: 110 * s,
-      receiptSubtitleSize: 72 * s,
-      qrPad: 44 * s,
-      qrRadius: 36 * s,
-      qrSize: 560 * s,
-      pillPadH: 40 * s,
-      pillPadV: 24 * s,
-      pillRadius: 999,
-      pillIconSize: 50 * s,
-      pillGap: 20 * s,
-      pillTextSize: 56 * s,
-      buttonAreaHeight: buttonHeight + 96 * s,
-      buttonBottomInset: 48 * s,
-      buttonHeight: buttonHeight,
-      buttonPadH: 70 * s,
-      buttonGap: 56 * s,
-      buttonLabelSize: 112 * s,
-      dividerWidth: 5.6 * s,
-      dividerHeight: 100.8 * s,
-      closesInSize: 75.6 * s,
-      ringSize: 156.8 * s,
-      ringStroke: math.max(4, 14 * s),
-      ringTextSize: 58.8 * s,
-    );
-  }
+  // Confirmed beat (drawn check + ORDER CONFIRMED!).
+  double get checkWidth => px(420);
+  double get checkHeight => checkWidth * (50 / 60.495);
+  double get checkGap => px(48);
+  double get confirmedSize => px(120);
+
+  // Columns: 96px side inset, 2380px content width.
+  double get sidePad => px(96);
+  double get cardWidth => px(2380);
+
+  // success-badge (2305:17137).
+  double get badgeTop => px(822);
+  double get badgeSize => px(220);
+  double get badgeIconSize => px(110);
+
+  double get thankYouTop => px(1132);
+  double get thankYouSize => px(200);
+  double get subtitleTop => px(1362);
+  double get subtitleSize => px(84);
+
+  // Order number card (2305:17142).
+  double get nameCardTop => px(1626);
+  double get namePadH => px(120);
+  double get namePadV => px(170);
+  double get nameRadius => px(64);
+  double get nameLabelSize => px(60);
+  double get nameInnerGap => px(30);
+  double get nameSize => px(560);
+  double get orderLabelSize => px(96);
+
+  // Receipt card (2305:17146).
+  double get receiptTop => px(2828);
+  double get receiptPadH => px(80);
+  double get receiptPadV => px(80);
+  double get receiptRadius => px(56);
+  double get receiptCardGap => px(90);
+  double get receiptGap => px(30);
+  double get receiptHeadlineSize => px(110);
+  double get receiptSubtitleSize => px(72);
+  double get qrPad => px(44);
+  double get qrRadius => px(36);
+  double get qrSize => px(560);
+  double get pillPadH => px(40);
+  double get pillPadV => px(24);
+  double get pillRadius => 999;
+  double get pillIconSize => px(50);
+  double get pillGap => px(20);
+  double get pillTextSize => px(56);
+
+  // btn-done (2305:17308).
+  double get buttonTop => px(4158);
+  double get buttonHeight => px(252);
+  double get buttonPadH => px(70);
+  double get buttonGap => px(56);
+  double get buttonLabelSize => px(112);
+  double get dividerWidth => px(5.6);
+  double get dividerHeight => px(100.8);
+  double get closesInSize => px(75.6);
+  double get ringSize => px(156.8);
+  double get ringStroke => math.max(2, px(14));
+  double get ringTextSize => px(58.8);
 }
