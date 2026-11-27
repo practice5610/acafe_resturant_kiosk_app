@@ -1461,7 +1461,9 @@ class _Header extends StatelessWidget {
               belowHero!,
             ],
             SizedBox(
-                height: (stepFlow ? _kStepHeroToTitle : KioskCustomizeSpec.heroToTitle) *
+                height: (stepFlow
+                        ? _kStepHeroToTitle
+                        : KioskCustomizeSpec.heroToTitle) *
                     s *
                     heroFactor),
             Text(
@@ -2141,40 +2143,45 @@ class _PanelHeading extends StatelessWidget {
     final Widget? badge =
         required == null ? null : _RequirementBadge(s: s, required: required!);
     final double gap = 48 * s;
-    return Row(
-      children: [
-        if (badge != null && centered) ...[
-          // Same size as the real badge, never painted: balances the right one.
-          Visibility(
-            visible: false,
-            maintainSize: true,
-            maintainAnimation: true,
-            maintainState: true,
-            child: badge,
-          ),
-          SizedBox(width: gap),
-        ],
-        Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: centered ? Alignment.center : Alignment.centerLeft,
-            child: Text(
-              title,
-              maxLines: 1,
-              softWrap: false,
-              style: loewExtraBold.copyWith(
-                fontSize: KioskCustomizeSpec.panelTitleSize * s,
-                height: 1.0,
-                color: Colors.black,
+    // Breathing room under the heading (the title is set with height 1.0, so
+    // descenders otherwise sit right on the cards below).
+    return Padding(
+      padding: EdgeInsets.only(bottom: 16 * s),
+      child: Row(
+        children: [
+          if (badge != null && centered) ...[
+            // Same size as the real badge, never painted: balances the right one.
+            Visibility(
+              visible: false,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: badge,
+            ),
+            SizedBox(width: gap),
+          ],
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: centered ? Alignment.center : Alignment.centerLeft,
+              child: Text(
+                title,
+                maxLines: 1,
+                softWrap: false,
+                style: loewExtraBold.copyWith(
+                  fontSize: KioskCustomizeSpec.panelTitleSize * s,
+                  height: 1.0,
+                  color: Colors.black,
+                ),
               ),
             ),
           ),
-        ),
-        if (badge != null) ...[
-          SizedBox(width: gap),
-          badge,
+          if (badge != null) ...[
+            SizedBox(width: gap),
+            badge,
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -2198,8 +2205,11 @@ class _RequirementBadge extends StatelessWidget {
         ? kioskTranslate(context, 'required', 'Required')
         : kioskTranslate(context, 'optional', 'Optional');
     final double k = s * scale;
+    final double tracking = 32 * k * 0.08;
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 30 * k, vertical: 11 * k),
+      // Tracking adds trailing space after the last letter; trim the right
+      // padding by that much so the label sits optically centred.
+      padding: EdgeInsets.fromLTRB(28 * k, 14 * k, 28 * k - tracking, 14 * k),
       decoration: BoxDecoration(
         color: required ? Colors.black : Colors.transparent,
         borderRadius: BorderRadius.circular(999),
@@ -2211,7 +2221,7 @@ class _RequirementBadge extends StatelessWidget {
         style: loewBold.copyWith(
           fontSize: 32 * k,
           height: 1.0,
-          letterSpacing: 32 * k * 0.14,
+          letterSpacing: tracking,
           color: required ? Colors.white : Colors.black,
         ),
       ),
@@ -2574,7 +2584,9 @@ class _DietaryCard extends StatelessWidget {
                                         _addonPriceLabel(priceDelta),
                                         textAlign: TextAlign.left,
                                         style: loewBold.copyWith(
-                                          fontFamilyFallback: const ['NunitoSans'],
+                                          fontFamilyFallback: const [
+                                            'NunitoSans'
+                                          ],
                                           fontSize: nameSize * (42 / 45),
                                           height: 1.0,
                                           color: Colors.black,
