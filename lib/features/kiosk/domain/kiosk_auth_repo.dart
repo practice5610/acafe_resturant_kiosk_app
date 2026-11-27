@@ -6,6 +6,7 @@ import 'package:universal_html/html.dart' as html;
 import 'package:acafe_customer/data/datasource/remote/dio/dio_client.dart';
 import 'package:acafe_customer/data/datasource/remote/exception/api_error_handler.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
+import 'package:acafe_customer/common/models/kiosk_theme.dart';
 import 'package:acafe_customer/utill/app_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -72,6 +73,7 @@ class KioskAuthRepo {
     bool? showImages,
     bool? showCategoryImages,
     Map<int, int>? categoryColumns,
+    KioskTheme? theme,
     bool? kioskMode,
   }) async {
     final previousBranch = getBranchId();
@@ -130,6 +132,10 @@ class KioskAuthRepo {
     }
     if (categoryColumns != null) {
       await _writeCategoryColumns(categoryColumns);
+    }
+    if (theme != null) {
+      await sharedPreferences.setString(
+          AppConstants.kioskTheme, jsonEncode(theme.toJson()));
     }
     if (kioskMode != null) {
       _writeSessionKioskMode(kioskMode);
@@ -228,6 +234,11 @@ class KioskAuthRepo {
       return <int, int>{};
     }
   }
+
+  /// This device's saved portrait-menu theme overrides. Nothing stored (every
+  /// device until an admin saves one) = [KioskTheme.none] = the built-in look.
+  KioskTheme getTheme() =>
+      KioskTheme.fromJson(sharedPreferences.getString(AppConstants.kioskTheme));
 
   /// Persist a live per-category override update from the websocket (admin
   /// changed Device Update without forcing a re-login) -- mirrors
@@ -340,6 +351,7 @@ class KioskAuthRepo {
     await sharedPreferences.remove(AppConstants.kioskShowImages);
     await sharedPreferences.remove(AppConstants.kioskShowCategoryImages);
     await sharedPreferences.remove(AppConstants.kioskCategoryColumns);
+    await sharedPreferences.remove(AppConstants.kioskTheme);
     // Session-scoped now (sessionStorage); also drop any value an older build
     // left in SharedPreferences so a stale flag can never resurrect kiosk mode.
     _writeSessionKioskMode(false);

@@ -212,6 +212,7 @@ class ProductRealtimeController {
       showCategoryImages: event.showCategoryImages,
       kioskMode: event.kioskMode,
       categoryColumns: event.categoryColumns,
+      theme: event.theme,
       signOut: action == DeviceSettingsClientAction.signOut,
     );
 

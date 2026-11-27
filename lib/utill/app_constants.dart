@@ -210,6 +210,7 @@ class AppConstants {
   static const String kioskShowImages = 'kiosk_show_images';
   static const String kioskShowCategoryImages = 'kiosk_show_category_images';
   static const String kioskCategoryColumns = 'kiosk_category_columns';
+  static const String kioskTheme = 'kiosk_theme';
   /// A POS till temporarily serving as a kiosk. SESSION-SCOPED: this key lives
   /// in the browser's `sessionStorage` (see [KioskAuthRepo]), NOT
   /// SharedPreferences/localStorage. A POS⇄Kiosk switch is temporary, so it

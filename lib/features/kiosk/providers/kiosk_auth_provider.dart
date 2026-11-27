@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/api_response_model.dart';
+import 'package:acafe_customer/common/models/kiosk_theme.dart';
 import 'package:acafe_customer/common/models/response_model.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_auth_repo.dart';
@@ -109,6 +110,12 @@ class KioskAuthProvider extends ChangeNotifier {
   /// count here.
   Map<int, int> get categoryColumns => kioskAuthRepo.getCategoryColumns();
 
+  /// This kiosk's saved theme for the PORTRAIT menu screen. A till (POS
+  /// category) never gets one, including while it is serving as a kiosk: the
+  /// theme is a kiosk-device feature only. [KioskTheme.none] = built-in look.
+  KioskTheme get portraitTheme =>
+      isPosTerminal ? KioskTheme.none : kioskAuthRepo.getTheme();
+
   /// The products-per-row override for [categoryId], or null when none is set
   /// (the grid then keeps its responsive column count).
   int? columnsForCategory(int? categoryId) =>
@@ -211,6 +218,7 @@ class KioskAuthProvider extends ChangeNotifier {
     bool? showImages,
     bool? showCategoryImages,
     Map<int, int>? categoryColumns,
+    KioskTheme? theme,
     bool? kioskMode,
     bool signOut = false,
   }) async {
@@ -258,6 +266,8 @@ class KioskAuthProvider extends ChangeNotifier {
     // state and must be applied so clearing every override reaches the kiosk.
     final bool categoryColumnsChanged = categoryColumns != null &&
         !_sameColumns(categoryColumns, kioskAuthRepo.getCategoryColumns());
+    // Null = the frame did not carry `theme`; an empty theme is Reset and IS applied.
+    final bool themeChanged = theme != null && theme != kioskAuthRepo.getTheme();
     // Null = the server did not report it; never read that as "back to POS".
     final bool kioskModeChanged =
         kioskMode != null && kioskMode != kioskAuthRepo.getKioskMode();
@@ -270,6 +280,7 @@ class KioskAuthProvider extends ChangeNotifier {
         !showImagesChanged &&
         !showCategoryImagesChanged &&
         !categoryColumnsChanged &&
+        !themeChanged &&
         !kioskModeChanged &&
         localDeviceId != null) {
       return KioskDeviceSettingsOutcome.ignored;
@@ -289,6 +300,7 @@ class KioskAuthProvider extends ChangeNotifier {
       showImages: showImages,
       showCategoryImages: showCategoryImages,
       categoryColumns: categoryColumns,
+      theme: theme,
       kioskMode: kioskMode,
     );
     _syncImageGate();
@@ -381,6 +393,9 @@ class KioskAuthProvider extends ChangeNotifier {
       categoryColumns: device.containsKey('category_columns')
           ? parseCategoryColumnsMap(device['category_columns'])
           : null,
+      theme: device.containsKey('theme')
+          ? KioskTheme.fromJson(device['theme'])
+          : null,
       // kiosk_mode is session-local: never seeded from the server.
     );
   }
@@ -462,6 +477,9 @@ class KioskAuthProvider extends ChangeNotifier {
         categoryColumns: device.containsKey('category_columns')
             ? parseCategoryColumnsMap(device['category_columns'])
             : null,
+        theme: device.containsKey('theme')
+            ? KioskTheme.fromJson(device['theme'])
+            : null,
         // A fresh device login always opens as the device's admin category:
         // reset the session-local kiosk flag so a previous session's switch
         // (left in this browser's storage) never carries into a new login.
@@ -522,6 +540,9 @@ class KioskAuthProvider extends ChangeNotifier {
               : null,
           categoryColumns: device.containsKey('category_columns')
               ? parseCategoryColumnsMap(device['category_columns'])
+              : null,
+          theme: device.containsKey('theme')
+              ? KioskTheme.fromJson(device['theme'])
               : null,
           // kiosk_mode is session-local: a reload re-opens as admin category.
         );

@@ -1,3 +1,5 @@
+import 'package:acafe_customer/common/models/kiosk_theme.dart';
+
 /// Smallest / largest per-category products-per-row override the kiosk will
 /// honour. Mirrors the backend's `Device::CATEGORY_COLUMNS_MIN/MAX` and the
 /// kiosk's own `KioskResponsive.maxProductColumns`.
@@ -67,6 +69,11 @@ class DeviceSettingsEvent {
   /// means "leave the local map alone". An empty map means "no overrides" and
   /// IS applied, so clearing every override on the admin form reaches the kiosk.
   final Map<int, int>? categoryColumns;
+
+  /// Sparse portrait-menu theme overrides. Null when the frame did not carry
+  /// `theme` (older server build) -- "leave the local theme alone". An empty
+  /// object IS applied: it is Reset on the admin form.
+  final KioskTheme? theme;
   final String? occurredAt;
 
   const DeviceSettingsEvent({
@@ -83,6 +90,7 @@ class DeviceSettingsEvent {
     this.showCategoryImages,
     this.kioskMode,
     this.categoryColumns,
+    this.theme,
     this.occurredAt,
   });
 
@@ -119,6 +127,7 @@ class DeviceSettingsEvent {
       categoryColumns: json.containsKey('category_columns')
           ? parseCategoryColumnsMap(json['category_columns'])
           : null,
+      theme: json.containsKey('theme') ? KioskTheme.fromJson(json['theme']) : null,
       occurredAt: json['occurred_at']?.toString(),
     );
   }
