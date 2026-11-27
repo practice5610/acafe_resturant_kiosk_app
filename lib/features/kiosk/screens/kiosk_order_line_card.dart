@@ -539,6 +539,10 @@ List<String> _modifierLines(CartModel cart) {
   return lines;
 }
 
+/// Figma 2305:16967 bin, inline so it can never go missing from the bundle.
+const String _kBinSvg =
+    '<svg width="50" height="77" viewBox="0 0 50 77" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.57143 68.4444C3.57143 73.15 6.78571 77 10.7143 77H39.2857C43.2143 77 46.4286 73.15 46.4286 68.4444V25.6667C46.4286 20.9611 43.2143 17.1111 39.2857 17.1111H10.7143C6.78571 17.1111 3.57143 20.9611 3.57143 25.6667V68.4444ZM46.4286 4.27778H37.5L34.9643 1.24056C34.3214 0.470555 33.3929 0 32.4643 0H17.5357C16.6071 0 15.6786 0.470555 15.0357 1.24056L12.5 4.27778H3.57143C1.60714 4.27778 0 6.20278 0 8.55556C0 10.9083 1.60714 12.8333 3.57143 12.8333H46.4286C48.3929 12.8333 50 10.9083 50 8.55556C50 6.20278 48.3929 4.27778 46.4286 4.27778Z" fill="black"/></svg>';
+
 class _QtyStepper extends StatelessWidget {
   final double s;
   final int quantity;
@@ -563,8 +567,8 @@ class _QtyStepper extends StatelessWidget {
           s: s,
           label: atMinimum ? null : '−',
           // Figma 2305:16967: a bare filled bin, no box, at qty 1.
-          icon: atMinimum ? Icons.delete : null,
-          bare: atMinimum,
+          svgAsset: atMinimum ? _kBinSvg : null,
+          bare: false,
           filled: false,
           onTap: onDecrement,
         ),
@@ -586,6 +590,10 @@ class _StepBox extends StatelessWidget {
   final double s;
   final String? label;
   final IconData? icon;
+
+  /// Exact Figma glyph (2305:16967, 50×77) drawn in the same 150×111 hit
+  /// box as the "+" so both controls share one footprint and centre line.
+  final String? svgAsset;
   final bool filled;
   final bool bare;
   final VoidCallback onTap;
@@ -593,10 +601,12 @@ class _StepBox extends StatelessWidget {
       {required this.s,
       this.label,
       this.icon,
+      this.svgAsset,
       this.bare = false,
       required this.filled,
       required this.onTap})
-      : assert(label != null || icon != null, 'need a label or an icon');
+      : assert(label != null || icon != null || svgAsset != null,
+            'need a label, an icon or an svg');
 
   @override
   Widget build(BuildContext context) {
@@ -617,7 +627,9 @@ class _StepBox extends StatelessWidget {
                 : Border.all(
                     color: Colors.black, width: (2.25 * s).clamp(1.5, 4.0)),
           ),
-          child: icon != null
+          child: svgAsset != null
+              ? SvgPicture.string(svgAsset!, width: 40 * s, height: 62 * s)
+              : icon != null
               ? Icon(icon,
                   size: (bare ? 80 : 60) * s,
                   color: filled ? kOrderPlusText : Colors.black)
