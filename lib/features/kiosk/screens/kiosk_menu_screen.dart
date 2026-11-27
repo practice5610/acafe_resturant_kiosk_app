@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/common/models/kiosk_theme.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_staff_exit_trigger.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
@@ -245,8 +246,11 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Per-kiosk theme (admin > Device > Theme). Null field = the built-in look.
+    final KioskTheme theme = context
+        .select<KioskAuthProvider, KioskTheme>((a) => a.portraitTheme);
     return Scaffold(
-      backgroundColor: _MenuSpec.contentBg,
+      backgroundColor: theme.screenBg ?? _MenuSpec.contentBg,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -676,9 +680,11 @@ class _MenuSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final KioskTheme theme = context
+        .select<KioskAuthProvider, KioskTheme>((a) => a.portraitTheme);
     return Container(
       width: _MenuSpec.sidebarWidth * u,
-      color: _MenuSpec.sidebarBg,
+      color: theme.sidebarBg ?? _MenuSpec.sidebarBg,
       child: Column(
         children: [
           SizedBox(height: _MenuSpec.logoTop * u),
@@ -718,6 +724,9 @@ class _SidebarLogout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Color ink = context.select<KioskAuthProvider, KioskTheme>(
+                (a) => a.portraitTheme).sidebarText ??
+        _MenuSpec.ink;
     return KioskLogoutButton(
       child: Container(
         width: _MenuSpec.sidebarWidth * u,
@@ -730,14 +739,14 @@ class _SidebarLogout extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.logout, size: 22 * u, color: _MenuSpec.ink),
+            Icon(Icons.logout, size: 22 * u, color: ink),
             SizedBox(height: 4 * u),
             Text(
               'Logout',
               style: poppinsMedium.copyWith(
                 fontSize: 12 * u,
                 height: 1.2,
-                color: _MenuSpec.ink,
+                color: ink,
               ),
             ),
           ],
@@ -818,6 +827,8 @@ class _RailItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double d = _MenuSpec.categoryImage * u;
+    final KioskTheme theme = context
+        .select<KioskAuthProvider, KioskTheme>((a) => a.portraitTheme);
     final label = Text(
       name,
       maxLines: 2,
@@ -826,11 +837,20 @@ class _RailItem extends StatelessWidget {
       style: poppinsMedium.copyWith(
         fontSize: 12 * u,
         height: 1.25,
-        color: _MenuSpec.ink,
+        color: theme.sidebarText ?? _MenuSpec.ink,
+        fontWeight: theme.sidebarBold == true ? FontWeight.w700 : null,
       ),
     );
     return Material(
-      color: selected ? _MenuSpec.sidebarSelectedBg : Colors.transparent,
+      // With a themed sidebar the fixed cream band would clash with the chosen
+      // colours, so the highlight becomes a shade of the sidebar colour (nudged
+      // toward the label colour). No theme = the built-in cream, unchanged.
+      color: !selected
+          ? Colors.transparent
+          : theme.sidebarBg == null
+              ? _MenuSpec.sidebarSelectedBg
+              : Color.lerp(
+                  theme.sidebarBg, theme.sidebarText ?? _MenuSpec.ink, 0.14),
       child: KioskTap(
         onTap: onTap,
         child: SizedBox(

@@ -7,12 +7,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:acafe_customer/common/models/kiosk_theme.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_menu_filter.dart';
+import 'package:acafe_customer/features/kiosk/providers/kiosk_auth_provider.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_product_customize_sheet.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_trimmed_image.dart';
@@ -395,35 +397,70 @@ class KioskProductCard extends StatelessWidget {
         ),
       );
 
-  Widget _menuName(double cu) => Text(
+  /// The kiosk's own per-device theme for this text block (admin > Device >
+  /// Theme). Only the menu-style card asks for it, so the upsell card (card 02)
+  /// is untouched. A null field keeps the built-in look.
+  KioskTheme _theme(BuildContext context) => context
+      .select<KioskAuthProvider, KioskTheme>((a) => a.portraitTheme);
+
+  /// A themed text block's background colours THAT block only, not the card.
+  Widget _block(KioskTextTheme? t, Widget text) =>
+      t?.bg == null ? text : ColoredBox(color: t!.bg!, child: text);
+
+  Widget _menuName(BuildContext context, double cu) {
+    final KioskTextTheme? t = _theme(context).name;
+    return _block(
+      t,
+      Text(
         product.name ?? '',
         textAlign: TextAlign.center,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         // legibility: out-of-stock (disabled) state, same grey as before
-        style: poppinsMedium.copyWith(
-          fontSize: 14 * cu,
-          height: 1.3,
-          letterSpacing: 0,
-          color: _isOutOfStock ? KioskCardDesign.outOfStockTextColor : _menuInk,
+        style: _styled(
+          poppinsMedium.copyWith(
+            fontSize: 14 * cu,
+            height: 1.3,
+            letterSpacing: 0,
+          ),
+          t,
+          cu,
+          _isOutOfStock
+              ? KioskCardDesign.outOfStockTextColor
+              : (t?.color ?? _menuInk),
         ),
-      );
+      ),
+    );
+  }
 
-  Widget _menuPrice(double cu) => Text(
+  TextStyle _styled(TextStyle base, KioskTextTheme? t, double cu, Color color) =>
+      t == null ? base.copyWith(color: color) : t.apply(base, scale: cu, color: color);
+
+  Widget _menuPrice(BuildContext context, double cu) {
+    final KioskTextTheme? t = _theme(context).price;
+    return _block(
+      t,
+      Text(
         _priceText(),
         textAlign: TextAlign.center,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         // legibility: out-of-stock (disabled) state, same grey as before
-        style: poppinsRegular.copyWith(
-          fontSize: 14 * cu,
-          height: 1.3,
-          letterSpacing: 0,
-          color: _isOutOfStock
+        style: _styled(
+          poppinsRegular.copyWith(
+            fontSize: 14 * cu,
+            height: 1.3,
+            letterSpacing: 0,
+          ),
+          t,
+          cu,
+          _isOutOfStock
               ? KioskCardDesign.outOfStockTextColor
-              : _menuPriceInk,
+              : (t?.color ?? _menuPriceInk),
         ),
-      );
+      ),
+    );
+  }
 
   Widget _buildMenuCard(BuildContext context) {
     final double cu = tileWidth / 300;
@@ -470,22 +507,29 @@ class KioskProductCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // c. Name.
-                  _menuName(cu),
+                  _menuName(context, cu),
                   // d. Short description. Hidden (with its gap) when empty
                   // or a repeat of the name.
                   if (showDescription && _menuDescription != null) ...[
                     SizedBox(height: 4 * cu),
-                    Text(
-                      _menuDescription!,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: poppinsRegular.copyWith(
-                        fontSize: 11 * cu,
-                        height: 1.35,
-                        letterSpacing: 0,
-                        // legibility: reference grey #8E8E8E, requested by design
-                        color: _menuDescInk,
+                    _block(
+                      _theme(context).description,
+                      Text(
+                        _menuDescription!,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: _styled(
+                          poppinsRegular.copyWith(
+                            fontSize: 11 * cu,
+                            height: 1.35,
+                            letterSpacing: 0,
+                          ),
+                          _theme(context).description,
+                          cu,
+                          // legibility: reference grey #8E8E8E, requested by design
+                          _theme(context).description?.color ?? _menuDescInk,
+                        ),
                       ),
                     ),
                   ],
@@ -526,7 +570,7 @@ class KioskProductCard extends StatelessWidget {
         // f. Price — 8 below the content above, 16 above the card bottom.
         Padding(
           padding: EdgeInsets.fromLTRB(16 * cu, 8 * cu, 16 * cu, 16 * cu),
-          child: _menuPrice(cu),
+          child: _menuPrice(context, cu),
         ),
       ],
     );
@@ -543,9 +587,9 @@ class KioskProductCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _menuName(cu),
+          _menuName(context, cu),
           SizedBox(height: 6 * cu),
-          _menuPrice(cu),
+          _menuPrice(context, cu),
         ],
       ),
     );
