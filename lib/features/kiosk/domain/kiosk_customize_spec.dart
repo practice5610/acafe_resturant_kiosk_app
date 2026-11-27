@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui' show Size;
 
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
+
 /// Design tokens and the responsive rule for the kiosk product-customize
 /// screen, read straight off Figma `02a – Menu Browse (Full Page)`
 /// (file `egyp8Y2o5BtoJLo8SrcWrX`, node `1385:13510`) — a 2572x5400 portrait
@@ -26,10 +28,13 @@ class KioskCustomizeSpec {
   static const double gutter = 86;
 
   /// Back button `Group 97`: 141x141 at (86, 93).
-  static const double backButton = 141;
-  static const double backButtonTop = 93;
-  static const double backButtonBorder = 5;
-  static const double backButtonIcon = 55;
+  ///
+  /// Chrome values (back button, action bar) are owned by [KioskChromeSpec];
+  /// they are aliased here so the two can never drift.
+  static const double backButton = KioskChromeSpec.backDiameter;
+  static const double backButtonTop = KioskChromeSpec.insetTop;
+  static const double backButtonBorder = KioskChromeSpec.backBorder;
+  static const double backButtonIcon = KioskChromeSpec.backIcon;
 
   // -- product header ------------------------------------------------------
   /// Top of the hero photo box. The back button overlaps it on the left, which
@@ -229,15 +234,16 @@ class KioskCustomizeSpec {
 
   // -- bottom action bar ---------------------------------------------------
   /// `btn-skip` / `btn-next`: 1201 x 252, 22 apart, 30px radius, 8px outline.
-  static const double actionHeight = 252;
-  static const double actionGap = 22;
-  static const double actionRadius = 30;
-  static const double actionBorder = 8;
-  static const double actionLabelSize = 72;
+  /// Owned by [KioskChromeSpec]; aliased so the two can never drift.
+  static const double actionHeight = KioskChromeSpec.barHeight;
+  static const double actionGap = KioskChromeSpec.barGap;
+  static const double actionRadius = KioskChromeSpec.barRadius;
+  static const double actionBorder = KioskChromeSpec.barBorder;
+  static const double actionLabelSize = KioskChromeSpec.barFontSize;
 
   /// Cup/can panel bottom (4989) -> bar top (5061), and bar bottom -> artboard.
-  static const double actionBarTopGap = 72;
-  static const double actionBarBottomGap = 87;
+  static const double actionBarTopGap = KioskChromeSpec.barTopGap;
+  static const double actionBarBottomGap = KioskChromeSpec.barBottomGap;
 
   static const double actionBarBlock =
       actionBarTopGap + actionHeight + actionBarBottomGap;

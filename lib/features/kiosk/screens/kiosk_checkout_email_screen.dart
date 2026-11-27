@@ -192,30 +192,18 @@ class _KioskCheckoutEmailScreenState extends State<KioskCheckoutEmailScreen> {
           ),
         ],
       ),
-      bottomBuilder: (s) => Padding(
-        padding: EdgeInsets.fromLTRB(74 * s, 16 * s, 74 * s, 24 * s),
-        child: Row(
-          children: [
-            Expanded(
-              child: KioskCheckoutButton(
-                s: s,
-                label: getTranslated('skip', context)?.toUpperCase() ?? 'SKIP',
-                filled: false,
-                onTap: _skip,
-              ),
-            ),
-            SizedBox(width: 22 * s),
-            Expanded(
-              child: KioskCheckoutButton(
-                s: s,
-                label: getTranslated('next', context)?.toUpperCase() ?? 'NEXT',
-                filled: true,
-                onTap: _next,
-              ),
-            ),
-          ],
+      bottomActions: [
+        KioskBarAction(
+          label: getTranslated('skip', context)?.toUpperCase() ?? 'SKIP',
+          filled: false,
+          onTap: _skip,
         ),
-      ),
+        KioskBarAction(
+          label: getTranslated('next', context)?.toUpperCase() ?? 'NEXT',
+          filled: true,
+          onTap: _next,
+        ),
+      ],
     );
   }
 }

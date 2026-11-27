@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -286,11 +287,10 @@ class _Canvas extends StatelessWidget {
         Positioned(
           left: _kBackLeft * s,
           top: _kBackTop * s,
-          child: KioskBackButton.scaled(
-            s: s,
-            size: _kBackSize,
-            border: 2,
-            icon: 22,
+          child: KioskBackButton(
+            // Landscape variant: never larger than it is today.
+            s: KioskChrome.scaleOfVersionA(
+                context, _kBackSize * s / KioskChromeSpec.backDiameter),
             onTap: () => KioskNavigationHelper.backTo(
                 context, RouterHelper.kioskCartScreen),
           ),

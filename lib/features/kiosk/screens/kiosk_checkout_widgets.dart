@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
@@ -183,8 +184,9 @@ class KioskCheckoutScaffold extends StatelessWidget {
   /// Builds the label + field + error block (needs the resolved scale).
   final Widget Function(double s) fieldBuilder;
 
-  /// Builds the bottom button bar (one or more [KioskCheckoutButton]s).
-  final Widget Function(double s) bottomBuilder;
+  /// The bottom bar's buttons (one or two). The scaffold builds the shared
+  /// [KioskActionBar] from them at the chrome scale.
+  final List<KioskBarAction> bottomActions;
 
   const KioskCheckoutScaffold({
     super.key,
@@ -192,7 +194,7 @@ class KioskCheckoutScaffold extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.fieldBuilder,
-    required this.bottomBuilder,
+    required this.bottomActions,
     this.subtitleFontSize = 48,
     this.fieldGap = 380,
     this.panelBuilder,
@@ -228,7 +230,7 @@ class KioskCheckoutScaffold extends StatelessWidget {
                 maxWidth: columnMax,
                 child: Column(
                   children: [
-                    KioskCheckoutHeader(s: s, activeStep: activeStep),
+                    KioskCheckoutHeader(activeStep: activeStep),
                     Expanded(
                       child: SingleChildScrollView(
                         child: Column(
@@ -275,7 +277,10 @@ class KioskCheckoutScaffold extends StatelessWidget {
                         ),
                       ),
                     ),
-                    bottomBuilder(s),
+                    KioskActionBar(
+                      s: KioskChrome.scaleOf(context),
+                      actions: bottomActions,
+                    ),
                   ],
                 ),
               );
@@ -289,27 +294,22 @@ class KioskCheckoutScaffold extends StatelessWidget {
 
 /// Back button + the NAME / EMAIL / PAYMENT progress stepper.
 ///
-/// The back button AND the step circles use the app-wide header back-button
-/// spec ([KioskBackButton.headerSize] / headerBorder / headerIcon) so they are
-/// identical to the cart, coupon and every other header. Moving between the
-/// steps animates only this row: the step pages swap instantly (see
-/// RouterHelper._kioskStepPage) and the circles fill / tick / draw in here.
+/// A `Row`: the shared [KioskBackButton], a fixed gap, then the stepper in an
+/// `Expanded`. The stepper therefore starts after the back button
+/// structurally, so the two cannot overlap at any width; when the room left is
+/// narrower than the stepper's natural width it scales down to fit rather than
+/// reaching back under the button. Moving between the steps animates only this
+/// row: the step pages swap instantly (see RouterHelper._kioskStepPage) and the
+/// circles fill / tick / draw in here.
+///
+/// Back button size and insets are chrome ([KioskChromeSpec]) at the shared
+/// chrome scale, identical to every other screen.
 class KioskCheckoutHeader extends StatefulWidget {
-  final double s;
   final int activeStep;
-
-  /// Artboard px. A stacked screen that centres its body in a reading column
-  /// passes that column's gutter here so the stepper lands on it, and trims
-  /// [verticalPadding] on a landscape window where height is the scarce axis.
-  final double horizontalPadding;
-  final double verticalPadding;
 
   const KioskCheckoutHeader({
     super.key,
-    required this.s,
     required this.activeStep,
-    this.horizontalPadding = 107,
-    this.verticalPadding = 121,
   });
 
   static const List<String> _steps = ['NAME', 'EMAIL', 'PAYMENT'];
@@ -327,14 +327,17 @@ class KioskCheckoutHeader extends StatefulWidget {
     }
   }
 
-  // Artboard px.
-  static const double _circle = KioskBackButton.headerSize;
-  static const double _circleTop = 36;
+  // Stepper geometry, artboard px (Figma 2305:16610).
+  static const double _circle = 100;
+  static const double _circleStroke = 4;
+  // The circles' centres sit on the back button's centre line.
+  static const double _circleTop = (KioskChromeSpec.backDiameter - _circle) / 2;
   // 40 design px between circle and label (Figma: 47 on a 165 circle).
-  static const double _labelTop = 176;
+  static const double _labelGap = 40;
+  static const double _labelTop = _circleTop + _circle + _labelGap;
   static const double _labelH = 48;
   static const double _groupW = 1398;
-  // Circle centres inside the group (Figma 2305:16610), connectors between.
+  // Circle centres inside the group, connectors between.
   static const List<double> _centers = [82.5, 726, 1315.5];
   static const double _connW = 252.5;
 
@@ -393,46 +396,48 @@ class _KioskCheckoutHeaderState extends State<KioskCheckoutHeader>
 
   @override
   Widget build(BuildContext context) {
-    final double s = widget.s;
-    final double top = math.max(0.0, widget.verticalPadding - 15) * s;
+    final double cs = KioskChrome.scaleOf(context);
+    final double back = KioskBackButton.diameterFor(cs);
+    final double gap = KioskChromeSpec.backToContentGap * cs;
     return Padding(
-      padding: EdgeInsets.fromLTRB(widget.horizontalPadding * s, top,
-          widget.horizontalPadding * s, 20 * s),
-      child: SizedBox(
-        height: (KioskCheckoutHeader._labelTop + KioskCheckoutHeader._labelH) * s,
-        child: Stack(
-          children: [
-            Positioned(
-              left: 0,
-              // Keep the circle's centre on the stepper row when the floor
-              // makes it larger than 100 * s.
-              top: KioskCheckoutHeader._circleTop * s -
-                  (KioskBackButton.headerSizeFor(s) -
-                          KioskBackButton.headerSize * s) /
-                      2,
-              child: KioskBackButton.header(
-                s: s,
-                onTap: () => KioskNavigationHelper.backTo(
-                    context, KioskCheckoutHeader.parentPathOf(widget.activeStep)),
-              ),
-            ),
-            Align(
-              alignment: Alignment.topCenter,
+      padding: EdgeInsets.fromLTRB(
+        KioskChromeSpec.insetLeft * cs,
+        KioskChromeSpec.insetTop * cs,
+        KioskChromeSpec.insetLeft * cs,
+        20 * cs,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          KioskBackButton(
+            s: cs,
+            onTap: () => KioskNavigationHelper.backTo(
+                context, KioskCheckoutHeader.parentPathOf(widget.activeStep)),
+          ),
+          SizedBox(width: gap),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
               child: SizedBox(
-                width: KioskCheckoutHeader._groupW * s,
+                width: KioskCheckoutHeader._groupW * cs,
+                height: (KioskCheckoutHeader._labelTop +
+                        KioskCheckoutHeader._labelH) *
+                    cs,
                 child: AnimatedBuilder(
                   animation: _ctrl,
                   builder: (context, _) {
                     final double p = _from +
                         (widget.activeStep - _from) *
                             Curves.easeInOutCubic.transform(_ctrl.value);
-                    return _Stepper(s: s, p: p);
+                    return _Stepper(s: cs, p: p);
                   },
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+          // Balances the back button so the stepper stays optically centred.
+          SizedBox(width: back + gap),
+        ],
       ),
     );
   }
@@ -450,8 +455,8 @@ class _Stepper extends StatelessWidget {
     const double cw = KioskCheckoutHeader._circle;
     const double lw = 350;
     const List<double> c = KioskCheckoutHeader._centers;
-    final double stroke = (KioskBackButton.headerBorder * s)
-        .clamp(KioskBackButton.headerMinBorder, 6.0);
+    final double stroke =
+        (KioskCheckoutHeader._circleStroke * s).clamp(1.0, 6.0);
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -623,79 +628,152 @@ class KioskCheckoutField extends StatelessWidget {
   }
 }
 
-/// Reusable checkout action button — filled (black) or outlined.
+/// Reusable action button — filled (black) or outlined.
+///
+/// No size or type overrides: height, radius, border and label come from
+/// [KioskChromeSpec] at the chrome scale [s]. Use it through [KioskActionBar].
 class KioskCheckoutButton extends StatelessWidget {
+  /// Chrome scale ([KioskChrome.scaleOf]).
   final double s;
   final String label;
   final bool filled;
-  final double fontSize;
-
-  /// Skip the shared wide-screen button and always render the scaled artboard
-  /// one. The customize screen's bar is part of its Figma frame — it scales
-  /// with the page, so snapping it to a fixed 60px control at the 1100px seam
-  /// would break the design it sits in.
-  final bool forceScaled;
-
-  /// Artboard px. Landscape summaries pass a shorter bar so the totals panel
-  /// does not take a third of a 16:9 viewport.
-  final double height;
   final VoidCallback? onTap;
 
   /// When set, a disabled FILLED button renders as a `rgba(0,0,0,0.25)` fill
   /// with the cream label still showing (Figma step-flow NEXT), instead of the
-  /// default 0.5-opacity dim. Opt-in so other callers (Version A, checkout) are
-  /// unchanged.
+  /// default 0.5-opacity dim. Opt-in so other callers are unchanged.
   final bool disabledUsesFillAlpha;
+
+  /// Shows a spinner in place of the label. A loading button is inert but is
+  /// not dimmed, so the customer sees work in progress rather than "disabled".
+  final bool loading;
+
   const KioskCheckoutButton({
     super.key,
     required this.s,
     required this.label,
     required this.filled,
     required this.onTap,
-    this.fontSize = 72,
-    this.height = 252,
-    this.forceScaled = false,
     this.disabledUsesFillAlpha = false,
+    this.loading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final bool disabled = onTap == null;
     final bool figmaDisabled = disabled && filled && disabledUsesFillAlpha;
+    final double radius = KioskChromeSpec.barRadius * s;
+    final Color ink = filled ? kCheckoutButtonText : Colors.black;
+    final double fontSize = KioskChromeSpec.barFontSize * s;
     return Opacity(
-      opacity: (disabled && !figmaDisabled) ? 0.5 : 1,
+      opacity: (disabled && !figmaDisabled && !loading) ? 0.5 : 1,
       child: Material(
         color: filled
             ? (figmaDisabled ? Colors.black.withValues(alpha: 0.25) : Colors.black)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(30 * s),
+        borderRadius: BorderRadius.circular(radius),
         clipBehavior: Clip.antiAlias,
         child: KioskTap(
           onTap: onTap,
           child: Container(
-            height: height * s,
+            height: KioskChromeSpec.barHeight * s,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30 * s),
+              borderRadius: BorderRadius.circular(radius),
               border: filled
                   ? null
                   : Border.all(
-                      color: Colors.black, width: (8 * s).clamp(2.0, 10.0)),
+                      color: Colors.black,
+                      width: KioskChromeSpec.barBorderWidth(s)),
             ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: (filled ? loewExtraBold : loewBold).copyWith(
-                fontSize: fontSize * s,
-                height: 1.0,
-                color: filled ? kCheckoutButtonText : Colors.black,
-              ),
-            ),
+            child: loading
+                ? SizedBox(
+                    width: fontSize,
+                    height: fontSize,
+                    child: CircularProgressIndicator(
+                      strokeWidth: (KioskChromeSpec.barBorder * s)
+                          .clamp(1.0, KioskChromeSpec.barBorder)
+                          .toDouble(),
+                      valueColor: AlwaysStoppedAnimation<Color>(ink),
+                    ),
+                  )
+                : Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: (filled ? loewExtraBold : loewBold).copyWith(
+                      fontSize: fontSize,
+                      height: 1.0,
+                      color: ink,
+                    ),
+                  ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// One button of a [KioskActionBar].
+class KioskBarAction {
+  final String label;
+  final bool filled;
+  final VoidCallback? onTap;
+  final bool disabledUsesFillAlpha;
+  final bool loading;
+
+  const KioskBarAction({
+    required this.label,
+    required this.filled,
+    required this.onTap,
+    this.disabledUsesFillAlpha = false,
+    this.loading = false,
+  });
+}
+
+/// THE kiosk bottom action bar: one button (full width) or two (equal width,
+/// [KioskChromeSpec.barGap] apart), with the spec's horizontal inset, top gap
+/// and bottom gap. Every kiosk screen with a bottom bar builds it here.
+///
+/// [s] is the chrome scale: [KioskChrome.scaleOf] everywhere except Version A
+/// customize, which uses [KioskChrome.scaleOfVersionA].
+///
+/// The `Row` deliberately does NOT stretch: this sits in a screen `Column`
+/// whose children get unbounded height, and stretch would hand each button a
+/// tight infinite height. [KioskCheckoutButton] sizes itself.
+class KioskActionBar extends StatelessWidget {
+  final double s;
+  final List<KioskBarAction> actions;
+
+  const KioskActionBar({super.key, required this.s, required this.actions})
+      : assert(actions.length == 1 || actions.length == 2);
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> row = [];
+    for (int i = 0; i < actions.length; i++) {
+      final KioskBarAction a = actions[i];
+      if (i > 0) row.add(SizedBox(width: KioskChromeSpec.barGap * s));
+      row.add(Expanded(
+        child: KioskCheckoutButton(
+          s: s,
+          label: a.label,
+          filled: a.filled,
+          onTap: a.onTap,
+          disabledUsesFillAlpha: a.disabledUsesFillAlpha,
+          loading: a.loading,
+        ),
+      ));
+    }
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        KioskChromeSpec.barInsetHorizontal * s,
+        KioskChromeSpec.barTopGap * s,
+        KioskChromeSpec.barInsetHorizontal * s,
+        KioskChromeSpec.barBottomGap * s,
+      ),
+      child: Row(children: row),
     );
   }
 }

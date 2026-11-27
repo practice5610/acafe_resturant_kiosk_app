@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
@@ -92,7 +93,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 left: Dimensions.paddingSizeDefault,
               ),
               child: Row(children: [
-                const KioskBackButton(),
+                KioskBackButton(s: KioskChrome.scaleOf(context)),
                 const SizedBox(width: Dimensions.paddingSizeSmall),
                 Expanded(
                   child: _KioskSearchField(

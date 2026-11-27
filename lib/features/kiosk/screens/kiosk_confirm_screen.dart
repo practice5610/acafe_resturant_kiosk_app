@@ -5,6 +5,7 @@ import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/domain/models/coupon_model.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_place_order.dart';
@@ -199,12 +200,7 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
                           child: KioskCenteredContent(
                             child: Column(
                               children: [
-                                KioskCheckoutHeader(
-                                  s: s,
-                                  activeStep: 2,
-                                  horizontalPadding: layout.headerGutterDesign,
-                                  verticalPadding: layout.headerPad,
-                                ),
+                                const KioskCheckoutHeader(activeStep: 2),
                                 Expanded(
                                   child: _ConfirmLineList(
                                     layout: layout,
@@ -250,16 +246,19 @@ class _ConfirmLayout {
   /// Figma artboard px → logical px.
   final double s;
   final bool landscape;
-  final KioskReadingInsets header;
   final KioskReadingInsets list;
   final KioskReadingInsets footer;
+
+  /// Width of the column the action bar sits in: the reading column on a
+  /// landscape window, the artboard band otherwise.
+  final double column;
 
   const _ConfirmLayout({
     required this.s,
     required this.landscape,
-    required this.header,
     required this.list,
     required this.footer,
+    required this.column,
   });
 
   /// Gutter floor in artboard px, so the column never touches the bezel on a
@@ -284,31 +283,26 @@ class _ConfirmLayout {
     return _ConfirmLayout(
       s: s,
       landscape: landscape,
-      header: band_(107, 107),
       list: band_(77, 115),
       footer: band_(107, 57),
+      column: landscape
+          ? kioskReadingColumnWidth(width: band, landscape: true)
+          : band,
     );
   }
 
-  /// [KioskCheckoutHeader] takes artboard px, so the resolved gutter is
-  /// converted back through [s] to land on the same column as the body.
-  double get headerGutterDesign => header.left / s;
-
   // Artboard px. Landscape values are denser: the same layout, less air.
-  double get headerPad => landscape ? 84 : 121;
   double get listPad => landscape ? 20 : 40;
   double get titleSize => landscape ? 88 : 128;
   double get titleGap => landscape ? 32 : 50;
   double get lineGap => landscape ? 32 : 50;
   double get footerPadTop => landscape ? 48 : 69;
-  double get footerPadBottom => landscape ? 48 : 60;
   double get rowLabelSize => landscape ? 52 : 64;
   double get rowValueSize => landscape ? 76 : 100;
   double get rowGap => landscape ? 14 : 18;
   double get totalGap => landscape ? 32 : 50;
   double get totalLabelSize => landscape ? 120 : 200;
   double get totalValueSize => landscape ? 108 : 180;
-  double get payButtonHeight => landscape ? 180 : 252;
 
   /// Square thumbnails on a wide screen: the Figma portrait crop makes a
   /// single line a third of the viewport, so the next item never shows.
@@ -425,13 +419,14 @@ class _SummaryFooter extends StatelessWidget {
               offset: Offset(0, -10 * s)),
         ],
       ),
-      padding: layout.footer.pagePadded(
-        top: layout.footerPadTop * s,
-        bottom: layout.footerPadBottom * s,
-      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Padding(
+            padding: layout.footer.pagePadded(top: layout.footerPadTop * s),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
           _BreakdownRow(
             layout: layout,
             label: kioskTranslate(context, 'items_total', 'Items total')
@@ -502,15 +497,25 @@ class _SummaryFooter extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: layout.totalGap * s),
-          KioskCheckoutButton(
-            s: s,
-            label: kioskTranslate(
-                    context, 'complete_order_and_pay', 'Complete order & pay')
-                .toUpperCase(),
-            filled: true,
-            height: layout.payButtonHeight,
-            onTap: enabled ? onPay : null,
+              ],
+            ),
+          ),
+          // CHROME: the shared action bar supplies the gap above the button
+          // and the bottom gap under it, which is the card's bottom edge.
+          KioskCenteredContent(
+            maxWidth: layout.column,
+            child: KioskActionBar(
+              s: KioskChrome.scaleOf(context),
+              actions: [
+                KioskBarAction(
+                  label: kioskTranslate(context, 'complete_order_and_pay',
+                          'Complete order & pay')
+                      .toUpperCase(),
+                  filled: true,
+                  onTap: enabled ? onPay : null,
+                ),
+              ],
+            ),
           ),
         ],
       ),

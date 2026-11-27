@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
@@ -120,8 +121,8 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                       padding: EdgeInsets.fromLTRB(side, 32 * s, side, 0),
                       child: Row(
                         children: [
-                          KioskBackButton.header(
-                            s: s,
+                          KioskBackButton(
+                            s: KioskChrome.scaleOf(context),
                             fallback: widget.fromMenu
                                 ? RouterHelper.getKioskMenuRoute
                                 : _goWelcome,
@@ -137,7 +138,9 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                               ),
                             ),
                           ),
-                          SizedBox(width: KioskBackButton.headerSizeFor(s)),
+                          SizedBox(
+                              width: KioskBackButton.diameterFor(
+                                  KioskChrome.scaleOf(context))),
                         ],
                       ),
                     ),

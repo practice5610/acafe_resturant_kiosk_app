@@ -241,19 +241,20 @@ void main() {
           reason: 'cancel (outlined) sits left of add to cart (filled)');
     });
 
-    test('reuses the shared KioskCheckoutButton rather than a local button',
-        () {
+    test('reuses the shared KioskActionBar rather than a local button', () {
       final String body = source.substring(source.indexOf('class _ActionBar'));
-      expect(body, contains('KioskCheckoutButton('));
+      expect(body, contains('KioskActionBar('));
+      expect(body.contains('KioskCheckoutButton('), isFalse,
+          reason: 'buttons come from the shared bar, never built here');
       expect(source.contains('class _AddToCartBar'), isFalse,
           reason: 'the one-off bar should be gone');
     });
 
-    test('the bar scales with the page instead of snapping at the 1100px seam',
-        () {
+    test('Version A sizes the bar with the never-larger chrome scale', () {
       final String body = source.substring(source.indexOf('class _ActionBar'));
-      expect(body, contains('forceScaled: true'),
-          reason: 'a fixed 60px button would break the artboard it sits in');
+      expect(body, contains('KioskChrome.scaleOfVersionA('),
+          reason: 'the page is height-budgeted: its bar may never grow past '
+              'the budget the page was fitted to');
     });
 
     test('add to cart shows the running line total', () {

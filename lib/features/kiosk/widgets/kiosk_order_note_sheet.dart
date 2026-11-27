@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_keyboard.dart';
@@ -262,12 +263,10 @@ class _NoteCard extends StatelessWidget {
               ),
               Align(
                 alignment: Alignment.centerLeft,
-                child: KioskBackButton.scaled(
-                  s: s,
-                  size: _backSize,
-                  border: 4,
-                  icon: 60,
-                  minBorder: 1.5,
+                child: KioskBackButton(
+                  // Legacy-sized popup: never larger than it is today.
+                  s: KioskChrome.scaleOfVersionA(
+                      context, _backSize * s / KioskChromeSpec.backDiameter),
                   onTap: onBack,
                 ),
               ),

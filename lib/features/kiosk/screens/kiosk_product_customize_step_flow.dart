@@ -474,6 +474,8 @@ class _KioskProductCustomizeStepScreenState
                   ),
                 );
                 final double gutter = KioskCustomizeSpec.gutter * s;
+                // Version B is the flat unified chrome scale: no min().
+                final double chromeScale = KioskChrome.scaleOf(context);
 
                 return KioskCenteredContent(
                   maxWidth: column,
@@ -483,8 +485,13 @@ class _KioskProductCustomizeStepScreenState
                         // Progress bar + back button. Rebuilt on step change,
                         // which is exactly what it displays.
                         Padding(
-                          padding: EdgeInsets.fromLTRB(gutter,
-                              KioskCustomizeSpec.backButtonTop * s, gutter, 0),
+                          // Back button + progress bar are CHROME: they sit at
+                          // the shared chrome insets, at the chrome scale.
+                          padding: EdgeInsets.fromLTRB(
+                              KioskChromeSpec.insetLeft * chromeScale,
+                              KioskChromeSpec.insetTop * chromeScale,
+                              KioskChromeSpec.insetLeft * chromeScale,
+                              0),
                           child: ValueListenableBuilder<int>(
                             valueListenable: _stepIndex,
                             builder: (context, current, _) =>
@@ -689,6 +696,7 @@ class _StepProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double cs = KioskChrome.scaleOf(context);
     final List<Widget> row = [];
     for (int i = 0; i < steps.length; i++) {
       row.add(
@@ -719,13 +727,11 @@ class _StepProgressBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         KioskBackButton(
-          size: KioskCustomizeSpec.backButton * s,
-          borderWidth: _border(KioskCustomizeSpec.backButtonBorder, s),
-          iconSize: KioskCustomizeSpec.backButtonIcon * s,
+          s: cs,
           onTap: onBack,
           fallback: RouterHelper.getKioskMenuRoute,
         ),
-        SizedBox(width: 48 * s),
+        SizedBox(width: KioskChromeSpec.backToContentGap * cs),
         Expanded(
           child: Center(
             child: Row(
@@ -736,7 +742,7 @@ class _StepProgressBar extends StatelessWidget {
           ),
         ),
         // Balances the back button so the bar stays optically centred.
-        SizedBox(width: KioskCustomizeSpec.backButton * s),
+        SizedBox(width: KioskBackButton.diameterFor(cs)),
       ],
     );
   }
@@ -875,6 +881,9 @@ class _LegacyStepProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Only the landscape customize still mounts this bar. It is height-budgeted
+    // like Version A, so its chrome follows the same never-larger `min()` form.
+    final double cs = KioskChrome.scaleOfVersionA(context, s);
     final List<Widget> row = [];
     for (int i = 0; i < steps.length; i++) {
       row.add(
@@ -901,19 +910,17 @@ class _LegacyStepProgressBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         KioskBackButton(
-          size: KioskCustomizeSpec.backButton * s,
-          borderWidth: _border(KioskCustomizeSpec.backButtonBorder, s),
-          iconSize: KioskCustomizeSpec.backButtonIcon * s,
+          s: cs,
           onTap: onBack,
           fallback: RouterHelper.getKioskMenuRoute,
         ),
-        SizedBox(width: 48 * s),
+        SizedBox(width: KioskChromeSpec.backToContentGap * cs),
         Expanded(
           child:
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: row),
         ),
         // Balances the back button so the bar stays optically centred.
-        SizedBox(width: KioskCustomizeSpec.backButton * s),
+        SizedBox(width: KioskBackButton.diameterFor(cs)),
       ],
     );
   }
@@ -1050,49 +1057,32 @@ class _StepActionBar extends StatelessWidget {
     final String nextLabel =
         getTranslated('next', context)?.toUpperCase() ?? 'NEXT';
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        KioskCustomizeSpec.gutter * s,
-        KioskCustomizeSpec.actionBarTopGap * s,
-        KioskCustomizeSpec.gutter * s,
-        KioskCustomizeSpec.actionBarBottomGap * s,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: KioskCheckoutButton(
-              s: s,
-              filled: false,
-              forceScaled: true,
-              fontSize: KioskCustomizeSpec.actionLabelSize,
-              label: getTranslated('cancel_item', context)?.toUpperCase() ??
-                  'CANCEL ITEM',
-              onTap: () => KioskNavigationHelper.popOrNavigate(
-                context,
-                fallback: RouterHelper.getKioskMenuRoute,
-              ),
-            ),
+    return KioskActionBar(
+      // Version B: the flat unified chrome scale.
+      s: KioskChrome.scaleOf(context),
+      actions: [
+        KioskBarAction(
+          filled: false,
+          label: getTranslated('cancel_item', context)?.toUpperCase() ??
+              'CANCEL ITEM',
+          onTap: () => KioskNavigationHelper.popOrNavigate(
+            context,
+            fallback: RouterHelper.getKioskMenuRoute,
           ),
-          SizedBox(width: KioskCustomizeSpec.actionGap * s),
-          Expanded(
-            child: KioskCheckoutButton(
-              s: s,
-              filled: true,
-              forceScaled: true,
-              fontSize: KioskCustomizeSpec.actionLabelSize,
-              label: isLastStep ? addLabel : nextLabel,
-              // Figma: a blocked NEXT / ADD TO CART is a rgba(0,0,0,0.25) fill
-              // with the cream label still on it, not a dimmed whole button.
-              disabledUsesFillAlpha: true,
-              // A null onTap is what KioskCheckoutButton dims for its disabled
-              // state, so an unanswered required step reads as blocked before
-              // the customer even taps — including the last step, where ADD TO
-              // CART stays blocked until cup/can (the required choice) is made.
-              onTap: canAdvance ? (isLastStep ? onAddToCart : onNext) : null,
-            ),
-          ),
-        ],
-      ),
+        ),
+        KioskBarAction(
+          filled: true,
+          label: isLastStep ? addLabel : nextLabel,
+          // Figma: a blocked NEXT / ADD TO CART is a rgba(0,0,0,0.25) fill
+          // with the cream label still on it, not a dimmed whole button.
+          disabledUsesFillAlpha: true,
+          // A null onTap is what the button dims for its disabled state, so an
+          // unanswered required step reads as blocked before the customer even
+          // taps — including the last step, where ADD TO CART stays blocked
+          // until cup/can (the required choice) is made.
+          onTap: canAdvance ? (isLastStep ? onAddToCart : onNext) : null,
+        ),
+      ],
     );
   }
 }

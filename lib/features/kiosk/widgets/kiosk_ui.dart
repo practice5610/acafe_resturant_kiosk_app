@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
@@ -430,87 +430,32 @@ class KioskCircleBack extends StatelessWidget {
   }
 }
 
-/// Black-outlined circular back control — kiosk standard (see language screen).
+/// THE kiosk back button: black-outlined circle with a chevron.
 ///
-/// Always routes through [KioskNavigationHelper.popOrNavigate] so back never
-/// silently fails when `canPop` is false (e.g. direct URL to cart). Pass
-/// [fallback] for screen-specific targets (cart → menu, checkout → cart, …).
+/// One constructor, no size / border / icon overrides: every dimension comes
+/// from [KioskChromeSpec] times the chrome scale [s] (see [KioskChrome.scaleOf]),
+/// so it is the same size in logical pixels on every screen at the same
+/// viewport. Position it with [KioskChromeSpec.insetLeft] / [KioskChromeSpec.insetTop].
+///
+/// Always routes through [KioskNavigationHelper.popOrNavigate] unless [onTap]
+/// is given, so back never silently fails when `canPop` is false (e.g. direct
+/// URL to cart). Pass [fallback] for screen-specific targets.
 class KioskBackButton extends StatelessWidget {
-  /// The app-wide header back-button spec (artboard px): cart, coupon, header
-  /// bar AND the checkout stepper all read these, so they can never drift.
-  static const double headerSize = 100;
-  static const double headerBorder = 4;
-  static const double headerIcon = 50;
-  static const double headerMinBorder = 1;
-
-  /// Floor for the header back button, in logical px. On a narrow window the
-  /// pure `100 * s` spec shrinks to ~38px — too small to see or tap — so every
-  /// header back button is held at this size or larger.
-  static const double headerMinSize = 56;
-
-  /// Rendered diameter of the header back button at scale [s].
-  static double headerSizeFor(double s) {
-    final double v = headerSize * s;
-    return v < headerMinSize ? headerMinSize : v;
-  }
-
+  /// Chrome scale: [KioskChrome.scaleOf] (or, Version A only,
+  /// [KioskChrome.scaleOfVersionA]).
+  final double s;
   final VoidCallback? onTap;
   final VoidCallback? fallback;
-  final double size;
-  final double borderWidth;
-  final double iconSize;
 
   const KioskBackButton({
     super.key,
+    required this.s,
     this.onTap,
     this.fallback,
-    this.size = 52,
-    this.borderWidth = 2,
-    this.iconSize = 22,
   });
 
-  /// Scaled variant for narrow kiosk layouts (`s` = width / design width).
-  factory KioskBackButton.scaled({
-    Key? key,
-    VoidCallback? onTap,
-    VoidCallback? fallback,
-    required double s,
-    double size = 52,
-    double border = 2,
-    double icon = 22,
-    double minBorder = 1.5,
-    double maxBorder = 6.0,
-  }) {
-    return KioskBackButton(
-      key: key,
-      onTap: onTap,
-      fallback: fallback,
-      size: size * s,
-      borderWidth: (border * s).clamp(minBorder, maxBorder),
-      iconSize: icon * s,
-    );
-  }
-
-  /// THE header back button: cart, coupon, checkout, manager screens. Same
-  /// proportions as the artboard spec (100 / 4 / 50) at full scale, never
-  /// smaller than [headerMinSize]. Use this instead of hand-sizing a button.
-  factory KioskBackButton.header({
-    Key? key,
-    VoidCallback? onTap,
-    VoidCallback? fallback,
-    required double s,
-  }) {
-    final double size = headerSizeFor(s);
-    final double k = size / headerSize;
-    return KioskBackButton(
-      key: key,
-      onTap: onTap,
-      fallback: fallback,
-      size: size,
-      borderWidth: (headerBorder * k).clamp(headerMinBorder, 6.0),
-      iconSize: headerIcon * k,
-    );
-  }
+  /// Rendered diameter at chrome scale [s].
+  static double diameterFor(double s) => KioskChromeSpec.backDiameter * s;
 
   void _handleTap(BuildContext context) {
     if (onTap != null) {
@@ -527,15 +472,16 @@ class KioskBackButton extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         shape: CircleBorder(
-          side: BorderSide(color: Colors.black, width: borderWidth),
+          side: BorderSide(
+              color: Colors.black, width: KioskChromeSpec.backBorderWidth(s)),
         ),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
-          width: size,
-          height: size,
+          width: diameterFor(s),
+          height: diameterFor(s),
           child: Icon(
             Icons.arrow_back_ios_new,
-            size: iconSize,
+            size: KioskChromeSpec.backIcon * s,
             color: Colors.black,
           ),
         ),
@@ -553,13 +499,7 @@ class KioskHeaderBar extends StatelessWidget {
   final String title;
   final VoidCallback? onBack;
   final VoidCallback? fallback;
-  final double verticalPadding;
-  final double horizontalPadding;
-  final double rowHeight;
   final double titleFontSize;
-  final double backSize;
-  final double backBorder;
-  final double backIconSize;
 
   /// Optional right-aligned content (e.g. summary chips) rendered in the same
   /// row as the back button and title, so screens don't need a second row
@@ -572,40 +512,39 @@ class KioskHeaderBar extends StatelessWidget {
     this.title = 'A/CAFÉ',
     this.onBack,
     this.fallback,
-    this.verticalPadding = 60,
-    this.horizontalPadding = 132,
-    this.rowHeight = 141,
     this.titleFontSize = 120,
-    this.backSize = KioskBackButton.headerSize,
-    this.backBorder = KioskBackButton.headerBorder,
-    this.backIconSize = KioskBackButton.headerIcon,
     this.trailing,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Back button, its insets and the row it sits in are CHROME: they follow
+    // the shared chrome scale, not this screen's content scale.
+    final double cs = KioskChrome.scaleOf(context);
+    final double back = KioskBackButton.diameterFor(cs);
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: horizontalPadding * s,
-        vertical: verticalPadding * s,
+      padding: EdgeInsets.fromLTRB(
+        KioskChromeSpec.insetLeft * cs,
+        KioskChromeSpec.insetTop * cs,
+        KioskChromeSpec.insetLeft * cs,
+        KioskChromeSpec.insetTop * cs,
       ),
       child: Column(
         children: [
           SizedBox(
-            height: math.max(rowHeight * s, KioskBackButton.headerSizeFor(s)),
+            height: back,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 // Positioned.fill gives FittedBox tight bounds so "A/CAFÉ"
                 // scales down on landscape carts where titleFontSize (120)
-                // exceeds rowHeight (100) instead of clipping at the top.
+                // exceeds the row instead of clipping at the top.
                 Positioned.fill(
                   child: IgnorePointer(
                     child: Padding(
                       // Leave room for the back button so the logo never
                       // overlaps it when the title is wide.
-                      padding: EdgeInsets.symmetric(
-                          horizontal: KioskBackButton.headerSizeFor(s)),
+                      padding: EdgeInsets.symmetric(horizontal: back),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
@@ -625,8 +564,8 @@ class KioskHeaderBar extends StatelessWidget {
                 ),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: KioskBackButton.header(
-                    s: s,
+                  child: KioskBackButton(
+                    s: cs,
                     onTap: onBack,
                     fallback: fallback,
                   ),
@@ -641,7 +580,7 @@ class KioskHeaderBar extends StatelessWidget {
           ),
           // Same gap as the padding above the row, so the divider sits
           // exactly as far below the logo as the logo sits below the top.
-          SizedBox(height: verticalPadding * s),
+          SizedBox(height: KioskChromeSpec.insetTop * cs),
           Container(height: (2 * s).clamp(1.0, 2.0), color: Colors.black),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:flutter/material.dart';
@@ -30,8 +31,9 @@ void main() {
 
   setUpAll(_loadFonts);
 
-  /// Landscape cart uses rowHeight 100 with titleFontSize 120 — the logo
-  /// used to clip at the top of the header row on large landscape devices.
+  /// The header row is exactly the shared back button's height, while the title
+  /// is 120 artboard px — the logo used to clip at the top of the header row on
+  /// large landscape devices.
   testWidgets('landscape cart header keeps A/CAFÉ inside the row',
       (tester) async {
     const size = Size(1920, 1080);
@@ -40,7 +42,9 @@ void main() {
     addTearDown(tester.view.reset);
 
     const double s = 0.5;
-    const double rowHeight = 100;
+    // The row is the back button at the shared chrome scale for this window.
+    final double rowHeight =
+        KioskBackButton.diameterFor(kioskChromeScale(size)) / s;
     const double titleFontSize = 120;
 
     await tester.pumpWidget(
@@ -50,8 +54,6 @@ void main() {
             child: KioskHeaderBar(
               s: s,
               fallback: RouterHelper.getKioskMenuRoute,
-              verticalPadding: 28,
-              rowHeight: rowHeight,
               titleFontSize: titleFontSize,
             ),
           ),

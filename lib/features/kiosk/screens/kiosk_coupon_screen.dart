@@ -11,13 +11,13 @@ import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_cart_totals.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_coupon_reward.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_translate.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart'
-    show kCheckoutErrorRed;
+    show kCheckoutErrorRed, KioskActionBar, KioskBarAction;
 import 'package:acafe_customer/features/kiosk/screens/kiosk_coupon_applied_screen.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_keyboard.dart';
-import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/custom_snackbar_helper.dart';
 import 'package:acafe_customer/helper/price_converter_helper.dart';
@@ -260,71 +260,91 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final m = _KioskCouponMetrics.resolve(
-                constraints.maxWidth,
-                constraints.maxHeight,
-              );
+              // CHROME (header row and action bar) follows the shared chrome
+              // scale. Only the keyboard / field / scan block below is sized by
+              // this screen, from whatever height the chrome leaves it.
+              final double cs = KioskChrome.scaleOf(context);
+              final double headerHeight = _headerHeight(cs);
+              final double barHeight = KioskChromeSpec.barBlock * cs;
+              final double regionHeight =
+                  constraints.maxHeight - headerHeight - barHeight;
+              final bool hasInlineError = _errorText != null;
 
-              final Widget column = Column(
-                // Needed once the fixed-height SizedBox below is skipped for
-                // the inline-error layout (its natural height, not a design
-                // budget that doesn't know about the error row, decides size).
-                mainAxisSize: MainAxisSize.min,
+              return Column(
                 children: [
-                  SizedBox(height: m.gap(_kTopGap)),
-                  _Logo(m: m, onBack: _close),
-                  SizedBox(height: m.gap(_kLogoToTitle)),
-                  _Title(m: m),
-                  SizedBox(height: m.gap(_kTitleToField)),
-                  _CodeField(
-                    m: m,
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    onSubmit: _submit,
-                    onChanged: _onCodeChanged,
-                    errorText: _errorText,
+                  _Header(cs: cs, onBack: _close),
+                  // The flexible region: it is handed exactly the height that
+                  // is left between the fixed header and the pinned bar, and
+                  // the content is RESOLVED to fit it (scale first, then the
+                  // whitespace between the blocks), so it cannot overflow and
+                  // never needs to scroll.
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, region) {
+                        final m = _KioskCouponMetrics.resolve(
+                          region.maxWidth,
+                          math.min(region.maxHeight, regionHeight),
+                          hasInlineError: hasInlineError,
+                        );
+                        return Center(
+                          child: SizedBox(
+                            width: m.contentWidth,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(height: m.gap(_kLogoToTitle)),
+                                _Title(m: m),
+                                SizedBox(height: m.gap(_kTitleToField)),
+                                _CodeField(
+                                  m: m,
+                                  controller: _controller,
+                                  focusNode: _focusNode,
+                                  onSubmit: _submit,
+                                  onChanged: _onCodeChanged,
+                                  errorText: _errorText,
+                                ),
+                                SizedBox(height: m.gap(_kFieldToKeyboard)),
+                                KioskKeyboard(
+                                  s: m.s,
+                                  shift: _shift,
+                                  onKey: _insertFromKeyboard,
+                                  onShift: () =>
+                                      setState(() => _shift = !_shift),
+                                  onBackspace: _backspaceFromKeyboard,
+                                  onSpace: () => _insertFromKeyboard(' '),
+                                  onClear: _clearFromKeyboard,
+                                ),
+                                SizedBox(height: m.gap(_kKeyboardToScan)),
+                                _ScanPanel(m: m),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                  SizedBox(height: m.gap(_kFieldToKeyboard)),
-                  KioskKeyboard(
-                    s: m.s,
-                    shift: _shift,
-                    onKey: _insertFromKeyboard,
-                    onShift: () => setState(() => _shift = !_shift),
-                    onBackspace: _backspaceFromKeyboard,
-                    onSpace: () => _insertFromKeyboard(' '),
-                    onClear: _clearFromKeyboard,
+                  Consumer<CouponProvider>(
+                    builder: (context, coupon, _) => KioskActionBar(
+                      s: cs,
+                      actions: [
+                        KioskBarAction(
+                          label: kioskTranslate(context, 'back', 'Back')
+                              .toUpperCase(),
+                          filled: false,
+                          onTap: _close,
+                        ),
+                        KioskBarAction(
+                          label: kioskTranslate(context, 'continue', 'Continue')
+                              .toUpperCase(),
+                          filled: true,
+                          loading: coupon.isLoading,
+                          onTap: coupon.isLoading ? null : _submit,
+                        ),
+                      ],
+                    ),
                   ),
-                  SizedBox(height: m.gap(_kKeyboardToScan)),
-                  _ScanPanel(m: m),
-                  SizedBox(height: m.gap(_kScanToButtons)),
-                  _ActionBar(m: m, onBack: _close, onContinue: _submit),
-                  SizedBox(height: m.gap(_kBottomGap)),
                 ],
               );
-
-              // The inline coupon-rejection message (see _CodeField) adds a
-              // line of text the fixed design budget below (m.contentHeight)
-              // was never measured to include, since it only renders when a
-              // code is actually rejected. Rather than teach the static
-              // metrics about a dynamic, state-driven row, size the column to
-              // its own natural height whenever the error is showing, and
-              // always let it scroll — exact on every other screen, safe here.
-              final bool hasInlineError = _errorText != null;
-              final Widget content = SizedBox(
-                width: m.contentWidth,
-                height: hasInlineError ? null : m.contentHeight,
-                child: column,
-              );
-
-              // Only reachable once the scale has bottomed out on a very small
-              // viewport, or the inline error needs more room than the design
-              // budgeted; everywhere else the column is sized to fit exactly.
-              if (hasInlineError || m.contentHeight > constraints.maxHeight) {
-                return SingleChildScrollView(
-                  child: Center(child: content),
-                );
-              }
-              return Center(child: content);
             },
           ),
         ),
@@ -345,26 +365,19 @@ const Color _kInk = Color(0xFF231F20);
 const Color _kFieldBg = Color(0xFFFBF8EF);
 const Color _kFieldBorder = Color(0xFFDED9C7);
 const Color _kPanelBg = Color(0xFFFBF8EF);
-const Color _kButtonLabel = Color(0xFFFAF9F5);
 
 const int _kMaxCodeLength = 24;
 
-// Vertical rhythm: whitespace gaps (flexible) and element heights (fixed).
-// Field→scan was field→keyboard (270) + keyboard→scan (190) in the artboard —
-// now that the on-screen KioskKeyboard actually sits there (Figma 2305:16029),
-// those two gaps are real and the board's own height joins _kFixedTotal below.
-const double _kTopGap = 136;
+// Vertical rhythm of the flexible region: whitespace gaps (flexible) and
+// element heights (fixed). The gap under the logo and the gaps around the
+// action bar are chrome, owned by [KioskChromeSpec], not by this screen.
 const double _kLogoToTitle = 618.5;
 const double _kTitleToField = 105;
 const double _kFieldToKeyboard = 270;
 const double _kKeyboardToScan = 190;
-const double _kScanToButtons = 517;
-const double _kBottomGap = 124;
 
 const double _kLogoWidth = 680.783;
 const double _kLogoHeight = 178.475;
-/// Same circular back control as [KioskHeaderBar] (cart / manager screens).
-const double _kHeaderBackInset = 132;
 const double _kTitleFont = 120;
 const double _kTitleWidth = 1800;
 
@@ -397,36 +410,31 @@ const double _kPanelSubtitleFont = 64;
 const double _kPanelTitleGap = 21;
 const double _kQrSize = 400;
 
-const double _kButtonInset = 74;
-const double _kButtonHeight = 252;
-const double _kButtonRadius = 30;
-const double _kButtonBorderWidth = 8;
-const double _kButtonGap = 22;
-const double _kButtonFont = 72;
-const double _kButtonPadH = 64;
+/// The inline coupon-rejection line under the field (see [_CodeField]):
+/// 18 gap + one 40px line at 1.2.
+const double _kErrorExtra = 18 + 40 * 1.2;
 
 /// Sum of the flexible gaps and of the fixed element heights, at scale 1.
-const double _kGapTotal = _kTopGap +
-    _kLogoToTitle +
-    _kTitleToField +
-    _kFieldToKeyboard +
-    _kKeyboardToScan +
-    _kScanToButtons +
-    _kBottomGap; // 1960.5
+const double _kGapTotal =
+    _kLogoToTitle + _kTitleToField + _kFieldToKeyboard + _kKeyboardToScan;
 
-const double _kFixedTotal = _kLogoHeight +
-    _kTitleFont +
+const double _kFixedTotal = _kTitleFont +
     _kFieldHeight +
     KioskKeyboard.designHeight +
-    _kPanelHeight +
-    _kButtonHeight; // 2569.475 (was 1405.475 before the on-screen keyboard)
+    _kPanelHeight;
 
 /// How far the design's whitespace may be squeezed / stretched before the
 /// scale itself has to give way.
 const double _kMinGapFactor = 0.5;
 const double _kMaxGapFactor = 2.2;
 
-/// Resolved sizing for one viewport.
+/// Height of the fixed header row at chrome scale [cs]: the top inset, then the
+/// taller of the back button and the wordmark.
+double _headerHeight(double cs) =>
+    KioskChromeSpec.insetTop * cs +
+    math.max(KioskBackButton.diameterFor(cs), _kLogoHeight * cs);
+
+/// Resolved sizing of the flexible region for one measured box.
 class _KioskCouponMetrics {
   /// Figma pixel → logical pixel.
   final double s;
@@ -435,27 +443,33 @@ class _KioskCouponMetrics {
   final double gapFactor;
 
   final double contentWidth;
-  final double contentHeight;
 
   const _KioskCouponMetrics._({
     required this.s,
     required this.gapFactor,
     required this.contentWidth,
-    required this.contentHeight,
   });
 
-  factory _KioskCouponMetrics.resolve(double width, double height) {
-    // The shortest height the design can occupy is its fixed elements plus
-    // half its whitespace; sizing against that (rather than the full 4530)
-    // lets short displays keep usable field/button sizes.
-    const double minDesignHeight =
-        _kFixedTotal + _kGapTotal * _kMinGapFactor; // 2385.725
+  /// [height] is the height the region has. There is deliberately NO floor on
+  /// the scale: a floor is exactly what makes a fixed budget overflow on a
+  /// small window. The scale is whatever lets the content fit, and the
+  /// whitespace between the blocks takes up the rest.
+  factory _KioskCouponMetrics.resolve(double width, double height,
+      {bool hasInlineError = false}) {
+    final double fixedDesign = _kFixedTotal + (hasInlineError ? _kErrorExtra : 0);
+    // The shortest height the content can occupy is its fixed elements plus
+    // half its whitespace.
+    final double minDesignHeight = fixedDesign + _kGapTotal * _kMinGapFactor;
 
-    final double s = math
-        .min(width / _kDesignWidth, height / minDesignHeight)
-        .clamp(0.16, 1.0);
+    final double s = math.max(
+      0.01,
+      math.min(
+        1.0,
+        math.min(width / _kDesignWidth, height / minDesignHeight),
+      ),
+    );
 
-    final double fixed = _kFixedTotal * s;
+    final double fixed = fixedDesign * s;
     final double gapFactor = _kGapTotal * s <= 0
         ? 1.0
         : ((height - fixed) / (_kGapTotal * s))
@@ -465,7 +479,6 @@ class _KioskCouponMetrics {
       s: s,
       gapFactor: gapFactor,
       contentWidth: _kDesignWidth * s,
-      contentHeight: fixed + _kGapTotal * s * gapFactor,
     );
   }
 
@@ -483,43 +496,49 @@ class _KioskCouponMetrics {
 // Sections
 // ===========================================================================
 
-class _Logo extends StatelessWidget {
-  final _KioskCouponMetrics m;
+/// The fixed header: wordmark centred, the shared back button on the left.
+/// CHROME, so it is sized at the chrome scale [cs], not by this screen's
+/// content scale.
+class _Header extends StatelessWidget {
+  final double cs;
   final VoidCallback onBack;
-  const _Logo({required this.m, required this.onBack});
+  const _Header({required this.cs, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
-    // Wordmark stays centred; the circular back control sits on the left of
-    // the same row, matching [KioskHeaderBar] on cart / manager screens.
     return SizedBox(
       width: double.infinity,
-      height: math.max(
-          m.px(_kLogoHeight), KioskBackButton.headerSizeFor(m.s)),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // The kiosk ships the wordmark as white artwork; every light kiosk
-          // screen tints it with the page ink (see kiosk_welcome_screen).
-          SvgPicture.asset(
-            Images.kioskLogoWhiteSvg,
-            width: m.px(_kLogoWidth),
-            height: m.px(_kLogoHeight),
-            fit: BoxFit.contain,
-            colorFilter: const ColorFilter.mode(_kInk, BlendMode.srcIn),
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: EdgeInsets.only(left: m.px(_kHeaderBackInset)),
-              child: KioskBackButton.header(
-                s: m.s,
-                onTap: onBack,
-                fallback: RouterHelper.getKioskCartRoute,
+      height: _headerHeight(cs),
+      child: Padding(
+        padding: EdgeInsets.only(top: KioskChromeSpec.insetTop * cs),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // The kiosk ships the wordmark as white artwork; every light kiosk
+            // screen tints it with the page ink (see kiosk_welcome_screen).
+            SvgPicture.asset(
+              Images.kioskLogoWhiteSvg,
+              width: _kLogoWidth * cs,
+              height: _kLogoHeight * cs,
+              fit: BoxFit.contain,
+              colorFilter: const ColorFilter.mode(_kInk, BlendMode.srcIn),
+            ),
+            // Top-aligned, not centred: the back button sits at the shared top
+            // inset even when the wordmark makes the row taller than it is.
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding:
+                    EdgeInsets.only(left: KioskChromeSpec.insetLeft * cs),
+                child: KioskBackButton(
+                  s: cs,
+                  onTap: onBack,
+                  fallback: RouterHelper.getKioskCartRoute,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -738,119 +757,6 @@ class _ScanPanel extends StatelessWidget {
             height: m.px(_kQrSize),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ActionBar extends StatelessWidget {
-  final _KioskCouponMetrics m;
-  final VoidCallback onBack;
-  final Future<void> Function() onContinue;
-
-  const _ActionBar({
-    required this.m,
-    required this.onBack,
-    required this.onContinue,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: m.px(_kButtonInset)),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ActionButton(
-              m: m,
-              label: kioskTranslate(context, 'back', 'Back').toUpperCase(),
-              filled: false,
-              onTap: onBack,
-            ),
-          ),
-          SizedBox(width: m.px(_kButtonGap)),
-          Expanded(
-            child: Consumer<CouponProvider>(
-              builder: (context, coupon, _) => _ActionButton(
-                m: m,
-                label: kioskTranslate(context, 'continue', 'Continue').toUpperCase(),
-                filled: true,
-                loading: coupon.isLoading,
-                onTap: coupon.isLoading ? null : onContinue,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final _KioskCouponMetrics m;
-  final String label;
-  final bool filled;
-  final bool loading;
-  final VoidCallback? onTap;
-
-  const _ActionButton({
-    required this.m,
-    required this.label,
-    required this.filled,
-    this.loading = false,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final double radius = m.px(_kButtonRadius);
-
-    return Opacity(
-      opacity: onTap == null && !loading ? 0.5 : 1,
-      child: KioskTap(
-        onTap: onTap,
-        child: Container(
-          height: m.px(_kButtonHeight),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: filled ? Colors.black : Colors.transparent,
-            borderRadius: BorderRadius.circular(radius),
-            border: filled
-                ? null
-                : Border.all(
-                    color: Colors.black,
-                    width: m.stroke(_kButtonBorderWidth),
-                  ),
-          ),
-          child: loading
-              ? SizedBox(
-                  width: m.px(_kButtonFont),
-                  height: m.px(_kButtonFont),
-                  child: CircularProgressIndicator(
-                    strokeWidth: m.stroke(8),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      filled ? _kButtonLabel : Colors.black,
-                    ),
-                  ),
-                )
-              : Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: m.px(_kButtonPadH)),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      textAlign: TextAlign.center,
-                      style: (filled ? loewExtraBold : loewBold).copyWith(
-                        fontSize: m.px(_kButtonFont),
-                        height: 1.0,
-                        color: filled ? _kButtonLabel : Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-        ),
       ),
     );
   }

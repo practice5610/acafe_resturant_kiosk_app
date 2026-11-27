@@ -1,4 +1,5 @@
 // ignore_for_file: unused_import, dead_code
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart'; // Veg/Non-Veg filter (commented below)
 import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
@@ -130,7 +131,7 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
         child: SafeArea(
           child: Row(children: [
 
-            const KioskBackButton(),
+            KioskBackButton(s: KioskChrome.scaleOf(context)),
             const SizedBox(width: Dimensions.paddingSizeSmall),
 
             Consumer<SearchProvider>(

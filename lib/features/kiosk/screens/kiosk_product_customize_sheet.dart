@@ -14,6 +14,7 @@ import 'package:acafe_customer/features/kiosk/domain/kiosk_order_composition.dar
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_scroll.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_sections.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_customize_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_option_layout.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
@@ -1399,8 +1400,14 @@ class _Header extends StatelessWidget {
       productImageBaseUrl: splash.baseUrls?.productImageUrl,
     );
     final String description = kioskProductDescription(product);
+    // Version A back button: the never-larger `min()` form, with its insets at
+    // the same chrome scale so inset and diameter stay in proportion.
+    final double chromeScale = KioskChrome.scaleOfVersionA(context, s);
 
     return Stack(
+      // The back button's inset is measured from the screen's chrome inset, not
+      // from this block's gutter, so it may sit left of it; do not clip it.
+      clipBehavior: Clip.none,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1511,12 +1518,10 @@ class _Header extends StatelessWidget {
         // pushing the centred block down or off-centre.
         if (showBackButton)
           Positioned(
-            left: 0,
-            top: KioskCustomizeSpec.backButtonTop * s,
+            left: KioskChromeSpec.insetLeft * (chromeScale - s),
+            top: KioskChromeSpec.insetTop * chromeScale,
             child: KioskBackButton(
-              size: KioskCustomizeSpec.backButton * s,
-              borderWidth: _border(KioskCustomizeSpec.backButtonBorder, s),
-              iconSize: KioskCustomizeSpec.backButtonIcon * s,
+              s: chromeScale,
               fallback: RouterHelper.getKioskMenuRoute,
             ),
           ),
@@ -3702,9 +3707,9 @@ class _VesselImage extends StatelessWidget {
 /// Pinned bottom pair from the Figma design (`Group 167`): CANCEL ITEM
 /// (outlined) beside ADD TO CART with the running line total.
 ///
-/// Both are [KioskCheckoutButton] — the same shared control the checkout steps
-/// and login use — so weight, radius and height stay consistent across the
-/// kiosk instead of this screen growing its own button.
+/// Built from [KioskActionBar] — the same shared bar every kiosk screen uses —
+/// so weight, radius and height stay consistent across the kiosk instead of
+/// this screen growing its own button.
 class _ActionBar extends StatelessWidget {
   final double s;
   final Product product;
@@ -3727,50 +3732,27 @@ class _ActionBar extends StatelessWidget {
         '${getTranslated('add_to_cart', context)?.toUpperCase() ?? 'ADD TO CART'}'
         '  ${PriceConverterHelper.convertPrice(total)}';
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        KioskCustomizeSpec.gutter * s,
-        KioskCustomizeSpec.actionBarTopGap * s,
-        KioskCustomizeSpec.gutter * s,
-        KioskCustomizeSpec.actionBarBottomGap * s,
-      ),
-      // No CrossAxisAlignment.stretch: this Row sits directly in the screen's
-      // Column, whose children get an UNBOUNDED height, so stretch would hand
-      // each button a tight infinite height and fail layout for the whole body.
-      // KioskCheckoutButton sizes itself, so the pair is equal-height anyway.
-      child: Row(
-        children: [
-          Expanded(
-            child: KioskCheckoutButton(
-              s: s,
-              filled: false,
-              // The design's bar is part of the artboard, so it scales with the
-              // page rather than snapping to the shared wide-screen button.
-              forceScaled: true,
-              fontSize: KioskCustomizeSpec.actionLabelSize,
-              label: getTranslated('cancel_item', context)?.toUpperCase() ??
-                  'CANCEL ITEM',
-              // Same route as the back button: drop the customize sheet and
-              // return to the menu.
-              onTap: () => KioskNavigationHelper.popOrNavigate(
-                context,
-                fallback: RouterHelper.getKioskMenuRoute,
-              ),
-            ),
+    return KioskActionBar(
+      // Version A: height-budgeted, so the never-larger `min()` form.
+      s: KioskChrome.scaleOfVersionA(context, s),
+      actions: [
+        KioskBarAction(
+          filled: false,
+          label: getTranslated('cancel_item', context)?.toUpperCase() ??
+              'CANCEL ITEM',
+          // Same route as the back button: drop the customize sheet and
+          // return to the menu.
+          onTap: () => KioskNavigationHelper.popOrNavigate(
+            context,
+            fallback: RouterHelper.getKioskMenuRoute,
           ),
-          SizedBox(width: KioskCustomizeSpec.actionGap * s),
-          Expanded(
-            child: KioskCheckoutButton(
-              s: s,
-              filled: true,
-              forceScaled: true,
-              fontSize: KioskCustomizeSpec.actionLabelSize,
-              label: addLabel,
-              onTap: onAddToCart,
-            ),
-          ),
-        ],
-      ),
+        ),
+        KioskBarAction(
+          filled: true,
+          label: addLabel,
+          onTap: onAddToCart,
+        ),
+      ],
     );
   }
 }

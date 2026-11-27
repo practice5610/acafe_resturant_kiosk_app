@@ -1,4 +1,6 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
+import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -22,7 +24,6 @@ import 'package:acafe_customer/utill/styles.dart';
 import 'package:provider/provider.dart';
 
 const Color _kCardBg = Color(0xFFFBF8EF);
-const Color _kCheckoutText = Color(0xFFFAF9F5);
 
 /// "€ 17,50" — the cart TOTAL row (Figma 2305:15652) wants a comma decimal,
 /// unlike the app's usual dot-decimal "€17.50" (`PriceConverterHelper.
@@ -118,10 +119,15 @@ class _CartLayout {
   final bool landscape;
   final KioskReadingInsets insets;
 
+  /// Width of the column the action bar sits in: the reading column on a
+  /// landscape window, the artboard band otherwise.
+  final double column;
+
   const _CartLayout({
     required this.s,
     required this.landscape,
     required this.insets,
+    required this.column,
   });
 
   /// Gutter floor in artboard px, so the column can never touch the bezel on
@@ -137,6 +143,9 @@ class _CartLayout {
     return _CartLayout(
       s: s,
       landscape: landscape,
+      column: landscape
+          ? kioskReadingColumnWidth(width: band, landscape: true)
+          : band,
       insets: KioskReadingInsets.resolve(
         width: width,
         band: band,
@@ -157,14 +166,7 @@ class _CartLayout {
   EdgeInsets pagePadded({double top = 0, double bottom = 0}) =>
       insets.pagePadded(top: top, bottom: bottom);
 
-  /// [KioskHeaderBar] takes artboard px, so the resolved gutter is converted
-  /// back through [s] to keep the logo and its rule on the same column as
-  /// everything below them.
-  double get headerGutterDesign => insets.left / s;
-
   // Artboard px. Landscape values are denser: the same layout, less air.
-  double get headerPad => landscape ? 40 : 60;
-  double get headerRow => landscape ? 120 : 141;
   double get titleSize => landscape ? 76 : 92;
   double get titleGap => landscape ? 16 : 18;
   double get subtitleSize => landscape ? 44 : 60;
@@ -172,12 +174,6 @@ class _CartLayout {
   double get lineGap => landscape ? 32 : 56;
   double get notePad => landscape ? 34 : 80;
   double get footerTop => landscape ? 48 : 69;
-  double get footerBottom => landscape ? 56 : 86;
-  double get buttonHeight => landscape ? 180 : 252;
-
-  /// Gap between the two footer buttons — and, on the left, the gap the
-  /// breakdown's divider is centred in.
-  double get buttonGap => 28;
 }
 
 /// Header, scrolling items, note strip, sticky footer — at every size.
@@ -219,9 +215,6 @@ class _CartBody extends StatelessWidget {
                 KioskHeaderBar(
                   s: s,
                   onBack: () => KioskNavigationHelper.backToMenu(context),
-                  horizontalPadding: layout.headerGutterDesign,
-                  verticalPadding: layout.headerPad,
-                  rowHeight: layout.headerRow,
                 ),
                 Expanded(
                   child: ListView(
@@ -435,6 +428,10 @@ class _Footer extends StatelessWidget {
     // One full-bleed bar at every size: the summary belongs under the items
     // it totals, lifted off the page by the same rounded lip and shadow the
     // portrait artboard uses.
+    //
+    // The TOTAL block is content and keeps its 0.8 scale (a deliberate client
+    // request). The two buttons below it are CHROME: the shared action bar at
+    // the chrome scale, with its own insets and 87 bottom gap.
     return Container(
       decoration: BoxDecoration(
         color: _kCardBg,
@@ -447,152 +444,92 @@ class _Footer extends StatelessWidget {
           ),
         ],
       ),
-      // Figma 2305:16922: 107 left / 57 right around the summary.
-      padding: layout.pagePadded(
-        top: layout.footerTop * s,
-        bottom: layout.footerBottom * s,
-      ).copyWith(
-        left: layout.pagePadded().left + 11 * layout.s,
-        right: math.max(0, layout.pagePadded().right - 39 * layout.s),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            // Figma 2305:16922: 107 left / 57 right around the summary.
+            padding: layout
+                .pagePadded(top: layout.footerTop * s)
+                .copyWith(
+                  left: layout.pagePadded().left + 11 * layout.s,
+                  right: math.max(0, layout.pagePadded().right - 39 * layout.s),
+                ),
+            child: _totalRow(context),
+          ),
+          KioskCenteredContent(
+            maxWidth: layout.column,
+            child: KioskActionBar(
+              s: KioskChrome.scaleOf(context),
+              actions: [
+                KioskBarAction(
+                  label: (couponDiscount > 0
+                          ? (couponCode ??
+                              getTranslated('add_coupon', context) ??
+                              'ADD COUPON')
+                          : (getTranslated('add_coupon', context) ??
+                              'ADD COUPON'))
+                      .toUpperCase(),
+                  filled: false,
+                  onTap: enabled
+                      ? () => openKioskCouponScreen(
+                            context,
+                            orderAmount: kioskOrderAmountBeforeCoupon(cartList),
+                          )
+                      : null,
+                ),
+                KioskBarAction(
+                  label: (getTranslated('check_out', context) ?? 'CHECK OUT')
+                      .toUpperCase(),
+                  filled: true,
+                  onTap: enabled ? () => openKioskCheckout(context) : null,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      child: _summaryBody(context),
     );
   }
 
-  /// TOTAL + amount row, then the two pill buttons — Figma 2305:15652.
+  /// TOTAL + amount row — Figma 2305:15652.
   ///
   /// No ITEMS TOTAL / TAX breakdown on this screen: the cart design shows the
   /// grand TOTAL only. Those figures are still computed and shown on the
   /// confirm screen and the printed receipt.
-  Widget _summaryBody(BuildContext context) {
+  Widget _totalRow(BuildContext context) {
     final double s = _s;
-    final double buttonHeight = layout.buttonHeight * s;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              (getTranslated('total', context) ?? 'TOTAL').toUpperCase(),
+        Text(
+          (getTranslated('total', context) ?? 'TOTAL').toUpperCase(),
+          maxLines: 1,
+          style: loewExtraBold.copyWith(
+            fontSize: 216 * s,
+            height: 1,
+            color: Colors.black,
+          ),
+        ),
+        SizedBox(width: 24 * s),
+        // Expanded + FittedBox(scaleDown): shrink a long amount to the
+        // row instead of letting it wrap and blow the footer's height.
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              kioskCommaPrice(total),
               maxLines: 1,
-              style: loewExtraBold.copyWith(
-                fontSize: 216 * s,
+              style: loewRegular.copyWith(
+                fontSize: 256 * s,
                 height: 1,
                 color: Colors.black,
               ),
             ),
-            SizedBox(width: 24 * s),
-            // Expanded + FittedBox(scaleDown): shrink a long amount to the
-            // row instead of letting it wrap and blow the footer's height.
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  kioskCommaPrice(total),
-                  maxLines: 1,
-                  style: loewRegular.copyWith(
-                    fontSize: 256 * s,
-                    height: 1,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 85 * s),
-        Row(
-          children: [
-            Expanded(child: _couponButton(context, height: buttonHeight)),
-            SizedBox(width: layout.buttonGap * s),
-            Expanded(child: _checkoutButton(context, height: buttonHeight)),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _couponButton(BuildContext context, {required double height}) {
-    return _FooterButton(
-      s: _s,
-      height: height,
-      label: (couponDiscount > 0
-              ? (couponCode ??
-                  getTranslated('add_coupon', context) ??
-                  'ADD COUPON')
-              : (getTranslated('add_coupon', context) ?? 'ADD COUPON'))
-          .toUpperCase(),
-      filled: false,
-      onTap: enabled
-          ? () => openKioskCouponScreen(
-                context,
-                orderAmount: kioskOrderAmountBeforeCoupon(cartList),
-              )
-          : null,
-    );
-  }
-
-  Widget _checkoutButton(BuildContext context, {required double height}) {
-    return _FooterButton(
-      s: _s,
-      height: height,
-      label: (getTranslated('check_out', context) ?? 'CHECK OUT').toUpperCase(),
-      filled: true,
-      onTap: enabled ? () => openKioskCheckout(context) : null,
-    );
-  }
-}
-
-class _FooterButton extends StatelessWidget {
-  final double s;
-  final String label;
-  final bool filled;
-  final VoidCallback? onTap;
-  final double height;
-  const _FooterButton(
-      {required this.s,
-      required this.label,
-      required this.filled,
-      required this.onTap,
-      required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    final bool disabled = onTap == null;
-    return Opacity(
-      opacity: disabled ? 0.5 : 1,
-      child: Material(
-        color: filled ? Colors.black : Colors.transparent,
-        borderRadius: BorderRadius.circular(30 * s),
-        clipBehavior: Clip.antiAlias,
-        child: KioskTap(
-          onTap: onTap,
-          child: Container(
-            height: height,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30 * s),
-              border: filled
-                  ? null
-                  : Border.all(
-                      color: Colors.black, width: (4 * s).clamp(1.5, 4.0)),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              style: (filled ? loewRegular800 : loewRegular700).copyWith(
-                fontSize: 52 * s,
-                letterSpacing: 1,
-                color: filled ? _kCheckoutText : Colors.black,
-              ),
-            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

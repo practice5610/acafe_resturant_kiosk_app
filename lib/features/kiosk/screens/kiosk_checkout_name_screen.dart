@@ -152,16 +152,13 @@ class _KioskCheckoutNameScreenState extends State<KioskCheckoutNameScreen> {
           onClear: _clearFromKeyboard,
         ),
       ),
-      bottomBuilder: (s) => Padding(
-        padding: EdgeInsets.fromLTRB(107 * s, 16 * s, 107 * s, 24 * s),
-        child: KioskCheckoutButton(
-          s: s,
-          label: getTranslated('next', context) ?? 'Next',
+      bottomActions: [
+        KioskBarAction(
+          label: getTranslated('next', context)?.toUpperCase() ?? 'NEXT',
           filled: true,
-          fontSize: 64,
           onTap: _next,
         ),
-      ),
+      ],
     );
   }
 }

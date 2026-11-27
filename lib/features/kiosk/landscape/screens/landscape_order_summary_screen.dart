@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -250,11 +251,10 @@ class _Header extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          KioskBackButton.scaled(
-            s: s,
-            size: 56.4,
-            border: 2,
-            icon: 24,
+          KioskBackButton(
+            // Landscape variant: never larger than it is today.
+            s: KioskChrome.scaleOfVersionA(
+                context, 56.4 * s / KioskChromeSpec.backDiameter),
             onTap: () => KioskNavigationHelper.backTo(
                 context, RouterHelper.kioskCheckoutEmailScreen),
           ),
