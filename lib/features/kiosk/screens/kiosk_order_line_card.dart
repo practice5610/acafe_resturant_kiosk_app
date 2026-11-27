@@ -36,6 +36,10 @@ const double kOrderCardScale = 0.74;
 
 const double kOrderLineImageAspect = 467 / 700;
 
+/// Card + thumbnail height factor: cards drawn 20% shorter than the Figma
+/// 729-tall card (thumbnail scales with it so the photo still fills the card).
+const double kOrderCardHeightFactor = 0.8;
+
 /// One cart line: product image, name, price, modifier lines and a qty stepper.
 /// Tapping the card opens the edit sheet; the stepper updates the cart live.
 ///
@@ -218,7 +222,7 @@ class _ScaledLineCard extends StatelessWidget {
     // product photo nearly fills the card's height (467×700, inset 75/14);
     // the text column is TOP-aligned on the name (87 down), EDIT sits on the
     // name's line at the right, and the stepper is centred vertically.
-    final double minHeight = showImages ? 729 * s : 0;
+    final double minHeight = showImages ? 729 * s * kOrderCardHeightFactor : 0;
     // Room the right-hand controls need, so long names ellipsize before
     // running under the stepper: 70 inset + 150 box + 180 qty + 150 box.
     final double controlsReserve = 70 * s + 480 * s + 40 * s;
@@ -245,12 +249,14 @@ class _ScaledLineCard extends StatelessWidget {
                 children: [
                   if (showImages) ...[
                     Padding(
-                      padding: EdgeInsets.only(left: 75 * s, top: 14 * s),
+                      padding: EdgeInsets.only(
+                          left: 75 * s, top: 14 * s * kOrderCardHeightFactor),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(33 * s),
                         child: SizedBox(
-                          width: 467 * s,
-                          height: (467 * s) / imageAspect,
+                          width: 467 * s * kOrderCardHeightFactor,
+                          height:
+                              (467 * s * kOrderCardHeightFactor) / imageAspect,
                           child: CustomImageWidget(
                             emptyWhenMissing: true,
                             placeholder: Images.placeholderImage,
