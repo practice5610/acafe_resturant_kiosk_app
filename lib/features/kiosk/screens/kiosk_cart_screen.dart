@@ -172,7 +172,7 @@ class _CartLayout {
   double get subtitleSize => landscape ? 44 : 60;
   double get listGap => landscape ? 32 : 40;
   double get lineGap => landscape ? 32 : 56;
-  double get notePad => landscape ? 34 : 80;
+  double get notePad => landscape ? 34 : 40;
   double get footerTop => landscape ? 48 : 69;
 }
 
@@ -285,15 +285,36 @@ class _CartBody extends StatelessWidget {
             ),
           ),
         ),
-        if (enabled) _OrderNoteBar(layout: layout, note: note),
-        _Footer(
-          layout: layout,
-          cartList: cartList,
-          total: total,
-          couponDiscount: couponDiscount,
-          couponCode: couponCode,
-          couponTitle: couponTitle,
-          enabled: enabled,
+        // One shadow for the whole bottom block (note strip + summary), cast
+        // upward onto the item list like the Order Summary screen's footer.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: enabled
+                ? BorderRadius.zero
+                : BorderRadius.vertical(top: Radius.circular(30 * s)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 40 * s,
+                offset: Offset(0, -10 * s),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (enabled) _OrderNoteBar(layout: layout, note: note),
+              _Footer(
+                layout: layout,
+                cartList: cartList,
+                total: total,
+                couponDiscount: couponDiscount,
+                couponCode: couponCode,
+                couponTitle: couponTitle,
+                enabled: enabled,
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -324,7 +345,7 @@ class _OrderNoteBar extends StatelessWidget {
     // Design hairline, not a fixed 2 logical px — every other divider in this
     // screen (header rule, item-list gaps) scales with `s`, and a bare "2"
     // read as a bold rule next to already-scaled-down 56-72px type.
-    final double borderWidth = (2 * s).clamp(1.0, 2.0);
+    final double borderWidth = (2 * s).clamp(0.5, 1.0);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -441,13 +462,6 @@ class _Footer extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kCardBg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(30 * s)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            offset: Offset(0, 22 * s),
-            blurRadius: 20.15 * s,
-          ),
-        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
