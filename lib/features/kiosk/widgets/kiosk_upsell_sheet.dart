@@ -59,13 +59,13 @@ class _Spec {
   static const double titleW = 946;
   static const double titleSize = 72; // Loew ExtraBold, leading 1
   static const double titleToGrid = 142; // 859 → 1001
-  static const double gridToButton = 74; // last row end (2704) → button (2778)
+  static const double gridToButton = 127; // Figma 05d: last row end → label centre 190, less half the 126 box
   static const double buttonW = 571;
   static const double buttonH = 126;
   // 47 at this basis reads as ~17px on screen (matches Figma 05d's "NO,
   // THANK YOU!" — bigger than the 05d-predecessor's ~13px).
   static const double buttonText = 47; // Loew Bold
-  static const double padBottom = 129; // button end (2904) → sheet end (3033)
+  static const double padBottom = 100; // Figma 05d: label centre → sheet end 163, less half the box
 }
 
 /// How many suggestions the grid offers. Six fills two rows of three without
