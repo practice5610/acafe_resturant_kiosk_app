@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
@@ -159,10 +158,8 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
 
   // --- actions -------------------------------------------------------------
 
-  void _close() => KioskNavigationHelper.popOrNavigate(
-        context,
-        fallback: RouterHelper.getKioskCartRoute,
-      );
+  void _close() =>
+      KioskNavigationHelper.backTo(context, RouterHelper.kioskCartScreen);
 
   /// The backend answers with `translate(...)` output, so a key the kiosk's own
   /// language files do not carry arrives as the raw identifier
@@ -252,8 +249,7 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: Navigator.of(context).canPop() ||
-          (GoRouter.maybeOf(context)?.canPop() ?? false),
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close();
       },

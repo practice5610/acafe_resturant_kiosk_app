@@ -31,4 +31,36 @@ class KioskNavigationHelper {
       RouterHelper.getKioskMenuRoute();
     }
   }
+
+  /// Deterministic "back" for a step of the order flow (cart, name, email,
+  /// order summary, coupon). Goes to [parentPath] — the screen the customer
+  /// actually came from — never to "whatever happens to be under me".
+  ///
+  /// A raw pop trusts the history stack, and that stack can be wrong: the
+  /// cart/checkout entry points push, so repeat visits within one session pile
+  /// up duplicates and back ends up bouncing between two screens (cart <->
+  /// email) without ever reaching the menu. Here:
+  ///  * if the page directly beneath is already [parentPath], pop it (the
+  ///    normal slide-back, menu stays warm underneath);
+  ///  * otherwise `go(parentPath)`, which REPLACES the stack with that screen,
+  ///    so stale duplicates are discarded and the chain stays linear:
+  ///    email -> name -> cart -> menu.
+  static void backTo(BuildContext context, String parentPath) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final GoRouter router = GoRouter.of(context);
+    final List<RouteMatch> stack =
+        router.routerDelegate.currentConfiguration.matches;
+    final String? beneath = stack.length >= 2
+        ? Uri.parse(stack[stack.length - 2].matchedLocation).path
+        : null;
+    if (beneath == parentPath && router.canPop()) {
+      router.pop();
+      return;
+    }
+    router.go(parentPath);
+  }
+
+  /// Back from the cart: always the menu (home).
+  static void backToMenu(BuildContext context) =>
+      backTo(context, RouterHelper.kioskMenuScreen);
 }

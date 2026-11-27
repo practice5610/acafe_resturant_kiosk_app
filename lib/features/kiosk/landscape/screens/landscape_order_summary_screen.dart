@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -254,7 +255,8 @@ class _Header extends StatelessWidget {
             size: 56.4,
             border: 2,
             icon: 24,
-            fallback: RouterHelper.getKioskCheckoutEmailRoute,
+            onTap: () => KioskNavigationHelper.backTo(
+                context, RouterHelper.kioskCheckoutEmailScreen),
           ),
           Expanded(
             child: Center(

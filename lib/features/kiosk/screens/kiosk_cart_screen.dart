@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -14,7 +15,6 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_order_line_card.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_upsell_sheet.dart';
 import 'package:acafe_customer/features/splash/providers/splash_provider.dart';
-import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/localization/language_constrants.dart';
 import 'package:acafe_customer/main.dart';
 import 'package:acafe_customer/theme/text_legibility.dart';
@@ -218,7 +218,7 @@ class _CartBody extends StatelessWidget {
               children: [
                 KioskHeaderBar(
                   s: s,
-                  fallback: RouterHelper.getKioskMenuRoute,
+                  onBack: () => KioskNavigationHelper.backToMenu(context),
                   horizontalPadding: layout.headerGutterDesign,
                   verticalPadding: layout.headerPad,
                   rowHeight: layout.headerRow,

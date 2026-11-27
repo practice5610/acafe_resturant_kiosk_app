@@ -6,7 +6,6 @@ import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
 import 'package:acafe_customer/theme/text_legibility.dart';
 import 'package:acafe_customer/utill/styles.dart';
-import 'package:go_router/go_router.dart';
 
 // ===========================================================================
 // Shared building blocks for the kiosk checkout flow (NAME / EMAIL / PAYMENT),
@@ -23,14 +22,6 @@ const Color kCheckoutErrorRed = TextTones.danger;
 /// Was `#B9B5A6` (2:1): placeholders read as empty fields.
 const Color kCheckoutHintColor = TextTones.hint;
 const Color kCheckoutButtonText = Color(0xFFFAF9F5);
-
-bool _goRouterCanPop(BuildContext context) {
-  try {
-    return GoRouter.of(context).canPop();
-  } catch (_) {
-    return false;
-  }
-}
 
 double checkoutScale(double w, [double? h]) => KioskResponsive.scale(w, h);
 
@@ -195,13 +186,13 @@ class KioskCheckoutScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: Navigator.of(context).canPop() || _goRouterCanPop(context),
+      // System/browser back takes the same explicit step as the on-screen
+      // arrow, so the two can never disagree.
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          KioskNavigationHelper.popOrNavigate(
-            context,
-            fallback: RouterHelper.getKioskCartRoute,
-          );
+          KioskNavigationHelper.backTo(
+              context, KioskCheckoutHeader.parentPathOf(activeStep));
         }
       },
       child: Scaffold(
@@ -286,6 +277,19 @@ class KioskCheckoutHeader extends StatelessWidget {
 
   static const List<String> _steps = ['NAME', 'EMAIL', 'PAYMENT'];
 
+  /// The screen each step came from: name <- cart, email <- name,
+  /// order summary <- email.
+  static String parentPathOf(int step) {
+    switch (step) {
+      case 2:
+        return RouterHelper.kioskCheckoutEmailScreen;
+      case 1:
+        return RouterHelper.kioskCheckoutScreen;
+      default:
+        return RouterHelper.kioskCartScreen;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -300,7 +304,8 @@ class KioskCheckoutHeader extends StatelessWidget {
             border: 4,
             icon: 56,
             minBorder: 2,
-            fallback: RouterHelper.getKioskCartRoute,
+            onTap: () =>
+                KioskNavigationHelper.backTo(context, parentPathOf(activeStep)),
           ),
           SizedBox(width: 60 * s),
           Expanded(

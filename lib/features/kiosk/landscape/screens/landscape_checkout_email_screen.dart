@@ -1,3 +1,4 @@
+import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -318,7 +319,8 @@ class _Canvas extends StatelessWidget {
             size: _kBackSize,
             border: 2,
             icon: 22,
-            fallback: RouterHelper.getKioskCheckoutRoute,
+            onTap: () => KioskNavigationHelper.backTo(
+                context, RouterHelper.kioskCheckoutScreen),
           ),
         ),
         Positioned(
