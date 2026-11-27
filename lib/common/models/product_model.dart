@@ -523,6 +523,10 @@ class VariationValue {
 
 class Variation {
   String? name;
+
+  /// Customer-facing prompt the admin wrote for this group (Heading Text).
+  /// Null on data saved before headings existed — screens fall back to [name].
+  String? headingText;
   int? min;
   int? max;
   bool? isRequired;
@@ -531,13 +535,14 @@ class Variation {
 
 
   Variation({
-    this.name, this.min, this.max,
+    this.name, this.headingText, this.min, this.max,
     this.isRequired, this.variationValues,
     this.isMultiSelect,
   });
 
   Variation.fromJson(Map<String, dynamic> json) {
     name = json['name']?.toString();
+    headingText = json['heading_text']?.toString();
     isMultiSelect = '${json['type']}' == 'multi';
     min = isMultiSelect!
         ? (int.tryParse('${json['min']}') ?? 0)
@@ -560,6 +565,7 @@ class Variation {
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
     data['name'] = name;
+    data['heading_text'] = headingText;
     data['type'] = isMultiSelect! ? 'multi' : 'single';
     data['min'] = min;
     data['max'] = max;
@@ -642,6 +648,9 @@ class AddOns {
 class AddOnGroup {
   int? id;
   String? name;
+
+  /// See [Variation.headingText].
+  String? headingText;
   String? selectionType;
   bool isRequired;
   int min;
@@ -651,6 +660,7 @@ class AddOnGroup {
   AddOnGroup({
     this.id,
     this.name,
+    this.headingText,
     this.selectionType = 'multi',
     this.isRequired = false,
     this.min = 0,
@@ -663,6 +673,7 @@ class AddOnGroup {
   AddOnGroup.fromJson(Map<String, dynamic> json)
       : id = json['id'],
         name = json['name'],
+        headingText = json['heading_text']?.toString(),
         selectionType = json['selection_type'] ?? 'multi',
         isRequired = json['is_required'] == true || '${json['is_required']}' == '1',
         min = int.tryParse('${json['min']}') ?? 0,
@@ -679,6 +690,7 @@ class AddOnGroup {
     return {
       'id': id,
       'name': name,
+      'heading_text': headingText,
       'selection_type': selectionType,
       'is_required': isRequired,
       'min': min,

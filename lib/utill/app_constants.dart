@@ -220,7 +220,7 @@ class AppConstants {
   static const String kioskDeviceKioskMode = 'kiosk_device_kiosk_mode';
   // v4: cached products now carry note_suggestions (POS Quick Add); v3 caches
   // lack them, so they're dropped rather than served.
-  static const String kioskMenuCacheKey = 'kiosk_menu_cache_v4';
+  static const String kioskMenuCacheKey = 'kiosk_menu_cache_v5';
   static const String kioskDealsCacheKey = 'kiosk_deals_cache_v1';
   static const String kioskManagerStockCacheKey = 'kiosk_manager_stock_cache_v2';
   static const String kioskManagerUnlockExpiryKey = 'kiosk_manager_unlock_expiry_v1';
