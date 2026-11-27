@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
@@ -167,6 +169,17 @@ class KioskCheckoutScaffold extends StatelessWidget {
   final String subtitle;
   final double subtitleFontSize;
 
+  /// Artboard px between the subtitle and the field label (Figma: name step
+  /// 507, email step ~393).
+  final double fieldGap;
+
+  /// Optional full-bleed block under the field (the name step's keyboard
+  /// panel, Figma 2305:16633). Sits outside the 107px content gutters.
+  final Widget Function(double s)? panelBuilder;
+
+  /// Artboard px between the field and [panelBuilder] (Figma: 195).
+  final double panelGap;
+
   /// Builds the label + field + error block (needs the resolved scale).
   final Widget Function(double s) fieldBuilder;
 
@@ -181,6 +194,9 @@ class KioskCheckoutScaffold extends StatelessWidget {
     required this.fieldBuilder,
     required this.bottomBuilder,
     this.subtitleFontSize = 48,
+    this.fieldGap = 380,
+    this.panelBuilder,
+    this.panelGap = 195,
   });
 
   @override
@@ -200,10 +216,10 @@ class KioskCheckoutScaffold extends StatelessWidget {
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final double s = KioskMetrics.maybeOf(context)?.scale ??
-                  checkoutScale(constraints.maxWidth, constraints.maxHeight);
               final bool landscape =
                   constraints.maxWidth > constraints.maxHeight;
+              final double s = KioskMetrics.maybeOf(context)?.scale ??
+                  checkoutScale(constraints.maxWidth, constraints.maxHeight);
               final double columnMax = landscape
                   ? kioskReadingColumnWidth(
                       width: constraints.maxWidth, landscape: true)
@@ -215,30 +231,45 @@ class KioskCheckoutScaffold extends StatelessWidget {
                     KioskCheckoutHeader(s: s, activeStep: activeStep),
                     Expanded(
                       child: SingleChildScrollView(
-                        padding: EdgeInsets.symmetric(horizontal: 107 * s),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            SizedBox(height: landscape ? 48 * s : 150 * s),
-                            Text(
-                              title,
-                              textAlign: TextAlign.center,
-                              style: loewExtraBold.copyWith(
-                                  fontSize: 128 * s,
-                                  height: 1,
-                                  color: Colors.black),
+                            Padding(
+                              padding:
+                                  EdgeInsets.symmetric(horizontal: 107 * s),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // Figma: header ends ~396, title top 559.
+                                  SizedBox(height: landscape ? 48 * s : 163 * s),
+                                  Text(
+                                    title,
+                                    textAlign: TextAlign.center,
+                                    style: loewExtraBold.copyWith(
+                                        fontSize: 128 * s,
+                                        height: 1,
+                                        color: Colors.black),
+                                  ),
+                                  SizedBox(height: 27 * s),
+                                  Text(
+                                    subtitle,
+                                    textAlign: TextAlign.center,
+                                    style: loewMedium.copyWith(
+                                        fontSize: subtitleFontSize * s,
+                                        height: 1.2,
+                                        color: TextTones.secondary),
+                                  ),
+                                  SizedBox(
+                                      height:
+                                          landscape ? 80 * s : fieldGap * s),
+                                  fieldBuilder(s),
+                                ],
+                              ),
                             ),
-                            SizedBox(height: 30 * s),
-                            Text(
-                              subtitle,
-                              textAlign: TextAlign.center,
-                              style: loewMedium.copyWith(
-                                  fontSize: subtitleFontSize * s,
-                                  height: 1.2,
-                                  color: TextTones.secondary),
-                            ),
-                            SizedBox(height: landscape ? 80 * s : 380 * s),
-                            fieldBuilder(s),
+                            if (panelBuilder != null) ...[
+                              SizedBox(height: panelGap * s),
+                              panelBuilder!(s),
+                            ],
                             SizedBox(height: 100 * s),
                           ],
                         ),
@@ -257,7 +288,13 @@ class KioskCheckoutScaffold extends StatelessWidget {
 }
 
 /// Back button + the NAME / EMAIL / PAYMENT progress stepper.
-class KioskCheckoutHeader extends StatelessWidget {
+///
+/// The back button AND the step circles use the app-wide header back-button
+/// spec ([KioskBackButton.headerSize] / headerBorder / headerIcon) so they are
+/// identical to the cart, coupon and every other header. Moving between the
+/// steps animates only this row: the step pages swap instantly (see
+/// RouterHelper._kioskStepPage) and the circles fill / tick / draw in here.
+class KioskCheckoutHeader extends StatefulWidget {
   final double s;
   final int activeStep;
 
@@ -290,115 +327,211 @@ class KioskCheckoutHeader extends StatelessWidget {
     }
   }
 
+  // Artboard px.
+  static const double _circle = KioskBackButton.headerSize;
+  static const double _circleTop = 36;
+  // 40 design px between circle and label (Figma: 47 on a 165 circle).
+  static const double _labelTop = 176;
+  static const double _labelH = 48;
+  static const double _groupW = 1398;
+  // Circle centres inside the group (Figma 2305:16610), connectors between.
+  static const List<double> _centers = [82.5, 726, 1315.5];
+  static const double _connW = 252.5;
+
+  @override
+  State<KioskCheckoutHeader> createState() => _KioskCheckoutHeaderState();
+}
+
+class _KioskCheckoutHeaderState extends State<KioskCheckoutHeader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 520));
+  double _from = 0;
+  Animation<double>? _secondary;
+
+  @override
+  void initState() {
+    super.initState();
+    _from = widget.activeStep.toDouble();
+    _ctrl.value = 1;
+    // Arriving from the previous step: play previous -> this one.
+    if (widget.activeStep > 0) _play(widget.activeStep - 1);
+  }
+
+  void _play(int from) {
+    _from = from.toDouble();
+    _ctrl.forward(from: 0);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // When the page above this one is popped (back from the next step) this
+    // page is revealed again without being rebuilt: play next -> this one.
+    final Animation<double>? sec = ModalRoute.of(context)?.secondaryAnimation;
+    if (!identical(sec, _secondary)) {
+      _secondary?.removeStatusListener(_onSecondary);
+      sec?.addStatusListener(_onSecondary);
+      _secondary = sec;
+    }
+  }
+
+  void _onSecondary(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed &&
+        mounted &&
+        widget.activeStep < 2) {
+      _play(widget.activeStep + 1);
+    }
+  }
+
+  @override
+  void dispose() {
+    _secondary?.removeStatusListener(_onSecondary);
+    _ctrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final double s = widget.s;
+    final double top = math.max(0.0, widget.verticalPadding - 15) * s;
     return Padding(
-      padding: EdgeInsets.fromLTRB(horizontalPadding * s, verticalPadding * s,
-          horizontalPadding * s, 20 * s),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          KioskBackButton.scaled(
-            s: s,
-            size: 141,
-            border: 4,
-            icon: 56,
-            minBorder: 2,
-            onTap: () =>
-                KioskNavigationHelper.backTo(context, parentPathOf(activeStep)),
-          ),
-          SizedBox(width: 60 * s),
-          Expanded(
-              child: _Stepper(s: s, steps: _steps, activeStep: activeStep)),
-          SizedBox(
-              width: 141 *
-                  s), // balance the back button so the stepper stays centred.
-        ],
+      padding: EdgeInsets.fromLTRB(widget.horizontalPadding * s, top,
+          widget.horizontalPadding * s, 20 * s),
+      child: SizedBox(
+        height: (KioskCheckoutHeader._labelTop + KioskCheckoutHeader._labelH) * s,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              // Keep the circle's centre on the stepper row when the floor
+              // makes it larger than 100 * s.
+              top: KioskCheckoutHeader._circleTop * s -
+                  (KioskBackButton.headerSizeFor(s) -
+                          KioskBackButton.headerSize * s) /
+                      2,
+              child: KioskBackButton.header(
+                s: s,
+                onTap: () => KioskNavigationHelper.backTo(
+                    context, KioskCheckoutHeader.parentPathOf(widget.activeStep)),
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: KioskCheckoutHeader._groupW * s,
+                child: AnimatedBuilder(
+                  animation: _ctrl,
+                  builder: (context, _) {
+                    final double p = _from +
+                        (widget.activeStep - _from) *
+                            Curves.easeInOutCubic.transform(_ctrl.value);
+                    return _Stepper(s: s, p: p);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-enum _StepState { completed, active, upcoming }
-
 class _Stepper extends StatelessWidget {
   final double s;
-  final List<String> steps;
-  final int activeStep;
-  const _Stepper(
-      {required this.s, required this.steps, required this.activeStep});
+
+  /// Continuous progress: 0 = NAME active, 1 = EMAIL, 2 = PAYMENT.
+  final double p;
+  const _Stepper({required this.s, required this.p});
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> row = [];
-    for (int i = 0; i < steps.length; i++) {
-      row.add(_StepNode(s: s, label: steps[i], state: _stateOf(i)));
-      if (i < steps.length - 1) row.add(Expanded(child: _Connector(s: s)));
-    }
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: row);
-  }
-
-  _StepState _stateOf(int i) {
-    if (i < activeStep) return _StepState.completed;
-    if (i == activeStep) return _StepState.active;
-    return _StepState.upcoming;
-  }
-}
-
-class _StepNode extends StatelessWidget {
-  final double s;
-  final String label;
-  final _StepState state;
-  const _StepNode({required this.s, required this.label, required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    final double d = 165 * s;
-    final bool filled = state != _StepState.upcoming;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    const double cw = KioskCheckoutHeader._circle;
+    const double lw = 350;
+    const List<double> c = KioskCheckoutHeader._centers;
+    final double stroke = (KioskBackButton.headerBorder * s)
+        .clamp(KioskBackButton.headerMinBorder, 6.0);
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Container(
-          width: d,
-          height: d,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: filled ? Colors.black : Colors.transparent,
-            border:
-                Border.all(color: Colors.black, width: (4 * s).clamp(2.0, 6.0)),
+        for (int i = 0; i < 2; i++)
+          Positioned(
+            left: ((c[i] + c[i + 1]) / 2 - KioskCheckoutHeader._connW / 2) * s,
+            top: (KioskCheckoutHeader._circleTop + cw / 2) * s - stroke / 2,
+            width: KioskCheckoutHeader._connW * s,
+            child: Container(height: stroke, color: Colors.black),
           ),
-          child: switch (state) {
-            // Active: a page-bg dot inside the filled black circle.
-            _StepState.active => Container(
-                width: 79 * s,
-                height: 79 * s,
-                decoration: const BoxDecoration(
-                    shape: BoxShape.circle, color: KioskUI.pageBg)),
-            _StepState.completed =>
-              Icon(Icons.check, size: 90 * s, color: Colors.white),
-            _StepState.upcoming => null,
-          },
-        ),
-        SizedBox(height: 24 * s),
-        Text(label,
-            style:
-                loewExtraBold.copyWith(fontSize: 46 * s, color: Colors.black)),
+        for (int i = 0; i < 3; i++) ...[
+          Positioned(
+            left: (c[i] - cw / 2) * s,
+            top: KioskCheckoutHeader._circleTop * s,
+            child: _StepNode(s: s, stroke: stroke, p: p, index: i),
+          ),
+          Positioned(
+            left: (c[i] - lw / 2) * s,
+            top: KioskCheckoutHeader._labelTop * s,
+            width: lw * s,
+            child: Text(
+              KioskCheckoutHeader._steps[i],
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              style: loewExtraBold.copyWith(
+                  fontSize: 40 * s, height: 1, color: Colors.black),
+            ),
+          ),
+        ],
       ],
     );
   }
 }
 
-class _Connector extends StatelessWidget {
+class _StepNode extends StatelessWidget {
   final double s;
-  const _Connector({required this.s});
+  final double stroke;
+  final double p;
+  final int index;
+  const _StepNode(
+      {required this.s,
+      required this.stroke,
+      required this.p,
+      required this.index});
 
   @override
   Widget build(BuildContext context) {
-    // Sit on the circle's vertical centre (circle is 165px tall).
-    return Padding(
-      padding: EdgeInsets.only(top: 82 * s, left: 20 * s, right: 20 * s),
-      child: Container(height: (4 * s).clamp(2.0, 6.0), color: Colors.black),
+    final double d = KioskCheckoutHeader._circle * s;
+    final double reached = (p - index + 1).clamp(0.0, 1.0);
+    final double dot = (1 - (p - index).abs()).clamp(0.0, 1.0);
+    final double done = (p - index).clamp(0.0, 1.0);
+    return Container(
+      width: d,
+      height: d,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color.lerp(Colors.transparent, Colors.black, reached),
+        border: Border.all(color: Colors.black, width: stroke),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Active: a page-bg dot inside the filled black circle.
+          Container(
+            width: 48 * s * dot,
+            height: 48 * s * dot,
+            decoration: const BoxDecoration(
+                shape: BoxShape.circle, color: KioskUI.pageBg),
+          ),
+          // Completed: tick.
+          Opacity(
+            opacity: done,
+            child: Transform.scale(
+              scale: 0.5 + 0.5 * done,
+              child: Icon(Icons.check, size: 56 * s, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -440,9 +573,11 @@ class KioskCheckoutField extends StatelessWidget {
         Text(
           label,
           textAlign: TextAlign.center,
-          style: loewExtraBold.copyWith(fontSize: 72 * s, color: Colors.black),
+          style: loewExtraBold.copyWith(
+              fontSize: 72 * s, height: 1.2, color: Colors.black),
         ),
-        SizedBox(height: 30 * s),
+        // Figma: label top -> field top is ~141 (86 line + 55).
+        SizedBox(height: 55 * s),
         Container(
           constraints: BoxConstraints(minHeight: 252 * s),
           alignment: Alignment.center,
@@ -565,3 +700,57 @@ class KioskCheckoutButton extends StatelessWidget {
   }
 }
 
+
+/// Full-bleed keyboard panel under the field (Figma 2305:16633): page-coloured
+/// block with a 4px #B9B5A6 top edge whose corners curve away at r=46, and
+/// 120px inner padding. Keys are laid out on the artboard scale `s`.
+class KioskKeyboardPanel extends StatelessWidget {
+  final double s;
+
+  /// Receives the scale the keyboard must use: the page scale, capped so the
+  /// 2410px key row always fits inside the panel with Figma's 80px margins
+  /// (panel width / 2572). Without the cap, a window narrower than the scale
+  /// floor (0.24) pushed the right-hand keys off screen.
+  final Widget Function(double keyboardScale) builder;
+  const KioskKeyboardPanel({super.key, required this.s, required this.builder});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final double ks = math.min(s, c.maxWidth / KioskResponsive.designWidth);
+      return CustomPaint(
+        foregroundPainter: _PanelEdgePainter(
+            radius: 46 * ks, stroke: (4 * ks).clamp(1.0, 4.0)),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(0, 124 * ks, 0, 120 * ks),
+          child: Center(child: builder(ks)),
+        ),
+      );
+    });
+  }
+}
+
+class _PanelEdgePainter extends CustomPainter {
+  final double radius;
+  final double stroke;
+  _PanelEdgePainter({required this.radius, required this.stroke});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint p = Paint()
+      ..color = const Color(0xFFB9B5A6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+    final double y = stroke / 2;
+    final Path path = Path()
+      ..moveTo(0, radius)
+      ..arcToPoint(Offset(radius, y), radius: Radius.circular(radius))
+      ..lineTo(size.width - radius, y)
+      ..arcToPoint(Offset(size.width, radius), radius: Radius.circular(radius));
+    canvas.drawPath(path, p);
+  }
+
+  @override
+  bool shouldRepaint(_PanelEdgePainter old) =>
+      old.radius != radius || old.stroke != stroke;
+}

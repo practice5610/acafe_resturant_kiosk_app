@@ -120,7 +120,7 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                       padding: EdgeInsets.fromLTRB(side, 32 * s, side, 0),
                       child: Row(
                         children: [
-                          KioskBackButton.scaled(
+                          KioskBackButton.header(
                             s: s,
                             fallback: widget.fromMenu
                                 ? RouterHelper.getKioskMenuRoute
@@ -137,7 +137,7 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                               ),
                             ),
                           ),
-                          SizedBox(width: 52 * s),
+                          SizedBox(width: KioskBackButton.headerSizeFor(s)),
                         ],
                       ),
                     ),

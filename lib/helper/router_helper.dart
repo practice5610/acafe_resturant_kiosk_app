@@ -255,6 +255,21 @@ class RouterHelper {
     );
   }
 
+  /// Email + order-summary steps swap instantly: the checkout header animates
+  /// the step circles itself, so only that top row moves between steps.
+  static Page<void> _kioskStepPage(GoRouterState state, Widget child) {
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
+      name: state.path,
+      opaque: false,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          child,
+      child: Material(color: KioskUI.pageBg, child: child),
+    );
+  }
+
   static final goRoutes = GoRouter(
 
     navigatorKey: navigatorKey,
@@ -272,8 +287,8 @@ class RouterHelper {
       GoRoute(path: kioskCartScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskCartScreen()))),
       GoRoute(path: kioskCouponScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), KioskCouponScreen(orderAmount: double.tryParse(state.uri.queryParameters['amount'] ?? '') ?? 0)))),
       GoRoute(path: kioskCheckoutScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskCheckoutNameScreen()))),
-      GoRoute(path: kioskCheckoutEmailScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskCheckoutEmailScreen()))),
-      GoRoute(path: kioskConfirmScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskConfirmScreen()))),
+      GoRoute(path: kioskCheckoutEmailScreen, pageBuilder: (context, state) => _kioskStepPage(state, _routeHandler(context, path: _getPath(state), const KioskCheckoutEmailScreen()))),
+      GoRoute(path: kioskConfirmScreen, pageBuilder: (context, state) => _kioskStepPage(state, _routeHandler(context, path: _getPath(state), const KioskConfirmScreen()))),
       GoRoute(path: kioskPaymentScreen, pageBuilder: (context, state) => _kioskFlowPage(state, _routeHandler(context, path: _getPath(state), const KioskPaymentScreen()))),
       // Kiosk success/QR screen is disabled — after an order the flow returns
       // straight to the menu (see kiosk_confirm_screen / kiosk_payment_screen).

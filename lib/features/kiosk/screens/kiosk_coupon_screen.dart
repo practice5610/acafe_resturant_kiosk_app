@@ -365,9 +365,6 @@ const double _kLogoWidth = 680.783;
 const double _kLogoHeight = 178.475;
 /// Same circular back control as [KioskHeaderBar] (cart / manager screens).
 const double _kHeaderBackInset = 132;
-const double _kHeaderBackSize = 100;
-const double _kHeaderBackBorder = 4;
-const double _kHeaderBackIcon = 50;
 const double _kTitleFont = 120;
 const double _kTitleWidth = 1800;
 
@@ -497,7 +494,8 @@ class _Logo extends StatelessWidget {
     // the same row, matching [KioskHeaderBar] on cart / manager screens.
     return SizedBox(
       width: double.infinity,
-      height: math.max(m.px(_kLogoHeight), m.px(_kHeaderBackSize)),
+      height: math.max(
+          m.px(_kLogoHeight), KioskBackButton.headerSizeFor(m.s)),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -514,12 +512,8 @@ class _Logo extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: EdgeInsets.only(left: m.px(_kHeaderBackInset)),
-              child: KioskBackButton.scaled(
+              child: KioskBackButton.header(
                 s: m.s,
-                size: _kHeaderBackSize,
-                border: _kHeaderBackBorder,
-                icon: _kHeaderBackIcon,
-                minBorder: 1,
                 onTap: onBack,
                 fallback: RouterHelper.getKioskCartRoute,
               ),

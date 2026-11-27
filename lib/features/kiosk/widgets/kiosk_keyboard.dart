@@ -37,6 +37,13 @@ class KioskKeyboard extends StatelessWidget {
   /// the default `true` so digit entry there is unaffected.
   final bool showDigitRow;
 
+  /// Optional design-px overrides for screens whose Figma frame spaces the
+  /// board differently (name step 2305:16610: 40 / 48 / 26). Null keeps the
+  /// defaults above so every other screen is unchanged.
+  final double? rowGapDesign;
+  final double? spaceRowGapDesign;
+  final double? spaceClearGapDesign;
+
   const KioskKeyboard({
     super.key,
     required this.s,
@@ -47,6 +54,9 @@ class KioskKeyboard extends StatelessWidget {
     required this.onSpace,
     required this.onClear,
     this.showDigitRow = true,
+    this.rowGapDesign,
+    this.spaceRowGapDesign,
+    this.spaceClearGapDesign,
   });
 
   // --- Figma palette -------------------------------------------------------
@@ -87,17 +97,20 @@ class KioskKeyboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double rg = rowGapDesign ?? rowGap;
+    final double srg = spaceRowGapDesign ?? spaceRowGap;
+    final double scg = spaceClearGapDesign ?? spaceClearGap;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (showDigitRow) ...[
           _row([for (final d in _digits) _charKey(d)]),
-          SizedBox(height: rowGap * s),
+          SizedBox(height: rg * s),
         ],
         _row([for (final l in _rowQ) _charKey(l)]),
-        SizedBox(height: rowGap * s),
+        SizedBox(height: rg * s),
         _row([for (final l in _rowA) _charKey(l)]),
-        SizedBox(height: rowGap * s),
+        SizedBox(height: rg * s),
         _row([
           _KioskKey(
             s: s,
@@ -117,7 +130,7 @@ class KioskKeyboard extends StatelessWidget {
             onTap: onBackspace,
           ),
         ]),
-        SizedBox(height: spaceRowGap * s),
+        SizedBox(height: srg * s),
         _row([
           _KioskKey(
             s: s,
@@ -131,7 +144,7 @@ class KioskKeyboard extends StatelessWidget {
             label: kioskTranslate(context, 'clear', 'Clear'),
             onTap: onClear,
           ),
-        ], gap: spaceClearGap * s),
+        ], gap: scg * s),
       ],
     );
   }

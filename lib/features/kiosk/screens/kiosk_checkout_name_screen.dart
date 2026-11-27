@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_session.dart';
 import 'package:acafe_customer/features/kiosk/screens/kiosk_checkout_widgets.dart';
@@ -12,11 +10,6 @@ import 'package:acafe_customer/localization/language_constrants.dart';
 /// the coupon screen: `TextInputType.none` keeps the field genuinely editable
 /// (a hardware keyboard still types into it) while every visible key comes
 /// from the board docked under the field.
-/// Widest row of [KioskKeyboard] at scale 1 — the 10-key digit row: 10 keys
-/// plus 9 inter-key gaps.
-const double _kKeyboardDesignWidth =
-    KioskKeyboard.keyW * 10 + KioskKeyboard.keyGap * 9;
-
 class KioskCheckoutNameScreen extends StatefulWidget {
   const KioskCheckoutNameScreen({super.key});
 
@@ -118,6 +111,7 @@ class _KioskCheckoutNameScreenState extends State<KioskCheckoutNameScreen> {
       title: "What's your name?",
       subtitle: "We'll use your name when your order is ready for pick up.",
       subtitleFontSize: 48,
+      fieldGap: 507,
       fieldBuilder: (s) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -139,32 +133,24 @@ class _KioskCheckoutNameScreenState extends State<KioskCheckoutNameScreen> {
             onChanged: _onNameChanged,
             onSubmitted: (_) => _next(),
           ),
-          SizedBox(height: 60 * s),
-          // The keyboard's own 10-key digit row (2410 Figma px) is wider than
-          // this scaffold's padded content column (2572 - 2*107 = 2358), so
-          // reusing the scaffold's `s` straight overflows the row to the
-          // right. Re-derive the keyboard's own scale from the width it is
-          // actually given here.
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final double kbScale = math.min(
-                s,
-                constraints.maxWidth / _kKeyboardDesignWidth,
-              );
-              return Center(
-                child: KioskKeyboard(
-                  s: kbScale,
-                  shift: _shift,
-                  onKey: _insertFromKeyboard,
-                  onShift: () => setState(() => _shift = !_shift),
-                  onBackspace: _backspaceFromKeyboard,
-                  onSpace: () => _insertFromKeyboard(' '),
-                  onClear: _clearFromKeyboard,
-                ),
-              );
-            },
-          ),
         ],
+      ),
+      // Figma 2305:16633 — full-bleed panel, no digit row, 40/48/26 spacing.
+      panelBuilder: (s) => KioskKeyboardPanel(
+        s: s,
+        builder: (ks) => KioskKeyboard(
+          s: ks,
+          shift: _shift,
+          showDigitRow: false,
+          rowGapDesign: 40,
+          spaceRowGapDesign: 48,
+          spaceClearGapDesign: 26,
+          onKey: _insertFromKeyboard,
+          onShift: () => setState(() => _shift = !_shift),
+          onBackspace: _backspaceFromKeyboard,
+          onSpace: () => _insertFromKeyboard(' '),
+          onClear: _clearFromKeyboard,
+        ),
       ),
       bottomBuilder: (s) => Padding(
         padding: EdgeInsets.fromLTRB(107 * s, 16 * s, 107 * s, 24 * s),

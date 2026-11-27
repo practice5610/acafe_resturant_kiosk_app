@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_language_sheet.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_navigation_helper.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_tap.dart';
@@ -435,6 +436,24 @@ class KioskCircleBack extends StatelessWidget {
 /// silently fails when `canPop` is false (e.g. direct URL to cart). Pass
 /// [fallback] for screen-specific targets (cart → menu, checkout → cart, …).
 class KioskBackButton extends StatelessWidget {
+  /// The app-wide header back-button spec (artboard px): cart, coupon, header
+  /// bar AND the checkout stepper all read these, so they can never drift.
+  static const double headerSize = 100;
+  static const double headerBorder = 4;
+  static const double headerIcon = 50;
+  static const double headerMinBorder = 1;
+
+  /// Floor for the header back button, in logical px. On a narrow window the
+  /// pure `100 * s` spec shrinks to ~38px — too small to see or tap — so every
+  /// header back button is held at this size or larger.
+  static const double headerMinSize = 56;
+
+  /// Rendered diameter of the header back button at scale [s].
+  static double headerSizeFor(double s) {
+    final double v = headerSize * s;
+    return v < headerMinSize ? headerMinSize : v;
+  }
+
   final VoidCallback? onTap;
   final VoidCallback? fallback;
   final double size;
@@ -469,6 +488,27 @@ class KioskBackButton extends StatelessWidget {
       size: size * s,
       borderWidth: (border * s).clamp(minBorder, maxBorder),
       iconSize: icon * s,
+    );
+  }
+
+  /// THE header back button: cart, coupon, checkout, manager screens. Same
+  /// proportions as the artboard spec (100 / 4 / 50) at full scale, never
+  /// smaller than [headerMinSize]. Use this instead of hand-sizing a button.
+  factory KioskBackButton.header({
+    Key? key,
+    VoidCallback? onTap,
+    VoidCallback? fallback,
+    required double s,
+  }) {
+    final double size = headerSizeFor(s);
+    final double k = size / headerSize;
+    return KioskBackButton(
+      key: key,
+      onTap: onTap,
+      fallback: fallback,
+      size: size,
+      borderWidth: (headerBorder * k).clamp(headerMinBorder, 6.0),
+      iconSize: headerIcon * k,
     );
   }
 
@@ -536,9 +576,9 @@ class KioskHeaderBar extends StatelessWidget {
     this.horizontalPadding = 132,
     this.rowHeight = 141,
     this.titleFontSize = 120,
-    this.backSize = 100,
-    this.backBorder = 4,
-    this.backIconSize = 50,
+    this.backSize = KioskBackButton.headerSize,
+    this.backBorder = KioskBackButton.headerBorder,
+    this.backIconSize = KioskBackButton.headerIcon,
     this.trailing,
   });
 
@@ -552,7 +592,7 @@ class KioskHeaderBar extends StatelessWidget {
       child: Column(
         children: [
           SizedBox(
-            height: rowHeight * s,
+            height: math.max(rowHeight * s, KioskBackButton.headerSizeFor(s)),
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -564,8 +604,8 @@ class KioskHeaderBar extends StatelessWidget {
                     child: Padding(
                       // Leave room for the back button so the logo never
                       // overlaps it when the title is wide.
-                      padding:
-                          EdgeInsets.symmetric(horizontal: backSize * s),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: KioskBackButton.headerSizeFor(s)),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
@@ -585,12 +625,8 @@ class KioskHeaderBar extends StatelessWidget {
                 ),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: KioskBackButton.scaled(
+                  child: KioskBackButton.header(
                     s: s,
-                    size: backSize,
-                    border: backBorder,
-                    icon: backIconSize,
-                    minBorder: 1,
                     onTap: onBack,
                     fallback: fallback,
                   ),
