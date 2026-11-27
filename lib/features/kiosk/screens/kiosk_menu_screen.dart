@@ -334,7 +334,7 @@ class _KioskMenuScreenState extends State<KioskMenuScreen> {
                           ],
                         ),
                       ),
-                      _CartBar(s: s, u: u),
+                      _CartBarEntrance(child: _CartBar(s: s, u: u)),
                     ],
                   ),
                 ),
@@ -1292,6 +1292,73 @@ BoxDecoration _cartSurface(double u, {Color color = Colors.white}) =>
         ),
       ],
     );
+
+/// Slides the cart bar in from the left (left -> right) when the menu is shown,
+/// and again each time the menu is returned to from a screen pushed over it
+/// (the product options screen). Wrapper only: the bar itself and the menu
+/// layout are unchanged.
+class _CartBarEntrance extends StatefulWidget {
+  final Widget child;
+  const _CartBarEntrance({required this.child});
+
+  @override
+  State<_CartBarEntrance> createState() => _CartBarEntranceState();
+}
+
+class _CartBarEntranceState extends State<_CartBarEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+  );
+  late final Animation<Offset> _offset =
+      Tween<Offset>(begin: const Offset(-1, 0), end: Offset.zero)
+          .chain(CurveTween(curve: Curves.easeInOut))
+          .animate(_controller);
+
+  Animation<double>? _covered;
+  bool _wasCovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final Animation<double>? secondary =
+        ModalRoute.of(context)?.secondaryAnimation;
+    if (!identical(secondary, _covered)) {
+      _covered?.removeStatusListener(_onCovered);
+      _covered = secondary;
+      secondary?.addStatusListener(_onCovered);
+    }
+  }
+
+  /// `secondaryAnimation` runs while another route is pushed over this one and
+  /// settles back to dismissed when it is popped: that is "returned to".
+  void _onCovered(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      _wasCovered = true;
+    } else if (status == AnimationStatus.dismissed && _wasCovered) {
+      _wasCovered = false;
+      if (mounted) _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _covered?.removeStatusListener(_onCovered);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      ClipRect(child: SlideTransition(position: _offset, child: widget.child));
+}
 
 /// Cart bar at the bottom of the CONTENT column (never over the sidebar or
 /// its logout). Two states, unchanged:
