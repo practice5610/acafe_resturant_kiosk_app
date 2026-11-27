@@ -300,12 +300,22 @@ String _addonImageUrl(BuildContext context, AddOns addon) {
   return '${splash.baseUrls?.addonImageUrl}/${addon.image}';
 }
 
-String _addonGroupTitle(BuildContext context, AddOnGroup group) {
-  final String name = (group.name != null && group.name!.isNotEmpty)
-      ? group.name!
-      : (getTranslated('add_add_ons', context) ?? 'Add add-ons');
-  return group.isRequired ? '$name *' : name;
+/// The question shown over a group: the admin's Heading Text, or — for data
+/// saved before headings existed — the plain group name, then [fallback].
+String _groupHeading(String? headingText, String? name, String fallback) {
+  final String heading = headingText?.trim() ?? '';
+  if (heading.isNotEmpty) return heading;
+  final String plain = name?.trim() ?? '';
+  return plain.isNotEmpty ? plain : fallback;
 }
+
+/// Same rule [_validateAddOnGroups] enforces, so the badge never disagrees
+/// with whether NEXT is blocked.
+bool _addOnGroupRequired(AddOnGroup group) => group.isRequired || group.min > 0;
+
+String _addonGroupTitle(BuildContext context, AddOnGroup group) =>
+    _groupHeading(group.headingText, group.name,
+        getTranslated('add_add_ons', context) ?? 'Add add-ons');
 
 /// Entry point: tap a product in the kiosk menu -> open the customization screen.
 ///
@@ -1914,11 +1924,16 @@ class _SectionPanel extends StatelessWidget {
   /// scrolls INSIDE the panel (title pinned) instead of the page scrolling.
   /// Off for a child that already scrolls itself (the add-ons grid).
   final bool scrollInStepFlow;
+
+  /// Required / Optional badge drawn in front of the heading. Null draws none
+  /// (the generic "Add add-ons" panel, which labels each group itself).
+  final bool? required;
   final Widget child;
   const _SectionPanel({
     required this.s,
     required this.title,
     required this.child,
+    this.required,
     this.fill = false,
     this.compact = false,
     this.scrollInStepFlow = true,
@@ -1963,16 +1978,11 @@ class _SectionPanel extends StatelessWidget {
                 ? CrossAxisAlignment.stretch
                 : CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: stepFlow ? TextAlign.center : TextAlign.start,
-                style: loewExtraBold.copyWith(
-                  fontSize: KioskCustomizeSpec.panelTitleSize * s,
-                  height: 1.0,
-                  color: Colors.black,
-                ),
+              _PanelHeading(
+                s: s,
+                title: title,
+                required: required,
+                centered: stepFlow,
               ),
               SizedBox(height: KioskCustomizeSpec.panelTitleGap * padScale * s),
               if (fill)
@@ -1989,6 +1999,106 @@ class _SectionPanel extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Panel title row: the heading, with the [Required|Optional] badge at the
+/// panel's right edge. One line at the Figma title size; a long heading scales
+/// down to fit instead of wrapping, so the panel's height (which the page scale
+/// is derived from) never changes. A centred heading is kept truly centred by
+/// an invisible twin of the badge on the left.
+class _PanelHeading extends StatelessWidget {
+  final double s;
+  final String title;
+  final bool? required;
+  final bool centered;
+  const _PanelHeading({
+    required this.s,
+    required this.title,
+    required this.required,
+    required this.centered,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget? badge =
+        required == null ? null : _RequirementBadge(s: s, required: required!);
+    final double gap = 48 * s;
+    return Row(
+      children: [
+        if (badge != null && centered) ...[
+          // Same size as the real badge, never painted: balances the right one.
+          Visibility(
+            visible: false,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: badge,
+          ),
+          SizedBox(width: gap),
+        ],
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: centered ? Alignment.center : Alignment.centerLeft,
+            child: Text(
+              title,
+              maxLines: 1,
+              softWrap: false,
+              style: loewExtraBold.copyWith(
+                fontSize: KioskCustomizeSpec.panelTitleSize * s,
+                height: 1.0,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+        if (badge != null) ...[
+          SizedBox(width: gap),
+          badge,
+        ],
+      ],
+    );
+  }
+}
+
+/// "REQUIRED" (solid) / "OPTIONAL" (outlined) pill. [scale] shrinks it for the
+/// in-panel group labels. Its height stays under the heading line's, so adding
+/// it never grows a row.
+class _RequirementBadge extends StatelessWidget {
+  final double s;
+  final bool required;
+  final double scale;
+  const _RequirementBadge({
+    required this.s,
+    required this.required,
+    this.scale = 1.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final String label = required
+        ? kioskTranslate(context, 'required', 'Required')
+        : kioskTranslate(context, 'optional', 'Optional');
+    final double k = s * scale;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 30 * k, vertical: 11 * k),
+      decoration: BoxDecoration(
+        color: required ? Colors.black : Colors.transparent,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.black, width: _border(2, k)),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        maxLines: 1,
+        style: loewBold.copyWith(
+          fontSize: 32 * k,
+          height: 1.0,
+          letterSpacing: 32 * k * 0.14,
+          color: required ? Colors.white : Colors.black,
+        ),
       ),
     );
   }
@@ -2036,7 +2146,13 @@ class _SizeOptionsPanel extends StatelessWidget {
 
     return _SectionPanel(
       s: s,
-      title: getTranslated('size', context) ?? 'Size',
+      // One size group: its own heading. Several are merged into one panel,
+      // which keeps the generic "Size" title.
+      title: entries.length == 1
+          ? _groupHeading(entries.first.value.headingText,
+              entries.first.value.name, getTranslated('size', context) ?? 'Size')
+          : (getTranslated('size', context) ?? 'Size'),
+      required: entries.any((e) => e.value.isRequired == true),
       // Size is a variation, so it follows the same rule as the dietary row:
       // always one line that scrolls sideways, never wrapping onto a second.
       child: _HorizontalOptionRow(
@@ -2098,9 +2214,8 @@ class _VariationSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
     final values = variation.variationValues ?? [];
-    final title = variation.name?.isNotEmpty == true
-        ? variation.name!
-        : (getTranslated('choose_an_option', context) ?? 'Choose an option');
+    final title = _groupHeading(variation.headingText, variation.name,
+        getTranslated('choose_an_option', context) ?? 'Choose an option');
 
     final List<String> images = [
       for (final value in values)
@@ -2117,6 +2232,7 @@ class _VariationSection extends StatelessWidget {
     return _SectionPanel(
       s: s,
       title: title,
+      required: variation.isRequired == true,
       // Figma keeps the dietary options on ONE row that scrolls sideways, so a
       // product with many milks never grows the panel vertically and pushes the
       // add-ons off screen — it just scrolls.
@@ -2442,13 +2558,25 @@ class _AddOnsSection extends StatelessWidget {
             Padding(
               padding:
                   EdgeInsets.only(bottom: KioskCustomizeSpec.addOnCardGap * s),
-              child: Text(
-                _addonGroupTitle(context, groups[i]),
-                style: loewBold.copyWith(
-                  fontSize: KioskCustomizeSpec.optionLabelSize * s,
-                  height: 1.2,
-                  color: Colors.black,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _addonGroupTitle(context, groups[i]),
+                      style: loewBold.copyWith(
+                        fontSize: KioskCustomizeSpec.optionLabelSize * s,
+                        height: 1.2,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 24 * s),
+                  _RequirementBadge(
+                    s: s,
+                    scale: 0.6,
+                    required: _addOnGroupRequired(groups[i]),
+                  ),
+                ],
               ),
             ),
           ],
@@ -2481,6 +2609,7 @@ class _AddOnsSection extends StatelessWidget {
       title: single
           ? _addonGroupTitle(context, groups.first)
           : (getTranslated('add_add_ons', context) ?? 'Add add-ons'),
+      required: single ? _addOnGroupRequired(groups.first) : null,
       child: panelChild,
     );
   }
@@ -2978,9 +3107,8 @@ class _CupCanSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final splash = Provider.of<SplashProvider>(context, listen: false);
     final values = variation.variationValues ?? [];
-    final title = variation.name?.isNotEmpty == true
-        ? variation.name!
-        : (getTranslated('can_or_cup', context) ?? 'Can or cup?');
+    final title = _groupHeading(variation.headingText, variation.name,
+        getTranslated('can_or_cup', context) ?? 'Can or cup?');
 
     // Cup and can are normally both free, so the price line is dropped entirely
     // rather than left as an empty row eating vertical space. It comes back the
@@ -2992,6 +3120,7 @@ class _CupCanSection extends StatelessWidget {
       s: s,
       compact: true,
       title: title,
+      required: variation.isRequired == true,
       child: LayoutBuilder(builder: (context, constraints) {
         final int count = math.max(1, values.length);
         final double gap = KioskCustomizeSpec.vesselCardGap * s;

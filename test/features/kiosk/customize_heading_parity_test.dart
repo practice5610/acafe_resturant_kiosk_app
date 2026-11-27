@@ -48,11 +48,12 @@ class _StubSplashProvider extends SplashProvider {
       );
 }
 
-/// The Size panel's title comes from `getTranslated('size', ...)`, which echoes
-/// the KEY back when no localization delegate is installed — and these tests
-/// deliberately install none (see the coupon/language-sheet convention). So the
-/// heading on screen is the lowercase key, not 'Size'.
-const String _kSizeHeading = 'size';
+/// A product with ONE size group titles the Size panel with that group's own
+/// heading, falling back to its name (this fixture sets no Heading Text). Only
+/// several merged size groups use the generic `getTranslated('size', ...)`
+/// title, which echoes the KEY back here because these tests deliberately
+/// install no localization delegate (see the coupon/language-sheet convention).
+const String _kSizeHeading = 'Size';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -107,7 +108,7 @@ void main() {
   }
 
   Future<void> pumpScreen(WidgetTester tester, Size viewport,
-      {bool withAllergen = true}) async {
+      {bool withAllergen = true, Product? product}) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final dio = DioClient(
@@ -117,11 +118,11 @@ void main() {
       sharedPreferences: prefs,
     );
 
-    final product = buildProduct(withAllergen: withAllergen);
+    final Product shown = product ?? buildProduct(withAllergen: withAllergen);
     final productProvider = ProductProvider(
         productRepo: ProductRepo(dioClient: dio, sharedPreferences: prefs))
-      ..initData(product, null)
-      ..initProductVariationStatus(product.variations!.length);
+      ..initData(shown, null)
+      ..initProductVariationStatus(shown.variations!.length);
 
     tester.view.physicalSize = viewport;
     tester.view.devicePixelRatio = 1.0;
@@ -149,7 +150,7 @@ void main() {
         ],
         child: MaterialApp(
           navigatorKey: navigatorKey,
-          home: KioskProductCustomizeScreen(product: product),
+          home: KioskProductCustomizeScreen(product: shown),
         ),
       ),
     );
@@ -263,6 +264,73 @@ void main() {
     expect(find.text('CUP'), findsOneWidget);
     expect(find.text('CAN'), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await closeScreen(tester);
+  });
+
+  // ---- Heading Text + Required/Optional badge ------------------------------
+
+  Product withHeadings({String? sizeHeading, String? groupHeading}) {
+    final Product base = buildProduct(withAllergen: false);
+    base.variations!.first
+      ..headingText = sizeHeading
+      ..isRequired = true;
+    final AddOnGroup group = base.addOnGroups!.first..headingText = groupHeading;
+    expect(group.isRequired, isFalse);
+    return base;
+  }
+
+  testWidgets('a group shows its Heading Text, with REQUIRED / OPTIONAL in front',
+      (tester) async {
+    await pumpScreen(
+      tester,
+      const Size(1080, 1920),
+      product: withHeadings(
+        sizeHeading: 'Would you like to have Size',
+        groupHeading: 'Would you like to have Non Dairy',
+      ),
+    );
+
+    expect(find.text('Would you like to have Size'), findsOneWidget);
+    expect(find.text('Would you like to have Non Dairy'), findsOneWidget);
+    // The plain names are no longer the panel titles.
+    expect(find.text('Size'), findsNothing);
+    expect(find.text('Non Dairy'), findsNothing);
+    // Size variation is required, the add-on group is optional.
+    expect(find.text('REQUIRED'), findsOneWidget);
+    expect(find.text('OPTIONAL'), findsWidgets);
+
+    await closeScreen(tester);
+  });
+
+  testWidgets('a group saved before headings existed falls back to its name',
+      (tester) async {
+    await pumpScreen(tester, const Size(1080, 1920),
+        product: withHeadings(sizeHeading: null, groupHeading: '   '));
+
+    expect(find.text('Size'), findsOneWidget);
+    expect(find.text('Non Dairy'), findsOneWidget);
+    expect(find.text('REQUIRED'), findsOneWidget);
+
+    await closeScreen(tester);
+  });
+
+  testWidgets('a long heading scales to fit instead of changing the layout',
+      (tester) async {
+    const String long =
+        'Would you like to have Extra Hot Alternative Plant Based Milk Option';
+    const Size viewport = Size(1080, 1920);
+    await pumpScreen(tester, viewport,
+        product: withHeadings(sizeHeading: 'Would you like to have Size', groupHeading: 'g'));
+    final double plainHeight =
+        tester.getSize(find.text('Would you like to have Size')).height;
+    await closeScreen(tester);
+
+    await pumpScreen(tester, viewport,
+        product: withHeadings(sizeHeading: long, groupHeading: 'g'));
+    expect(tester.takeException(), isNull, reason: 'no overflow');
+    expect(tester.getSize(find.text(long)).height, closeTo(plainHeight, 0.01),
+        reason: 'one line, same height — the page scale is unaffected');
 
     await closeScreen(tester);
   });
