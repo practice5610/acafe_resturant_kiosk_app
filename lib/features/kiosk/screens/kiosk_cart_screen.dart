@@ -212,9 +212,14 @@ class _CartBody extends StatelessWidget {
           child: KioskCenteredContent(
             child: Column(
               children: [
-                KioskHeaderBar(
-                  s: s,
-                  onBack: () => KioskNavigationHelper.backToMenu(context),
+                // The header sits in the same column as the action bar and the
+                // checkout screens, so the back button's inset is identical.
+                KioskCenteredContent(
+                  maxWidth: layout.column,
+                  child: KioskHeaderBar(
+                    s: s,
+                    onBack: () => KioskNavigationHelper.backToMenu(context),
+                  ),
                 ),
                 Expanded(
                   child: ListView(

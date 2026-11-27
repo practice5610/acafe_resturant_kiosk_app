@@ -200,7 +200,12 @@ class _KioskConfirmScreenState extends State<KioskConfirmScreen> {
                           child: KioskCenteredContent(
                             child: Column(
                               children: [
-                                const KioskCheckoutHeader(activeStep: 2),
+                                // Same column as the action bar below.
+                                KioskCenteredContent(
+                                  maxWidth: layout.column,
+                                  child:
+                                      const KioskCheckoutHeader(activeStep: 2),
+                                ),
                                 Expanded(
                                   child: _ConfirmLineList(
                                     layout: layout,

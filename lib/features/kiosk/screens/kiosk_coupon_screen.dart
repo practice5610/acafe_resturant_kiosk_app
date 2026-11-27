@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/coupon/domain/models/coupon_apply_result.dart';
 import 'package:acafe_customer/features/coupon/providers/coupon_provider.dart';
@@ -195,7 +196,8 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
     if (code.isEmpty) {
       if (hadCoupon) {
         showCustomSnackBarHelper(
-          kioskTranslate(context, 'coupon_removed_successfully', 'Coupon removed'),
+          kioskTranslate(
+              context, 'coupon_removed_successfully', 'Coupon removed'),
           isError: false,
         );
         _close();
@@ -264,6 +266,13 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
               // scale. Only the keyboard / field / scan block below is sized by
               // this screen, from whatever height the chrome leaves it.
               final double cs = KioskChrome.scaleOf(context);
+              // Header and bar sit in the same column as the checkout screens,
+              // so the chrome insets are identical on a landscape window too.
+              final double band =
+                  math.min(constraints.maxWidth, kKioskContentMaxWidth);
+              final double column = constraints.maxWidth > constraints.maxHeight
+                  ? kioskReadingColumnWidth(width: band, landscape: true)
+                  : band;
               final double headerHeight = _headerHeight(cs);
               final double barHeight = KioskChromeSpec.barBlock * cs;
               final double regionHeight =
@@ -272,7 +281,10 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
 
               return Column(
                 children: [
-                  _Header(cs: cs, onBack: _close),
+                  KioskCenteredContent(
+                    maxWidth: column,
+                    child: _Header(cs: cs, onBack: _close),
+                  ),
                   // The flexible region: it is handed exactly the height that
                   // is left between the fixed header and the pinned bar, and
                   // the content is RESOLVED to fit it (scale first, then the
@@ -324,23 +336,27 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
                     ),
                   ),
                   Consumer<CouponProvider>(
-                    builder: (context, coupon, _) => KioskActionBar(
-                      s: cs,
-                      actions: [
-                        KioskBarAction(
-                          label: kioskTranslate(context, 'back', 'Back')
-                              .toUpperCase(),
-                          filled: false,
-                          onTap: _close,
-                        ),
-                        KioskBarAction(
-                          label: kioskTranslate(context, 'continue', 'Continue')
-                              .toUpperCase(),
-                          filled: true,
-                          loading: coupon.isLoading,
-                          onTap: coupon.isLoading ? null : _submit,
-                        ),
-                      ],
+                    builder: (context, coupon, _) => KioskCenteredContent(
+                      maxWidth: column,
+                      child: KioskActionBar(
+                        s: cs,
+                        actions: [
+                          KioskBarAction(
+                            label: kioskTranslate(context, 'back', 'Back')
+                                .toUpperCase(),
+                            filled: false,
+                            onTap: _close,
+                          ),
+                          KioskBarAction(
+                            label:
+                                kioskTranslate(context, 'continue', 'Continue')
+                                    .toUpperCase(),
+                            filled: true,
+                            loading: coupon.isLoading,
+                            onTap: coupon.isLoading ? null : _submit,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -418,10 +434,8 @@ const double _kErrorExtra = 18 + 40 * 1.2;
 const double _kGapTotal =
     _kLogoToTitle + _kTitleToField + _kFieldToKeyboard + _kKeyboardToScan;
 
-const double _kFixedTotal = _kTitleFont +
-    _kFieldHeight +
-    KioskKeyboard.designHeight +
-    _kPanelHeight;
+const double _kFixedTotal =
+    _kTitleFont + _kFieldHeight + KioskKeyboard.designHeight + _kPanelHeight;
 
 /// How far the design's whitespace may be squeezed / stretched before the
 /// scale itself has to give way.
@@ -456,7 +470,8 @@ class _KioskCouponMetrics {
   /// whitespace between the blocks takes up the rest.
   factory _KioskCouponMetrics.resolve(double width, double height,
       {bool hasInlineError = false}) {
-    final double fixedDesign = _kFixedTotal + (hasInlineError ? _kErrorExtra : 0);
+    final double fixedDesign =
+        _kFixedTotal + (hasInlineError ? _kErrorExtra : 0);
     // The shortest height the content can occupy is its fixed elements plus
     // half its whitespace.
     final double minDesignHeight = fixedDesign + _kGapTotal * _kMinGapFactor;
@@ -528,8 +543,7 @@ class _Header extends StatelessWidget {
             Align(
               alignment: Alignment.topLeft,
               child: Padding(
-                padding:
-                    EdgeInsets.only(left: KioskChromeSpec.insetLeft * cs),
+                padding: EdgeInsets.only(left: KioskChromeSpec.insetLeft * cs),
                 child: KioskBackButton(
                   s: cs,
                   onTap: onBack,
