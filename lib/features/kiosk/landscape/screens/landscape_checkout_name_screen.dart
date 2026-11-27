@@ -289,7 +289,7 @@ class _Canvas extends StatelessWidget {
           top: _kBackTop * s,
           child: KioskBackButton(
             // Landscape variant: never larger than it is today.
-            s: KioskChrome.scaleOfVersionA(
+            s: KioskChrome.scaleOf(
                 context, _kBackSize * s / KioskChromeSpec.backDiameter),
             onTap: () => KioskNavigationHelper.backTo(
                 context, RouterHelper.kioskCartScreen),

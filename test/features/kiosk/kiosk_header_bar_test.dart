@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:acafe_customer/common/responsive/kiosk_responsive.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
 import 'package:acafe_customer/helper/router_helper.dart';
@@ -43,8 +44,10 @@ void main() {
 
     const double s = 0.5;
     // The row is the back button at the shared chrome scale for this window.
-    final double rowHeight =
-        KioskBackButton.diameterFor(kioskChromeScale(size)) / s;
+    // This window is landscape, so the back button is at its plain 100 spec.
+    final double rowHeight = KioskChromeSpec.backDiameter *
+        kioskChromeScale(size, KioskResponsive.scale(size.width, size.height)) /
+        s;
     const double titleFontSize = 120;
 
     await tester.pumpWidget(

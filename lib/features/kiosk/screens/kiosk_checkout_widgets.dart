@@ -20,8 +20,10 @@ import 'package:acafe_customer/utill/styles.dart';
 // ===========================================================================
 const double kKioskFormDesignWidth = KioskResponsive.formDesignWidth;
 const Color kCheckoutFieldBg = Color(0xFFFBF8EF);
+
 /// Was `#EF4444` (3.8:1 on white): too light for an error message.
 const Color kCheckoutErrorRed = TextTones.danger;
+
 /// Was `#B9B5A6` (2:1): placeholders read as empty fields.
 const Color kCheckoutHintColor = TextTones.hint;
 const Color kCheckoutButtonText = Color(0xFFFAF9F5);
@@ -331,10 +333,8 @@ class KioskCheckoutHeader extends StatefulWidget {
   static const double _circle = 100;
   static const double _circleStroke = 4;
   // The circles' centres sit on the back button's centre line.
-  static const double _circleTop = (KioskChromeSpec.backDiameter - _circle) / 2;
   // 40 design px between circle and label (Figma: 47 on a 165 circle).
   static const double _labelGap = 40;
-  static const double _labelTop = _circleTop + _circle + _labelGap;
   static const double _labelH = 48;
   static const double _groupW = 1398;
   // Circle centres inside the group, connectors between.
@@ -397,7 +397,14 @@ class _KioskCheckoutHeaderState extends State<KioskCheckoutHeader>
   @override
   Widget build(BuildContext context) {
     final double cs = KioskChrome.scaleOf(context);
-    final double back = KioskBackButton.diameterFor(cs);
+    final double back = KioskBackButton.diameterFor(context, cs);
+    // The circles' centres sit on the back button's centre line, whatever its
+    // size (the back button is 10% larger on portrait).
+    final double backArt =
+        KioskChromeSpec.backDiameter * KioskChrome.backFactorOf(context);
+    final double circleTop = (backArt - KioskCheckoutHeader._circle) / 2;
+    final double labelTop =
+        circleTop + KioskCheckoutHeader._circle + KioskCheckoutHeader._labelGap;
     final double gap = KioskChromeSpec.backToContentGap * cs;
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -420,16 +427,15 @@ class _KioskCheckoutHeaderState extends State<KioskCheckoutHeader>
               fit: BoxFit.scaleDown,
               child: SizedBox(
                 width: KioskCheckoutHeader._groupW * cs,
-                height: (KioskCheckoutHeader._labelTop +
-                        KioskCheckoutHeader._labelH) *
-                    cs,
+                height: (labelTop + KioskCheckoutHeader._labelH) * cs,
                 child: AnimatedBuilder(
                   animation: _ctrl,
                   builder: (context, _) {
                     final double p = _from +
                         (widget.activeStep - _from) *
                             Curves.easeInOutCubic.transform(_ctrl.value);
-                    return _Stepper(s: cs, p: p);
+                    return _Stepper(
+                        s: cs, p: p, circleTop: circleTop, labelTop: labelTop);
                   },
                 ),
               ),
@@ -448,7 +454,14 @@ class _Stepper extends StatelessWidget {
 
   /// Continuous progress: 0 = NAME active, 1 = EMAIL, 2 = PAYMENT.
   final double p;
-  const _Stepper({required this.s, required this.p});
+  final double circleTop;
+  final double labelTop;
+  const _Stepper({
+    required this.s,
+    required this.p,
+    required this.circleTop,
+    required this.labelTop,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -463,19 +476,19 @@ class _Stepper extends StatelessWidget {
         for (int i = 0; i < 2; i++)
           Positioned(
             left: ((c[i] + c[i + 1]) / 2 - KioskCheckoutHeader._connW / 2) * s,
-            top: (KioskCheckoutHeader._circleTop + cw / 2) * s - stroke / 2,
+            top: (circleTop + cw / 2) * s - stroke / 2,
             width: KioskCheckoutHeader._connW * s,
             child: Container(height: stroke, color: Colors.black),
           ),
         for (int i = 0; i < 3; i++) ...[
           Positioned(
             left: (c[i] - cw / 2) * s,
-            top: KioskCheckoutHeader._circleTop * s,
+            top: circleTop * s,
             child: _StepNode(s: s, stroke: stroke, p: p, index: i),
           ),
           Positioned(
             left: (c[i] - lw / 2) * s,
-            top: KioskCheckoutHeader._labelTop * s,
+            top: labelTop * s,
             width: lw * s,
             child: Text(
               KioskCheckoutHeader._steps[i],
@@ -669,7 +682,9 @@ class KioskCheckoutButton extends StatelessWidget {
       opacity: (disabled && !figmaDisabled && !loading) ? 0.5 : 1,
       child: Material(
         color: filled
-            ? (figmaDisabled ? Colors.black.withValues(alpha: 0.25) : Colors.black)
+            ? (figmaDisabled
+                ? Colors.black.withValues(alpha: 0.25)
+                : Colors.black)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(radius),
         clipBehavior: Clip.antiAlias,
@@ -736,8 +751,8 @@ class KioskBarAction {
 /// [KioskChromeSpec.barGap] apart), with the spec's horizontal inset, top gap
 /// and bottom gap. Every kiosk screen with a bottom bar builds it here.
 ///
-/// [s] is the chrome scale: [KioskChrome.scaleOf] everywhere except Version A
-/// customize, which uses [KioskChrome.scaleOfVersionA].
+/// [s] is the chrome scale, always [KioskChrome.scaleOf] (the reference scale
+/// capped by the screen's own page scale).
 ///
 /// The `Row` deliberately does NOT stretch: this sits in a screen `Column`
 /// whose children get unbounded height, and stretch would hand each button a
@@ -777,7 +792,6 @@ class KioskActionBar extends StatelessWidget {
     );
   }
 }
-
 
 /// Full-bleed keyboard panel under the field (Figma 2305:16633): page-coloured
 /// block with a 4px #B9B5A6 top edge whose corners curve away at r=46, and

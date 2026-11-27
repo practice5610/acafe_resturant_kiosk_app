@@ -253,7 +253,7 @@ class _Header extends StatelessWidget {
         children: [
           KioskBackButton(
             // Landscape variant: never larger than it is today.
-            s: KioskChrome.scaleOfVersionA(
+            s: KioskChrome.scaleOf(
                 context, 56.4 * s / KioskChromeSpec.backDiameter),
             onTap: () => KioskNavigationHelper.backTo(
                 context, RouterHelper.kioskCheckoutEmailScreen),

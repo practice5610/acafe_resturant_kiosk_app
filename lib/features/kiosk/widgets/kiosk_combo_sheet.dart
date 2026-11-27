@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
@@ -155,10 +156,7 @@ class _KioskComboSheetState extends State<_KioskComboSheet> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _Header(
-                                s: s,
-                                backSize: m.backSize,
-                                titleSize: m.titleSize),
+                            _Header(s: s, titleSize: m.titleSize),
                             SizedBox(height: m.optionTopGap),
                             Row(
                               children: [
@@ -292,21 +290,21 @@ class _KioskComboSheetState extends State<_KioskComboSheet> {
 
 class _Header extends StatelessWidget {
   final double s;
-  final double backSize;
   final double titleSize;
   const _Header({
     required this.s,
-    required this.backSize,
     required this.titleSize,
   });
 
   @override
   Widget build(BuildContext context) {
+    final double cs = KioskChrome.scaleOf(context);
+    final double back = KioskBackButton.diameterFor(context, cs);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        KioskCircleBack(
-          size: backSize,
+        KioskBackButton(
+          s: cs,
           onTap: () => Navigator.of(context).pop(false),
         ),
         Expanded(
@@ -328,7 +326,7 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(width: backSize),
+        SizedBox(width: back),
       ],
     );
   }
@@ -549,7 +547,6 @@ class _NextBar extends StatelessWidget {
 class _ComboMetrics {
   final double sheetWidth;
   final double pad;
-  final double backSize;
   final double titleSize;
   final double cardWidth;
   final double cardHeight;
@@ -590,7 +587,6 @@ class _ComboMetrics {
   const _ComboMetrics({
     required this.sheetWidth,
     required this.pad,
-    required this.backSize,
     required this.titleSize,
     required this.cardWidth,
     required this.cardHeight,
@@ -640,7 +636,6 @@ class _ComboMetrics {
     return _ComboMetrics(
       sheetWidth: sheetWidth,
       pad: 22.74 * f,
-      backSize: (50.89 * f).clamp(28.0, 86.0),
       titleSize: (26 * f).clamp(13.0, 40.0),
       cardWidth: cardWidth,
       cardHeight: cardHeight,

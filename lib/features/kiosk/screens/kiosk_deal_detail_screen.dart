@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/providers/product_provider.dart';
@@ -198,8 +199,8 @@ class _KioskDealDetailScreenState extends State<KioskDealDetailScreen> {
     Navigator.of(context).pushReplacement(
       KioskAddedToCartScreen.route(
         heroImage: KioskProductImageHelper.resolveUrl(
-          productImageBaseUrl: splash.baseUrls?.dealImageUrl ??
-              splash.baseUrls?.productImageUrl,
+          productImageBaseUrl:
+              splash.baseUrls?.dealImageUrl ?? splash.baseUrls?.productImageUrl,
           filename: _deal.image,
         ),
         // Same payable the cart bar and cart screen show, coupon included —
@@ -230,9 +231,9 @@ class _KioskDealDetailScreenState extends State<KioskDealDetailScreen> {
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
               child: Row(
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back, size: 28),
+                  KioskBackButton(
+                    s: KioskChrome.scaleOf(context),
+                    onTap: () => Navigator.of(context).pop(),
                   ),
                   Expanded(
                     child: Text(
@@ -242,7 +243,9 @@ class _KioskDealDetailScreenState extends State<KioskDealDetailScreen> {
                           fontSize: 22, color: Colors.black),
                     ),
                   ),
-                  const SizedBox(width: 48),
+                  SizedBox(
+                      width: KioskBackButton.diameterFor(
+                          context, KioskChrome.scaleOf(context))),
                 ],
               ),
             ),
@@ -491,8 +494,8 @@ class _DealPriceBreakdown extends StatelessWidget {
           Text(
             '${kioskTranslate(context, 'you_save', 'You save')} ${PriceConverterHelper.convertPrice(deal.savings)}'
             '${deal.savingsPercent > 0 ? ' (${deal.savingsPercent}%)' : ''}',
-            style: loewRegular.copyWith(
-                fontSize: 13, color: KioskUI.popularGreen),
+            style:
+                loewRegular.copyWith(fontSize: 13, color: KioskUI.popularGreen),
           ),
         ],
       ),

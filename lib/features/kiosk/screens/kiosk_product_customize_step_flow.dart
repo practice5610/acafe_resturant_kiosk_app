@@ -474,8 +474,8 @@ class _KioskProductCustomizeStepScreenState
                   ),
                 );
                 final double gutter = KioskCustomizeSpec.gutter * s;
-                // Version B is the flat unified chrome scale: no min().
-                final double chromeScale = KioskChrome.scaleOf(context);
+                // Chrome: the reference scale, capped by this page's own scale.
+                final double chromeScale = KioskChrome.scaleOf(context, s);
 
                 return KioskCenteredContent(
                   maxWidth: column,
@@ -696,7 +696,7 @@ class _StepProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double cs = KioskChrome.scaleOf(context);
+    final double cs = KioskChrome.scaleOf(context, s);
     final List<Widget> row = [];
     for (int i = 0; i < steps.length; i++) {
       row.add(
@@ -742,7 +742,7 @@ class _StepProgressBar extends StatelessWidget {
           ),
         ),
         // Balances the back button so the bar stays optically centred.
-        SizedBox(width: KioskBackButton.diameterFor(cs)),
+        SizedBox(width: KioskBackButton.diameterFor(context, cs)),
       ],
     );
   }
@@ -883,7 +883,7 @@ class _LegacyStepProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     // Only the landscape customize still mounts this bar. It is height-budgeted
     // like Version A, so its chrome follows the same never-larger `min()` form.
-    final double cs = KioskChrome.scaleOfVersionA(context, s);
+    final double cs = KioskChrome.scaleOf(context, s);
     final List<Widget> row = [];
     for (int i = 0; i < steps.length; i++) {
       row.add(
@@ -920,7 +920,7 @@ class _LegacyStepProgressBar extends StatelessWidget {
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: row),
         ),
         // Balances the back button so the bar stays optically centred.
-        SizedBox(width: KioskBackButton.diameterFor(cs)),
+        SizedBox(width: KioskBackButton.diameterFor(context, cs)),
       ],
     );
   }
@@ -1058,8 +1058,7 @@ class _StepActionBar extends StatelessWidget {
         getTranslated('next', context)?.toUpperCase() ?? 'NEXT';
 
     return KioskActionBar(
-      // Version B: the flat unified chrome scale.
-      s: KioskChrome.scaleOf(context),
+      s: KioskChrome.scaleOf(context, s),
       actions: [
         KioskBarAction(
           filled: false,

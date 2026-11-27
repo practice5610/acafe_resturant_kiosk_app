@@ -1,3 +1,5 @@
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/common/models/language_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
@@ -39,7 +41,6 @@ const double _kFlagSize = 91; // Figma layer: `Frame · 91 × 91`
 const double _kTitleSize = 80;
 const double _kSubtitleSize = 40;
 const double _kLabelSize = 48;
-const double _kBackButtonSize = 160;
 
 // Palette — (inspect) Background colors #FBF8EF.
 const Color _kSheetSurface = Color(0xFFFBF8EF);
@@ -251,7 +252,10 @@ class KioskLanguageCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  _CircleBackButton(s: s, onTap: onClose ?? () {}),
+                  KioskBackButton(
+                    s: KioskChrome.scaleOf(context),
+                    onTap: onClose ?? () {},
+                  ),
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24 * s),
@@ -270,7 +274,9 @@ class KioskLanguageCard extends StatelessWidget {
                     ),
                   ),
                   // Mirrors the back button so the title centres on the card.
-                  SizedBox(width: _kBackButtonSize * s),
+                  SizedBox(
+                      width: KioskBackButton.diameterFor(
+                          context, KioskChrome.scaleOf(context))),
                 ],
               ),
               SizedBox(height: _kCardGap * s),
@@ -372,33 +378,6 @@ class _LanguageRow extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CircleBackButton extends StatelessWidget {
-  final double s;
-  final VoidCallback onTap;
-  const _CircleBackButton({required this.s, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final double size = _kBackButtonSize * s;
-    return KioskTap(
-      onTap: onTap,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: _kSheetInk,
-            width: (_kCardBorder * s).clamp(1.2, _kCardBorder),
-          ),
-        ),
-        child: Icon(Icons.chevron_left_rounded,
-            size: size * 0.6, color: _kSheetInk),
       ),
     );
   }

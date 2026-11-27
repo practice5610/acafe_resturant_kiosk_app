@@ -1415,8 +1415,8 @@ class _LandscapeChoicesModal extends StatelessWidget {
                 children: [
                   KioskBackButton(
                     // Landscape variant: never larger than it is today.
-                    s: KioskChrome.scaleOfVersionA(context,
-                        m.px(44.585) / KioskChromeSpec.backDiameter),
+                    s: KioskChrome.scaleOf(
+                        context, m.px(44.585) / KioskChromeSpec.backDiameter),
                     onTap: () => Navigator.of(context).pop(),
                   ),
                   Expanded(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
@@ -55,17 +56,18 @@ class _Spec {
   static const double headerH = 157; // title box
   static const double backLeft = 65; // sheet left (247) → back (312)
   static const double backTop = 8; // title top (702) → back top (710)
-  static const double backSize = 141;
   static const double titleW = 946;
   static const double titleSize = 72; // Loew ExtraBold, leading 1
   static const double titleToGrid = 142; // 859 → 1001
-  static const double gridToButton = 127; // Figma 05d: last row end → label centre 190, less half the 126 box
+  static const double gridToButton =
+      127; // Figma 05d: last row end → label centre 190, less half the 126 box
   static const double buttonW = 571;
   static const double buttonH = 126;
   // 47 at this basis reads as ~17px on screen (matches Figma 05d's "NO,
   // THANK YOU!" — bigger than the 05d-predecessor's ~13px).
   static const double buttonText = 47; // Loew Bold
-  static const double padBottom = 100; // Figma 05d: label centre → sheet end 163, less half the box
+  static const double padBottom =
+      100; // Figma 05d: label centre → sheet end 163, less half the box
 }
 
 /// How many suggestions the grid offers. Six fills two rows of three without
@@ -289,8 +291,8 @@ class _Header extends StatelessWidget {
           Positioned(
             left: _Spec.backLeft * k,
             top: _Spec.backTop * k,
-            child: KioskCircleBack(
-              size: _Spec.backSize * k,
+            child: KioskBackButton(
+              s: KioskChrome.scaleOf(context),
               onTap: () => Navigator.of(context).pop(),
             ),
           ),

@@ -154,7 +154,7 @@ class _KioskCheckoutNameScreenState extends State<KioskCheckoutNameScreen> {
       ),
       bottomActions: [
         KioskBarAction(
-          label: getTranslated('next', context)?.toUpperCase() ?? 'NEXT',
+          label: getTranslated('next', context) ?? 'Next',
           filled: true,
           onTap: _next,
         ),

@@ -1402,7 +1402,7 @@ class _Header extends StatelessWidget {
     final String description = kioskProductDescription(product);
     // Version A back button: the never-larger `min()` form, with its insets at
     // the same chrome scale so inset and diameter stay in proportion.
-    final double chromeScale = KioskChrome.scaleOfVersionA(context, s);
+    final double chromeScale = KioskChrome.scaleOf(context, s);
 
     return Stack(
       // The back button's inset is measured from the screen's chrome inset, not
@@ -3734,7 +3734,7 @@ class _ActionBar extends StatelessWidget {
 
     return KioskActionBar(
       // Version A: height-budgeted, so the never-larger `min()` form.
-      s: KioskChrome.scaleOfVersionA(context, s),
+      s: KioskChrome.scaleOf(context, s),
       actions: [
         KioskBarAction(
           filled: false,

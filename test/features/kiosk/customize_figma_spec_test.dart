@@ -110,7 +110,7 @@ void main() {
 
     test('boxes match the artboard', () {
       // `Group 97` back button, `Group 95` stepper, `Group 167` action bar.
-      expect(KioskCustomizeSpec.backButton, 141);
+      expect(KioskCustomizeSpec.backButton, 100);
       expect(KioskCustomizeSpec.stepperButtonWidth, 150);
       expect(KioskCustomizeSpec.stepperButtonHeight, 114);
       expect(KioskCustomizeSpec.actionHeight, 252);
@@ -250,9 +250,9 @@ void main() {
           reason: 'the one-off bar should be gone');
     });
 
-    test('Version A sizes the bar with the never-larger chrome scale', () {
+    test('Version A caps the bar with its own page scale', () {
       final String body = source.substring(source.indexOf('class _ActionBar'));
-      expect(body, contains('KioskChrome.scaleOfVersionA('),
+      expect(body, contains('KioskChrome.scaleOf(context, s)'),
           reason: 'the page is height-budgeted: its bar may never grow past '
               'the budget the page was fitted to');
     });

@@ -273,7 +273,7 @@ class _KioskCouponScreenState extends State<KioskCouponScreen> {
               final double column = constraints.maxWidth > constraints.maxHeight
                   ? kioskReadingColumnWidth(width: band, landscape: true)
                   : band;
-              final double headerHeight = _headerHeight(cs);
+              final double headerHeight = _headerHeight(context, cs);
               final double barHeight = KioskChromeSpec.barBlock * cs;
               final double regionHeight =
                   constraints.maxHeight - headerHeight - barHeight;
@@ -444,9 +444,9 @@ const double _kMaxGapFactor = 2.2;
 
 /// Height of the fixed header row at chrome scale [cs]: the top inset, then the
 /// taller of the back button and the wordmark.
-double _headerHeight(double cs) =>
+double _headerHeight(BuildContext context, double cs) =>
     KioskChromeSpec.insetTop * cs +
-    math.max(KioskBackButton.diameterFor(cs), _kLogoHeight * cs);
+    math.max(KioskBackButton.diameterFor(context, cs), _kLogoHeight * cs);
 
 /// Resolved sizing of the flexible region for one measured box.
 class _KioskCouponMetrics {
@@ -523,7 +523,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: _headerHeight(cs),
+      height: _headerHeight(context, cs),
       child: Padding(
         padding: EdgeInsets.only(top: KioskChromeSpec.insetTop * cs),
         child: Stack(

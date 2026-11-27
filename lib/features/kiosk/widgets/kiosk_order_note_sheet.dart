@@ -265,7 +265,7 @@ class _NoteCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: KioskBackButton(
                   // Legacy-sized popup: never larger than it is today.
-                  s: KioskChrome.scaleOfVersionA(
+                  s: KioskChrome.scaleOf(
                       context, _backSize * s / KioskChromeSpec.backDiameter),
                   onTap: onBack,
                 ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:acafe_customer/features/kiosk/widgets/kiosk_ui.dart';
+import 'package:acafe_customer/features/kiosk/domain/kiosk_chrome_spec.dart';
 import 'package:acafe_customer/common/models/language_model.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_language_offering.dart';
@@ -31,7 +33,6 @@ const double _kCardGap = 23.1;
 const double _kCardRadius = 10.83;
 const double _kCardBorder = 2.17;
 
-const double _kBackButtonSize = 50.9;
 const double _kTitleSize = 26;
 const double _kSubtitleSize = 17.3;
 
@@ -160,8 +161,8 @@ class LandscapeLanguageCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                _CircleBackButton(
-                  s: s,
+                KioskBackButton(
+                  s: KioskChrome.scaleOf(context),
                   onTap: onClose ?? () {},
                 ),
                 Expanded(
@@ -180,7 +181,9 @@ class LandscapeLanguageCard extends StatelessWidget {
                   ),
                 ),
                 // Mirrors the back button so the title centres on the card.
-                SizedBox(width: _kBackButtonSize * s),
+                SizedBox(
+                    width: KioskBackButton.diameterFor(
+                        context, KioskChrome.scaleOf(context))),
               ],
             ),
             SizedBox(height: _kCardGap * s),
@@ -249,7 +252,9 @@ class _LanguageRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(_kRowRadius * s),
             border: Border.all(
               color: selected ? Colors.black : _kRowBorderIdle,
-              width: selected ? (1.81 * s).clamp(1.0, 1.81) : (1.08 * s).clamp(1.0, 1.08),
+              width: selected
+                  ? (1.81 * s).clamp(1.0, 1.81)
+                  : (1.08 * s).clamp(1.0, 1.08),
             ),
           ),
           child: Row(
@@ -279,33 +284,6 @@ class _LanguageRow extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CircleBackButton extends StatelessWidget {
-  final double s;
-  final VoidCallback onTap;
-  const _CircleBackButton({required this.s, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final double size = _kBackButtonSize * s;
-    return KioskTap(
-      onTap: onTap,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: _kCardInk,
-            width: (1.5 * s).clamp(1.0, 2.5),
-          ),
-        ),
-        child: Icon(Icons.chevron_left_rounded,
-            size: size * 0.6, color: _kCardInk),
       ),
     );
   }

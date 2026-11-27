@@ -395,41 +395,6 @@ class KioskCategoryTile extends StatelessWidget {
   }
 }
 
-/// Circular back control used inside kiosk dialogs (upsell, combo).
-///
-/// Border and icon scale with [size] so the same widget holds its proportions
-/// on a laptop window and a 4K kiosk. Screens that need a navigation fallback
-/// when `canPop` is false should use [KioskBackButton] instead.
-class KioskCircleBack extends StatelessWidget {
-  final double size;
-  final VoidCallback onTap;
-  const KioskCircleBack({super.key, required this.size, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: KioskTap(
-        onTap: onTap,
-        child: Container(
-          width: size,
-          height: size,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-                color: Colors.black, width: (size * 0.035).clamp(1.2, 3.0)),
-          ),
-          child: Icon(Icons.arrow_back_ios_new_rounded,
-              size: size * 0.42, color: Colors.black),
-        ),
-      ),
-    );
-  }
-}
-
 /// THE kiosk back button: black-outlined circle with a chevron.
 ///
 /// One constructor, no size / border / icon overrides: every dimension comes
@@ -441,8 +406,7 @@ class KioskCircleBack extends StatelessWidget {
 /// is given, so back never silently fails when `canPop` is false (e.g. direct
 /// URL to cart). Pass [fallback] for screen-specific targets.
 class KioskBackButton extends StatelessWidget {
-  /// Chrome scale: [KioskChrome.scaleOf] (or, Version A only,
-  /// [KioskChrome.scaleOfVersionA]).
+  /// Chrome scale: always [KioskChrome.scaleOf].
   final double s;
   final VoidCallback? onTap;
   final VoidCallback? fallback;
@@ -455,7 +419,8 @@ class KioskBackButton extends StatelessWidget {
   });
 
   /// Rendered diameter at chrome scale [s].
-  static double diameterFor(double s) => KioskChromeSpec.backDiameter * s;
+  static double diameterFor(BuildContext context, double s) =>
+      KioskChromeSpec.backDiameter * s * KioskChrome.backFactorOf(context);
 
   void _handleTap(BuildContext context) {
     if (onTap != null) {
@@ -467,21 +432,23 @@ class KioskBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Portrait draws the whole button (diameter, outline, arrow) 10% larger.
+    final double bs = s * KioskChrome.backFactorOf(context);
     return KioskTap(
       onTap: () => _handleTap(context),
       child: Material(
         color: Colors.transparent,
         shape: CircleBorder(
           side: BorderSide(
-              color: Colors.black, width: KioskChromeSpec.backBorderWidth(s)),
+              color: Colors.black, width: KioskChromeSpec.backBorderWidth(bs)),
         ),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
-          width: diameterFor(s),
-          height: diameterFor(s),
+          width: diameterFor(context, s),
+          height: diameterFor(context, s),
           child: Icon(
             Icons.arrow_back_ios_new,
-            size: KioskChromeSpec.backIcon * s,
+            size: KioskChromeSpec.backIcon * bs,
             color: Colors.black,
           ),
         ),
@@ -521,7 +488,7 @@ class KioskHeaderBar extends StatelessWidget {
     // Back button, its insets and the row it sits in are CHROME: they follow
     // the shared chrome scale, not this screen's content scale.
     final double cs = KioskChrome.scaleOf(context);
-    final double back = KioskBackButton.diameterFor(cs);
+    final double back = KioskBackButton.diameterFor(context, cs);
     return Padding(
       padding: EdgeInsets.fromLTRB(
         KioskChromeSpec.insetLeft * cs,

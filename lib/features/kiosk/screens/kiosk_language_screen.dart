@@ -140,7 +140,7 @@ class _KioskLanguageScreenState extends State<KioskLanguageScreen> {
                           ),
                           SizedBox(
                               width: KioskBackButton.diameterFor(
-                                  KioskChrome.scaleOf(context))),
+                                  context, KioskChrome.scaleOf(context))),
                         ],
                       ),
                     ),
