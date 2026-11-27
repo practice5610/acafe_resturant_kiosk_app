@@ -372,7 +372,7 @@ class _OrderNoteBar extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: loewRegular.copyWith(
-                          fontSize: 56 * s,
+                          fontSize: 37 * s,
                           height: 1,
                           color: Colors.black,
                         ),
@@ -385,7 +385,7 @@ class _OrderNoteBar extends StatelessWidget {
                             getTranslated('add_an_order_note', context) ??
                                 'Add an order note',
                             style: loewExtraBold.copyWith(
-                                fontSize: 72 * s,
+                                fontSize: 47.5 * s,
                                 height: 1,
                                 color: const Color(0xFF231F20)),
                           ),
@@ -397,7 +397,7 @@ class _OrderNoteBar extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: loewRegular.copyWith(
-                              fontSize: 56 * s,
+                              fontSize: 37 * s,
                               height: 1,
                               color: TextTones.hint,
                             ),
@@ -410,7 +410,7 @@ class _OrderNoteBar extends StatelessWidget {
               // wrapper on the written state, matching the Figma note row.
               Icon(
                 hasNote ? Icons.edit_outlined : Icons.add,
-                size: (hasNote ? 64 * s : 80 * s).clamp(32.0, 100.0),
+                size: (hasNote ? 42 * s : 53 * s).clamp(32.0, 100.0),
                 color: hasNote
                     ? Colors.black
                     : Colors.black.withValues(alpha: 0.6),
@@ -525,7 +525,7 @@ class _Footer extends StatelessWidget {
           (getTranslated('total', context) ?? 'TOTAL').toUpperCase(),
           maxLines: 1,
           style: loewExtraBold.copyWith(
-            fontSize: 216 * s,
+            fontSize: 142.6 * s,
             height: 1,
             color: Colors.black,
           ),
@@ -541,7 +541,7 @@ class _Footer extends StatelessWidget {
               kioskCommaPrice(total),
               maxLines: 1,
               style: loewRegular.copyWith(
-                fontSize: 256 * s,
+                fontSize: 169 * s,
                 height: 1,
                 color: Colors.black,
               ),
