@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:acafe_customer/common/models/cart_model.dart';
 import 'package:acafe_customer/common/models/product_model.dart';
 import 'package:acafe_customer/common/responsive/kiosk_layout.dart';
+import 'package:acafe_customer/common/widgets/custom_asset_image_widget.dart';
 import 'package:acafe_customer/common/widgets/custom_image_widget.dart';
+import 'package:acafe_customer/helper/price_converter_helper.dart';
 import 'package:acafe_customer/features/cart/providers/cart_provider.dart';
 import 'package:acafe_customer/features/category/providers/category_provider.dart';
 import 'package:acafe_customer/features/kiosk/domain/kiosk_allergen.dart';
@@ -306,7 +308,7 @@ class _CardSpec {
   _CardSpec._();
 
   static const double cardW = 346.385;
-  static const double cardH = 285.13;
+  static const double cardH = 330;
   static const double radius = 10.106;
   static const double border = 2.166;
   static const double labelSize = 13;
@@ -360,15 +362,73 @@ class _SuggestionCard extends StatelessWidget {
                 ? Column(
                     children: [
                       Expanded(child: _image(context)),
-                      SizedBox(height: inset * 0.5),
-                      _label(labelSize),
+                      SizedBox(height: inset * 0.6),
+                      ..._textBlock(labelSize, ts),
                     ],
                   )
-                : Center(child: _label(labelSize)),
+                : Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: _textBlock(labelSize, ts),
+                    ),
+                  ),
           ),
         ),
       ),
     );
+  }
+
+  /// Allergen icons (only when the product has any) above name, price below.
+  List<Widget> _textBlock(double labelSize, double ts) {
+    final allergens = kioskProductAllergens(product).toList();
+    final double icon = (22 * ts).clamp(14.0, 30.0);
+    return [
+      if (allergens.isNotEmpty) ...[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (int i = 0; i < allergens.length; i++) ...[
+              if (i > 0) SizedBox(width: icon * 0.25),
+              Container(
+                width: icon,
+                height: icon,
+                decoration: BoxDecoration(
+                  color: allergens[i].swatch,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: CustomAssetImageWidget(
+                    allergens[i].icon,
+                    width: icon * 0.57,
+                    height: icon * 0.57,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        SizedBox(height: icon * 0.2),
+      ],
+      _label(labelSize),
+      SizedBox(height: labelSize * 0.7),
+      Text(
+        PriceConverterHelper.convertPrice(
+          product.price,
+          discount: product.discount,
+          discountType: product.discountType,
+        ),
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: poppinsRegular.copyWith(
+          fontSize: labelSize,
+          height: 1.1,
+          color: const Color(0xFF333333),
+        ),
+      ),
+    ];
   }
 
   Widget _label(double labelSize) => Text(
