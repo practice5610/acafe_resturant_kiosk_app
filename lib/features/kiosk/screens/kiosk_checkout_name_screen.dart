@@ -111,7 +111,7 @@ class _KioskCheckoutNameScreenState extends State<KioskCheckoutNameScreen> {
       title: "What's your name?",
       subtitle: "We'll use your name when your order is ready for pick up.",
       subtitleFontSize: 48,
-      fieldGap: 507,
+      // Same subtitle -> field gap as the email step (the scaffold default).
       fieldBuilder: (s) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -198,7 +198,7 @@ class KioskCheckoutScaffold extends StatelessWidget {
     required this.fieldBuilder,
     required this.bottomActions,
     this.subtitleFontSize = 48,
-    this.fieldGap = 380,
+    this.fieldGap = 330,
     this.panelBuilder,
     this.panelGap = 195,
   });
@@ -244,8 +244,10 @@ class KioskCheckoutScaffold extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  // Figma: header ends ~396, title top 559.
-                                  SizedBox(height: landscape ? 48 * s : 163 * s),
+                                  // Sits higher than the Figma 163 so the field and
+                                  // keyboard below it start further up the screen.
+                                  SizedBox(
+                                      height: landscape ? 48 * s : 110 * s),
                                   Text(
                                     title,
                                     textAlign: TextAlign.center,
@@ -597,7 +599,9 @@ class KioskCheckoutField extends StatelessWidget {
         // Figma: label top -> field top is ~141 (86 line + 55).
         SizedBox(height: 55 * s),
         Container(
-          constraints: BoxConstraints(minHeight: 252 * s),
+          // Much slimmer than the action bar (252) so it never reads as a
+          // button; 170 keeps the 64px type comfortably centred.
+          constraints: BoxConstraints(minHeight: 170 * s),
           alignment: Alignment.center,
           padding: EdgeInsets.symmetric(horizontal: 64 * s),
           decoration: BoxDecoration(
@@ -621,8 +625,10 @@ class KioskCheckoutField extends StatelessWidget {
               isCollapsed: true,
               border: InputBorder.none,
               hintText: hint,
+              // Smaller than the 64 the typed name / email is set in, so the
+              // placeholder reads as a hint and not as an entry.
               hintStyle: loewRegular.copyWith(
-                  fontSize: 64 * s, color: kCheckoutHintColor),
+                  fontSize: 48 * s, color: kCheckoutHintColor),
             ),
             onChanged: onChanged,
             onSubmitted: onSubmitted,
