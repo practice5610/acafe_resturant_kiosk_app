@@ -302,12 +302,12 @@ class _ConfirmLayout {
   double get titleGap => landscape ? 32 : 50;
   double get lineGap => landscape ? 32 : 50;
   double get footerPadTop => landscape ? 48 : 69;
-  double get rowLabelSize => landscape ? 52 : 64;
-  double get rowValueSize => landscape ? 76 : 100;
+  double get rowLabelSize => landscape ? 52 : 41.9;
+  double get rowValueSize => landscape ? 76 : 65.6;
   double get rowGap => landscape ? 14 : 18;
   double get totalGap => landscape ? 32 : 50;
-  double get totalLabelSize => landscape ? 120 : 200;
-  double get totalValueSize => landscape ? 108 : 180;
+  double get totalLabelSize => landscape ? 120 : 131.2;
+  double get totalValueSize => landscape ? 108 : 118.1;
 
   /// Square thumbnails on a wide screen: the Figma portrait crop makes a
   /// single line a third of the viewport, so the next item never shows.
